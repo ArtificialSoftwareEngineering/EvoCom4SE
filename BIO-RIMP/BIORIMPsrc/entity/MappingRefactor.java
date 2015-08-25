@@ -12,8 +12,8 @@ public abstract class MappingRefactor {
 	private OBSERVRefactoring refactor;
 	private Refactoring type;
 	
-	public abstract OBSERVRefactoring mappingRefactor(Hashtable<String,Integer> genetic_marker, 
-			QubitArray genome,
+	public abstract OBSERVRefactoring mappingRefactor(
+			QubitRefactor genome,
 			MetaphorCode code);
 	
 	public abstract List<OBSERVRefParam> mappingParams();

@@ -24,24 +24,19 @@ public class MappingRefactorPUF extends MappingRefactor {
 	
 	
 	@Override
-	public OBSERVRefactoring mappingRefactor(Hashtable<String,Integer> genetic_marker, 
-			QubitArray genome,
+	public OBSERVRefactoring mappingRefactor(
+			QubitRefactor genome,
 			MetaphorCode code) {
-		
-		QubitArray reader_genome = genome;
 		
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 		
 		//Creating the OBSERVRefParam for the src class
 		//This number represent a position for obtaining a class in builder
 		int numSrcObs = 0;
-		int Q_TAM = BitArrayConverter.getNumber(
-				reader_genome.get(genetic_marker.get("BASE").intValue() + genetic_marker.get("TAM").intValue() ).getObservationQubit(), 
-				0, 
-				reader_genome.get(genetic_marker.get("BASE").intValue() + genetic_marker.get("TAM").intValue() ).getObservationQubit().size()); 
 		int window = 0;
-		for(int i=0; i < Q_TAM; i++){
-			numSrcObs = BitArrayConverter.getNumber(genome, 0, genome.size());
+		for(int i = 0; i < genome.getGenSRC().size(); i = i+genome.getSRC()){
+			
+			numSrcObs = BitArrayConverter.getNumber(genome.getGenSRC().getGenObservation(), 0, genome.getGenSRC().getGenObservation().size());
 			List<String> value_src  = new ArrayList<String>();
 			TypeDeclaration sysType_src = code.getMapClass().get(numSrcObs % 
 					code.getMapClass().size());

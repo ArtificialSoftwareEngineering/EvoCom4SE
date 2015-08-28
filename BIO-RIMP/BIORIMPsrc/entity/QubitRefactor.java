@@ -6,6 +6,7 @@ package entity;
 import java.util.ArrayList;
 
 import unalcol.types.collection.bitarray.BitArray;
+import unalcol.types.collection.bitarray.BitArrayConverter;
 import unalcol.types.integer.IntUtil;
 
 /**
@@ -278,6 +279,20 @@ public class QubitRefactor implements Cloneable {
 	  public Object clone() {
 	    return new QubitRefactor(this);
 	  }
-
+	  
+	  
+     /**
+	   * Gets integer representation of the given genome 
+	   * @return The integer representation
+	   */	  
+	  public int getNumberGenome(QubitArray genome){
+		  return BitArrayConverter.getNumber(
+				  genome.getGenObservation(), 0, genome.getGenObservation().size());
+	  }
+	  
+	  public int getNumberGenome(QubitArray genome, int start, int lenght){
+		  return BitArrayConverter.getNumber(
+				  genome.getGenObservation(), start, lenght);
+	  }
 
 }

@@ -68,12 +68,9 @@ public class CodeDecodeRefactorList
 		
 		MappingRefactor mappingRefactor=null;
 		
-		for(int i = 0; i <= genome.size(); i=i++){
+		for(int i = 0; i < genome.size(); i++){
 			//SubIndex of the RefactoringType
-			mapRefactor = BitArrayConverter.getNumber(
-					genome.get(i).getGenRefactor().getGenObservation(), 
-					0, 
-					genome.get(i).getGenRefactor().getGenObservation().size()) 
+			mapRefactor = genome.get(i).getNumberGenome(genome.get(i).getGenRefactor())
 					%	(Refactoring.values().length-1);
 			//According to the RefactoringType is selected the params mapping
 			switch(mapRefactor){

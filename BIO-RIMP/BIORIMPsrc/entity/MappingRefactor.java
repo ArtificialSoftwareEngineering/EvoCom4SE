@@ -10,7 +10,7 @@ import unalcol.types.collection.bitarray.BitArray;
 public abstract class MappingRefactor {
 	
 	private OBSERVRefactoring refactor;
-	private Refactoring type;
+	protected Refactoring type;
 	
 	public abstract OBSERVRefactoring mappingRefactor(
 			QubitRefactor genome,

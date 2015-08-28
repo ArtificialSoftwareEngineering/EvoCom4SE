@@ -25,7 +25,13 @@ public class MetaphorCode {
 	private List<TypeDeclaration> sysTypeDcls;
 	private HashMap<Integer,TypeDeclaration> mapClass=
 			new HashMap<Integer,TypeDeclaration>();
+	
+	private HashMap<Integer,TypeDeclaration> mapNewClass=
+			new HashMap<Integer,TypeDeclaration>();
+	
 	private ProgLang lang;
+	
+	private int COUNTER = 0;
 	public MetaphorCode() {
 	}
 	
@@ -36,8 +42,15 @@ public class MetaphorCode {
 		for (TypeDeclaration typeDcl : sysTypeDcls) {
 			//array = new BitArray(tamBitArray,false);
 			//BitArrayConverter.setNumber(array, 0, tamBitArray, i++); //set number inside bitarray
-			mapClass.put(i++, typeDcl);
+			this.mapClass.put(i++, typeDcl);
 		}
+	}
+	
+	//Method for adding a class into the HashMap
+	
+	public void addClasstoHash(String pack, String name){
+		this.mapNewClass.put(COUNTER++, 
+				new TypeDeclaration(pack,name));
 	}
 	
 	//Get the complete list of Methods of a specific class

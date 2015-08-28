@@ -44,7 +44,7 @@ public class MainHillClimbing {
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
         String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
-        MainMetrics.main(args);
+        //MainMetrics.main(args);
         
         //Second Step: Create the structures for the prediction
         MetaphorCode metaphor = new MetaphorCode();

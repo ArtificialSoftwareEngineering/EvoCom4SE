@@ -20,7 +20,7 @@ import unalcol.types.collection.bitarray.BitArrayConverter;
  */
 public class MappingRefactorPUF extends MappingRefactor {
 	
-	private Refactoring type = Refactoring.pullUpField;
+	protected Refactoring type = Refactoring.pullUpField;
 	
 	
 	@Override
@@ -31,29 +31,35 @@ public class MappingRefactorPUF extends MappingRefactor {
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 		
 		//Creating the OBSERVRefParam for the src class
-		//This number represent a position for obtaining a class in builder
+		TypeDeclaration sysType_src = null;
+		List<String> value_src  = new ArrayList<String>();
+		
 		int numSrcObs = 0;
-		int window = 0;
+		
 		for(int i = 0; i < genome.getGenSRC().size(); i = i+genome.getSRC()){
-			
-			numSrcObs = BitArrayConverter.getNumber(genome.getGenSRC().getGenObservation(), 0, genome.getGenSRC().getGenObservation().size());
-			List<String> value_src  = new ArrayList<String>();
-			TypeDeclaration sysType_src = code.getMapClass().get(numSrcObs % 
+			numSrcObs = genome.getNumberGenome(genome.getGenSRC(), i, genome.getSRC());
+			sysType_src = code.getMapClass().get(numSrcObs % 
 					code.getMapClass().size());
 			value_src.add(sysType_src.getQualifiedName());
-			params.add(new OBSERVRefParam("src", value_src));
+			
 		}
+		
+		params.add(new OBSERVRefParam("src", value_src));
+		
 		//Creating the OBSERVRefParam for the fld field
-		//The first half of the code is fld value
-		int numFldObs = BitArrayConverter.getNumber(genome, 0, genome.size()/2);
 		List<String> value_fld  = new ArrayList<String>();
-		value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
-		  % code.getFieldsFromClass(sysType_src).size()]);
-		params.add(new OBSERVRefParam("fld", value_fld));
+		if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+			int numFldObs = genome.getNumberGenome(genome.getGenFLD());
+			value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
+			  % code.getFieldsFromClass(sysType_src).size()]);
+			params.add(new OBSERVRefParam("fld", value_fld));
+		}else{
+			value_fld.add("");
+			params.add(new OBSERVRefParam("fld", value_fld ));
+		}
 		
 		//Creating the OBSERVRefParam for the tgt
-		//The first half of the code is tgt value
-		int numTgtObs = BitArrayConverter.getNumber(genome, genome.size()/2, genome.size()/2);
+		int numTgtObs = genome.getNumberGenome(genome.getGenTGT());
 		List<String> value_tgt  = new ArrayList<String>();
 		TypeDeclaration sysType_tgt = code.getMapClass().get(numTgtObs % 
 				code.getMapClass().size());

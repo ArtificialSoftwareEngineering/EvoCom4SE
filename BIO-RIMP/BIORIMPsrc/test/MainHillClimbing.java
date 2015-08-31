@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import controller.GQSPred;
-import controller.GrowingFunctionQubit;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
@@ -12,6 +11,7 @@ import entity.MetaphorCode;
 import entity.QubitArray;
 import optimization.QubitMutation;
 import optimization.QubitSpace;
+import optimization.RefactoringOperationSpace;
 import unalcol.algorithm.iterative.ForLoopCondition;
 import unalcol.evolution.haea.HAEA;
 import unalcol.evolution.haea.HaeaOperators;
@@ -61,8 +61,9 @@ public class MainHillClimbing {
         
         // Search Space definition
         int DIM = 120;
-        Space<QubitArray> space = new QubitSpace( DIM );       	
-         	
+        //Space<QubitArray> space = new QubitSpace( DIM );    
+        Space<RefactoringOperation > space = new RefactoringOperationSpace( DIM );
+        
         // Variation definition
         QubitMutation variation = new QubitMutation();
              

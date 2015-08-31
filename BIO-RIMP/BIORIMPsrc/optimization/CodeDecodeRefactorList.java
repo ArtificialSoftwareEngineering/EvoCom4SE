@@ -70,8 +70,8 @@ public class CodeDecodeRefactorList
 		
 		for(int i = 0; i < genome.size(); i++){
 			//SubIndex of the RefactoringType
-			mapRefactor = genome.get(i).getNumberGenome(genome.get(i).getGenRefactor())
-					%	(Refactoring.values().length-1);
+			int getnumber = genome.get(i).getNumberGenome(genome.get(i).getGenRefactor());
+			mapRefactor = getnumber  %	(Refactoring.values().length);
 			//According to the RefactoringType is selected the params mapping
 			switch(mapRefactor){
 				case 0:

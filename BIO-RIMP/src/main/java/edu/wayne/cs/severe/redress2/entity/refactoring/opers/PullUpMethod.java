@@ -88,12 +88,38 @@ public class PullUpMethod extends RefactoringType {
 
 		return params;
 	}
-
+	
+	//danaderp vers 1000
 	@Override
 	public HashMap<String, List<RefactoringParameter>> getOBSERVRefactoringParams(List<OBSERVRefParam> jsonParams)
 			throws RefactoringException {
 		// TODO Auto-generated method stub
-		return null;
+		String key = "src";
+		String key2 = "tgt";
+		String key3 = "mtd";
+
+		HashMap<String, OBSERVRefParam> idxParams = RefactoringUtils
+				.validateObservParams(jsonParams, 3, new String[] { key, key2,
+						key3 }, new int[] { 0, 1, 1 });
+
+		HashMap<String, List<RefactoringParameter>> params = new HashMap<String, List<RefactoringParameter>>();
+		OBSERVRefParam jsonParam = idxParams.get(key);
+		List<RefactoringParameter> refParams = RefactoringUtils
+				.getOpersCodeObject(jsonParam, sysTypeDcls,
+						TypeDeclaration.class);
+		params.put(key, refParams);
+
+		jsonParam = idxParams.get(key2);
+		refParams = RefactoringUtils.getOpersCodeObject(jsonParam, sysTypeDcls,
+				TypeDeclaration.class);
+		params.put(key2, refParams);
+
+		jsonParam = idxParams.get(key3);
+		refParams = RefactoringUtils.getOpersCodeObject(jsonParam, sysTypeDcls,
+				MethodDeclaration.class);
+		params.put(key3, refParams);
+
+		return params;
 	}
 
 }

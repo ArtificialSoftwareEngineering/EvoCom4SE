@@ -1,5 +1,6 @@
 package optimization;
 
+import entity.Qubit;
 import entity.QubitArray;
 import unalcol.search.space.Space;
 
@@ -26,9 +27,9 @@ public class QubitSpace extends Space<QubitArray> {
 			if(x.size()>n){
 				x = x.subQubitArray(0,n);
 			}else{
-				x = new QubitArray(n, true);
+				//x = new QubitArray(n, true);
 				for( int i=0; i<n;i++)
-					x.set(i,x.get(i));
+					x.set(new Qubit(true));
 			}
 		}
 		return x;

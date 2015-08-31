@@ -51,5 +51,8 @@ public class RefactoringOperation {
 				+ (params != null ? (params.toString()) : "")
 				+ (subRefs != null ? ("{" + subRefs + "}") : "");
 	}
+	
+	//danaderp vers 1000
+	
 
 }// end RefactoringOperation

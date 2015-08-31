@@ -141,10 +141,11 @@ public class CodeDecodeRefactor
 			}//END CASE
 			
 			if(stillReading){
+				/*
 				refactorings.add(mappingRefactor.mappingRefactor(genetic_marker,
 				    		genome,
 				    		metaphor
-				    		));
+				    		));*/
 				//Cutting the QubitArray
 				genome = genome.subQubitArray(quanticReader);
 			}

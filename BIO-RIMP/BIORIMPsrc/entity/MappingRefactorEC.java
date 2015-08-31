@@ -49,12 +49,18 @@ public class MappingRefactorEC extends MappingRefactor {
 		params.add(new OBSERVRefParam("src", value_src));
 		
 		//Creating the OBSERVRefParam for the fld field
-		int numFldObs = genome.getNumberGenome(genome.getGenFLD());
 		List<String> value_fld  = new ArrayList<String>();
-		String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
-		               % code.getFieldsFromClass(sysType_src).size()];
-		value_fld.add(fldName);
-		params.add(new OBSERVRefParam("fld", value_fld));
+		if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+			int numFldObs = genome.getNumberGenome(genome.getGenFLD());
+			
+			String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
+			               % code.getFieldsFromClass(sysType_src).size()];
+			value_fld.add(fldName);
+			params.add(new OBSERVRefParam("fld", value_fld));
+		}else{
+			value_fld.add("");
+			params.add(new OBSERVRefParam("fld", value_fld ));
+		}
 		
 		//Creating the OBSERVRefParam for the tgt
 		//This Target Class is not inside metaphor
@@ -63,7 +69,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(Refactoring.moveField.name(),params);
 	}
 	
 	public OBSERVRefactoring mappingRefactorMM(QubitRefactor genome, MetaphorCode code,String newClass) {
@@ -93,7 +99,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 		
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(Refactoring.moveMethod.name(),params);
 
 	}
 

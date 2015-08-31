@@ -201,6 +201,10 @@ public class QubitArray implements Cloneable {
 	//public void set(int i, Qubit qubit){
 	//	if(i<data.length) data[i] = qubit;
 	//}
+	
+	public void set(Qubit qubit){
+		data.add(qubit);
+	}
 
 	public void add(int i, Qubit qubit){
 		data.add(i, qubit);
@@ -225,8 +229,9 @@ public class QubitArray implements Cloneable {
 		//Flips on active bits
 		get(i).getBit_act().not();
 		//Flips on non-active bits
-		get(i).getBit_one_non_act().not();
-		get(i).getBit_two_non_act().not();
+		get(i).getNon_act().not();
+		//get(i).getBit_one_non_act().not();
+		//get(i).getBit_two_non_act().not();
 	}
 	
 	/**
@@ -239,10 +244,11 @@ public class QubitArray implements Cloneable {
 	   */
 	public void not_bit(int i) {
 		//Flips on active bits
-		get(i).getBit_act().not(i % get(i).getBITARRAYLENGTH());
+		get(i).getBit_act().not(i % get(i).getBit_act().size());
 		//Flips on non-active bits
-		get(i).getBit_one_non_act().not(i % get(i).getBITARRAYLENGTH());
-		get(i).getBit_two_non_act().not(i % get(i).getBITARRAYLENGTH());
+		get(i).getNon_act().not(i % get(i).getNon_act().size());
+		//get(i).getBit_one_non_act().not(i % get(i).getBITARRAYLENGTH());
+		//get(i).getBit_two_non_act().not(i % get(i).getBITARRAYLENGTH());
 	}
 	
 	/**

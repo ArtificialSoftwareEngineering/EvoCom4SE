@@ -3,7 +3,6 @@
  */
 package test;
 
-import controller.GrowingFunctionQubit;
 import entity.Qubit;
 import entity.QubitArray;
 import optimization.QubitSpace;
@@ -20,6 +19,10 @@ public class testQubit {
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		//Testing QubitArray 
+		QubitArray array = new QubitArray(40,true);
+		System.out.println(array.getGenObservation().toString());
+		
 		//Testing QubitSpace
 		QubitArray arrayS = new QubitArray(5,true);
 		QubitSpace space = new QubitSpace(10);
@@ -38,9 +41,7 @@ public class testQubit {
 		BitArrayConverter.setNumber(testMap, 0, 20, map);
 		System.out.println(testMap.toString());
 		// TODO Auto-generated method stub
-		//Testing QubitArray 
-		QubitArray array = new QubitArray(40,true);
-		System.out.println(array.getGenObservation().toString());
+		
 		
 		//Testing GrowingFunctionQubit
 		//GrowingFunctionQubit grow = new GrowingFunctionQubit();

@@ -89,12 +89,38 @@ public class MoveMethod extends RefactoringType {
 	public String getAcronym() {
 		return "MM";
 	}
-
+	
+	//danaderp 
 	@Override
 	public HashMap<String, List<RefactoringParameter>> getOBSERVRefactoringParams(List<OBSERVRefParam> jsonParams)
 			throws RefactoringException {
 		// TODO Auto-generated method stub
-		return null;
+		String srcKey = "src";
+		String tgtKey = "tgt";
+		String mtdKey = "mtd";
+
+		HashMap<String, OBSERVRefParam> idxParams = RefactoringUtils
+				.validateObservParams(jsonParams, 3, new String[] { srcKey,
+						tgtKey, mtdKey }, new int[] { 1, 1, 1 });
+
+		HashMap<String, List<RefactoringParameter>> params = new HashMap<String, List<RefactoringParameter>>();
+		OBSERVRefParam jsonParam = idxParams.get(srcKey);
+		List<RefactoringParameter> refParams = RefactoringUtils
+				.getOpersCodeObject(jsonParam, sysTypeDcls,
+						TypeDeclaration.class);
+		params.put(srcKey, refParams);
+
+		jsonParam = idxParams.get(tgtKey);
+		refParams = RefactoringUtils.getOpersCodeObject(jsonParam, sysTypeDcls,
+				TypeDeclaration.class);
+		params.put(tgtKey, refParams);
+
+		jsonParam = idxParams.get(mtdKey);
+		refParams = RefactoringUtils.getOpersCodeObject(jsonParam, sysTypeDcls,
+				MethodDeclaration.class);
+		params.put(mtdKey, refParams);
+
+		return params;
 	}
 
 }// end MoveMethod

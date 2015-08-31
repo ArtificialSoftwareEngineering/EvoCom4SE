@@ -27,8 +27,10 @@ public class testCodeDecodeRefactor {
 		//Creating the individual
 		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
-		for(int i = 0; i < 10; i++){
+		for(int i = 0; i < 20; i++){
 			genome.add(new QubitRefactor(true));
+			System.out.println(i+" "+
+			genome.get(i).getGenObservation().toString());
 		}
 		//Processing EncodeDecode
 		CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
@@ -37,7 +39,7 @@ public class testCodeDecodeRefactor {
 		phe = map.decode(genome);
 		
 		for(int i = 0; i < phe.size(); i++){
-			System.out.println(i + phe.get(i).toString());
+			System.out.println(i+" "+ phe.get(i).toString());
 		}
 	}
 

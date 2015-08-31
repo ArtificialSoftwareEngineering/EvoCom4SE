@@ -26,11 +26,11 @@ public class QubitRefactor implements Cloneable {
 	 * The number of Qubits in the Qubit array
 	 */
 	private int n = 5;
-	private int REFACTOR = 3;	//3 Qubits
-	private int SRC = 6;		//6 Qubits
-	private int FLD = 3;		//3 Qubits
-	private int MTD = 3;		//3 Qubits
-	private int TGT = 6; 		//6 Qubits
+	private int REFACTOR = 1;	//5 Qubits
+	private int SRC = 3;		//6 Qubits
+	private int FLD = 2;		//3 Qubits
+	private int MTD = 2;		//3 Qubits
+	private int TGT = 3; 		//6 Qubits
 
 	/**
 	 * Constructor: Creates a clone of the QubitRefactor given as argument

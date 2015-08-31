@@ -21,6 +21,7 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.formulas.PredictionFormula;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.JSONRefParam;
+import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
 import edu.wayne.cs.severe.redress2.entity.refactoring.opers.MoveField;
 import edu.wayne.cs.severe.redress2.entity.refactoring.opers.MoveMethod;
 import edu.wayne.cs.severe.redress2.entity.refactoring.opers.RefactoringType;
@@ -419,6 +420,93 @@ public class RefactoringUtils {
 		double d2 = callsMethodP.size();
 
 		return d1 - d2;
+	}
+	
+	//danaderp ver 1000
+	public static HashMap<String, OBSERVRefParam> validateObservParams(
+			List<OBSERVRefParam> jsonParams, int numParams,
+			String[] expectedParams, int[] expectedParamSize) 
+			throws RefactoringException{
+		// TODO Auto-generated method stub
+		
+		if (jsonParams == null) {
+			throw new RefactoringException("No OBSERV params");
+		}
+
+		if (jsonParams.size() != numParams) {
+			throw new RefactoringException("The size of the OBSERV params ("
+					+ jsonParams.size() + ") is not the required one ("
+					+ numParams + ")");
+		}
+
+		HashMap<String, OBSERVRefParam> map = new HashMap<String, OBSERVRefParam>();
+		for (OBSERVRefParam jsonRefParam : jsonParams) {
+			if (jsonRefParam != null) {
+				map.put(jsonRefParam.getName(), jsonRefParam);
+			}
+		}
+
+		for (int i = 0; i < expectedParams.length; i++) {
+			String expParam = expectedParams[i];
+			int expPrSize = expectedParamSize[i];
+
+			OBSERVRefParam param = map.get(expParam);
+			if (param == null
+					|| param.getValue() == null
+					|| ((expPrSize != 0) ? param.getValue().size() != expPrSize
+							: param.getValue().isEmpty())) {
+				throw new RefactoringException("The " + expParam
+						+ " parameter is incorrect");
+			}
+		}
+
+		return map;
+	}
+
+	public static List<RefactoringParameter> getOpersCodeObject(
+			OBSERVRefParam srcParam, List<TypeDeclaration> sysTypeDcls, 
+			Class<? extends CodeObject> objClass) 
+		    throws RefactoringException{
+		// TODO Auto-generated method stub
+		List<String> objsValues = srcParam.getValue();
+
+		List<RefactoringParameter> values = new ArrayList<RefactoringParameter>();
+		for (String obj : objsValues) {
+
+			String[] objSplit = obj.split("\\|");
+
+			String objName = objSplit[0];
+			String objSt = "E";
+			if (objSplit.length > 1) {
+				objSt = objSplit[1];
+			}
+
+			CodeObjState objState = objStates.get(objSt);
+
+			if (objState == null) {
+				throw new RefactoringException("The object state " + objSt
+						+ " is invalid");
+			}
+
+			CodeObject codeObj = null;
+
+			if (TypeDeclaration.class.equals(objClass)) {
+				codeObj = getObjectClass(objName, objState, sysTypeDcls);
+				if (codeObj == null) {
+					throw new RefactoringException("Class doesn't exist: "
+							+ objName);
+				}
+			} else if (AttributeDeclaration.class.equals(objClass)) {
+				codeObj = new AttributeDeclaration(objName);
+			} else if (MethodDeclaration.class.equals(objClass)) {
+				codeObj = new MethodDeclaration(objName);
+			}
+
+			RefactoringParameter param = new RefactoringParameter(codeObj,
+					objState);
+			values.add(param);
+		}
+		return values;
 	}
 
 }

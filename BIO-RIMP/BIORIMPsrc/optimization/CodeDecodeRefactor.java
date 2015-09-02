@@ -77,7 +77,7 @@ public class CodeDecodeRefactor
 		boolean stillReading = true;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		
-		metaphor.bitAssignerClass(); //Building the hash map
+		//metaphor.bitAssignerClass(); //Building the hash map
 		
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 		

@@ -1,10 +1,13 @@
 package edu.wayne.cs.severe.redress2.main;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.cli.ParseException;
 
 import edu.wayne.cs.severe.redress2.controller.HierarchyBuilder;
+import edu.wayne.cs.severe.redress2.controller.metric.CodeMetric;
 import edu.wayne.cs.severe.redress2.controller.processor.PredFormulasProcessorBIoRIPM;
 import edu.wayne.cs.severe.redress2.entity.ProgLang;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
@@ -25,6 +28,9 @@ public class MainPredFormulasBIoRIPM {
 	private static List<TypeDeclaration> sysTypeDcls;
 	private static HierarchyBuilder builder;
 	private static ProgLang lang;
+	private static ArrayList<CodeMetric> metrics;
+	private static File systemPath;
+	private static String sysName;
 	
 	public void main(String[] args) {
 
@@ -47,7 +53,10 @@ public class MainPredFormulasBIoRIPM {
 			builder = processor.getBuilder();
 			sysTypeDcls = processor.getSysTypeDcls();
 			lang = processor.getLang();
-
+			metrics = processor.getMetrics();
+			systemPath = parser.getSysPath();
+			sysName = parser.getSysName();
+			
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -61,6 +70,24 @@ public class MainPredFormulasBIoRIPM {
 	}
 	public ProgLang getLang() {
 		return lang;
+	}
+	public ArrayList<CodeMetric> getMetrics() {
+		return metrics;
+	}
+	public void setMetrics(ArrayList<CodeMetric> metrics) {
+		MainPredFormulasBIoRIPM.metrics = metrics;
+	}
+	public File getSystemPath() {
+		return systemPath;
+	}
+	public void setSystemPath(File systemPath) {
+		MainPredFormulasBIoRIPM.systemPath = systemPath;
+	}
+	public String getSysName() {
+		return sysName;
+	}
+	public void setSysName(String sysName) {
+		MainPredFormulasBIoRIPM.sysName = sysName;
 	}
 	
 	

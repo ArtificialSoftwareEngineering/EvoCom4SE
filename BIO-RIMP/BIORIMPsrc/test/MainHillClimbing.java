@@ -11,6 +11,7 @@ import entity.MetaphorCode;
 import entity.QubitArray;
 import optimization.QubitMutation;
 import optimization.QubitSpace;
+import optimization.RefOperMutation;
 import optimization.RefactoringOperationSpace;
 import unalcol.algorithm.iterative.ForLoopCondition;
 import unalcol.evolution.haea.HAEA;
@@ -47,12 +48,10 @@ public class MainHillClimbing {
         //MainMetrics.main(args);
         
         //Second Step: Create the structures for the prediction
-        MetaphorCode metaphor = new MetaphorCode();
+        
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
         init.main(args);
-        metaphor.setSysTypeDcls(init.getSysTypeDcls());
-        metaphor.setBuilder(init.getBuilder());
-        metaphor.setLang(init.getLang());
+        MetaphorCode metaphor = new MetaphorCode(init);
         
      	
         //processor.processSytem();
@@ -60,12 +59,12 @@ public class MainHillClimbing {
         //Third Step: Optimization 
         
         // Search Space definition
-        int DIM = 120;
+        int DIM = 12;
         //Space<QubitArray> space = new QubitSpace( DIM );    
-        Space<RefactoringOperation > space = new RefactoringOperationSpace( DIM );
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM );
         
         // Variation definition
-        QubitMutation variation = new QubitMutation();
+        RefOperMutation variation = new RefOperMutation();
              
         // Optimization Function
         OptimizationFunction<BitArray> function = new Deceptive();		

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import controller.GQSPred;
-import controller.GrowingFunctionQubit;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
@@ -37,11 +36,10 @@ public class MainBIoRIMP {
         MainMetrics.main(args);
         
         //Second Step: Create the structures for the prediction
-        MetaphorCode metaphor = new MetaphorCode();
+        
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
         init.main(args);
-        metaphor.setSysTypeDcls(init.getSysTypeDcls());
-        metaphor.setBuilder(init.getBuilder());
+        MetaphorCode metaphor = new MetaphorCode(init);
      	
         //processor.processSytem();
         

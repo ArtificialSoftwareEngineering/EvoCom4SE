@@ -50,6 +50,7 @@ public class PredFormulasProcessorBIoRIPM {
 	private String sysName;
 	private ProgLang lang;
 	private HierarchyBuilder builder;
+	private ArrayList<CodeMetric> metrics;
 	List<TypeDeclaration> sysTypeDcls;
 	
 
@@ -65,6 +66,7 @@ public class PredFormulasProcessorBIoRIPM {
 		this.sysName = sysName;
 		this.lang = lang;
 		processSytem();
+		InitMetrics();
 
 	}
 	
@@ -92,6 +94,24 @@ public class PredFormulasProcessorBIoRIPM {
 		return metaphor;
 	}
 	
+	//Method for Init the Metrics under consideration
+	
+	private void InitMetrics(){
+		// list of metrics
+		metrics = new ArrayList<CodeMetric>();
+		metrics.add(new LOCMetric());
+		metrics.add(new NOMMetric());
+		metrics.add(new RFCMetric());
+		metrics.add(new CBOMetric());
+		metrics.add(new DITMetric());
+		metrics.add(new MPCMetric());
+		metrics.add(new LCOM5Metric());
+		metrics.add(new LCOM2Metric());
+		metrics.add(new NOCMetric());
+		metrics.add(new CYCLOMetric());
+		metrics.add(new DACMetric());
+		
+	}
 	
 	//Method for predicting the metrics according to the list of refactor
 	//operations
@@ -104,20 +124,6 @@ public class PredFormulasProcessorBIoRIPM {
 		MetricsReader metReader = new MetricsReader(systemPath, sysName);
 		LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics = metReader
 				.readMetrics();
-
-		// list of metrics
-		ArrayList<CodeMetric> metrics = new ArrayList<CodeMetric>();
-		metrics.add(new LOCMetric());
-		metrics.add(new NOMMetric());
-		metrics.add(new RFCMetric());
-		metrics.add(new CBOMetric());
-		metrics.add(new DITMetric());
-		metrics.add(new MPCMetric());
-		metrics.add(new LCOM5Metric());
-		metrics.add(new LCOM2Metric());
-		metrics.add(new NOCMetric());
-		metrics.add(new CYCLOMetric());
-		metrics.add(new DACMetric());
 
 		LOGGER.debug("Predicting metrics");
 
@@ -178,6 +184,14 @@ public class PredFormulasProcessorBIoRIPM {
 
 	public void setLang(ProgLang lang) {
 		this.lang = lang;
+	}
+
+	public ArrayList<CodeMetric> getMetrics() {
+		return metrics;
+	}
+
+	public void setMetrics(ArrayList<CodeMetric> metrics) {
+		this.metrics = metrics;
 	}
 
 	

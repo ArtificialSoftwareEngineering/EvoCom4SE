@@ -5,6 +5,7 @@ package entity;
 
 import java.util.ArrayList;
 
+import unalcol.optimization.binary.BitMutation;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.integer.IntUtil;
 
@@ -226,12 +227,11 @@ public class QubitArray implements Cloneable {
 	   * @param bit apply not
 	   */
 	public void not(int i) {
+		BitMutation variation = new BitMutation();
 		//Flips on active bits
-		get(i).getBit_act().not();
+		get(i).setBit_act(variation.apply(get(i).getBit_act()));
 		//Flips on non-active bits
-		get(i).getNon_act().not();
-		//get(i).getBit_one_non_act().not();
-		//get(i).getBit_two_non_act().not();
+		get(i).setNon_act(variation.apply(get(i).getNon_act()));
 	}
 	
 	/**
@@ -259,8 +259,9 @@ public class QubitArray implements Cloneable {
 	   * @param bit apply not
 	   */
 	public void not_state(int i) {
+		BitMutation variation = new BitMutation();
 		//Flips on state
-		get(i).getActiveState().not();
+		get(i).setActiveState(variation.apply(get(i).getActiveState()));
 	}
 	
 	 /**

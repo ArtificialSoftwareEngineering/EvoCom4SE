@@ -5,6 +5,7 @@ package entity;
 
 import java.util.ArrayList;
 
+import optimization.QubitMutation;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.collection.bitarray.BitArrayConverter;
 import unalcol.types.integer.IntUtil;
@@ -294,5 +295,12 @@ public class QubitRefactor implements Cloneable {
 		  return BitArrayConverter.getNumber(
 				  genome.getGenObservation(), start, lenght);
 	  }
+
+
+	public void not(int i) {
+		// TODO Auto-generated method stub
+		QubitMutation variation = new QubitMutation();
+		data[i] = variation.apply(data[i]);
+	}
 
 }

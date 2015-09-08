@@ -23,6 +23,7 @@ public class MappingRefactorEC extends MappingRefactor {
 	 */
 	
 	protected Refactoring type = Refactoring.extractClass;
+	private boolean feasible = true;
 	@Override
 	public OBSERVRefactoring mappingRefactor(QubitRefactor genome, MetaphorCode code) {
 		// TODO Auto-generated method stub
@@ -31,7 +32,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		subRefs.add(mappingRefactorMF(genome, code, "TgtClassEC"));
 		subRefs.add(mappingRefactorMM(genome, code, "TgtClassEC"));
 		
-		return new OBSERVRefactoring(type.name(),null,subRefs);
+		return new OBSERVRefactoring(type.name(),null,subRefs,feasible);
 	}
 	
 	public OBSERVRefactoring mappingRefactorMF(QubitRefactor genome, MetaphorCode code, String newClass) {
@@ -60,6 +61,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		}else{
 			value_fld.add("");
 			params.add(new OBSERVRefParam("fld", value_fld ));
+			feasible = false; 
 		}
 		
 		//Creating the OBSERVRefParam for the tgt
@@ -69,7 +71,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 		
-		return new OBSERVRefactoring(Refactoring.moveField.name(),params);
+		return new OBSERVRefactoring(Refactoring.moveField.name(),params, feasible );
 	}
 	
 	public OBSERVRefactoring mappingRefactorMM(QubitRefactor genome, MetaphorCode code,String newClass) {
@@ -85,12 +87,24 @@ public class MappingRefactorEC extends MappingRefactor {
 		params.add(new OBSERVRefParam("src", value_src));
 		
 		//Creating the OBSERVRefParam for the mtd class
-		int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
 		List<String> value_mtd  = new ArrayList<String>();
-		value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
-		     		  % code.getMethodsFromClass(sysType_src).size()]);
-		params.add(new OBSERVRefParam("mtd", value_mtd));
-		
+		if(!code.getMethodsFromClass(sysType_src).isEmpty()){
+			int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
+			
+			value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
+			     		  % code.getMethodsFromClass(sysType_src).size()]);
+			
+			//verification of method not constructor
+			if(value_mtd.get(0).equals(sysType_src.getName()))
+				feasible = false;
+			
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+		}else{
+			value_mtd.add("");
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+			feasible = false; 
+			
+		}
 		//Creating the OBSERVRefParam for the tgt
 		//This Target Class is not inside metaphor
 		List<String> value_tgt  = new ArrayList<String>();
@@ -99,7 +113,7 @@ public class MappingRefactorEC extends MappingRefactor {
 		code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 		
 		
-		return new OBSERVRefactoring(Refactoring.moveMethod.name(),params);
+		return new OBSERVRefactoring(Refactoring.moveMethod.name(),params,feasible);
 
 	}
 

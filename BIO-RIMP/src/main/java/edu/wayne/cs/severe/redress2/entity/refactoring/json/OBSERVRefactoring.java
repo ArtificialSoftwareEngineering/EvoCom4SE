@@ -7,19 +7,22 @@ public class OBSERVRefactoring {
 	private String type;
 	private List<OBSERVRefParam> params;
 	private List<OBSERVRefactoring> subRefs;
+	private boolean feasible;
 	
 	
 	
-	public OBSERVRefactoring(String type, List<OBSERVRefParam> params) {
+	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, boolean feasible) {
 		this.type = type;
 		this.params = params;
 		this.subRefs = null;
+		this.feasible = feasible;
 	}
 
-	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, List<OBSERVRefactoring> subRefs) {
+	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, List<OBSERVRefactoring> subRefs, boolean feasible) {
 		this.type = type;
 		this.params = params;
 		this.subRefs = subRefs;
+		this.feasible = feasible;
 	}
 
 	public String getType() {
@@ -50,10 +53,15 @@ public class OBSERVRefactoring {
 	}
 	
 	
+	public boolean isFeasible() {
+		return feasible;
+	}
+
+
 	@Override
 	public String toString() {
 		return "OBSERVRefactoring [type=" + type + ", params=" + params
-				+ ", subRefs=" + subRefs + "]";
+				+ ", subRefs=" + subRefs + ", feasible=" + feasible +"]";
 	}
 
 }

@@ -16,6 +16,8 @@ public class RefactoringOperation {
 	private RefactoringType refType;
 	private String refId;
 	private List<RefactoringOperation> subRefs;
+	//danaderp 1001 Field for feasible individual
+	private boolean feasible;
 
 	public RefactoringOperation(RefactoringType refType,
 			HashMap<String, List<RefactoringParameter>> params, String refId,
@@ -24,6 +26,18 @@ public class RefactoringOperation {
 		this.params = params;
 		this.refId = refId;
 		this.subRefs = subRefs;
+	}
+	
+	//danaderp 1001 Constructor for supporting feasible individuals
+	
+	public RefactoringOperation(RefactoringType refType,
+			HashMap<String, List<RefactoringParameter>> params, String refId,
+			List<RefactoringOperation> subRefs, boolean feasible) {
+		this.refType = refType;
+		this.params = params;
+		this.refId = refId;
+		this.subRefs = subRefs;
+		this.feasible = feasible;
 	}
 
 	public HashMap<String, List<RefactoringParameter>> getParams() {
@@ -44,13 +58,23 @@ public class RefactoringOperation {
 	public String getRefId() {
 		return refId;
 	}
+	
+	//danaderp 1001 feasible getters 
+	public boolean isFeasible() {
+		return feasible;
+	}
 
 	@Override
 	public String toString() {
 		return refType.getAcronym()
 				+ (params != null ? (params.toString()) : "")
-				+ (subRefs != null ? ("{" + subRefs + "}") : "");
+				+ (subRefs != null ? ("{" + subRefs + "}") : "")
+				+ "feasible : " + feasible;
 	}
+
+
+
+
 	
 	//danaderp vers 1000
 	

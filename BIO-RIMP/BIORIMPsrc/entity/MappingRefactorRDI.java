@@ -25,6 +25,7 @@ public class MappingRefactorRDI extends MappingRefactor {
 	@Override
 	public OBSERVRefactoring mappingRefactor(QubitRefactor genome, MetaphorCode code) {
 		// TODO Auto-generated method stub
+		boolean feasible = true;
         List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 		
 		//Creating the OBSERVRefParam for the src class
@@ -43,7 +44,7 @@ public class MappingRefactorRDI extends MappingRefactor {
 		value_tgt.add( sysType_tgt.getQualifiedName());
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
 
 	/* (non-Javadoc)

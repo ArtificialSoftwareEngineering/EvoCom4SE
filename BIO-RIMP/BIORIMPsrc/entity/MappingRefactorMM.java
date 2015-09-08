@@ -27,6 +27,7 @@ public class MappingRefactorMM extends MappingRefactor {
 	@Override
 	public OBSERVRefactoring mappingRefactor(QubitRefactor genome, MetaphorCode code) {
 		// TODO Auto-generated method stub
+		boolean feasible = true;
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 		
 		//Creating the OBSERVRefParam for the src class
@@ -38,11 +39,23 @@ public class MappingRefactorMM extends MappingRefactor {
 		params.add(new OBSERVRefParam("src", value_src));
 		
 		//Creating the OBSERVRefParam for the mtd class
-		int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
 		List<String> value_mtd  = new ArrayList<String>();
-		value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
-		     		  % code.getMethodsFromClass(sysType_src).size()]);
-		params.add(new OBSERVRefParam("mtd", value_mtd));
+		if(!code.getMethodsFromClass(sysType_src).isEmpty()){
+			int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
+			
+			value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
+			     		  % code.getMethodsFromClass(sysType_src).size()]);
+			
+			//verification of method not constructor
+			if(value_mtd.get(0).equals(sysType_src.getName()))
+				feasible = false;
+			
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+		}else{
+			value_mtd.add("");
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+			feasible = false;
+		}
 		
 		//Creating the OBSERVRefParam for the tgt
 		int	numTgtObs = genome.getNumberGenome(genome.getGenTGT());
@@ -53,7 +66,7 @@ public class MappingRefactorMM extends MappingRefactor {
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(type.name(),params,feasible);
 
 	}
 

@@ -113,8 +113,9 @@ public class RefactoringReaderBIoRIMP {
 		HashMap<String, List<RefactoringParameter>> params = refType
 				.getOBSERVRefactoringParams(ref.getParams());
 		List<RefactoringOperation> subRefs = getSubRefs(ref.getSubRefs(), id);
+		//danaderp 1001 added feasibility in the constructor
 		RefactoringOperation oper = new RefactoringOperation(refType, params,
-				refType.getAcronym() + "-" + id, subRefs);
+				refType.getAcronym() + "-" + id, subRefs, ref.isFeasible());
 		return oper;
 	}
 

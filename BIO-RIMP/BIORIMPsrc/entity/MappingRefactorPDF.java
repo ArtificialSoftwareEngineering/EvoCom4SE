@@ -27,10 +27,11 @@ public class MappingRefactorPDF extends MappingRefactor {
 	@Override
 	public OBSERVRefactoring mappingRefactor(QubitRefactor genome, MetaphorCode code) {
 		// TODO Auto-generated method stub
+		boolean feasible = true;
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 		int numSrcObs;
 		TypeDeclaration sysType_src;
-		do{
+		//do{
 			//Creating the OBSERVRefParam for the src class
 		    numSrcObs = genome.getNumberGenome(genome.getGenSRC());
 			sysType_src =  code.getMapClass().get(numSrcObs % 
@@ -46,8 +47,12 @@ public class MappingRefactorPDF extends MappingRefactor {
 				value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
 						 % code.getFieldsFromClass(sysType_src).size()]);
 				params.add(new OBSERVRefParam("fld", value_fld));
+			}else{
+				value_fld.add("");
+				params.add(new OBSERVRefParam("fld", value_fld ));
+				feasible = false;
 			}
-		}while(code.getFieldsFromClass(sysType_src).isEmpty());
+		//}while(code.getFieldsFromClass(sysType_src).isEmpty());
 		
 		//Creating the OBSERVRefParam for the tgt class
 		TypeDeclaration sysType_tgt = null;
@@ -60,10 +65,25 @@ public class MappingRefactorPDF extends MappingRefactor {
 					code.getMapClass().size());
 			value_tgt.add(sysType_tgt.getQualifiedName());
 			
+			//verification of SRCSupClassTGT
+			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
+				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
+				feasible = false;
+				for(TypeDeclaration clase : clases){
+					if(clase.getQualifiedName().equals(value_tgt.get(i))){
+						feasible = true;
+						break;
+					}
+				}
+			}else{
+				feasible = false;
+			}
 		}
+		
+		
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
 
 	/* (non-Javadoc)

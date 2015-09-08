@@ -25,7 +25,8 @@ public class MappingRefactorRMMO extends MappingRefactor {
 	protected Refactoring type = Refactoring.replaceMethodObject;
 	@Override
 	public OBSERVRefactoring mappingRefactor(QubitRefactor genome, MetaphorCode code) {
-		 List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
+		boolean feasible = true;
+		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
 			
 		//Creating the OBSERVRefParam for the src class
 		int numSrcObs = genome.getNumberGenome(genome.getGenSRC());
@@ -36,13 +37,26 @@ public class MappingRefactorRMMO extends MappingRefactor {
 		params.add(new OBSERVRefParam("src", value_src));
 			
 		//Creating the OBSERVRefParam for the mtd class
-		int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
 		List<String> value_mtd  = new ArrayList<String>();
-		String mtdName = (String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
-		         % code.getMethodsFromClass(sysType_src).size()];
-		value_mtd.add(mtdName);
-		params.add(new OBSERVRefParam("mtd", value_mtd));
+		String mtdName;
+		if(!code.getMethodsFromClass(sysType_src).isEmpty()){
+			int numMtdObs = genome.getNumberGenome(genome.getGenMTD());
+			 mtdName = (String) code.getMethodsFromClass(sysType_src).toArray()[numMtdObs
+			         % code.getMethodsFromClass(sysType_src).size()];
+			value_mtd.add(mtdName);
 			
+			//verification of method not constructor
+			if(value_mtd.get(0).equals(sysType_src.getName()))
+				feasible = false;
+			
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+		}else{
+			mtdName = "";
+			value_mtd.add(mtdName);
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+			feasible = false;
+		}
+		
 		//Creating the OBSERVRefParam for the tgt
 		//This Target Class is not inside metaphor
 		List<String> value_tgt  = new ArrayList<String>();
@@ -50,7 +64,7 @@ public class MappingRefactorRMMO extends MappingRefactor {
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		code.addClasstoHash(sysType_src.getPack(), mtdName + "|N");
 		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
 
 	/* (non-Javadoc)

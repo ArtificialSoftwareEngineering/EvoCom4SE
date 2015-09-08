@@ -28,7 +28,16 @@ public class MappingRefactorPUF extends MappingRefactor {
 			QubitRefactor genome,
 			MetaphorCode code) {
 		
+		boolean feasible = true;
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();
+		
+		//Creating the OBSERVRefParam for the tgt
+		int numTgtObs = genome.getNumberGenome(genome.getGenTGT());
+		List<String> value_tgt  = new ArrayList<String>();
+		TypeDeclaration sysType_tgt = code.getMapClass().get(numTgtObs % 
+				code.getMapClass().size());
+		value_tgt.add( sysType_tgt.getQualifiedName());
+		
 		
 		//Creating the OBSERVRefParam for the src class
 		TypeDeclaration sysType_src = null;
@@ -42,6 +51,20 @@ public class MappingRefactorPUF extends MappingRefactor {
 					code.getMapClass().size());
 			value_src.add(sysType_src.getQualifiedName());
 			
+			//verification of SRCSubClassTGT
+			if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
+				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
+				feasible = false;
+				for(TypeDeclaration clase : clases){
+					if(clase.getQualifiedName().equals(value_src.get(i))){
+						feasible = true;
+						break;
+					}
+				}
+			}else{
+				feasible = false;
+			}
+			
 		}
 		
 		params.add(new OBSERVRefParam("src", value_src));
@@ -54,20 +77,15 @@ public class MappingRefactorPUF extends MappingRefactor {
 			  % code.getFieldsFromClass(sysType_src).size()]);
 			params.add(new OBSERVRefParam("fld", value_fld));
 		}else{
-			value_fld.add(" ");
+			value_fld.add("");
 			params.add(new OBSERVRefParam("fld", value_fld ));
+			feasible = false;
 		}
 		
-		//Creating the OBSERVRefParam for the tgt
-		int numTgtObs = genome.getNumberGenome(genome.getGenTGT());
-		List<String> value_tgt  = new ArrayList<String>();
-		TypeDeclaration sysType_tgt = code.getMapClass().get(numTgtObs % 
-				code.getMapClass().size());
-		value_tgt.add( sysType_tgt.getQualifiedName());
+
 		params.add(new OBSERVRefParam("tgt", value_tgt));
 		
-		
-		return new OBSERVRefactoring(type.name(),params);
+		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
 
 	@Override

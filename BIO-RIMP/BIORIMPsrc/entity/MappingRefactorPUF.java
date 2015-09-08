@@ -54,7 +54,7 @@ public class MappingRefactorPUF extends MappingRefactor {
 			  % code.getFieldsFromClass(sysType_src).size()]);
 			params.add(new OBSERVRefParam("fld", value_fld));
 		}else{
-			value_fld.add("");
+			value_fld.add(" ");
 			params.add(new OBSERVRefParam("fld", value_fld ));
 		}
 		

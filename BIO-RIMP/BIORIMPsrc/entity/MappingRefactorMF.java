@@ -29,28 +29,29 @@ public class MappingRefactorMF extends MappingRefactor {
 		// TODO Auto-generated method stub
 		
 		List<OBSERVRefParam> params = new ArrayList<OBSERVRefParam>();		
-
+		int	numSrcObs;
+		TypeDeclaration sysType_src;
 		
-		//Creating the OBSERVRefParam for the src class
-		int	numSrcObs = genome.getNumberGenome(genome.getGenSRC());
-		TypeDeclaration sysType_src = code.getMapClass().get(numSrcObs % 
-					code.getMapClass().size());
-		List<String> value_src  = new ArrayList<String>();
-		value_src.add(sysType_src.getQualifiedName());
-		params.add(new OBSERVRefParam("src", value_src));
-		
-		//Creating the OBSERVRefParam for the fld field
-		List<String> value_fld  = new ArrayList<String>();
-		if(!code.getFieldsFromClass(sysType_src).isEmpty()){
-			int numFldObs = genome.getNumberGenome(genome.getGenFLD());
+		do{
+			//Creating the OBSERVRefParam for the src class
+			numSrcObs = genome.getNumberGenome(genome.getGenSRC());
+			sysType_src = code.getMapClass().get(numSrcObs % 
+						code.getMapClass().size());
+			List<String> value_src  = new ArrayList<String>();
+			value_src.add(sysType_src.getQualifiedName());
+			params.add(new OBSERVRefParam("src", value_src));
 			
-			value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
-			  % code.getFieldsFromClass(sysType_src).size()]);
-			params.add(new OBSERVRefParam("fld", value_fld));
-		}else{
-			value_fld.add("");
-			params.add(new OBSERVRefParam("fld", value_fld ));
-		}
+			//Creating the OBSERVRefParam for the fld field
+			List<String> value_fld  = new ArrayList<String>();
+			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+				int numFldObs = genome.getNumberGenome(genome.getGenFLD());
+				
+				value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()[numFldObs
+				  % code.getFieldsFromClass(sysType_src).size()]);
+				params.add(new OBSERVRefParam("fld", value_fld));
+			}
+		}while(code.getFieldsFromClass(sysType_src).isEmpty());
+		
 		//Creating the OBSERVRefParam for the tgt
 		int numTgtObs = genome.getNumberGenome(genome.getGenTGT());
 		List<String> value_tgt  = new ArrayList<String>();

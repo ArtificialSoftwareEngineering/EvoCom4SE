@@ -6,6 +6,7 @@ package optimization;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 
 import edu.wayne.cs.severe.redress2.controller.MetricCalculator;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
@@ -71,6 +72,29 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	
 	private LinkedHashMap<String, LinkedHashMap<String, Double>> ActualMetrics(
 			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> prediction){
+		//Average of all the metrics per class
+		LinkedHashMap<String, LinkedHashMap<String, Double>> SUA = null;
+		LinkedHashMap<String, Double> SUA_metric = null;	
+		
+		for(Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : prediction.entrySet()){
+			for(Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()){
+				for(Entry<String, Double> metric : clase.getValue().entrySet()){
+					SUA_metric.put(metric.getKey(), metric.getValue());
+				}//Metric Loop
+				if(SUA.get(clase.getKey()).isEmpty()){
+					SUA.put(clase.getKey(), SUA_metric);
+				}else{
+					//averague
+					
+				}
+				SUA_metric = null;
+			}//Clase Loop
+		}//Ref Loop
+		
+		//for(int ref = 0; ref < prediction.size(); ref++){
+		//	for(int clase = 0; clase < prediction.)
+		//}//Ref Loop
+		
 		return null;
 	}
 	

@@ -41,6 +41,10 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 			LinkedHashMap<String, LinkedHashMap<String, Double>> actualMetrics =
 					ActualMetrics(PredictingMetrics(x));
 			printFitness(actualMetrics);
+			
+			LinkedHashMap<String, Double> totalMetrics = TotalActualMetrics(actualMetrics);
+			printFitness2(totalMetrics);
+			
 		} catch (ReadException | IOException | CompilUnitException | WritingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -71,6 +75,37 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		}
 	}
 	
+	private LinkedHashMap<String, Double> TotalActualMetrics
+		(LinkedHashMap<String, LinkedHashMap<String, Double>> actualMetrics){
+		
+		LinkedHashMap<String, Double> SUA_metric = new LinkedHashMap<String, Double>();
+		LinkedHashMap<String, Double> SUA_prev_metric = new LinkedHashMap<String, Double>();
+		
+		for(Entry<String, LinkedHashMap<String, Double>> clase : actualMetrics.entrySet()){
+			for(Entry<String, Double> metric : clase.getValue().entrySet()){
+				//evaluate if the metric is repeat for summing
+				if(SUA_metric.containsKey(metric.getKey())){
+					SUA_metric.replace(metric.getKey(), SUA_metric.get(metric.getKey()), 
+							SUA_metric.get(metric.getKey()) + metric.getValue());
+				}else{
+					SUA_metric.put(metric.getKey(), metric.getValue());
+				}
+			}
+			//extracting prev metrics
+			for(Entry<String, Double> metric : prevMetrics.get(clase.getKey()).entrySet()){
+				//evaluate if the metric is repeat for summing
+				if(SUA_prev_metric.containsKey(metric.getKey())){
+					SUA_prev_metric.replace(metric.getKey(), SUA_prev_metric.get(metric.getKey()), 
+							SUA_prev_metric.get(metric.getKey()) + metric.getValue());
+				}else{
+					SUA_prev_metric.put(metric.getKey(), metric.getValue());
+				}
+			}
+		}
+		
+		return SUA_metric;
+	}
+	
 	private LinkedHashMap<String, LinkedHashMap<String, Double>> ActualMetrics(
 			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> prediction){
 		//Average of all the metrics per class
@@ -88,9 +123,14 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 					//averague
 					for(Entry<String, Double> metric_ : clase.getValue().entrySet()){
 						if(SUA.get(clase.getKey()).containsKey(metric_.getKey())){
-							SUA.get(clase.getKey()).replace(metric_.getKey(), SUA.get(clase.getKey()).get(metric_.getKey()),
-								(metric_.getValue()+SUA.get(clase.getKey()).get(metric_.getKey()))/2
-								);
+							//deciding the major value 
+							if(metric_.getValue() >= SUA.get(clase.getKey()).get(metric_.getKey())){
+								SUA.get(clase.getKey()).replace(metric_.getKey(), SUA.get(clase.getKey()).get(metric_.getKey()),
+										metric_.getValue());
+							}else{
+								SUA.get(clase.getKey()).replace(metric_.getKey(), SUA.get(clase.getKey()).get(metric_.getKey()),
+										SUA.get(clase.getKey()).get(metric_.getKey()));
+							}
 						}else{
 							SUA.get(clase.getKey()).put(metric_.getKey(), metric_.getValue());
 						}
@@ -131,6 +171,14 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 									+"[Value: "+metric_.getValue());
 			}
 		}
+	}
+	
+	private void printFitness2(LinkedHashMap<String, Double> totalActualMetrics){
+			for(Entry<String,Double> metric_ : totalActualMetrics.entrySet()){
+				System.out.println("[Metric: "+ metric_.getKey()+"] \t"
+									+"[Value: "+metric_.getValue()+"] \t");
+			}
+		
 	}
 
 }

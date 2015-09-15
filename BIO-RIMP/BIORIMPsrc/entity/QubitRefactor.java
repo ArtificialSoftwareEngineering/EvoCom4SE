@@ -46,7 +46,17 @@ public class QubitRefactor implements Cloneable {
 			}
 		}
 	}
-
+	
+	//constructor for code level QubitRefactor
+	public QubitRefactor(BitArray qubitRefactorObserv) {
+		data = new QubitArray[n];
+		data[0] = new QubitArray(qubitRefactorObserv , REFACTOR, 0); //multiple per number of classes
+		data[1] = new QubitArray(qubitRefactorObserv , SRC, 1);
+		data[2] = new QubitArray(qubitRefactorObserv , FLD, 2);
+		data[3] = new QubitArray(qubitRefactorObserv , MTD, 3);
+		data[4] = new QubitArray(qubitRefactorObserv , TGT, 4);
+	}
+	
 
 	public QubitRefactor(int n_, QubitRefactor source) {
 		if (source.data != null) {

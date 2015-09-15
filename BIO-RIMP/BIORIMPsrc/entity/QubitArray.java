@@ -27,6 +27,15 @@ public class QubitArray implements Cloneable {
 	 */
 	private int n = 0;
 
+	//constructor for code level QubitArray
+	public QubitArray(BitArray qubitArrayObserv, int n, int startQuArray) {
+		this.n = n;
+		data = new ArrayList<Qubit>();
+		for(int i = 0; i < n; i++){
+			data.add( new Qubit( qubitArrayObserv, i, startQuArray, n ) );
+		}
+	}
+	
 	/**
 	 * Constructor: Creates a clone of the Qubit array given as argument
 	 * @param source The Qubit array that will be cloned
@@ -259,9 +268,12 @@ public class QubitArray implements Cloneable {
 	   * @param bit apply not
 	   */
 	public void not_state(int i) {
-		BitMutation variation = new BitMutation();
 		//Flips on state
-		get(i).setActiveState(variation.apply(get(i).getActiveState()));
+		if(get(i).getActiveState() == false){
+			get(i).setActiveState(true);
+		}else{
+			get(i).setActiveState(false);
+		}
 	}
 	
 	 /**

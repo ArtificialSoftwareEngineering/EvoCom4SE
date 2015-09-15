@@ -1,11 +1,15 @@
 package optimization;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map.Entry;
 
 import controller.RefactoringReaderBIoRIMP;
+import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
@@ -121,7 +125,80 @@ public class CodeDecodeRefactorList
 	}
 	
 	public List<QubitRefactor> code (List<RefactoringOperation> thing){
-		return null;
+		QubitRefactor model = new QubitRefactor(true);
+		List<QubitRefactor> coding = new ArrayList<QubitRefactor>();
+
+		String  observation = new String();
+		for(RefactoringOperation ref : thing){
+			//extracting ref type
+			switch(ref.getRefId()){
+			case "pullUpField" : 
+				if( Integer.toBinaryString(0).length() <= model.getREFACTOR() ){
+					char[] temp = new char[model.getREFACTOR()];
+					Arrays.fill(temp, '0');
+					
+					for(int i = model.getREFACTOR()-1; i>=0 ; i-- ){
+						
+					}
+				}
+					
+				Integer.toBinaryString(0);
+				break;
+			case "moveMethod" :
+				observation = Integer.toBinaryString(1);
+				break;
+			case "replaceMethodObject" : 
+				observation = Integer.toBinaryString(2);
+				break;
+			case "replaceDelegationInheritance" : 
+				observation = Integer.toBinaryString(3);
+				break;
+			case "moveField" : 
+				observation = Integer.toBinaryString(4);
+				break;
+			case "extractMethod" : 
+				observation = Integer.toBinaryString(5);
+				break;
+			case "pushDownMethod" : 
+				observation = Integer.toBinaryString(6);
+				break;
+			case "replaceInheritanceDelegation" : 
+				observation = Integer.toBinaryString(7);
+				break;
+			case "inlineMethod" : 
+				observation = Integer.toBinaryString(8);
+				break;
+			case "pullUpMethod" : 
+				observation = Integer.toBinaryString(9);
+				break;
+			case "pushDownField" : 
+				observation = Integer.toBinaryString(10);
+				break;
+			case "extractClass" : 
+				observation = Integer.toBinaryString(11);
+				break;
+			}//end case
+			
+			//extracting source classes
+			int numberSrc = 0;
+			if( !ref.getParams().get("src").isEmpty() ){
+				for(RefactoringParameter rp : ref.getParams().get("src")){
+					numberSrc++;
+					for(Entry<Integer,TypeDeclaration> param : metaphor.getMapClass().entrySet()){
+						if( param.getValue().equals(  rp.getCodeObj()  ) ){
+							observation = observation + Integer.toBinaryString(param.getKey());
+						}
+					}
+				}
+			}//end if src
+			
+			//extracting fld
+			if( !ref.getParams().get("fld").isEmpty() ){
+				
+			}
+		}
+
+		return coding;
 	}
 	
 	private enum Refactoring{

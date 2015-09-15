@@ -3,6 +3,7 @@
  */
 package entity;
 
+import unalcol.random.util.RandBool;
 import unalcol.types.collection.bitarray.BitArray;
 
 
@@ -19,7 +20,7 @@ public class Qubit {
 	//private BitArray bit_two_non_act = null;
 	private BitArray non_act = null;
 	private BitArray bit_act = null;
-	private BitArray activeState = null;
+	private Boolean activeState = null; //check for bool
 	
 	
 	
@@ -30,7 +31,22 @@ public class Qubit {
 		//bit_two_non_act = new BitArray(BITARRAYLENGTH, random);
 		bit_act = new BitArray(BITARRAYLENGTH/2, random);
 		non_act = new BitArray(BITARRAYLENGTH, random);
-		activeState = new BitArray(1, random);
+		RandBool g = new RandBool();
+		activeState = g.next();
+	}
+	
+	//constructor for code level qubit
+	
+	public Qubit(BitArray qubitObserv, int startQubit, int startQuArray, int numQubit){
+		
+		BitArray qubitArray = qubitObserv.subBitArray(startQuArray * ((BITARRAYLENGTH/2) * numQubit), 
+				(startQuArray * ((BITARRAYLENGTH/2) * numQubit)) + ((BITARRAYLENGTH/2) * numQubit) );
+		
+		bit_act = new BitArray( qubitArray.subBitArray(startQubit * (BITARRAYLENGTH/2) , 
+				(startQubit * (BITARRAYLENGTH/2) ) + BITARRAYLENGTH/2 ) );
+		
+		non_act = new BitArray(BITARRAYLENGTH, true);
+		activeState = false;
 	}
 	
 	public BitArray getObservationQubit(){
@@ -41,7 +57,7 @@ public class Qubit {
 		
 		String obser = new String();
 		
-		if(activeState.get(0)==false)
+		if(activeState == false)
 			obser = bit_act.toString();
 		else 
 			obser = non_act.toString();
@@ -75,11 +91,11 @@ public class Qubit {
 		this.bit_act = bit_act;
 	}
 
-	public BitArray getActiveState() {
+	public Boolean getActiveState() {
 		return activeState;
 	}
 
-	public void setActiveState(BitArray activeState) {
+	public void setActiveState(Boolean activeState) {
 		this.activeState = activeState;
 	}
 

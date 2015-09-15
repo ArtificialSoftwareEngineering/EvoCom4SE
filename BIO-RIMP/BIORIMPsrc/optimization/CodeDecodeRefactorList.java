@@ -120,6 +120,9 @@ public class CodeDecodeRefactorList
 		return oper;
 	}
 	
+	public List<QubitRefactor> code (List<RefactoringOperation> thing){
+		return null;
+	}
 	
 	private enum Refactoring{
 		pullUpField, moveMethod, replaceMethodObject, replaceDelegationInheritance,

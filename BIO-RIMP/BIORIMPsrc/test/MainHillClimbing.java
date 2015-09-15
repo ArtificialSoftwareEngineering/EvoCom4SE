@@ -12,14 +12,19 @@ import entity.QubitArray;
 import entity.QubitRefactor;
 import optimization.CodeDecodeRefactorList;
 import optimization.GeneralizedImpactQuality;
+import optimization.ListRefOperMutation;
 import optimization.QubitMutation;
 import optimization.QubitSpace;
 import optimization.RefOperMutation;
+import optimization.RefactorArrayPlainWrite;
 import optimization.RefactoringOperationSpace;
 import unalcol.algorithm.iterative.ForLoopCondition;
+import unalcol.descriptors.Descriptors;
+import unalcol.descriptors.WriteDescriptors;
 import unalcol.evolution.haea.HAEA;
 import unalcol.evolution.haea.HaeaOperators;
 import unalcol.evolution.haea.SimpleHaeaOperators;
+import unalcol.io.Write;
 import unalcol.math.logic.Predicate;
 import unalcol.optimization.OptimizationFunction;
 import unalcol.optimization.OptimizationGoal;
@@ -29,6 +34,7 @@ import unalcol.optimization.binary.testbed.Deceptive;
 import unalcol.optimization.hillclimbing.HillClimbing;
 import unalcol.search.Goal;
 import unalcol.search.Solution;
+import unalcol.search.SolutionDescriptors;
 import unalcol.search.multilevel.CodeDecodeMap;
 import unalcol.search.multilevel.MultiLevelSearch;
 import unalcol.search.space.Space;
@@ -38,6 +44,7 @@ import unalcol.tracer.Tracer;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.collection.bitarray.BitArrayInstance;
 import unalcol.types.collection.vector.Vector;
+import unalcol.types.real.array.DoubleArrayPlainWrite;
 
 /**
  * Created by Alberto on 6/20/2015.
@@ -65,7 +72,6 @@ public class MainHillClimbing {
         
         // Search Space definition
         int DIM = 12;
-        //Space<QubitArray> space = new QubitSpace( DIM );    
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM );
         
         // Optimization Function
@@ -75,32 +81,38 @@ public class MainHillClimbing {
         
         // CodeDecodeMap
         CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
-		= new CodeDecodeRefactorList(metaphor); 
+			= new CodeDecodeRefactorList(metaphor); 
         
         
-        // Variation definition in QubitSpace
-        RefOperMutation variation = new RefOperMutation();
+        // Variation definition in QubitRefactorSpace
+        ListRefOperMutation variation = new ListRefOperMutation();
              
           	
-        // Search method in Qubitspace
+        // Search method in QubitRefactorSpace
         int MAXITERS = 10000;
         boolean neutral = true; // Accepts movements when having same function value
         //HillClimbing<BitArray> search = new HillClimbing<BitArray>( variation, neutral, MAXITERS );
-        HillClimbing<QubitRefactor> Qubit_search = new HillClimbing<QubitRefactor>( variation, neutral, MAXITERS );
+        HillClimbing<List<QubitRefactor>> Qubit_search = new HillClimbing<List<QubitRefactor>>( variation, neutral, MAXITERS );
              
-        // The multilevel search method (moves in the binary space, but computes fitness in the real space)
-        MultiLevelSearch<QubitRefactor, List<QubitRefactor>> search = new MultiLevelSearch<>(Qubit_search, map);
+        // The multilevel search method (moves in the qubitrefactor space, but computes fitness in the refactoring space)
+        MultiLevelSearch<List<QubitRefactor>, List<RefactoringOperation> > search = new MultiLevelSearch<>(Qubit_search, map);
         
-        //UP TO HERE
+
         // Tracking the goal evaluations
+        SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
+        Descriptors.set(Solution.class, desc);
+        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+        List<RefactoringOperation> ref= new ArrayList<RefactoringOperation>();
+        Write.set(ref , write);
+        
         ConsoleTracer tracer = new ConsoleTracer();       
-        //           Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
-             //Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
+        //Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
+        Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
              
         // Apply the search method
-        //Solution<BitArray> solution = search.apply(space, goal);
-             
-             //System.out.println( solution.quality() + "=" + solution.value());	
+        Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
+        
+        System.out.println( solution.quality() + "=" + solution.value());	
         
 		
 	}

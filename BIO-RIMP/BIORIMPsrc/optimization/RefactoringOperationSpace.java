@@ -43,6 +43,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 	@Override
 	public List<RefactoringOperation> get() {
 		//return new QubitArray(n, true);
+		
 		return new ArrayList<RefactoringOperation>() ;
 	}
 }

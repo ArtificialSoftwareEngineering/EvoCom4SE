@@ -4,6 +4,7 @@
 package optimization;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -42,8 +43,10 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 					ActualMetrics(PredictingMetrics(x));
 			printFitness(actualMetrics);
 			
-			LinkedHashMap<String, Double> totalMetrics = TotalActualMetrics(actualMetrics);
-			printFitness2(totalMetrics);
+			LinkedHashMap<String, Double> bias = TotalActualMetrics(actualMetrics);
+			printFitness2(bias);
+			
+			GQSm = GQSm(bias);
 			
 		} catch (ReadException | IOException | CompilUnitException | WritingException e) {
 			// TODO Auto-generated catch block
@@ -55,13 +58,16 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		return GQSm;
 	}
 	
-	private Double GQSm(RefactoringOperation delta){
-		for(int j = 0; j < metaphor.getMetrics().size(); j++){
-			for(int alfa = 0; alfa < metaphor.getSysTypeDcls().size(); alfa++){
-				
-			}
-		}//Loop of metrics
-		return null;
+	//normalization and recives the weights
+	private Double GQSm(LinkedHashMap<String, Double> bias){
+		Double min = Collections.min(bias.values());
+		Double max = Collections.max(bias.values());
+		double fitness = 0;
+		for( Entry<String, Double> metric : bias.entrySet() ){
+			fitness = fitness 
+					+ ( (metric.getValue() - min) / (max - min) );
+		}
+		return fitness;
 	}
 	
 	private void PreviMetrics() {
@@ -91,15 +97,43 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 					SUA_metric.put(metric.getKey(), metric.getValue());
 				}
 			}
-			//extracting prev metrics
-			for(Entry<String, Double> metric : prevMetrics.get(clase.getKey()).entrySet()){
-				//evaluate if the metric is repeat for summing
-				if(SUA_prev_metric.containsKey(metric.getKey())){
-					SUA_prev_metric.replace(metric.getKey(), SUA_prev_metric.get(metric.getKey()), 
-							SUA_prev_metric.get(metric.getKey()) + metric.getValue());
-				}else{
-					SUA_prev_metric.put(metric.getKey(), metric.getValue());
+			
+			//checking the class in prevMetrics
+			if( prevMetrics.containsKey(clase.getKey()) ){
+				//extracting prev metrics
+				for(Entry<String, Double> metric : prevMetrics.get(clase.getKey()).entrySet()){
+					//evaluate that the metric is impacted
+					if(actualMetrics.get(clase.getKey()).containsKey(metric.getKey())){
+						//evaluate if the metric is repeat for summing
+						if(SUA_prev_metric.containsKey(metric.getKey())){
+							SUA_prev_metric.replace(metric.getKey(), SUA_prev_metric.get(metric.getKey()), 
+									SUA_prev_metric.get(metric.getKey()) + metric.getValue());
+						}else{
+							SUA_prev_metric.put(metric.getKey(), metric.getValue());
+						}
+					}
 				}
+			}else{
+				for(Entry<String, Double> metric : clase.getValue().entrySet()){
+					//evaluate if the metric is repeat for summing
+					if(SUA_prev_metric.containsKey(metric.getKey())){
+						SUA_prev_metric.replace(metric.getKey(), SUA_prev_metric.get(metric.getKey()), 
+								SUA_prev_metric.get(metric.getKey()) + metric.getValue());
+					}else{
+						SUA_prev_metric.put(metric.getKey(), metric.getValue());
+					}
+				}
+			}
+		}
+		
+		//Figure out the bias by division of the accumulative sum 
+		
+		for( Entry<String, Double> metric : SUA_metric.entrySet() ){
+			if( SUA_prev_metric.containsKey(metric.getKey()) ){
+				SUA_metric.replace(metric.getKey(), metric.getValue(), 
+						metric.getValue() / SUA_prev_metric.get(metric.getKey()) );
+			}else{
+				System.out.println("Something is wrong with prev_metrics");
 			}
 		}
 		

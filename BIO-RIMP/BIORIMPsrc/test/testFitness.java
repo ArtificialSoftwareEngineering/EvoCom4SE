@@ -46,7 +46,7 @@ public class testFitness {
 		
 		//Processing Fitness
 		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);	
-		function.apply(phe);
+		System.out.println("FITNESS : ["+ function.apply(phe) +"]");
 	}
 
 }

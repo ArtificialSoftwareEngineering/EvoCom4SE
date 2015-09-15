@@ -9,6 +9,9 @@ import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
 import entity.QubitArray;
+import entity.QubitRefactor;
+import optimization.CodeDecodeRefactorList;
+import optimization.GeneralizedImpactQuality;
 import optimization.QubitMutation;
 import optimization.QubitSpace;
 import optimization.RefOperMutation;
@@ -26,6 +29,8 @@ import unalcol.optimization.binary.testbed.Deceptive;
 import unalcol.optimization.hillclimbing.HillClimbing;
 import unalcol.search.Goal;
 import unalcol.search.Solution;
+import unalcol.search.multilevel.CodeDecodeMap;
+import unalcol.search.multilevel.MultiLevelSearch;
 import unalcol.search.space.Space;
 import unalcol.tracer.ConsoleTracer;
 import unalcol.tracer.FileTracer;
@@ -63,25 +68,37 @@ public class MainHillClimbing {
         //Space<QubitArray> space = new QubitSpace( DIM );    
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM );
         
-        // Variation definition
+        // Optimization Function
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
+        //Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function, false); // maximizing, remove the parameter false if minimizing   	
+        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
+        
+        // CodeDecodeMap
+        CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
+		= new CodeDecodeRefactorList(metaphor); 
+        
+        
+        // Variation definition in QubitSpace
         RefOperMutation variation = new RefOperMutation();
              
-        // Optimization Function
-        OptimizationFunction<BitArray> function = new Deceptive();		
-        Goal<BitArray> goal = new OptimizationGoal<BitArray>(function, false); // maximizing, remove the parameter false if minimizing   	
-         	
-             // Search method
-             int MAXITERS = 10000;
-             boolean neutral = true; // Accepts movements when having same function value
-             //HillClimbing<BitArray> search = new HillClimbing<BitArray>( variation, neutral, MAXITERS );
-
-             // Tracking the goal evaluations
-             ConsoleTracer tracer = new ConsoleTracer();       
-//           Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
+          	
+        // Search method in Qubitspace
+        int MAXITERS = 10000;
+        boolean neutral = true; // Accepts movements when having same function value
+        //HillClimbing<BitArray> search = new HillClimbing<BitArray>( variation, neutral, MAXITERS );
+        HillClimbing<QubitRefactor> Qubit_search = new HillClimbing<QubitRefactor>( variation, neutral, MAXITERS );
+             
+        // The multilevel search method (moves in the binary space, but computes fitness in the real space)
+        MultiLevelSearch<QubitRefactor, List<QubitRefactor>> search = new MultiLevelSearch<>(Qubit_search, map);
+        
+        //UP TO HERE
+        // Tracking the goal evaluations
+        ConsoleTracer tracer = new ConsoleTracer();       
+        //           Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
              //Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
              
-             // Apply the search method
-             //Solution<BitArray> solution = search.apply(space, goal);
+        // Apply the search method
+        //Solution<BitArray> solution = search.apply(space, goal);
              
              //System.out.println( solution.quality() + "=" + solution.value());	
         

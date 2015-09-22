@@ -28,6 +28,7 @@ public class testCodeDecodeRefactor {
 		//Creating the individual
 		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
+		List<RefactoringOperation> pheCod = new ArrayList<RefactoringOperation>();
 		List<QubitRefactor> genomeCod = new ArrayList<QubitRefactor>();
 		
 		int  QUBITTAM = 4;
@@ -48,8 +49,18 @@ public class testCodeDecodeRefactor {
 		
 		//Processing Encode
 		genomeCod = map.code(phe);
+		
 		for(int i = 0; i < genomeCod.size(); i++){
-			System.out.println("Coding: "+i+" "+ genomeCod.get(i).toString());
+			System.out.println("Coding[new]: "+i+" "+ genomeCod.get(i).getGenObservation().toString());
+			System.out.println("Coding[old]: "+i+" "+ genome.get(i).getGenObservation().toString());
+		}
+		
+		//Processing REDecode
+		pheCod = map.decode(genomeCod);
+		
+		for(int i = 0; i < phe.size(); i++){
+			System.out.println("Decoding[new]: "+i+" "+ pheCod.get(i).toString());
+			System.out.println("Decoding[old]: "+i+" "+ phe.get(i).toString());
 		}
 	}
 

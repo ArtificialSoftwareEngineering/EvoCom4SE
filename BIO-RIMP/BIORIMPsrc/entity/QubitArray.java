@@ -127,7 +127,7 @@ public class QubitArray implements Cloneable {
 			if(observation[i].length() <= numOfQubits*qubitam){
 				boolean[]  strand = new boolean[numOfQubits*qubitam]; 
 				Arrays.fill(strand, false);
-				for( int j = observation[i].length(), k = strand.length; j >= 0; j--, k--){
+				for( int j = observation[i].length() - 1, k = strand.length - 1; j >= 0; j--, k--){
 					if( observation[i].charAt(j) == '0' )
 						strand[k] = false;
 					else

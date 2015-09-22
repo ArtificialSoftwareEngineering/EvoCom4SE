@@ -132,42 +132,43 @@ public class CodeDecodeRefactorList
 
 		String [] refactor = new String [1];
 		for(RefactoringOperation ref : thing){
+			String acronym = ref.getRefType().getAcronym();
 			//extracting ref type
-			switch(ref.getRefId()){
-			case "pullUpField" : 
+			switch(acronym){
+			case "PUF" : 
 				refactor[0] = Integer.toBinaryString(0);
 				break;
-			case "moveMethod" :
+			case "MM" :
 				refactor[0] = Integer.toBinaryString(1);
 				break;
-			case "replaceMethodObject" : 
+			case "RMMO" : 
 				refactor[0] = Integer.toBinaryString(2);
 				break;
-			case "replaceDelegationInheritance" : 
+			case "RDI" : 
 				refactor[0] = Integer.toBinaryString(3);
 				break;
-			case "moveField" : 
+			case "MF" : 
 				refactor[0] = Integer.toBinaryString(4);
 				break;
-			case "extractMethod" : 
+			case "EM" : 
 				refactor[0] = Integer.toBinaryString(5);
 				break;
-			case "pushDownMethod" : 
+			case "PDM" : 
 				refactor[0] = Integer.toBinaryString(6);
 				break;
-			case "replaceInheritanceDelegation" : 
+			case "RID" : 
 				refactor[0] = Integer.toBinaryString(7);
 				break;
-			case "inlineMethod" : 
+			case "IM" : 
 				refactor[0] = Integer.toBinaryString(8);
 				break;
-			case "pullUpMethod" : 
+			case "PUM" : 
 				refactor[0] = Integer.toBinaryString(9);
 				break;
-			case "pushDownField" : 
+			case "PDF" : 
 				refactor[0] = Integer.toBinaryString(10);
 				break;
-			case "extractClass" : 
+			case "EC" : 
 				refactor[0] = Integer.toBinaryString(11);
 				break;
 			}//end case extracting ref
@@ -195,12 +196,13 @@ public class CodeDecodeRefactorList
 							src[numberSrc] =  Integer.toBinaryString(clase.getKey());
 							
 							//extracting fields of the source classes	
-							if( !ref.getParams().get("fld").isEmpty() ){
+							if( ref.getParams().get("fld") != null ){
 								for(RefactoringParameter rp_fld : ref.getParams().get("fld")){
 									
 									for(String field : metaphor.getFieldsFromClass(clase.getValue())){
-
-										if( field.equals(  rp_fld.getCodeObj()  ) ){
+										
+										if( rp_fld.getCodeObj().toString().contains( field )   ){
+										//if( field.equals(  rp_fld.getCodeObj()  ) ){
 											fld = new String [ref.getParams().get("fld").size()];
 											fld[numberfld] =  Integer.toBinaryString(hashSetfld);
 										}
@@ -212,12 +214,13 @@ public class CodeDecodeRefactorList
 							}//end if fld
 							
 							//extracting methods of the source classes	
-							if( !ref.getParams().get("mtd").isEmpty() ){
+							if( ref.getParams().get("mtd") != null ){
 								for(RefactoringParameter rp_mtd : ref.getParams().get("mtd")){
 									
 									for(String method : metaphor.getMethodsFromClass(clase.getValue())){
-
-										if( method.equals(  rp_mtd.getCodeObj()  ) ){
+										
+										if(  rp_mtd.getCodeObj().toString().contains( method )   ){
+										//if( method.equals(  rp_mtd.getCodeObj()  ) ){
 											mtd = new String [ref.getParams().get("mtd").size()];
 											mtd[numbermtd] =  Integer.toBinaryString(hashSetmtd);
 										}
@@ -238,7 +241,7 @@ public class CodeDecodeRefactorList
 			}//end if src
 			
 			//extracting target classes 
-			if( !ref.getParams().get("tgt").isEmpty() ){
+			if( ref.getParams().get("tgt") != null ){
 				for(RefactoringParameter rp : ref.getParams().get("tgt")){
 					for(Entry<Integer,TypeDeclaration> clase : metaphor.getMapClass().entrySet()){
 						if( clase.getValue().equals(  rp.getCodeObj()  ) ){

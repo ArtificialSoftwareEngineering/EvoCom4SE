@@ -63,7 +63,7 @@ public class QubitMutation extends ArityOne<QubitArray> {
   */
   public static void main(String[] argv){
     System.out.println("*** Generating a genome of 21 genes randomly ***");
-    QubitArray genome = new QubitArray(21, true);
+    QubitArray genome = new QubitArray(21, true, 4); //for 4tam of qubits
     System.out.println(genome.getGenObservation().toString());
 
     QubitMutation mutation = new QubitMutation(0.05);

@@ -124,79 +124,135 @@ public class CodeDecodeRefactorList
 		return oper;
 	}
 	
+	//coding inside genome
 	public List<QubitRefactor> code (List<RefactoringOperation> thing){
-		QubitRefactor model = new QubitRefactor(true);
+		
+		int QUBITTAM = 4; //could be generated in the constructor
 		List<QubitRefactor> coding = new ArrayList<QubitRefactor>();
 
-		String  observation = new String();
+		String [] refactor = new String [1];
 		for(RefactoringOperation ref : thing){
 			//extracting ref type
 			switch(ref.getRefId()){
 			case "pullUpField" : 
-				if( Integer.toBinaryString(0).length() <= model.getREFACTOR() ){
-					char[] temp = new char[model.getREFACTOR()];
-					Arrays.fill(temp, '0');
-					
-					for(int i = model.getREFACTOR()-1; i>=0 ; i-- ){
-						
-					}
-				}
-					
-				Integer.toBinaryString(0);
+				refactor[0] = Integer.toBinaryString(0);
 				break;
 			case "moveMethod" :
-				observation = Integer.toBinaryString(1);
+				refactor[0] = Integer.toBinaryString(1);
 				break;
 			case "replaceMethodObject" : 
-				observation = Integer.toBinaryString(2);
+				refactor[0] = Integer.toBinaryString(2);
 				break;
 			case "replaceDelegationInheritance" : 
-				observation = Integer.toBinaryString(3);
+				refactor[0] = Integer.toBinaryString(3);
 				break;
 			case "moveField" : 
-				observation = Integer.toBinaryString(4);
+				refactor[0] = Integer.toBinaryString(4);
 				break;
 			case "extractMethod" : 
-				observation = Integer.toBinaryString(5);
+				refactor[0] = Integer.toBinaryString(5);
 				break;
 			case "pushDownMethod" : 
-				observation = Integer.toBinaryString(6);
+				refactor[0] = Integer.toBinaryString(6);
 				break;
 			case "replaceInheritanceDelegation" : 
-				observation = Integer.toBinaryString(7);
+				refactor[0] = Integer.toBinaryString(7);
 				break;
 			case "inlineMethod" : 
-				observation = Integer.toBinaryString(8);
+				refactor[0] = Integer.toBinaryString(8);
 				break;
 			case "pullUpMethod" : 
-				observation = Integer.toBinaryString(9);
+				refactor[0] = Integer.toBinaryString(9);
 				break;
 			case "pushDownField" : 
-				observation = Integer.toBinaryString(10);
+				refactor[0] = Integer.toBinaryString(10);
 				break;
 			case "extractClass" : 
-				observation = Integer.toBinaryString(11);
+				refactor[0] = Integer.toBinaryString(11);
 				break;
-			}//end case
+			}//end case extracting ref
 			
-			//extracting source classes
+			
+			String [] src = null;
+			String [] fld = null;
+			String [] mtd = null;
+			String [] tgt = null;
+			
 			int numberSrc = 0;
+			int numberfld = 0;
+			int numbermtd = 0;
+			int numbertgt = 0;
+			
+			int hashSetfld = 0;
+			int hashSetmtd = 0;
+			
+			//extracting source classes and its dependencies
 			if( !ref.getParams().get("src").isEmpty() ){
 				for(RefactoringParameter rp : ref.getParams().get("src")){
-					numberSrc++;
-					for(Entry<Integer,TypeDeclaration> param : metaphor.getMapClass().entrySet()){
-						if( param.getValue().equals(  rp.getCodeObj()  ) ){
-							observation = observation + Integer.toBinaryString(param.getKey());
+					for(Entry<Integer,TypeDeclaration> clase : metaphor.getMapClass().entrySet()){
+						if( clase.getValue().equals(  rp.getCodeObj()  ) ){
+							src = new String [ref.getParams().get("src").size()];
+							src[numberSrc] =  Integer.toBinaryString(clase.getKey());
+							
+							//extracting fields of the source classes	
+							if( !ref.getParams().get("fld").isEmpty() ){
+								for(RefactoringParameter rp_fld : ref.getParams().get("fld")){
+									
+									for(String field : metaphor.getFieldsFromClass(clase.getValue())){
+
+										if( field.equals(  rp_fld.getCodeObj()  ) ){
+											fld = new String [ref.getParams().get("fld").size()];
+											fld[numberfld] =  Integer.toBinaryString(hashSetfld);
+										}
+										hashSetfld++;
+									}
+									hashSetfld = 0;
+									numberfld++;
+								}
+							}//end if fld
+							
+							//extracting methods of the source classes	
+							if( !ref.getParams().get("mtd").isEmpty() ){
+								for(RefactoringParameter rp_mtd : ref.getParams().get("mtd")){
+									
+									for(String method : metaphor.getMethodsFromClass(clase.getValue())){
+
+										if( method.equals(  rp_mtd.getCodeObj()  ) ){
+											mtd = new String [ref.getParams().get("mtd").size()];
+											mtd[numbermtd] =  Integer.toBinaryString(hashSetmtd);
+										}
+										hashSetmtd++;
+									}
+									hashSetmtd = 0;
+									numbermtd++;
+								}
+							}//end if mtd
+							
+							
 						}
 					}
+					numbermtd = 0;
+					numberfld = 0;
+					numberSrc++;
 				}
 			}//end if src
 			
-			//extracting fld
-			if( !ref.getParams().get("fld").isEmpty() ){
-				
-			}
-		}
+			//extracting target classes 
+			if( !ref.getParams().get("tgt").isEmpty() ){
+				for(RefactoringParameter rp : ref.getParams().get("tgt")){
+					for(Entry<Integer,TypeDeclaration> clase : metaphor.getMapClass().entrySet()){
+						if( clase.getValue().equals(  rp.getCodeObj()  ) ){
+							tgt = new String [ref.getParams().get("tgt").size()];
+							tgt[numbertgt] =  Integer.toBinaryString(clase.getKey());
+						}
+					}
+					numbertgt++;
+				}
+			}//end if tgt
+			
+			coding.add(new QubitRefactor(refactor, src, fld, mtd, tgt,  QUBITTAM));
+		}//for refactoring operation
+		
 
 		return coding;
 	}

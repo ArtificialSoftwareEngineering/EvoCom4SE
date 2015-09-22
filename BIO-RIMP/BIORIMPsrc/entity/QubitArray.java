@@ -4,6 +4,7 @@
 package entity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import unalcol.optimization.binary.BitMutation;
 import unalcol.types.collection.bitarray.BitArray;
@@ -27,14 +28,6 @@ public class QubitArray implements Cloneable {
 	 */
 	private int n = 0;
 
-	//constructor for code level QubitArray
-	public QubitArray(BitArray qubitArrayObserv, int n, int startQuArray) {
-		this.n = n;
-		data = new ArrayList<Qubit>();
-		for(int i = 0; i < n; i++){
-			data.add( new Qubit( qubitArrayObserv, i, startQuArray, n ) );
-		}
-	}
 	
 	/**
 	 * Constructor: Creates a clone of the Qubit array given as argument
@@ -110,16 +103,52 @@ public class QubitArray implements Cloneable {
 	 * @param n The size of the bit array
 	 * 
 	 */
-	public  QubitArray(int n, boolean random) {
+	public  QubitArray(int n, boolean random, int qubitam) {
 		this.n = n;
 		data = new ArrayList<Qubit>();
 		//data = new Qubit[n];
 
 		for(int i=0; i < n; i++){
-			data.add(new Qubit(random));
+			data.add(new Qubit(random,qubitam));
 			//data[i] = new Qubit(random);
 		}
 
+	}
+	
+
+	//Constructor for CODE level QubitArray
+	//must be cut by qubittam bits is the complete observation
+	public QubitArray(int numOfQubits, int qubitam, String [] observation) {
+		
+		data = new ArrayList<Qubit>();
+		
+		for(int i = 0; i < observation.length; i++){
+			
+			if(observation[i].length() <= numOfQubits*qubitam){
+				boolean[]  strand = new boolean[numOfQubits*qubitam]; 
+				Arrays.fill(strand, false);
+				for( int j = observation[i].length(), k = strand.length; j >= 0; j--, k--){
+					if( observation[i].charAt(j) == '0' )
+						strand[k] = false;
+					else
+						strand[k] = true;
+				}
+				
+				for( int m = 0; m < numOfQubits; m++){
+					boolean[] bits = new boolean[qubitam];
+					for(int n = 0; n < bits.length; n++){
+						bits[n] = strand[n+(qubitam*m)];
+					}
+					data.add( new Qubit( bits ) );
+				}
+						
+			}else{
+				System.out.println("ERROR. Creating QUBITARRAY for OutofBounds");
+				data.add( new Qubit( true, qubitam ) );
+			}
+		}
+		
+		this.n = data.size();
 	}
 
 	/**

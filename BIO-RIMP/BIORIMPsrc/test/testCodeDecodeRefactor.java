@@ -28,19 +28,28 @@ public class testCodeDecodeRefactor {
 		//Creating the individual
 		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
-		for(int i = 0; i < 10000; i++){
-			genome.add(new QubitRefactor(true));
+		List<QubitRefactor> genomeCod = new ArrayList<QubitRefactor>();
+		
+		int  QUBITTAM = 4;
+		for(int i = 0; i < 10; i++){
+			genome.add(new QubitRefactor(true , QUBITTAM));
 			System.out.println(i+" "+
 			genome.get(i).getGenObservation().toString());
 		}
-		//Processing EncodeDecode
+		
 		CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
 			= new CodeDecodeRefactorList(metaphor); 
-		
+		//Processing Decode
 		phe = map.decode(genome);
 		
 		for(int i = 0; i < phe.size(); i++){
-			System.out.println(i+" "+ phe.get(i).toString());
+			System.out.println("Decoding: "+i+" "+ phe.get(i).toString());
+		}
+		
+		//Processing Encode
+		genomeCod = map.code(phe);
+		for(int i = 0; i < genomeCod.size(); i++){
+			System.out.println("Coding: "+i+" "+ genomeCod.get(i).toString());
 		}
 	}
 

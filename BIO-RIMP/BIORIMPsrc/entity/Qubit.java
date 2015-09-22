@@ -15,7 +15,7 @@ public class Qubit {
 	
 	
 
-	private int BITARRAYLENGTH = 8;
+	private int BITARRAYLENGTH;
 	//private BitArray bit_one_non_act = null;
 	//private BitArray bit_two_non_act = null;
 	private BitArray non_act = null;
@@ -26,17 +26,28 @@ public class Qubit {
 	
 	//DDefine when  a bit is dominant
 	
-	public Qubit(boolean random){
+	public Qubit(boolean random, int BITARRAYLENGTH){
+		this.BITARRAYLENGTH = BITARRAYLENGTH;
 		//bit_one_non_act = new BitArray(BITARRAYLENGTH, random);
 		//bit_two_non_act = new BitArray(BITARRAYLENGTH, random);
-		bit_act = new BitArray(BITARRAYLENGTH/2, random);
-		non_act = new BitArray(BITARRAYLENGTH, random);
+		bit_act = new BitArray(BITARRAYLENGTH, random);
+		non_act = new BitArray(BITARRAYLENGTH*2, random); //double capacity
 		RandBool g = new RandBool();
 		activeState = g.next();
 	}
 	
-	//constructor for code level qubit
+	//Constructor for CODE level qubit
 	
+	public Qubit(boolean[] bits){
+		this.BITARRAYLENGTH = bits.length;
+
+		bit_act = new BitArray(bits);
+
+		non_act = new BitArray(BITARRAYLENGTH*2, true); //double capacity
+		activeState = false;
+	}
+	
+	//Unstable Constructor
 	public Qubit(BitArray qubitObserv, int startQubit, int startQuArray, int numQubit){
 		
 		BitArray qubitArray = qubitObserv.subBitArray(startQuArray * ((BITARRAYLENGTH/2) * numQubit), 

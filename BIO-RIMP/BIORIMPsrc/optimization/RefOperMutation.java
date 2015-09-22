@@ -64,7 +64,7 @@ public class RefOperMutation extends ArityOne<QubitRefactor> {
   */
   public static void main(String[] argv){
     System.out.println("*** Generating a genome of 21 genes randomly ***");
-    QubitRefactor genome = new QubitRefactor(true);
+    QubitRefactor genome = new QubitRefactor(true, 4); //for 4tam of qubits
     System.out.println(genome.getGenObservation().toString());
 
     RefOperMutation mutation = new RefOperMutation(0.05);

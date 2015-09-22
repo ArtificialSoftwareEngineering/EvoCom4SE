@@ -32,6 +32,7 @@ public class QubitRefactor implements Cloneable {
 	private int FLD = 2;		//3 Qubits
 	private int MTD = 2;		//3 Qubits
 	private int TGT = 3; 		//6 Qubits
+	private int QUBITTAM;
 
 	/**
 	 * Constructor: Creates a clone of the QubitRefactor given as argument
@@ -47,14 +48,52 @@ public class QubitRefactor implements Cloneable {
 		}
 	}
 	
-	//constructor for code level QubitRefactor
-	public QubitRefactor(BitArray qubitRefactorObserv) {
+	/**
+	 * Constructor: Creates a QubitRefactor of n QubitArrays, in a random way or with all bit in false according to the randomly argument
+	 * @param n The size of the Qubit array
+	 * 
+	 */
+	public  QubitRefactor(boolean random, int QUBITTAM) {
+		this.QUBITTAM = QUBITTAM;
 		data = new QubitArray[n];
-		data[0] = new QubitArray(qubitRefactorObserv , REFACTOR, 0); //multiple per number of classes
-		data[1] = new QubitArray(qubitRefactorObserv , SRC, 1);
-		data[2] = new QubitArray(qubitRefactorObserv , FLD, 2);
-		data[3] = new QubitArray(qubitRefactorObserv , MTD, 3);
-		data[4] = new QubitArray(qubitRefactorObserv , TGT, 4);
+		data[0] = new QubitArray(REFACTOR , random, QUBITTAM);
+		data[1] = new QubitArray(SRC , random, QUBITTAM);
+		data[2] = new QubitArray(FLD , random, QUBITTAM);
+		data[3] = new QubitArray(MTD , random, QUBITTAM);
+		data[4] = new QubitArray(TGT , random, QUBITTAM);
+
+	}
+	
+	//Constructor for CODE level QubitRefactor
+	public QubitRefactor(	String [] refactor, String [] src, String [] fld,
+							String [] mtd, 		String [] tgt, int QUBITTAM) {
+		this.QUBITTAM = QUBITTAM;
+		data = new QubitArray[n];
+		
+		if( refactor != null)
+			data[0] = new QubitArray( REFACTOR, QUBITTAM, refactor ); 
+		else
+			data[0] = new QubitArray(REFACTOR , true, QUBITTAM);
+		
+		if ( src != null)
+			data[1] = new QubitArray( SRC, QUBITTAM, src );
+		else
+			data[1] = new QubitArray( SRC , true, QUBITTAM );
+		
+		if ( fld != null)
+			data[2] = new QubitArray( FLD, QUBITTAM, fld );
+		else 
+			data[2] = new QubitArray( FLD , true, QUBITTAM );
+		
+		if( mtd != null)
+			data[3] = new QubitArray( MTD, QUBITTAM, mtd );
+		else
+			data[3] = new QubitArray( MTD , true, QUBITTAM );
+		
+		if (tgt != null)
+			data[4] = new QubitArray( TGT, QUBITTAM, tgt );
+		else
+			data[4] = new QubitArray( TGT , true, QUBITTAM );
 	}
 	
 
@@ -98,21 +137,7 @@ public class QubitRefactor implements Cloneable {
 		}
 	}
 
-	/**
-	 * Constructor: Creates a QubitRefactor of n QubitArrays, in a random way or with all bit in false according to the randomly argument
-	 * @param n The size of the Qubit array
-	 * 
-	 */
-	public  QubitRefactor(boolean random) {
-		
-		data = new QubitArray[n];
-		data[0] = new QubitArray(REFACTOR , random);
-		data[1] = new QubitArray(SRC , random);
-		data[2] = new QubitArray(FLD , random);
-		data[3] = new QubitArray(MTD , random);
-		data[4] = new QubitArray(TGT , random);
 
-	}
 
 	/**
 	 * Gets the dimension of the bits array

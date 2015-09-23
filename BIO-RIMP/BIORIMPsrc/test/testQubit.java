@@ -5,7 +5,7 @@ package test;
 
 import entity.Qubit;
 import entity.QubitArray;
-import optimization.QubitSpace;
+import space.QubitSpace;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.collection.bitarray.BitArrayConverter;
 

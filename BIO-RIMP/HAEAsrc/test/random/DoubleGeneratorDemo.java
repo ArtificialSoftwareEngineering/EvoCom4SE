@@ -4,6 +4,8 @@
  */
 package test.random;
 
+import unalcol.random.integer.IntUniform;
+import unalcol.random.real.GaussianGenerator;
 import unalcol.random.real.SimplestGeneralizedPowerLawGenerator;
 import unalcol.random.real.StandardGaussianGenerator;
 import unalcol.random.real.SymmetricGenerator;
@@ -16,10 +18,12 @@ public class DoubleGeneratorDemo {
     
   public static void gaussian(int n){
       System.out.println( "Gaussian" );
-//      GaussianGenerator g = new GaussianGenerator(0.0, 1.0);
-      StandardGaussianGenerator g = new StandardGaussianGenerator();
+      GaussianGenerator g = new GaussianGenerator(0.0, 1.0);
+      //StandardGaussianGenerator g = new StandardGaussianGenerator();
+      IntUniform gi = new IntUniform (7);
       for( int i=0; i<n; i++ ){
           System.out.println( g.generate() );
+          System.out.println( "INT " + gi.generate());
       }
   }  
   
@@ -47,5 +51,6 @@ public class DoubleGeneratorDemo {
       gaussian(n);
       power_law(n);
       symmetric_power_law(n);
+      
   }    
 }

@@ -1,18 +1,26 @@
-package optimization;
+package space;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
+import entity.MetaphorCode;
 import entity.Qubit;
 import entity.QubitArray;
 import unalcol.search.space.Space;
 
 public class RefactoringOperationSpace extends Space<List<RefactoringOperation>> {
-	protected int n;
+	protected int n = 1;
+	protected MetaphorCode metaphor;
 	
-	public RefactoringOperationSpace( int n ){
+	public RefactoringOperationSpace(MetaphorCode metaphor){
+		this.metaphor = metaphor;
+	};
+	
+	public RefactoringOperationSpace( int n, MetaphorCode metaphor ){
 		this.n = n; 
+		this.metaphor = metaphor;
 	}
 
 	@Override
@@ -43,6 +51,8 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 	@Override
 	public List<RefactoringOperation> get() {
 		//return new QubitArray(n, true);
+		int mapRefactor;
+		OBSERVRefactorings oper = new OBSERVRefactorings();
 		
 		return new ArrayList<RefactoringOperation>() ;
 	}

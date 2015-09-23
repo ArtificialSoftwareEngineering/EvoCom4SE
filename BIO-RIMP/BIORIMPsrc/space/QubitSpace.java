@@ -1,4 +1,4 @@
-package optimization;
+package space;
 
 import entity.Qubit;
 import entity.QubitArray;

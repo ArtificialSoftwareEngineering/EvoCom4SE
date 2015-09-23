@@ -73,7 +73,7 @@ public class ListRefOperMutation extends ArityOne<List<QubitRefactor>> {
     List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
     		//new QubitRefactor(true);
     for(int i = 0; i <= 21; i++){
-    	genome.add(i,new QubitRefactor(true));
+    	genome.add(i,new QubitRefactor(true,4));
     	System.out.println("["+i+"] : "+genome.get(i).getGenObservation().toString());
     }
    

@@ -188,7 +188,7 @@ public class CodeDecodeRefactorList
 			int hashSetmtd = 0;
 			
 			//extracting source classes and its dependencies
-			if( !ref.getParams().get("src").isEmpty() ){
+			if( ref.getParams().get("src") != null ){
 				for(RefactoringParameter rp : ref.getParams().get("src")){
 					for(Entry<Integer,TypeDeclaration> clase : metaphor.getMapClass().entrySet()){
 						if( clase.getValue().equals(  rp.getCodeObj()  ) ){

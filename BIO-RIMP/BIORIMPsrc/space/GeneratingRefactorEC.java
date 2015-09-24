@@ -24,7 +24,7 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 	 */
 	
 	protected Refactoring type = Refactoring.extractClass;
-	private boolean feasible = true;
+	
 	@Override
 	public OBSERVRefactoring generatingRefactor( MetaphorCode code ) {
 		// TODO Auto-generated method stub
@@ -34,14 +34,21 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 	public OBSERVRefactoring mappingRefactorMFMM( MetaphorCode code, String newClass ) {
 		// TODO Auto-generated method stub
 		
+		
+		boolean feasible;
 		List<OBSERVRefactoring> subRefs = new ArrayList<OBSERVRefactoring>();
-		List<OBSERVRefParam> paramsMF = new ArrayList<OBSERVRefParam>();	
-		List<OBSERVRefParam> paramsMM = new ArrayList<OBSERVRefParam>();
+		List<OBSERVRefParam> paramsMF;	
+		List<OBSERVRefParam> paramsMM;
 		TypeDeclaration sysType_src;
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 		
 		do{
+			feasible = true;
+			paramsMF = new ArrayList<OBSERVRefParam>();	
+			paramsMM = new ArrayList<OBSERVRefParam>();
+			
 			//Creating the OBSERVRefParam for the src class
-			IntUniform g = new IntUniform ( code.getMapClass().size() );
+			
 			sysType_src = code.getMapClass().get( g.generate()  );
 			List<String> value_src  = new ArrayList<String>();
 			value_src.add(sysType_src.getQualifiedName());
@@ -58,7 +65,6 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 				value_fld.add(fldName);
 				paramsMF.add(new OBSERVRefParam("fld", value_fld));
 			}else{
-				
 				feasible = false; 
 			}
 			

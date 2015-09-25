@@ -3,18 +3,35 @@ package space;
 import java.util.ArrayList;
 import java.util.List;
 
+import controller.RefactoringReaderBIoRIMP;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
+import edu.wayne.cs.severe.redress2.exception.ReadException;
+import entity.MappingRefactorEC;
+import entity.MappingRefactorEM;
+import entity.MappingRefactorIM;
+import entity.MappingRefactorMF;
+import entity.MappingRefactorMM;
+import entity.MappingRefactorPDF;
+import entity.MappingRefactorPDM;
+import entity.MappingRefactorPUF;
+import entity.MappingRefactorPUM;
+import entity.MappingRefactorRDI;
+import entity.MappingRefactorRID;
+import entity.MappingRefactorRMMO;
 import entity.MetaphorCode;
 import entity.Qubit;
 import entity.QubitArray;
+import optimization.CodeDecodeRefactorList.Refactoring;
+import unalcol.random.integer.IntUniform;
 import unalcol.search.space.Space;
 
 public class RefactoringOperationSpace extends Space<List<RefactoringOperation>> {
 	protected int n = 1;
 	protected MetaphorCode metaphor;
 	
-	public RefactoringOperationSpace(MetaphorCode metaphor){
+	public RefactoringOperationSpace( MetaphorCode metaphor ){
 		this.metaphor = metaphor;
 	};
 	
@@ -50,10 +67,69 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 	@Override
 	public List<RefactoringOperation> get() {
-		//return new QubitArray(n, true);
+		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
+				metaphor.getSysTypeDcls(),
+				metaphor.getLang(),
+				metaphor.getBuilder());
 		int mapRefactor;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
+		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 		
-		return new ArrayList<RefactoringOperation>() ;
+		IntUniform g = new IntUniform ( Refactoring.values().length );
+		GeneratingRefactor randomRefactor = null;
+		
+		for(int i = 0; i < n; i++){
+			mapRefactor = g.generate();
+			switch(mapRefactor){
+			case 0:
+				randomRefactor = new GeneratingRefactorPUF();
+				break;
+			case 1:
+				randomRefactor = new GeneratingRefactorMM();
+				break;
+			case 2:
+				randomRefactor = new GeneratingRefactorRMMO();
+				break;
+			case 3:
+				randomRefactor = new GeneratingRefactorRDI();
+				break;
+			case 4:
+				randomRefactor = new GeneratingRefactorMF();
+				break;
+			case 5:
+				randomRefactor = new GeneratingRefactorEM();
+				break;
+			case 6:
+				randomRefactor = new GeneratingRefactorPDM();
+				break;
+			case 7:
+				randomRefactor = new GeneratingRefactorRID();
+				break;
+			case 8:
+				randomRefactor = new GeneratingRefactorIM();
+				break;
+			case 9:
+				randomRefactor = new GeneratingRefactorPUM();
+				break;
+			case 10:
+				randomRefactor = new GeneratingRefactorPDF();
+				break;
+			case 11:
+				randomRefactor = new GeneratingRefactorEC();
+				break;
+			}//END CASE
+			
+			refactorings.add( randomRefactor.generatingRefactor( metaphor ) );
+		}
+		
+		oper.setRefactorings(refactorings);
+		try {
+			return reader.getRefactOperations( oper	);
+		} catch (ReadException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			System.out.println("Reading Error");
+			return null;
+		} 
 	}
 }

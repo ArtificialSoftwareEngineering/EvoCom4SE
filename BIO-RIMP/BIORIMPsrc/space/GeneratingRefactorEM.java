@@ -48,7 +48,7 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 			
 			//Creating the OBSERVRefParam for the mtd class
 			List<String> value_mtd  = new ArrayList<String>();
-			if(!code.getMethodsFromClass(sysType_src).isEmpty()){
+			if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
 				IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
 							
 				value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
@@ -57,6 +57,33 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 				//verification of method not constructor
 				if(value_mtd.get(0).equals(sysType_src.getName()))
 					feasible = false;
+				
+				if(feasible){
+					//Override verification parents 
+					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
+							for( String method : code.getMethodsFromClass(clase) ){
+								if( method.equals( value_mtd.get(0) ) ){
+									feasible = false;
+									break;
+								}
+							}
+						}
+					}
+					if(feasible){
+						//Override verification children
+						if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+							for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
+								for( String method : code.getMethodsFromClass(clase) ){
+									if( method.equals( value_mtd.get(0) ) ){
+										feasible = false;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
 				
 				params.add(new OBSERVRefParam("mtd", value_mtd));
 			}else{

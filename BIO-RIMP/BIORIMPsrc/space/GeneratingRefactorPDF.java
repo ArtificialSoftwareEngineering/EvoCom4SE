@@ -9,9 +9,9 @@ import java.util.List;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
-import entity.MappingRefactor.Refactoring;
 import entity.MetaphorCode;
 import unalcol.random.integer.IntUniform;
+import unalcol.random.util.RandBool;
 import unalcol.types.collection.bitarray.BitArray;
 
 /**
@@ -35,55 +35,47 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 		TypeDeclaration sysType_src;
 		
 		do{
-			feasible = true;
-			params = new ArrayList<OBSERVRefParam>();
+			do{
+				feasible = true;
+				params = new ArrayList<OBSERVRefParam>();
+				
+				//Creating the OBSERVRefParam for the src class
+				sysType_src =  code.getMapClass().get( g.generate() );
+				List<String> value_src  = new ArrayList<String>();
+				value_src.add(sysType_src.getQualifiedName());
+				params.add(new OBSERVRefParam("src", value_src));
+				
+				//Creating the OBSERVRefParam for the fld field
+				List<String> value_fld  = new ArrayList<String>();
+				if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+					IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
+					value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()
+							[ numFldObs.generate() ]);
+					params.add(new OBSERVRefParam("fld", value_fld));
+				}else{
+					feasible = false;
+				}
+			}while( !feasible );
 			
-			//Creating the OBSERVRefParam for the src class
-			sysType_src =  code.getMapClass().get( g.generate() );
-			List<String> value_src  = new ArrayList<String>();
-			value_src.add(sysType_src.getQualifiedName());
-			params.add(new OBSERVRefParam("src", value_src));
+			//Creating the OBSERVRefParam for the tgt class
+			List<String> value_tgt  = new ArrayList<String>();
 			
-			//Creating the OBSERVRefParam for the fld field
-			List<String> value_fld  = new ArrayList<String>();
-			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
-				IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
-				value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()
-						[ numFldObs.generate() ]);
-				params.add(new OBSERVRefParam("fld", value_fld));
-			}else{
-				feasible = false;
-			}
-		}while( !feasible );
-		
-		//Creating the OBSERVRefParam for the tgt class
-		TypeDeclaration sysType_tgt = null;
-		List<String> value_tgt  = new ArrayList<String>();
-		int numTgtObs = 0;
-		
-		for(int i = 0; i < genome.getGenTGT().size(); i = i+genome.getTGT()){
-			numTgtObs = genome.getNumberGenome(genome.getGenTGT(), i, genome.getTGT());
-			sysType_tgt = code.getMapClass().get(numTgtObs % 
-					code.getMapClass().size());
-			value_tgt.add(sysType_tgt.getQualifiedName());
-			
-			//verification of SRCSupClassTGT
+			//Verification of SRCSupClassTGT
+			//Retriving all child classes and choosing randomly
 			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
 				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
-				feasible = false;
+				RandBool gC = new RandBool();
 				for(TypeDeclaration clase : clases){
-					if(clase.getQualifiedName().equals(value_tgt.get(i))){
-						feasible = true;
-						break;
+					if( gC.next() ){
+						value_tgt.add(clase.getQualifiedName());
 					}
 				}
+				params.add(new OBSERVRefParam("tgt", value_tgt));
 			}else{
 				feasible = false;
 			}
-		}
-		
-		
-		params.add(new OBSERVRefParam("tgt", value_tgt));
+			
+		}while( !feasible );//Checking Subclasses for SRC selected
 		
 		return new OBSERVRefactoring(type.name(),params,feasible);
 	}

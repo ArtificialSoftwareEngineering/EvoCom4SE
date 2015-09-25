@@ -7,7 +7,7 @@ public class testQubitRefactor {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		//Random QubitRefactor 
-		QubitRefactor refactor_1 = new QubitRefactor(true);
+		QubitRefactor refactor_1 = new QubitRefactor(true, 4);
 		System.out.println("Qubits: "+refactor_1.getGenObservation().toString());
 		System.out.println("Qubits Refactor: "+refactor_1.getGenRefactor().getGenObservation().toString());
 		System.out.println("Qubits SRC: "+refactor_1.getGenSRC().getGenObservation().toString());
@@ -16,7 +16,7 @@ public class testQubitRefactor {
 		System.out.println("Qubits TGT: "+refactor_1.getGenTGT().getGenObservation().toString());
 		
 		//Random QubitRefactor 
-		QubitRefactor refactor_2 = new QubitRefactor(false);
+		QubitRefactor refactor_2 = new QubitRefactor(false, 4);
 		System.out.println("Qubits: "+refactor_2.getGenObservation().toString());
 		System.out.println("Qubits Refactor: "+refactor_2.getGenRefactor().getGenObservation().toString());
 		System.out.println("Qubits SRC: "+refactor_2.getGenSRC().getGenObservation().toString());

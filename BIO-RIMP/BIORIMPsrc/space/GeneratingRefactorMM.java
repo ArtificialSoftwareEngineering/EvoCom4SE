@@ -73,10 +73,13 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 			//Override and hierarchy verification parents 
 			if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 				for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-					for( String method : code.getMethodsFromClass(clase) ){
-						if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
-							feasible = false;
-							break;
+					if ( code.getMethodsFromClass(clase) != null )
+					if( !code.getMethodsFromClass(clase).isEmpty() ){
+						for( String method : code.getMethodsFromClass(clase) ){
+							if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
+								feasible = false;
+								break;
+							}
 						}
 					}
 				}
@@ -86,10 +89,13 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 				//Override and hierarchy verification children
 				if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
-						for( String method : code.getMethodsFromClass(clase) ){
-							if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
-								feasible = false;
-								break;
+						if ( code.getMethodsFromClass(clase) != null )
+						if( !code.getMethodsFromClass(clase).isEmpty() ){
+							for( String method : code.getMethodsFromClass(clase) ){
+								if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
+									feasible = false;
+									break;
+								}
 							}
 						}
 					}

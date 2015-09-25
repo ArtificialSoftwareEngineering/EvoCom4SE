@@ -29,7 +29,7 @@ public class testDecodeCodeRefactor {
 		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
 		for(int i = 0; i < 10000; i++){
-			genome.add(new QubitRefactor(true));
+			genome.add(new QubitRefactor(true,4));
 			System.out.println(i+" "+
 			genome.get(i).getGenObservation().toString());
 		}

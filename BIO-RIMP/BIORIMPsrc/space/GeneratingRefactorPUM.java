@@ -64,10 +64,13 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 							[ numMtdObs.generate()]);
 					
 					//Override verification
-					for ( String method : code.getMethodsFromClass( sysType_tgt ) ){
-						if( method.equals( value_mtd.get(0) ) ){
-							feasible = false;
-							break;
+					if ( code.getMethodsFromClass(sysType_tgt) != null )
+					if( !code.getMethodsFromClass(sysType_tgt).isEmpty() ){
+						for ( String method : code.getMethodsFromClass( sysType_tgt ) ){
+							if( method.equals( value_mtd.get(0) ) ){
+								feasible = false;
+								break;
+							}
 						}
 					}
 					

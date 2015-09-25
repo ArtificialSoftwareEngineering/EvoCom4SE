@@ -65,11 +65,13 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
 				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
 				RandBool gC = new RandBool();
-				for(TypeDeclaration clase : clases){
-					if( gC.next() ){
-						value_tgt.add(clase.getQualifiedName());
+				do{
+					for(TypeDeclaration clase : clases){
+						if( gC.next() ){
+							value_tgt.add(clase.getQualifiedName());
+						}
 					}
-				}
+				}while( value_tgt.isEmpty() );
 				params.add(new OBSERVRefParam("tgt", value_tgt));
 			}else{
 				feasible = false;

@@ -6,6 +6,7 @@ package test;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
+import java.util.List;
 import space.RefactoringOperationSpace;
 
 /**
@@ -26,10 +27,13 @@ public class TestRefactoringOperationSpace {
 		MetaphorCode metaphor = new MetaphorCode(init);
 		
 		//Creating the Space
-		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 5, metaphor );
+		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 100, metaphor );
 		
 		//Visualizing the get() Space
-		for( RefactoringOperation refOper : refactorSpace.get() ){
+		List<RefactoringOperation> refactorSpaceG = refactorSpace.get();
+		
+		if(refactorSpaceG != null)
+		for( RefactoringOperation refOper : refactorSpaceG ){
 			System.out.println( "Random Refactor: "+ refOper.toString() );
 		}
 

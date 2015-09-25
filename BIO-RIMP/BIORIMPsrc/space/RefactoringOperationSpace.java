@@ -8,22 +8,7 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
-import entity.MappingRefactorEC;
-import entity.MappingRefactorEM;
-import entity.MappingRefactorIM;
-import entity.MappingRefactorMF;
-import entity.MappingRefactorMM;
-import entity.MappingRefactorPDF;
-import entity.MappingRefactorPDM;
-import entity.MappingRefactorPUF;
-import entity.MappingRefactorPUM;
-import entity.MappingRefactorRDI;
-import entity.MappingRefactorRID;
-import entity.MappingRefactorRMMO;
 import entity.MetaphorCode;
-import entity.Qubit;
-import entity.QubitArray;
-import optimization.CodeDecodeRefactorList.Refactoring;
 import unalcol.random.integer.IntUniform;
 import unalcol.search.space.Space;
 
@@ -119,7 +104,9 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				break;
 			}//END CASE
 			
+			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
 			refactorings.add( randomRefactor.generatingRefactor( metaphor ) );
+			
 		}
 		
 		oper.setRefactorings(refactorings);

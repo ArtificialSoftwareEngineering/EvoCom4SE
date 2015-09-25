@@ -60,10 +60,13 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 					//Override verification
 					if(! code.getBuilder().getParentClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
 						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get(sysType_src.getQualifiedName()) ){
-							for( String method : code.getMethodsFromClass(clase) ){
-								if( method.equals( value_mtd.get(0) ) ){
-									feasible = false;
-									break;
+							if ( code.getMethodsFromClass(clase) != null )
+							if( !code.getMethodsFromClass(clase).isEmpty() ){
+								for( String method : code.getMethodsFromClass(clase) ){
+									if( method.equals( value_mtd.get(0) ) ){
+										feasible = false;
+										break;
+									}
 								}
 							}
 						}
@@ -88,12 +91,13 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
 				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
 				RandBool gC = new RandBool();
-				for(TypeDeclaration clase : clases){
-					if( gC.next() ){
-						value_tgt.add(clase.getQualifiedName());
+				do{
+					for(TypeDeclaration clase : clases){
+						if( gC.next() ){
+							value_tgt.add(clase.getQualifiedName());
+						}
 					}
-				}
-				
+				}while( value_tgt.isEmpty() );
 			}else{
 				feasible = false;
 			}

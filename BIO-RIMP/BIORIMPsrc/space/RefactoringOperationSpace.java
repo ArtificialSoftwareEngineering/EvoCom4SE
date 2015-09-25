@@ -128,7 +128,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		} catch (ReadException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			System.out.println("Reading Error");
+			System.out.println( "Reading Error" );
 			return null;
 		} 
 	}

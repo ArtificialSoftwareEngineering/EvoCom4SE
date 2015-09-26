@@ -72,16 +72,11 @@ public class MainHillClimbing {
         
         // Search Space definition
         int DIM = 12;
-        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM );
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
         
         // Optimization Function
         OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
-        //Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function, false); // maximizing, remove the parameter false if minimizing   	
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
-        
-        // CodeDecodeMap
-        CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
-			= new CodeDecodeRefactorList(metaphor); 
         
         
         // Variation definition in QubitRefactorSpace

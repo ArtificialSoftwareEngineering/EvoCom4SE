@@ -47,6 +47,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 					x.set(new Qubit(true));
 			}
 		}*/
+		System.out.println("REPAIR");
 		return x;
 	}
 

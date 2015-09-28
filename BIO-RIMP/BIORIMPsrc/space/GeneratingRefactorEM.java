@@ -110,6 +110,7 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 		// TODO Auto-generated method stub
 		boolean feasible = true;
 		
+		//Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
 		if( ref.getParams().get("src") != null ){
 			if( !ref.getParams().get("src").isEmpty() ){
@@ -123,33 +124,8 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 			return false;
 		}
 		
-		List<TypeDeclaration> tgt = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("tgt") != null ){
-			if( !ref.getParams().get("tgt").isEmpty() ){
-				for(RefactoringParameter param_tgt : ref.getParams().get("tgt") ){
-					tgt.add( (TypeDeclaration) param_tgt.getCodeObj() );
-				}
-			}else{
-				return false;
-			}
-		}else{
-			return false;
-		}
 		
-        List<AttributeDeclaration> fld = new ArrayList<AttributeDeclaration>();
-		if( ref.getParams().get("fld") != null ){
-			if( !ref.getParams().get("fld").isEmpty() ){
-				for(RefactoringParameter param_fld : ref.getParams().get("fld") ){
-					fld.add( (AttributeDeclaration) param_fld.getCodeObj() );
-				}
-			}else{
-				return false;
-			}
-		}else{
-			return false;
-		}
-	
-		
+		//Extracting method of source class
 		List<MethodDeclaration> mtd = new ArrayList<MethodDeclaration>();
 		if( ref.getParams().get("mtd") != null ){
 			if( !ref.getParams().get("mtd").isEmpty() ){
@@ -161,6 +137,22 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 			}
 		}else{
 			return false;
+		}
+		
+		//Verification Method in Source Class
+		for(TypeDeclaration src_class : src){
+			for(MethodDeclaration metodo : mtd){
+				if ( code.getMethodsFromClass(src_class) != null )
+					if( !code.getMethodsFromClass(src_class).isEmpty() )
+						for(String method : code.getMethodsFromClass(src_class)){
+							if(   metodo.getObjName().equals(  method  )  )
+								feasible = false;	//check the logic is wrong!!
+						}
+				if( feasible )
+					return false;
+				else
+					feasible = true;
+			}			
 		}
 
 	    //verification of method not constructor
@@ -175,10 +167,10 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 			for(MethodDeclaration metodo : mtd){
 				//Override verification parents 
 				if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
-					for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
-						if ( code.getMethodsFromClass(clase) != null )
-						if( !code.getMethodsFromClass(clase).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase) ){
+					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
+						if ( code.getMethodsFromClass(clase_parent) != null )
+						if( !code.getMethodsFromClass(clase_parent).isEmpty() ){
+							for( String method : code.getMethodsFromClass(clase_parent) ){
 								if( method.equals( metodo.getObjName() ) ){
 									return false;	
 								}
@@ -189,10 +181,10 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 				
 				//Override verification children
 				if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
-					for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
-						if ( code.getMethodsFromClass(clase) != null )
-						if( !code.getMethodsFromClass(clase).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase) ){
+					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
+						if ( code.getMethodsFromClass(clase_child) != null )
+						if( !code.getMethodsFromClass(clase_child).isEmpty() ){
+							for( String method : code.getMethodsFromClass(clase_child) ){
 								if( method.equals( metodo.getObjName() ) ){
 									return false;	
 								}

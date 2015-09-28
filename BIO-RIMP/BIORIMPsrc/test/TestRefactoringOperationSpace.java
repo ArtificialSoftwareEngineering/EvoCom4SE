@@ -36,6 +36,10 @@ public class TestRefactoringOperationSpace {
 		for( RefactoringOperation refOper : refactorSpaceG ){
 			System.out.println( "Random Refactor: "+ refOper.toString() );
 		}
+		
+		//Visualizing feasible individual
+
+		System.out.println( "Feasible Refactor: " + "["+ refactorSpace.feasible(refactorSpaceG) +"]" );	
 
 	}
 

@@ -27,7 +27,58 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 	@Override
 	public boolean feasible(List<RefactoringOperation> x) {
-		return x.size()==n;
+		boolean feasible = false;
+		String mapRefactor;
+		GeneratingRefactor specificRefactor = null;
+
+		for(RefactoringOperation refOp : x){
+			mapRefactor = refOp.getRefType().getAcronym();	
+			switch(mapRefactor){
+			case "PUF":
+				specificRefactor = new GeneratingRefactorPUF();
+				break;
+			case "MM":
+				specificRefactor = new GeneratingRefactorMM();
+				break;
+			case "RMMO":
+				specificRefactor = new GeneratingRefactorRMMO();
+				break;
+			case "RDI":
+				specificRefactor = new GeneratingRefactorRDI();
+				break;
+			case "MF":
+				specificRefactor = new GeneratingRefactorMF();
+				break;
+			case "EM":
+				specificRefactor = new GeneratingRefactorEM();
+				break;
+			case "PDM":
+				specificRefactor = new GeneratingRefactorPDM();
+				break;
+			case "RID":
+				specificRefactor = new GeneratingRefactorRID();
+				break;
+			case "IM":
+				specificRefactor = new GeneratingRefactorIM();
+				break;
+			case "PUM":
+				specificRefactor = new GeneratingRefactorPUM();
+				break;
+			case "PDF":
+				specificRefactor = new GeneratingRefactorPDF();
+				break;
+			case "EC":
+				specificRefactor = new GeneratingRefactorEC();
+				break;
+			}//END CASE
+			
+			feasible = specificRefactor.feasibleRefactor( refOp, metaphor );
+			if( !feasible ){
+					System.out.println( "Wrong Feasible Refactor: " + refOp.toString() );
+					break;
+				}
+		}
+		return x.size() <= n && feasible;
 	}
 
 	@Override

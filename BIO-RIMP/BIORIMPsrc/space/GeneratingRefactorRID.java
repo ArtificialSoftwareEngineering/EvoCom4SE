@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
+import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import entity.MetaphorCode;
@@ -70,6 +72,68 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
         }while( !feasible );
         
 		return new OBSERVRefactoring(type.name(),params,feasible);
+	}
+
+	@Override
+	public boolean feasibleRefactor(RefactoringOperation ref, MetaphorCode code) {
+		// TODO Auto-generated method stub
+		boolean feasible = true;
+		
+		//Extracting the source class
+		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
+		if( ref.getParams().get("src") != null ){
+			if( !ref.getParams().get("src").isEmpty() ){
+				for(RefactoringParameter param_src : ref.getParams().get("src") ){
+					src.add( (TypeDeclaration) param_src.getCodeObj() );
+				}
+			}else{
+				return false;
+			}
+		}else{
+			return false;
+		}
+		
+		//Extracting the target class
+		List<TypeDeclaration> tgt = new ArrayList<TypeDeclaration>();
+		if( ref.getParams().get("tgt") != null ){
+			if( !ref.getParams().get("tgt").isEmpty() ){
+				for(RefactoringParameter param_tgt : ref.getParams().get("tgt") ){
+					tgt.add( (TypeDeclaration) param_tgt.getCodeObj() );
+				}
+			}else{
+				return false;
+			}
+		}else{
+			return false;
+		}
+		
+		//Verification of equality
+		for( TypeDeclaration src_class : src ){
+			for( TypeDeclaration tgt_class : tgt ){
+				if( src_class.getName().equals( tgt_class.getName() ) )
+					return false;
+			}
+		}
+		
+		//verification of SRCSubClassTGT
+		for( TypeDeclaration tgt_class : tgt ){
+			if(! code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName()).isEmpty() ){
+				for( TypeDeclaration src_class : src ){
+					feasible = false;
+					for(TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName() ) ){
+						if( clase_child.equals( src_class ) ){
+								feasible = true;
+						}	
+					}
+					if( !feasible )
+						return false;
+				}
+			}else{
+				return false;
+			}
+		}
+		
+		return feasible;
 	}
 
 }

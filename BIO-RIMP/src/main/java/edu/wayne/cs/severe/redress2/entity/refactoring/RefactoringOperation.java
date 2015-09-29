@@ -72,7 +72,21 @@ public class RefactoringOperation {
 				+ "feasible : " + feasible;
 	}
 
+	/**
+	 * @param params the params to set
+	 */
+	public void setParams(HashMap<String, List<RefactoringParameter>> params) {
+		this.params = params;
+	}
 
+	/**
+	 * @param subRefs the subRefs to set
+	 */
+	public void setSubRefs(List<RefactoringOperation> subRefs) {
+		this.subRefs = subRefs;
+	}
+
+	
 
 
 	

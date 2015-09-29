@@ -255,4 +255,10 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 		return feasible;
 	}
 
+	@Override
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }

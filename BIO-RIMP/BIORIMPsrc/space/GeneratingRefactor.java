@@ -17,6 +17,8 @@ public abstract class GeneratingRefactor {
 	public abstract OBSERVRefactoring generatingRefactor( MetaphorCode code );
 	
 	public abstract boolean feasibleRefactor( RefactoringOperation ref, MetaphorCode code );
+	
+	public abstract OBSERVRefactoring repairRefactor ( RefactoringOperation  ref, MetaphorCode code);
 
 	public OBSERVRefactoring getRefactor() {
 		return refactor;

@@ -156,6 +156,23 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 					feasible = true;
 			}			
 		}
+		
+		//Verification SRCsubClassTGT
+		for(TypeDeclaration src_class : src){
+			if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
+				for(TypeDeclaration tgt_class : tgt){
+					feasible = false;
+					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
+						if( clase_parent.equals(tgt_class) ) 
+							feasible = true;
+					}
+					if( !feasible )
+						return false;
+				}
+			}else{
+				return false;
+			}
+		}
 
 		
 		return feasible;

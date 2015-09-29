@@ -37,7 +37,6 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
         List<OBSERVRefParam> params;
         IntUniform g = new IntUniform ( code.getMapClass().size() );
         TypeDeclaration sysType_src;
-        TypeDeclaration sysType_src_parent;
         List<String> value_tgt; 
         List<String> value_src;
         List<String> value_mtd;
@@ -61,15 +60,32 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate() ]);
 					
-					//Override verification
-					if(! code.getBuilder().getParentClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
-						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get(sysType_src.getQualifiedName()) ){
+					//Override verification parents 
+					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 							if ( code.getMethodsFromClass(clase) != null )
 							if( !code.getMethodsFromClass(clase).isEmpty() ){
 								for( String method : code.getMethodsFromClass(clase) ){
 									if( method.equals( value_mtd.get(0) ) ){
 										feasible = false;
 										break;
+									}
+								}
+							}
+						}
+					}
+					
+					if(feasible){
+						//Override verification children
+						if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+							for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
+								if ( code.getMethodsFromClass(clase) != null )
+								if( !code.getMethodsFromClass(clase).isEmpty() ){
+									for( String method : code.getMethodsFromClass(clase) ){
+										if( method.equals( value_mtd.get(0) ) ){
+											feasible = false;
+											break;
+										}
 									}
 								}
 							}
@@ -185,6 +201,25 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 			}
 		}
 		
+		//Verification SRCsupClassTGT
+		for(TypeDeclaration src_class : src){
+			if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
+				for(TypeDeclaration tgt_class : tgt){
+					feasible = false;
+					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){	
+							
+						if( clase_child.equals(tgt_class) ) 
+							feasible = true;
+							
+					}
+					if( !feasible )
+						return false;
+				}
+			}else{
+				return false;
+			}
+		}
+				
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
 				//Override verification parents 

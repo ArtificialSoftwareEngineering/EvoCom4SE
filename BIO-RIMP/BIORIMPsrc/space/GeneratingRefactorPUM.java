@@ -67,17 +67,6 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate()]);
 					
-					//Override verification
-					if ( code.getMethodsFromClass(sysType_tgt) != null )
-					if( !code.getMethodsFromClass(sysType_tgt).isEmpty() ){
-						for ( String method : code.getMethodsFromClass( sysType_tgt ) ){
-							if( method.equals( value_mtd.get(0) ) ){
-								feasible = false;
-								break;
-							}
-						}
-					}
-					
 					if( feasible ){
 						//verification of method not constructor
 						if( value_mtd.get(0).equals( sysType_src.getName() ) ){
@@ -91,6 +80,41 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 									}
 								}
 							}
+							
+							for( String src_type : value_src ){
+								//Override verification parents 
+								if( !code.getBuilder().getParentClasses().get( src_type ).isEmpty() ){
+									for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_type ) ){
+										if ( code.getMethodsFromClass(clase) != null )
+										if( !code.getMethodsFromClass(clase).isEmpty() ){
+											for( String method : code.getMethodsFromClass(clase) ){
+												if( method.equals( value_mtd.get(0) ) ){
+													feasible = false;
+													break;
+												}
+											}
+										}
+									}
+								}
+								
+								if(feasible){
+									//Override verification children
+									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
+										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
+											if ( code.getMethodsFromClass(clase_child) != null )
+											if( !code.getMethodsFromClass(clase_child).isEmpty() ){
+												for( String method : code.getMethodsFromClass( clase_child ) ){
+													if( method.equals( value_mtd.get(0) ) ){
+														feasible = false;
+														break;
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+
 						}
 					}
 				}else{
@@ -179,6 +203,24 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 			for(MethodDeclaration metodo : mtd){
 				if(  src_class.getName().equals(  metodo.getObjName()  )  )
 						return false;	
+			}
+		}
+		
+		//Verification SRCsubClassTGT
+		for(TypeDeclaration src_class : src){
+			if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
+				for(TypeDeclaration tgt_class : tgt){
+					feasible = false;
+					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
+						
+							if( clase_parent.equals(tgt_class) ) 
+								feasible = true;	
+					}
+					if( !feasible )
+						return false;
+				}
+			}else{
+				return false;
 			}
 		}
 		

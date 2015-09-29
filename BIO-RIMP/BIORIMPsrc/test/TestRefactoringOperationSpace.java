@@ -27,7 +27,7 @@ public class TestRefactoringOperationSpace {
 		MetaphorCode metaphor = new MetaphorCode(init);
 		
 		//Creating the Space
-		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 100, metaphor );
+		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 1000, metaphor );
 		
 		//Visualizing the get() Space
 		List<RefactoringOperation> refactorSpaceG = refactorSpace.get();

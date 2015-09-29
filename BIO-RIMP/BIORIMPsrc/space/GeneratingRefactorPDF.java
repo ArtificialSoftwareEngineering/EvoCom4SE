@@ -148,7 +148,25 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 					feasible = true;
 			}			
 		}
-
+		
+		//Verification SRCSupClassTGT
+		for(TypeDeclaration src_class : src){
+			if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
+				for(TypeDeclaration tgt_class : tgt){
+					feasible = false;
+					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
+							
+								if( clase_child.equals(tgt_class) ) 
+									feasible = true;
+							
+					}
+					if( !feasible )
+						return false;
+				}
+			}else{
+					return false;
+			}
+		}
 		
 		return feasible;
 	}

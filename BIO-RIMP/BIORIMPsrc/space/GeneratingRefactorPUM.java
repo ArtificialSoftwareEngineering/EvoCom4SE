@@ -26,47 +26,47 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 	/* (non-Javadoc)
 	 * @see entity.MappingRefactor#mappingRefactor(java.lang.String, unalcol.types.collection.bitarray.BitArray, entity.MetaphorCode)
 	 */
-	
+
 	protected Refactoring type = Refactoring.pullUpMethod;
-	
+
 	@Override
 	public OBSERVRefactoring generatingRefactor( MetaphorCode code ) {
 		// TODO Auto-generated method stub
 		boolean feasible;
-        List<OBSERVRefParam> params;
-        IntUniform g = new IntUniform ( code.getMapClass().size() );
-        List<String> value_mtd = null ;
-        List<String> value_tgt; 
-        TypeDeclaration sysType_tgt; 
-        TypeDeclaration sysType_src; 
-        List<String> value_src;
-        
-        do{
-        	feasible = true;
-        	params = new ArrayList<OBSERVRefParam>();
-        	
-	        //Creating the OBSERVRefParam for the tgt
-	      	value_tgt  = new ArrayList<String>();
-	      	sysType_tgt = code.getMapClass().get( g.generate() );
-	      	value_tgt.add( sysType_tgt.getQualifiedName());
-	        
+		List<OBSERVRefParam> params;
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
+		List<String> value_mtd = null ;
+		List<String> value_tgt; 
+		TypeDeclaration sysType_tgt; 
+		TypeDeclaration sysType_src; 
+		List<String> value_src;
+
+		do{
+			feasible = true;
+			params = new ArrayList<OBSERVRefParam>();
+
+			//Creating the OBSERVRefParam for the tgt
+			value_tgt  = new ArrayList<String>();
+			sysType_tgt = code.getMapClass().get( g.generate() );
+			value_tgt.add( sysType_tgt.getQualifiedName());
+
 			//Creating the OBSERVRefParam for the src class
 			value_src  = new ArrayList<String>();
-			
+
 			//verification of SRCSubClassTGT
 			if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
 				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
 				IntUniform indexClass = new IntUniform ( clases.size() );
 				sysType_src = clases.get( indexClass.generate() ); //RandomlySelectedClass
-				
+
 				//Creating the OBSERVRefParam for the mtd class randomly
 				value_mtd  = new ArrayList<String>();
-				
+
 				if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
 					IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
 					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate()]);
-					
+
 					if( feasible ){
 						//verification of method not constructor
 						if( value_mtd.get(0).equals( sysType_src.getName() ) ){
@@ -80,36 +80,36 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 									}
 								}
 							}
-							
+
 							for( String src_type : value_src ){
 								//Override verification parents 
 								if( !code.getBuilder().getParentClasses().get( src_type ).isEmpty() ){
 									for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_type ) ){
 										if ( code.getMethodsFromClass(clase) != null )
-										if( !code.getMethodsFromClass(clase).isEmpty() ){
-											for( String method : code.getMethodsFromClass(clase) ){
-												if( method.equals( value_mtd.get(0) ) ){
-													feasible = false;
-													break;
-												}
-											}
-										}
-									}
-								}
-								
-								if(feasible){
-									//Override verification children
-									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
-										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
-											if ( code.getMethodsFromClass(clase_child) != null )
-											if( !code.getMethodsFromClass(clase_child).isEmpty() ){
-												for( String method : code.getMethodsFromClass( clase_child ) ){
+											if( !code.getMethodsFromClass(clase).isEmpty() ){
+												for( String method : code.getMethodsFromClass(clase) ){
 													if( method.equals( value_mtd.get(0) ) ){
 														feasible = false;
 														break;
 													}
 												}
 											}
+									}
+								}
+
+								if(feasible){
+									//Override verification children
+									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
+										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
+											if ( code.getMethodsFromClass(clase_child) != null )
+												if( !code.getMethodsFromClass(clase_child).isEmpty() ){
+													for( String method : code.getMethodsFromClass( clase_child ) ){
+														if( method.equals( value_mtd.get(0) ) ){
+															feasible = false;
+															break;
+														}
+													}
+												}
 										}
 									}
 								}
@@ -120,17 +120,17 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 				}else{
 					feasible = false;
 				}
-				
+
 			}else{
 				feasible = false;
 			}
-			
-        }while( !feasible );
-	
+
+		}while( !feasible );
+
 		params.add(new OBSERVRefParam("src", value_src));
 		params.add(new OBSERVRefParam("mtd", value_mtd));
 		params.add(new OBSERVRefParam("tgt", value_tgt));
-		
+
 		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
 
@@ -138,22 +138,8 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 	public boolean feasibleRefactor(RefactoringOperation ref, MetaphorCode code) {
 		// TODO Auto-generated method stub
 		boolean feasible = true;
-		
-		//Extracting the source class
-		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("src") != null ){
-			if( !ref.getParams().get("src").isEmpty() ){
-				for(RefactoringParameter param_src : ref.getParams().get("src") ){
-					src.add( (TypeDeclaration) param_src.getCodeObj() );
-				}
-			}else{
-				return false;
-			}
-		}else{
-			return false;
-		}
-		
-		//Extracting the target class
+
+		//1. Extracting the target class
 		List<TypeDeclaration> tgt = new ArrayList<TypeDeclaration>();
 		if( ref.getParams().get("tgt") != null ){
 			if( !ref.getParams().get("tgt").isEmpty() ){
@@ -166,9 +152,23 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 		}else{
 			return false;
 		}
-			
-		
-		//Extracting method of source class
+
+
+		//2. Extracting the source class
+		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
+		if( ref.getParams().get("src") != null ){
+			if( !ref.getParams().get("src").isEmpty() ){
+				for(RefactoringParameter param_src : ref.getParams().get("src") ){
+					src.add( (TypeDeclaration) param_src.getCodeObj() );
+				}
+			}else{
+				return false;
+			}
+		}else{
+			return false;
+		}
+
+		//3. Extracting method of source class
 		List<MethodDeclaration> mtd = new ArrayList<MethodDeclaration>();
 		if( ref.getParams().get("mtd") != null ){
 			if( !ref.getParams().get("mtd").isEmpty() ){
@@ -181,8 +181,13 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 		}else{
 			return false;
 		}
-		
-		//Verification Method in Source Class
+
+
+
+
+
+
+		//4. Verification Method in Source Class
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
 				if ( code.getMethodsFromClass(src_class) != null )
@@ -198,23 +203,23 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 			}			
 		}
 
-	    //verification of method not constructor
+		//5. verification of method not constructor
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
 				if(  src_class.getName().equals(  metodo.getObjName()  )  )
-						return false;	
+					return false;	
 			}
 		}
-		
-		//Verification SRCsubClassTGT
+
+		//6. Verification SRCsubClassTGT
 		for(TypeDeclaration src_class : src){
 			if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
 				for(TypeDeclaration tgt_class : tgt){
 					feasible = false;
 					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
-						
-							if( clase_parent.equals(tgt_class) ) 
-								feasible = true;	
+
+						if( clase_parent.equals(tgt_class) ) 
+							feasible = true;	
 					}
 					if( !feasible )
 						return false;
@@ -223,41 +228,160 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 				return false;
 			}
 		}
-		
+
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
-				//Override verification parents 
+				//7. Override verification parents 
 				if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_parent) != null )
-						if( !code.getMethodsFromClass(clase_parent).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase_parent) ){
-								if( method.equals( metodo.getObjName() ) ){
-									return false;	
+							if( !code.getMethodsFromClass(clase_parent).isEmpty() ){
+								for( String method : code.getMethodsFromClass(clase_parent) ){
+									if( method.equals( metodo.getObjName() ) ){
+										return false;	
+									}
 								}
 							}
-						}
 					}
 				}
-				
-				//Override verification children
+
+				//8. Override verification children
 				if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_child) != null )
-						if( !code.getMethodsFromClass(clase_child).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase_child) ){
-								if( method.equals( metodo.getObjName() ) ){
-									return false;	
+							if( !code.getMethodsFromClass(clase_child).isEmpty() ){
+								for( String method : code.getMethodsFromClass(clase_child) ){
+									if( method.equals( metodo.getObjName() ) ){
+										return false;	
+									}
 								}
 							}
-						}
 					}
 				}
 			}//end for metodo
 		}//enf for src_class
-		
+
 		return feasible;
 	}
 
+	@Override
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+		// TODO Auto-generated method stub
+		OBSERVRefactoring refRepair = null;
+		int counter = 0;
+
+		boolean feasible;
+		List<OBSERVRefParam> params;
+		//IntUniform g = new IntUniform ( code.getMapClass().size() );
+		List<String> value_mtd = null ;
+		List<String> value_tgt; 
+		TypeDeclaration sysType_tgt; 
+		TypeDeclaration sysType_src; 
+		List<String> value_src;
+
+		do{
+			feasible = true;
+			params = new ArrayList<OBSERVRefParam>();
+
+			//Creating the OBSERVRefParam for the tgt
+			value_tgt  = new ArrayList<String>();
+			//sysType_tgt = code.getMapClass().get( g.generate() );
+			sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			
+			value_tgt.add( sysType_tgt.getQualifiedName());
+
+			//Creating the OBSERVRefParam for the src class
+			value_src  = new ArrayList<String>();
+
+			//verification of SRCSubClassTGT
+			if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
+				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
+				IntUniform indexClass = new IntUniform ( clases.size() );
+				sysType_src = clases.get( indexClass.generate() ); //RandomlySelectedClass
+
+				//Creating the OBSERVRefParam for the mtd class randomly
+				value_mtd  = new ArrayList<String>();
+
+				if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
+					IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
+					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
+							[ numMtdObs.generate()]);
+
+					if( feasible ){
+						//verification of method not constructor
+						if( value_mtd.get(0).equals( sysType_src.getName() ) ){
+							feasible = false;
+						}else{
+							//Choosing other src(s) with the mtd
+							for( TypeDeclaration clase : clases ){
+								for( String method : code.getMethodsFromClass(clase) ){
+									if( method.equals( value_mtd.get(0) ) ){
+										value_src.add( clase.getQualifiedName() );
+									}
+								}
+							}
+
+							for( String src_type : value_src ){
+								//Override verification parents 
+								if( !code.getBuilder().getParentClasses().get( src_type ).isEmpty() ){
+									for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_type ) ){
+										if ( code.getMethodsFromClass(clase) != null )
+											if( !code.getMethodsFromClass(clase).isEmpty() ){
+												for( String method : code.getMethodsFromClass(clase) ){
+													if( method.equals( value_mtd.get(0) ) ){
+														feasible = false;
+														break;
+													}
+												}
+											}
+									}
+								}
+
+								if(feasible){
+									//Override verification children
+									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
+										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
+											if ( code.getMethodsFromClass(clase_child) != null )
+												if( !code.getMethodsFromClass(clase_child).isEmpty() ){
+													for( String method : code.getMethodsFromClass( clase_child ) ){
+														if( method.equals( value_mtd.get(0) ) ){
+															feasible = false;
+															break;
+														}
+													}
+												}
+										}
+									}
+								}
+							}
+
+						}
+					}
+				}else{
+					feasible = false;
+				}
+
+			}else{
+				feasible = false;
+			}
+
+			counter++;
+
+			if(!feasible && counter > 10)
+				break;
+
+		}while( !feasible );
+
+		params.add(new OBSERVRefParam("src", value_src));
+		params.add(new OBSERVRefParam("mtd", value_mtd));
+		params.add(new OBSERVRefParam("tgt", value_tgt));
+
+		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+
+		if(!feasible && counter > 10)
+			refRepair = generatingRefactor( code );
+
+		return refRepair;
+	}
 
 }

@@ -235,10 +235,11 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 		}while( !feasible );
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
 		if( !feasible )
 			refRepair = generatingRefactor( code );
+		else
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+
 
 		return refRepair;
 	}

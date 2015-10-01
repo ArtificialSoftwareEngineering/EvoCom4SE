@@ -278,10 +278,14 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 				break;
 		}while( !feasible );//generating feasible individuals
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}
+		else{
+
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+
+		}
 
 		return refRepair;
 	}

@@ -271,7 +271,7 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 		List<OBSERVRefParam> params;
 		IntUniform g = new IntUniform ( code.getMapClass().size() );
 		TypeDeclaration sysType_src;
-		List<String> value_tgt; 
+		List<String> value_tgt = null; 
 		List<String> value_src;
 		List<String> value_mtd;
 
@@ -346,42 +346,45 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 
 				if(!feasible && counter > 10)
 					break;
-				
+
 			}while( !feasible );
-
-			//Creating the OBSERVRefParam for the tgt class/child classes
-			value_tgt  = new ArrayList<String>();
-
-			//Verification of SRCSupClassTGT
-			//Retriving all child classes and choosing randomly
-			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
-				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
-				RandBool gC = new RandBool();
-				do{
-					for(TypeDeclaration clase : clases){
-						if( gC.next() ){
-							value_tgt.add(clase.getQualifiedName());
-						}
-					}
-				}while( value_tgt.isEmpty() );
+			if(!feasible && counter > 10){
+				break;
 			}else{
-				feasible = false;
-				//break;
+				//Creating the OBSERVRefParam for the tgt class/child classes
+				value_tgt  = new ArrayList<String>();
+
+				//Verification of SRCSupClassTGT
+				//Retriving all child classes and choosing randomly
+				if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
+					List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
+					RandBool gC = new RandBool();
+					do{
+						for(TypeDeclaration clase : clases){
+							if( gC.next() ){
+								value_tgt.add(clase.getQualifiedName());
+							}
+						}
+					}while( value_tgt.isEmpty() );
+				}else{
+					feasible = false;
+					//break;
+				}
 			}
 
-			if(!feasible && counter > 10)
-				break;
 
 		}while( !feasible );//Checking Subclasses for SRC selected
 
-		params.add(new OBSERVRefParam("src", value_src));
-		params.add(new OBSERVRefParam("mtd", value_mtd));
-		params.add(new OBSERVRefParam("tgt", value_tgt));
-
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else{
+
+			params.add(new OBSERVRefParam("src", value_src));
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+			params.add(new OBSERVRefParam("tgt", value_tgt));
+
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+		}
 
 		return refRepair;
 	}

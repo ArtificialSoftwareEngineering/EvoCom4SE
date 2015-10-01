@@ -268,14 +268,16 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 
 		}while( !feasible );
 
-		params.add(new OBSERVRefParam("src", value_src));
-		params.add(new OBSERVRefParam("fld", value_fld));
-		params.add(new OBSERVRefParam("tgt", value_tgt));
-
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else{
+			params.add(new OBSERVRefParam("src", value_src));
+			params.add(new OBSERVRefParam("fld", value_fld));
+			params.add(new OBSERVRefParam("tgt", value_tgt));
+
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+		}
+
 
 		return refRepair;
 	}

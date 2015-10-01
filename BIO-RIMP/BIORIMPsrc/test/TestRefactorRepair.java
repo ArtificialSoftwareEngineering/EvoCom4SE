@@ -22,7 +22,7 @@ public class TestRefactorRepair {
 		System.out.println("*** Generating a genome of x genes randomly ***");
 
 		//Creating the Space
-		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 100, metaphor );
+		RefactoringOperationSpace refactorSpace = new RefactoringOperationSpace( 10000, metaphor );
 
 		//Visualizing the get() Space
 		List<RefactoringOperation> refactor = refactorSpace.get();
@@ -43,13 +43,14 @@ public class TestRefactorRepair {
 			for( RefactoringOperation refOper : mutated ){
 				System.out.println( "Random Refactor: "+ refOper.toString() );
 			}
-		
+		int refss = 0;
 		if( ! refactorSpace.feasible(mutated) ){
 			List<RefactoringOperation> mutatedN = refactorSpace.repair(mutated);
 			System.out.println("Mutated array Repaired ");
 			if(mutatedN != null)
 				for( RefactoringOperation refOper : mutatedN ){
-					System.out.println( "Random Refactor: "+ refOper.toString() );
+					System.out.println( refss + "Mutated Refactor: " + refOper.toString() );
+					refss++;
 				}
 		}
 

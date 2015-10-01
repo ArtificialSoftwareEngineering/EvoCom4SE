@@ -103,9 +103,9 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 		//Creating the OBSERVRefParam for the tgt
 		//This Target Class is not inside metaphor
 		List<String> value_tgt  = new ArrayList<String>();
-		value_tgt.add( sysType_src.getPack() + mtdName + "|N");
+		value_tgt.add( sysType_src.getPack() +"TGT"+ mtdName + "|N");
 		params.add(new OBSERVRefParam("tgt", value_tgt));
-		code.addClasstoHash(sysType_src.getPack(), mtdName + "|N");
+		code.addClasstoHash(sysType_src.getPack(), "TGT"+mtdName + "|N");
 
 		return new OBSERVRefactoring(type.name(),params,feasible);
 	}
@@ -307,18 +307,20 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 
 		}while( !feasible );
 
-		//Creating the OBSERVRefParam for the tgt
-		//This Target Class is not inside metaphor
-		List<String> value_tgt  = new ArrayList<String>();
-		value_tgt.add( sysType_src.getPack() + mtdName + "|N");
-		params.add(new OBSERVRefParam("tgt", value_tgt));
-		code.addClasstoHash(sysType_src.getPack(), mtdName + "|N");
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else{
+			//Creating the OBSERVRefParam for the tgt
+			//This Target Class is not inside metaphor
+			List<String> value_tgt  = new ArrayList<String>();
+			value_tgt.add( sysType_src.getPack() +"TGT"+ mtdName + "|N");
+			params.add(new OBSERVRefParam("tgt", value_tgt));
+			code.addClasstoHash(sysType_src.getPack(), "TGT"+mtdName + "|N");
 
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+
+		}
 		return refRepair;
 	}
 

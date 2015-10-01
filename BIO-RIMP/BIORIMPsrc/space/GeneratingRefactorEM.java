@@ -281,16 +281,18 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 			}
 			
 			counter++;
-			
+
 			if(!feasible && counter > 10)
 				break;
-			
+
 		}while( !feasible ); //Generating only feasible individuals
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-		
-		if( !feasible )
-			refRepair = generatingRefactor( code );
+		if( !feasible ){
+			refRepair = generatingRefactor( code );}
+		else{
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+		}
+
 
 		return refRepair;
 	}

@@ -238,8 +238,8 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 		TypeDeclaration sysType_src;
 		List<String> value_mtd;
 		List<String> value_src;
-		List<String> value_tgt;
-		
+		List<String> value_tgt = null;
+
 
 		do{
 			do{
@@ -274,49 +274,41 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 					feasible = false;
 					//break;
 				}
-				
+
 				counter++;
-				
+
 				if(!feasible && counter > 10)
 					break;
-				
+
 			}while( !feasible );
 
-			//Creating the OBSERVRefParam for the tgt
-			value_tgt  = new ArrayList<String>();
-			//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
-			//TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
-			TypeDeclaration sysType_tgt = null;
-			if(ref.getParams().get("tgt") != null){
-				if( !ref.getParams().get("tgt").isEmpty() )
-					sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
-				else
-					sysType_tgt = code.getMapClass().get( g.generate() );
+			if(!feasible && counter > 10){
+				break;
 			}else{
-				sysType_tgt = code.getMapClass().get( g.generate() );
-			}
-			value_tgt.add( sysType_tgt.getQualifiedName());
 
-
-			//Override and hierarchy verification parents 
-			if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-				for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-					if ( code.getMethodsFromClass(clase) != null )
-						if( !code.getMethodsFromClass(clase).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase) ){
-								if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
-									feasible = false;
-									break;
-								}
-							}
-						}
+				//Creating the OBSERVRefParam for the tgt
+				value_tgt  = new ArrayList<String>();
+				//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
+				//TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+				TypeDeclaration sysType_tgt = null;
+				if( ref.getParams() != null ){
+					if(ref.getParams().get("tgt") != null){
+						if( !ref.getParams().get("tgt").isEmpty() )
+							sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+						else
+							sysType_tgt = code.getMapClass().get( g.generate() );
+					}else{
+						sysType_tgt = code.getMapClass().get( g.generate() );
+					}
+				}else{
+					sysType_tgt = code.getMapClass().get( g.generate() );
 				}
-			}
+				value_tgt.add( sysType_tgt.getQualifiedName());
 
-			if(feasible){
-				//Override and hierarchy verification children
-				if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-					for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
+
+				//Override and hierarchy verification parents 
+				if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+					for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase) != null )
 							if( !code.getMethodsFromClass(clase).isEmpty() ){
 								for( String method : code.getMethodsFromClass(clase) ){
@@ -328,21 +320,38 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 							}
 					}
 				}
+
+				if(feasible){
+					//Override and hierarchy verification children
+					if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+						for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
+							if ( code.getMethodsFromClass(clase) != null )
+								if( !code.getMethodsFromClass(clase).isEmpty() ){
+									for( String method : code.getMethodsFromClass(clase) ){
+										if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
+											feasible = false;
+											break;
+										}
+									}
+								}
+						}
+					}
+				}
 			}
-			
-			if(!feasible && counter > 10)
-				break;
+
 
 		}while( !feasible );
 
-		params.add(new OBSERVRefParam("src", value_src));
-		params.add(new OBSERVRefParam("mtd", value_mtd));
-		params.add(new OBSERVRefParam("tgt", value_tgt));
-
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-		
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else{
+			params.add(new OBSERVRefParam("src", value_src));
+			params.add(new OBSERVRefParam("mtd", value_mtd));
+			params.add(new OBSERVRefParam("tgt", value_tgt));
+
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+
+		}
 
 
 		return refRepair;

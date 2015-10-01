@@ -218,10 +218,10 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 				break;
 		}while( !feasible );
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
 		if( !feasible )
 			refRepair = generatingRefactor( code );
+		else
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 
 		return refRepair;
 	}

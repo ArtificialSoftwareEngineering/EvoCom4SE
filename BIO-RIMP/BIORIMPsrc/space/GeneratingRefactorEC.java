@@ -411,21 +411,24 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 
 		}while(!feasible); //Generate Just feasible individuals
 
-		//Creating the OBSERVRefParam for the tgt
-		//This Target Class is not inside metaphor
-		List<String> value_tgt  = new ArrayList<String>();
-		value_tgt.add( sysType_src.getPack() + newClass + "|N");
-		paramsMF.add(new OBSERVRefParam("tgt", value_tgt));
-		paramsMM.add(new OBSERVRefParam("tgt", value_tgt));
-		code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
-
-		subRefs.add( new OBSERVRefactoring(Refactoring.moveField.name(),paramsMF, feasible ) );
-		subRefs.add( new OBSERVRefactoring(Refactoring.moveMethod.name(),paramsMM, feasible ) );
-
-		refRepair = new OBSERVRefactoring(type.name(), null ,subRefs,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else {
+
+			//Creating the OBSERVRefParam for the tgt
+			//This Target Class is not inside metaphor
+			List<String> value_tgt  = new ArrayList<String>();
+			value_tgt.add( sysType_src.getPack() + newClass + "|N");
+			paramsMF.add(new OBSERVRefParam("tgt", value_tgt));
+			paramsMM.add(new OBSERVRefParam("tgt", value_tgt));
+			code.addClasstoHash(sysType_src.getPack(), newClass + "|N");
+
+			subRefs.add( new OBSERVRefactoring(Refactoring.moveField.name(),paramsMF, feasible ) );
+			subRefs.add( new OBSERVRefactoring(Refactoring.moveMethod.name(),paramsMM, feasible ) );
+
+			refRepair = new OBSERVRefactoring(type.name(), null ,subRefs,feasible);
+		}
+
 
 		return refRepair;
 	}

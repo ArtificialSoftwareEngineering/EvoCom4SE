@@ -222,37 +222,41 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 				
 			}while( !feasible );
 
-			//Creating the OBSERVRefParam for the tgt class
-			List<String> value_tgt  = new ArrayList<String>();
-
-			//Verification of SRCSupClassTGT
-			//Retriving all child classes and choosing randomly
-			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
-				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
-				RandBool gC = new RandBool();
-				do{
-					for(TypeDeclaration clase : clases){
-						if( gC.next() ){
-							value_tgt.add(clase.getQualifiedName());
-						}
-					}
-				}while( value_tgt.isEmpty() );
-				params.add(new OBSERVRefParam("tgt", value_tgt));
-			}else{
-				feasible = false;
+			if(!feasible && counter > 10){
 				break;
+			}else{
+				//Creating the OBSERVRefParam for the tgt class
+				List<String> value_tgt  = new ArrayList<String>();
+
+				//Verification of SRCSupClassTGT
+				//Retriving all child classes and choosing randomly
+				if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
+					List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
+					RandBool gC = new RandBool();
+					do{
+						for(TypeDeclaration clase : clases){
+							if( gC.next() ){
+								value_tgt.add(clase.getQualifiedName());
+							}
+						}
+					}while( value_tgt.isEmpty() );
+					params.add(new OBSERVRefParam("tgt", value_tgt));
+				}else{
+					feasible = false;
+					break;
+				}
 			}
 
-			if(!feasible && counter > 10)
-				break;
 
 		}while( !feasible );//Checking Subclasses for SRC selected
 
-		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
-
-		if( !feasible )
+		if( !feasible ){
 			refRepair = generatingRefactor( code );
+		}else{
 
+
+			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
+		}
 		return refRepair;
 	}
 }

@@ -100,10 +100,14 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 
 		//Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("src") != null ){
-			if( !ref.getParams().get("src").isEmpty() ){
-				for(RefactoringParameter param_src : ref.getParams().get("src") ){
-					src.add( (TypeDeclaration) param_src.getCodeObj() );
+		if( ref.getParams() != null ){
+			if( ref.getParams().get("src") != null ){
+				if( !ref.getParams().get("src").isEmpty() ){
+					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						src.add( (TypeDeclaration) param_src.getCodeObj() );
+					}
+				}else{
+					return false;
 				}
 			}else{
 				return false;
@@ -187,9 +191,9 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 
 		boolean feasible;
 		List<OBSERVRefParam> params;
-		//IntUniform g = new IntUniform ( code.getMapClass().size() );
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 		TypeDeclaration sysType_src = null;
-		TypeDeclaration sysType_tgt;
+		TypeDeclaration sysType_tgt = null;
 		List<String> value_src;
 		List<String> value_fld = null;
 		List<String> value_tgt ;
@@ -201,41 +205,60 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 			//Creating the OBSERVRefParam for the tgt/super class
 			value_tgt  = new ArrayList<String>();
 			//sysType_tgt = code.getMapClass().get( g.generate() );
-			sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			//sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			if( ref.getParams() != null ){
+				if(ref.getParams().get("tgt") != null){
+					if( !ref.getParams().get("tgt").isEmpty() )
+						sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+					else
+						sysType_tgt = code.getMapClass().get( g.generate() );
+				}else {
+					sysType_tgt = code.getMapClass().get( g.generate() );
+				}
+			}else {
+				sysType_tgt = code.getMapClass().get( g.generate() );
+			}
+
 			value_tgt.add( sysType_tgt.getQualifiedName() );
 
 			//Creating the OBSERVRefParam for the src class
 			value_src  = new ArrayList<String>();
 
 			//verification of SRCSubClassTGT
-			if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
-				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
-				IntUniform indexClass = new IntUniform ( clases.size() );
-				sysType_src = clases.get( indexClass.generate() ); //RandomlySelectedClass
+			if( code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()) != null ){
+				if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
+					List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
+					IntUniform indexClass = new IntUniform ( clases.size() );
+					sysType_src = clases.get( indexClass.generate() ); //RandomlySelectedClass
 
-				//Creating the OBSERVRefParam for the fld field
-				value_fld  = new ArrayList<String>();
-				if( !code.getFieldsFromClass(sysType_src).isEmpty() ){
+					//Creating the OBSERVRefParam for the fld field
+					value_fld  = new ArrayList<String>();
+					if( !code.getFieldsFromClass(sysType_src).isEmpty() ){
 
-					IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
-					value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()
-							[ numFldObs.generate() ]);
+						IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
+						value_fld.add((String) code.getFieldsFromClass(sysType_src).toArray()
+								[ numFldObs.generate() ]);
 
-					//Choosing other src(s) with the fld
-					for(TypeDeclaration clase : clases){
-						for(String field : code.getFieldsFromClass(clase)){
-							if( field.equals(value_fld.get(0)) ){
-								value_src.add(clase.getQualifiedName());
+						//Choosing other src(s) with the fld
+						for(TypeDeclaration clase : clases){
+							for(String field : code.getFieldsFromClass(clase)){
+								if( field.equals(value_fld.get(0)) ){
+									value_src.add(clase.getQualifiedName());
+								}
 							}
 						}
+
+					}else{
+						feasible = false;
 					}
 
 				}else{
 					feasible = false;
+					break;
 				}
-
 			}else{
 				feasible = false;
+				break;
 			}
 
 			counter++;
@@ -251,7 +274,7 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 
 		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 
-		if(!feasible && counter > 10)
+		if( !feasible )
 			refRepair = generatingRefactor( code );
 
 		return refRepair;

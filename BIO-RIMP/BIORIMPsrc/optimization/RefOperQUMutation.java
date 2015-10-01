@@ -15,7 +15,7 @@ import unalcol.clone.*;
  * @version 1.0
  */
 
-public class RefOperMutation extends ArityOne<QubitRefactor> {
+public class RefOperQUMutation extends ArityOne<QubitRefactor> {
   /**
    * Probability of mutating one single bit
    */
@@ -24,13 +24,13 @@ public class RefOperMutation extends ArityOne<QubitRefactor> {
   /**
    * Constructor: Creates a mutation with a mutation probability depending on the size of the genome
    */
-  public RefOperMutation() {}
+  public RefOperQUMutation() {}
 
   /**
    * Constructor: Creates a mutation with the given mutation rate
    * @param bit_mutation_rate Probability of mutating each single bit
    */
-  public RefOperMutation(double bit_mutation_rate) {
+  public RefOperQUMutation(double bit_mutation_rate) {
     this.bit_mutation_rate = bit_mutation_rate;
   }
 
@@ -67,7 +67,7 @@ public class RefOperMutation extends ArityOne<QubitRefactor> {
     QubitRefactor genome = new QubitRefactor(true, 4); //for 4tam of qubits
     System.out.println(genome.getGenObservation().toString());
 
-    RefOperMutation mutation = new RefOperMutation(0.05);
+    RefOperQUMutation mutation = new RefOperQUMutation(0.05);
 
     System.out.println("*** Applying the mutation ***");
     QubitRefactor mutated = mutation.apply(genome);

@@ -123,10 +123,14 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 		//1. Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("src") != null ){
-			if( !ref.getParams().get("src").isEmpty() ){
-				for(RefactoringParameter param_src : ref.getParams().get("src") ){
-					src.add( (TypeDeclaration) param_src.getCodeObj() );
+		if( ref.getParams() != null ){
+			if( ref.getParams().get("src") != null ){
+				if( !ref.getParams().get("src").isEmpty() ){
+					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						src.add( (TypeDeclaration) param_src.getCodeObj() );
+					}
+				}else{
+					return false;
 				}
 			}else{
 				return false;
@@ -230,7 +234,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 		int counter = 0;
 		boolean feasible;
 		List<OBSERVRefParam> params;
-		//IntUniform g = new IntUniform ( code.getMapClass().size() );
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 		TypeDeclaration sysType_src;
 		List<String> value_mtd;
 		List<String> value_src;
@@ -244,7 +248,12 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 				//Creating the OBSERVRefParam for the src class
 				//sysType_src =  code.getMapClass().get( g.generate() );
-				sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+				if( ref.getParams() != null ){
+					sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+				}else{
+					sysType_src =  code.getMapClass().get( g.generate() );
+				}
+
 				value_src  = new ArrayList<String>();
 				value_src.add(sysType_src.getQualifiedName());
 
@@ -263,13 +272,29 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 				}else{
 					feasible = false;
+					//break;
 				}
+				
+				counter++;
+				
+				if(!feasible && counter > 10)
+					break;
+				
 			}while( !feasible );
 
 			//Creating the OBSERVRefParam for the tgt
 			value_tgt  = new ArrayList<String>();
 			//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
-			TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			//TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			TypeDeclaration sysType_tgt = null;
+			if(ref.getParams().get("tgt") != null){
+				if( !ref.getParams().get("tgt").isEmpty() )
+					sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+				else
+					sysType_tgt = code.getMapClass().get( g.generate() );
+			}else{
+				sysType_tgt = code.getMapClass().get( g.generate() );
+			}
 			value_tgt.add( sysType_tgt.getQualifiedName());
 
 
@@ -304,7 +329,6 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 					}
 				}
 			}
-			counter++;
 			
 			if(!feasible && counter > 10)
 				break;
@@ -317,7 +341,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 		
-		if(!feasible && counter > 10)
+		if( !feasible )
 			refRepair = generatingRefactor( code );
 
 

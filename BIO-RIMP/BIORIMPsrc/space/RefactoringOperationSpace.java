@@ -9,17 +9,18 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import entity.MetaphorCode;
+import unalcol.clone.Clone;
 import unalcol.random.integer.IntUniform;
 import unalcol.search.space.Space;
 
 public class RefactoringOperationSpace extends Space<List<RefactoringOperation>> {
 	protected int n = 1;
 	protected MetaphorCode metaphor;
-	
+
 	public RefactoringOperationSpace( MetaphorCode metaphor ){
 		this.metaphor = metaphor;
 	};
-	
+
 	public RefactoringOperationSpace( int n, MetaphorCode metaphor ){
 		this.n = n; 
 		this.metaphor = metaphor;
@@ -71,12 +72,12 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				specificRefactor = new GeneratingRefactorEC();
 				break;
 			}//END CASE
-			
+
 			feasible = specificRefactor.feasibleRefactor( refOp, metaphor );
 			if( !feasible ){
-					System.out.println( "Wrong Feasible Refactor: " + refOp.toString() );
-					break;
-				}
+				System.out.println( "Wrong Feasible Refactor (IN FEASIBLE): " + refOp.toString() );
+				break;
+			}
 		}
 		return x.size() <= n && feasible;
 	}
@@ -88,18 +89,93 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 	@Override
 	public List<RefactoringOperation> repair(List<RefactoringOperation> x) {
-		
-		/*if( x.size() != n ){
-			if(x.size()>n){
-				x = x.subQubitArray(0,n);
-			}else{
-				//x = new QubitArray(n, true);
-				for( int i=0; i<n;i++)
-					x.set(new Qubit(true));
+		OBSERVRefactorings oper = new OBSERVRefactorings();
+		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
+		String mapRefactor;
+		GeneratingRefactor specificRefactor = null;
+		boolean feasible = false;
+
+		List<RefactoringOperation> clon;
+		List<RefactoringOperation> repaired = new ArrayList<RefactoringOperation>();
+
+		if(x.size() > n){
+			clon = new ArrayList<RefactoringOperation>();
+			for(int i = 0; i < n; i++){
+				clon.add( x.get(i) );
+				repaired.add( x.get(i) );
 			}
-		}*/
-		System.out.println("REPAIR");
-		return x;
+		}else{
+			clon = (List<RefactoringOperation>) Clone.create( x );
+		}
+
+
+		for( RefactoringOperation refOp : clon ){
+			mapRefactor = refOp.getRefType().getAcronym();	
+
+			switch(mapRefactor){
+			case "PUF":
+				specificRefactor = new GeneratingRefactorPUF();
+				break;
+			case "MM":
+				specificRefactor = new GeneratingRefactorMM();
+				break;
+			case "RMMO":
+				specificRefactor = new GeneratingRefactorRMMO();
+				break;
+			case "RDI":
+				specificRefactor = new GeneratingRefactorRDI();
+				break;
+			case "MF":
+				specificRefactor = new GeneratingRefactorMF();
+				break;
+			case "EM":
+				specificRefactor = new GeneratingRefactorEM();
+				break;
+			case "PDM":
+				specificRefactor = new GeneratingRefactorPDM();
+				break;
+			case "RID":
+				specificRefactor = new GeneratingRefactorRID();
+				break;
+			case "IM":
+				specificRefactor = new GeneratingRefactorIM();
+				break;
+			case "PUM":
+				specificRefactor = new GeneratingRefactorPUM();
+				break;
+			case "PDF":
+				specificRefactor = new GeneratingRefactorPDF();
+				break;
+			case "EC":
+				specificRefactor = new GeneratingRefactorEC();
+				break;
+			}//END CASE
+
+			feasible = specificRefactor.feasibleRefactor( refOp, metaphor );
+
+			if( !feasible ){
+				refactorings.add( specificRefactor.repairRefactor( refOp, metaphor ) );
+
+			}else{
+				repaired.add( refOp );
+			}
+		}
+
+		oper.setRefactorings(refactorings);
+		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
+				metaphor.getSysTypeDcls(),
+				metaphor.getLang(),
+				metaphor.getBuilder());
+
+		try {
+			repaired.addAll( reader.getRefactOperations( oper) );
+		} catch (ReadException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			System.out.println( "Reading Error in Repair" );
+			return null;
+		}
+		return repaired ;
 	}
 
 	@Override
@@ -111,10 +187,10 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		int mapRefactor;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
-		
+
 		IntUniform g = new IntUniform ( Refactoring.values().length );
 		GeneratingRefactor randomRefactor = null;
-		
+
 		for(int i = 0; i < n; i++){
 			mapRefactor = g.generate();
 			switch(mapRefactor){
@@ -155,12 +231,12 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				randomRefactor = new GeneratingRefactorEC();
 				break;
 			}//END CASE
-			
+
 			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
 			refactorings.add( randomRefactor.generatingRefactor( metaphor ) );
-			
+
 		}
-		
+
 		oper.setRefactorings(refactorings);
 		try {
 			return reader.getRefactOperations( oper	);

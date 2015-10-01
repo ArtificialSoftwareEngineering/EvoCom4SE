@@ -10,11 +10,11 @@ import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
 import entity.QubitArray;
 import entity.QubitRefactor;
+import operators.RefOperMutation;
 import optimization.CodeDecodeRefactorList;
 import optimization.GeneralizedImpactQuality;
 import optimization.ListRefOperMutation;
-import optimization.QubitMutation;
-import optimization.RefOperMutation;
+
 import optimization.RefactorArrayPlainWrite;
 import space.QubitSpace;
 import space.RefactoringOperationSpace;
@@ -71,7 +71,7 @@ public class MainHillClimbing {
         //Third Step: Optimization 
         
         // Search Space definition
-        int DIM = 12;
+        int DIM = 10;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
         
         // Optimization Function
@@ -79,19 +79,15 @@ public class MainHillClimbing {
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
         
         
-        // Variation definition in QubitRefactorSpace
-        ListRefOperMutation variation = new ListRefOperMutation();
+        // Variation definition
+        RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
              
           	
         // Search method in QubitRefactorSpace
         int MAXITERS = 10000;
         boolean neutral = true; // Accepts movements when having same function value
-        //HillClimbing<BitArray> search = new HillClimbing<BitArray>( variation, neutral, MAXITERS );
-        HillClimbing<List<QubitRefactor>> Qubit_search = new HillClimbing<List<QubitRefactor>>( variation, neutral, MAXITERS );
-             
-        // The multilevel search method (moves in the qubitrefactor space, but computes fitness in the refactoring space)
-        MultiLevelSearch<List<QubitRefactor>, List<RefactoringOperation> > search = new MultiLevelSearch<>(Qubit_search, map);
-        
+        HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
+                  
 
         // Tracking the goal evaluations
         SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
@@ -99,6 +95,8 @@ public class MainHillClimbing {
         RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
         List<RefactoringOperation> ref= new ArrayList<RefactoringOperation>();
         Write.set(ref , write);
+        WriteDescriptors w_desc = new WriteDescriptors();
+        Write.set(Solution.class, w_desc);
         
         ConsoleTracer tracer = new ConsoleTracer();       
         //Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations

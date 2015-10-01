@@ -107,10 +107,14 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 
 		//1. Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("src") != null ){
-			if( !ref.getParams().get("src").isEmpty() ){
-				for(RefactoringParameter param_src : ref.getParams().get("src") ){
-					src.add( (TypeDeclaration) param_src.getCodeObj() );
+		if( ref.getParams() != null ){
+			if( ref.getParams().get("src") != null ){
+				if( !ref.getParams().get("src").isEmpty() ){
+					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						src.add( (TypeDeclaration) param_src.getCodeObj() );
+					}
+				}else{
+					return false;
 				}
 			}else{
 				return false;
@@ -198,7 +202,7 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
-
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 		boolean feasible;
 		List<OBSERVRefParam> params;
 		TypeDeclaration sysType_src;
@@ -209,7 +213,11 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 
 			//Creating the OBSERVRefParam for the src class
 			//sysType_src =  code.getMapClass().get( g.generate() );
-			sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+			if( ref.getParams() != null ){
+				sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+			}else{
+				sysType_src =  code.getMapClass().get( g.generate() );
+			}
 			List<String> value_src  = new ArrayList<String>();
 			value_src.add(sysType_src.getQualifiedName());
 			params.add(new OBSERVRefParam("src", value_src));
@@ -261,6 +269,7 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 				params.add(new OBSERVRefParam("mtd", value_mtd));
 			}else{
 				feasible = false;
+				break;
 			}
 
 			counter++;
@@ -271,9 +280,8 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 
 		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 
-		if(!feasible && counter > 10)
+		if( !feasible )
 			refRepair = generatingRefactor( code );
-
 
 		return refRepair;
 	}

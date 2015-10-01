@@ -136,7 +136,7 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 		subRefs.add( new OBSERVRefactoring(Refactoring.moveField.name(),paramsMF, feasible ) );
 		subRefs.add( new OBSERVRefactoring(Refactoring.moveMethod.name(),paramsMM, feasible ) );
 
-		return new OBSERVRefactoring(type.name(),null,subRefs,feasible);
+		return new OBSERVRefactoring(type.name(), null ,subRefs,feasible);
 	}
 
 	@Override
@@ -146,7 +146,8 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 
 		//Extracting the source class MF
 		List<TypeDeclaration> src_MF = new ArrayList<TypeDeclaration>();
-		if( ref.getSubRefs().get(0).getParams().get("src") != null ){
+		//if( ref.getSubRefs().get(0).getParams().get("src") != null ){
+		if( ref.getSubRefs() != null ){
 			if( !ref.getSubRefs().get(0).getParams().get("src").isEmpty() ){
 				for(RefactoringParameter param_src : ref.getSubRefs().get(0).getParams().get("src") ){
 					src_MF.add( (TypeDeclaration) param_src.getCodeObj() );
@@ -316,7 +317,7 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 		List<OBSERVRefParam> paramsMF;	
 		List<OBSERVRefParam> paramsMM;
 		TypeDeclaration sysType_src;
-		//IntUniform g = new IntUniform ( code.getMapClass().size() );
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 
 		do{
 			feasible = true;
@@ -326,7 +327,12 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 			//Creating the OBSERVRefParam for the src class
 
 			//sysType_src = code.getMapClass().get( g.generate()  );
-			sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+			if( ref.getSubRefs()  != null ){
+				sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+
+			}else{
+				sysType_src = code.getMapClass().get( g.generate()  );
+			}
 
 			List<String> value_src  = new ArrayList<String>();
 			value_src.add(sysType_src.getQualifiedName());
@@ -394,7 +400,8 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 
 				paramsMM.add(new OBSERVRefParam("mtd", value_mtd));
 			}else{
-				feasible = false; 
+				feasible = false;
+				break;
 			}
 
 			counter++;
@@ -415,9 +422,9 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 		subRefs.add( new OBSERVRefactoring(Refactoring.moveField.name(),paramsMF, feasible ) );
 		subRefs.add( new OBSERVRefactoring(Refactoring.moveMethod.name(),paramsMM, feasible ) );
 
-		refRepair = new OBSERVRefactoring(type.name(),null,subRefs,feasible);
+		refRepair = new OBSERVRefactoring(type.name(), null ,subRefs,feasible);
 
-		if(!feasible && counter > 10)
+		if( !feasible )
 			refRepair = generatingRefactor( code );
 
 		return refRepair;

@@ -81,10 +81,14 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 
 		//Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
-		if( ref.getParams().get("src") != null ){
-			if( !ref.getParams().get("src").isEmpty() ){
-				for(RefactoringParameter param_src : ref.getParams().get("src") ){
-					src.add( (TypeDeclaration) param_src.getCodeObj() );
+		if( ref.getParams() != null ){
+			if( ref.getParams().get("src") != null ){
+				if( !ref.getParams().get("src").isEmpty() ){
+					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						src.add( (TypeDeclaration) param_src.getCodeObj() );
+					}
+				}else{
+					return false;
 				}
 			}else{
 				return false;
@@ -117,16 +121,18 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 
 		//verification of SRCSubClassTGT
 		for( TypeDeclaration tgt_class : tgt ){
-			if(! code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName()).isEmpty() ){
-				for( TypeDeclaration src_class : src ){
-					feasible = false;
-					for(TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName() ) ){
-						if( clase_child.equals( src_class ) ){
-							feasible = true;
-						}	
+			if(code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName()) != null){
+				if(! code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName()).isEmpty() ){
+					for( TypeDeclaration src_class : src ){
+						feasible = false;
+						for(TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( tgt_class.getQualifiedName() ) ){
+							if( clase_child.equals( src_class ) ){
+								feasible = true;
+							}	
+						}
+						if( !feasible )
+							return false;
 					}
-					if( !feasible )
-						return false;
 				}
 			}else{
 				return false;
@@ -141,10 +147,10 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
-
+		TypeDeclaration  sysType_src;
 		boolean feasible;
 		List<OBSERVRefParam> params;
-		//IntUniform g = new IntUniform ( code.getMapClass().size() );
+		IntUniform g = new IntUniform ( code.getMapClass().size() );
 
 		do{
 			feasible = true;
@@ -152,7 +158,12 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 			//Creating the OBSERVRefParam for the src class
 
 			//TypeDeclaration sysType_src =  code.getMapClass().get( g.generate() );
-			TypeDeclaration  sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+			if( ref.getParams() != null ){
+				sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+			}else{
+				sysType_src =  code.getMapClass().get( g.generate() );
+			}
+
 			List<String> value_src  = new ArrayList<String>();
 			value_src.add(sysType_src.getQualifiedName());
 			params.add(new OBSERVRefParam("src", value_src));
@@ -160,7 +171,21 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 			//Creating the OBSERVRefParam for the tgt
 			List<String> value_tgt  = new ArrayList<String>();
 			//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
-			TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			//TypeDeclaration sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+			TypeDeclaration sysType_tgt= null;
+			if( ref.getParams() != null ){
+				if(ref.getParams().get("tgt") != null){
+					if( !ref.getParams().get("tgt").isEmpty() )
+						sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+					else
+						sysType_tgt = code.getMapClass().get( g.generate() );
+				}else{
+					sysType_tgt = code.getMapClass().get( g.generate() );
+				}
+			}else{
+				sysType_tgt = code.getMapClass().get( g.generate() );
+			}
+			
 			value_tgt.add( sysType_tgt.getQualifiedName());
 			params.add(new OBSERVRefParam("tgt", value_tgt));
 
@@ -170,14 +195,18 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 
 			if(feasible){
 				//verification of SRCSubClassTGT
-				if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
-					List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
-					feasible = false;
-					for(TypeDeclaration clase : clases){
-						if(clase.equals(sysType_src)){
-							feasible = true;
-							break;
+				if( code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()) != null ){
+					if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
+						List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
+						feasible = false;
+						for(TypeDeclaration clase : clases){
+							if(clase.equals(sysType_src)){
+								feasible = true;
+								break;
+							}
 						}
+					}else{
+						feasible = false;
 					}
 				}else{
 					feasible = false;
@@ -191,7 +220,7 @@ public class GeneratingRefactorRID extends GeneratingRefactor {
 
 		refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 
-		if(!feasible && counter > 10)
+		if( !feasible )
 			refRepair = generatingRefactor( code );
 
 		return refRepair;

@@ -49,7 +49,7 @@ public class ListRefOperMutation extends ArityOne<List<QubitRefactor>> {
       List<QubitRefactor> genome = (List<QubitRefactor>) Clone.create(gen);
       double rate = 1.0 - ((bit_mutation_rate == 0.0)?1.0/genome.size():bit_mutation_rate);
       RandBool g = new RandBool(rate);
-      RefOperMutation variation = new RefOperMutation();
+      RefOperQUMutation variation = new RefOperQUMutation();
       for (int i = 0; i < genome.size(); i++) {
         if (g.next()) {
           //genome.not(i);

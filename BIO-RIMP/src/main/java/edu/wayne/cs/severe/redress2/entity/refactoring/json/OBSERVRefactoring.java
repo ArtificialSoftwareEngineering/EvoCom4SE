@@ -1,5 +1,6 @@
 package edu.wayne.cs.severe.redress2.entity.refactoring.json;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class OBSERVRefactoring {
@@ -14,6 +15,7 @@ public class OBSERVRefactoring {
 	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, boolean feasible) {
 		this.type = type;
 		this.params = params;
+		//this.subRefs = new ArrayList<OBSERVRefactoring> ();
 		this.subRefs = null;
 		this.feasible = feasible;
 	}

@@ -197,11 +197,15 @@ public class GeneratingRefactorMF extends GeneratingRefactor {
 		List<String> value_tgt  = new ArrayList<String>();
 		//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
 		TypeDeclaration sysType_tgt = null;
-		if(ref.getParams().get("tgt") != null){
-			if( !ref.getParams().get("tgt").isEmpty() )
-				sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
-			else
+		if( ref.getParams() != null ){
+			if(ref.getParams().get("tgt") != null){
+				if( !ref.getParams().get("tgt").isEmpty() )
+					sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
+				else
+					sysType_tgt = code.getMapClass().get( g.generate() );
+			}else{
 				sysType_tgt = code.getMapClass().get( g.generate() );
+			}
 		}else{
 			sysType_tgt = code.getMapClass().get( g.generate() );
 		}

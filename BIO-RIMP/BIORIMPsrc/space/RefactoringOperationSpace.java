@@ -168,7 +168,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				metaphor.getBuilder());
 
 		try {
-			repaired.addAll( reader.getRefactOperations( oper) );
+			repaired.addAll( reader.getRefactOperations( oper ) );
 		} catch (ReadException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

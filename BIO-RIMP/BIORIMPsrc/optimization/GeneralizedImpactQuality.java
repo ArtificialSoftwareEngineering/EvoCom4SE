@@ -23,17 +23,15 @@ import unalcol.optimization.OptimizationFunction;
  *
  */
 public class GeneralizedImpactQuality extends OptimizationFunction<List<RefactoringOperation>>{
-	
+
 	MetaphorCode metaphor;
 	LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
-	
-	
-	
+
 	public GeneralizedImpactQuality(MetaphorCode metaphor){
 		this.metaphor = metaphor;
 		PreviMetrics();
 	}
-	
+
 	@Override
 	public Double apply(List<RefactoringOperation> x) {
 		// TODO Auto-generated method stub
@@ -41,13 +39,13 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		try {
 			LinkedHashMap<String, LinkedHashMap<String, Double>> actualMetrics =
 					ActualMetrics(PredictingMetrics(x));
-			printFitness(actualMetrics);
-			
+			//printFitness(actualMetrics);
+
 			LinkedHashMap<String, Double> bias = TotalActualMetrics(actualMetrics);
-			printFitness2(bias);
-			
+			//printFitness2(bias);
+
 			GQSm = GQSm(bias);
-			
+
 		} catch (ReadException | IOException | CompilUnitException | WritingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -57,8 +55,8 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		}
 		return GQSm;
 	}
-	
-	//normalization and recives the weights
+
+	//normalization and receives the weights
 	private Double GQSm(LinkedHashMap<String, Double> bias){
 		Double min = Collections.min(bias.values());
 		Double max = Collections.max(bias.values());
@@ -69,7 +67,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		}
 		return fitness;
 	}
-	
+
 	private void PreviMetrics() {
 		System.out.println("Reading previous metrics");
 		MetricsReader metReader = new MetricsReader(metaphor.getSystemPath(), metaphor.getSysName());
@@ -80,13 +78,13 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 			e.printStackTrace();
 		}
 	}
-	
+
 	private LinkedHashMap<String, Double> TotalActualMetrics
-		(LinkedHashMap<String, LinkedHashMap<String, Double>> actualMetrics){
-		
+	(LinkedHashMap<String, LinkedHashMap<String, Double>> actualMetrics){
+
 		LinkedHashMap<String, Double> SUA_metric = new LinkedHashMap<String, Double>();
 		LinkedHashMap<String, Double> SUA_prev_metric = new LinkedHashMap<String, Double>();
-		
+
 		for(Entry<String, LinkedHashMap<String, Double>> clase : actualMetrics.entrySet()){
 			for(Entry<String, Double> metric : clase.getValue().entrySet()){
 				//evaluate if the metric is repeat for summing
@@ -97,7 +95,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 					SUA_metric.put(metric.getKey(), metric.getValue());
 				}
 			}
-			
+
 			//checking the class in prevMetrics
 			if( prevMetrics.containsKey(clase.getKey()) ){
 				//extracting prev metrics
@@ -125,9 +123,9 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 				}
 			}
 		}
-		
+
 		//Figure out the bias by division of the accumulative sum 
-		
+
 		for( Entry<String, Double> metric : SUA_metric.entrySet() ){
 			if( SUA_prev_metric.containsKey(metric.getKey()) ){
 				SUA_metric.replace(metric.getKey(), metric.getValue(), 
@@ -136,16 +134,16 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 				System.out.println("Something is wrong with prev_metrics");
 			}
 		}
-		
+
 		return SUA_metric;
 	}
-	
+
 	private LinkedHashMap<String, LinkedHashMap<String, Double>> ActualMetrics(
 			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> prediction){
 		//Average of all the metrics per class
 		LinkedHashMap<String, LinkedHashMap<String, Double>> SUA = new LinkedHashMap<String, LinkedHashMap<String, Double>>();
 		LinkedHashMap<String, Double> SUA_metric = new LinkedHashMap<String, Double>();	
-		
+
 		for(Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : prediction.entrySet()){
 			for(Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()){
 				for(Entry<String, Double> metric : clase.getValue().entrySet()){
@@ -168,51 +166,51 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 						}else{
 							SUA.get(clase.getKey()).put(metric_.getKey(), metric_.getValue());
 						}
-							
+
 					}//Metric Loop
 				}
 				SUA_metric = new LinkedHashMap<String, Double>();
 			}//Clase Loop
 		}//Ref Loop
-		
+
 		//for(int ref = 0; ref < prediction.size(); ref++){
 		//	for(int clase = 0; clase < prediction.)
 		//}//Ref Loop
-		
+
 		return SUA;
 	}
-	
+
 	private LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> 
-		PredictingMetrics(List<RefactoringOperation> operations)
+	PredictingMetrics(List<RefactoringOperation> operations)
 			throws ReadException, IOException,
 			CompilUnitException, WritingException{
 
 		System.out.println("Predicting metrics");
-		
+
 		MetricCalculator calc = new MetricCalculator();
 		LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics = calc
-		.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
-		
+				.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
+
 		return predictMetrics;
-		
+
 	}
-	
+
 	private void printFitness(LinkedHashMap<String, LinkedHashMap<String, Double>> structureMetrics){
 		for(Entry<String,LinkedHashMap<String, Double>> clase : structureMetrics.entrySet()){
 			for(Entry<String,Double> metric_ : clase.getValue().entrySet()){
 				System.out.println("[Class: "+ clase.getKey() +"] \t"
-									+"[Metric: "+ metric_.getKey()+"] \t"
-									+"[Value: "+metric_.getValue());
+						+"[Metric: "+ metric_.getKey()+"] \t"
+						+"[Value: "+metric_.getValue());
 			}
 		}
 	}
-	
+
 	private void printFitness2(LinkedHashMap<String, Double> totalActualMetrics){
-			for(Entry<String,Double> metric_ : totalActualMetrics.entrySet()){
-				System.out.println("[Metric: "+ metric_.getKey()+"] \t"
-									+"[Value: "+metric_.getValue()+"] \t");
-			}
-		
+		for(Entry<String,Double> metric_ : totalActualMetrics.entrySet()){
+			System.out.println("[Metric: "+ metric_.getKey()+"] \t"
+					+"[Value: "+metric_.getValue()+"] \t");
+		}
+
 	}
 
 }

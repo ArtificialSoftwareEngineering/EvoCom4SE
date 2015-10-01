@@ -262,7 +262,7 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 	}
 
 	@Override
-	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code, int break_point) {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
@@ -344,12 +344,14 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 				
 				counter++;
 
-				if(!feasible && counter > 10)
+				if( counter < break_point )
 					break;
 
 			}while( !feasible );
-			if(!feasible && counter > 10){
+			
+			if( counter < break_point ){
 				break;
+			
 			}else{
 				//Creating the OBSERVRefParam for the tgt class/child classes
 				value_tgt  = new ArrayList<String>();
@@ -375,14 +377,12 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 
 		}while( !feasible );//Checking Subclasses for SRC selected
 
-		if( !feasible ){
+		if( !feasible || counter < break_point  ){
 			refRepair = generatingRefactor( code );
 		}else{
-
 			params.add(new OBSERVRefParam("src", value_src));
 			params.add(new OBSERVRefParam("mtd", value_mtd));
 			params.add(new OBSERVRefParam("tgt", value_tgt));
-
 			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 		}
 

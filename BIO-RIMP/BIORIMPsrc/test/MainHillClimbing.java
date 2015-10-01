@@ -83,7 +83,7 @@ public class MainHillClimbing {
         RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
              
           	
-        // Search method in QubitRefactorSpace
+        // Search method in RefactorSpace
         int MAXITERS = 10000;
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );

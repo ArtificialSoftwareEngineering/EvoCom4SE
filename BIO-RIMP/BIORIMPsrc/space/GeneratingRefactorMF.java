@@ -146,7 +146,7 @@ public class GeneratingRefactorMF extends GeneratingRefactor {
 	}
 
 	@Override
-	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code, int break_point) {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
@@ -187,17 +187,16 @@ public class GeneratingRefactorMF extends GeneratingRefactor {
 
 			counter++;
 
-			if(!feasible && counter > 10)
+			if(  counter < break_point )
 				break;
 
 		}while( !feasible );
 
-		if( !feasible ){
+		if( !feasible || counter < break_point  ){
 			refRepair = generatingRefactor( code );
 		}else {
 
 			//Creating the OBSERVRefParam for the tgt
-
 			List<String> value_tgt  = new ArrayList<String>();
 			//TypeDeclaration sysType_tgt = code.getMapClass().get( g.generate() );
 			TypeDeclaration sysType_tgt = null;
@@ -215,7 +214,6 @@ public class GeneratingRefactorMF extends GeneratingRefactor {
 			}
 			value_tgt.add( sysType_tgt.getQualifiedName() );
 			params.add(new OBSERVRefParam("tgt", value_tgt));
-
 			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 		}
 

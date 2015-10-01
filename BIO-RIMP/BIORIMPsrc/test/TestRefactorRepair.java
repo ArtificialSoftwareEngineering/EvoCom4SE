@@ -41,15 +41,15 @@ public class TestRefactorRepair {
 		System.out.println("Mutated array ");
 		if(mutated != null)
 			for( RefactoringOperation refOper : mutated ){
-				System.out.println( "Random Refactor: "+ refOper.toString() );
+				System.out.println( "Mutated Refactor: "+ refOper.toString() );
 			}
 		int refss = 0;
-		if( ! refactorSpace.feasible(mutated) ){
+		if( ! refactorSpace.feasible(mutated) ){	
 			List<RefactoringOperation> mutatedN = refactorSpace.repair(mutated);
 			System.out.println("Mutated array Repaired ");
 			if(mutatedN != null)
 				for( RefactoringOperation refOper : mutatedN ){
-					System.out.println( refss + "Mutated Refactor: " + refOper.toString() );
+					System.out.println(  "Repaired Refactor: " + refss + refOper.toString() );
 					refss++;
 				}
 		}

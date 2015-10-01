@@ -270,7 +270,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 	}
 
 	@Override
-	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code, int break_point) {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
@@ -389,18 +389,17 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 
 			counter++;
 
-			if(!feasible && counter > 10)
+			if( counter < break_point )
 				break;
 
 		}while( !feasible );
 
-		if( !feasible ){
+		if( !feasible || counter < break_point ){
 			refRepair = generatingRefactor( code );
 		}else{
 			params.add(new OBSERVRefParam("src", value_src));
 			params.add(new OBSERVRefParam("mtd", value_mtd));
 			params.add(new OBSERVRefParam("tgt", value_tgt));
-
 			refRepair = new OBSERVRefactoring(type.name(),params,feasible);
 		}
 

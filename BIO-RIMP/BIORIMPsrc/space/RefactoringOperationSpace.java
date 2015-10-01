@@ -94,6 +94,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		String mapRefactor;
 		GeneratingRefactor specificRefactor = null;
 		boolean feasible = false;
+		int break_point = 10;
 
 		List<RefactoringOperation> clon;
 		List<RefactoringOperation> repaired = new ArrayList<RefactoringOperation>();
@@ -150,18 +151,18 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				specificRefactor = new GeneratingRefactorEC();
 				break;
 			}//END CASE
-
+			
 			feasible = specificRefactor.feasibleRefactor( refOp, metaphor );
 
 			if( !feasible ){
-				refactorings.add( specificRefactor.repairRefactor( refOp, metaphor ) );
-
+				refactorings.add( specificRefactor.repairRefactor( refOp, metaphor, break_point ) );		
 			}else{
 				repaired.add( refOp );
 			}
 		}
 
 		oper.setRefactorings(refactorings);
+		
 		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
 				metaphor.getSysTypeDcls(),
 				metaphor.getLang(),
@@ -169,12 +170,14 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 		try {
 			repaired.addAll( reader.getRefactOperations( oper ) );
+
 		} catch (ReadException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			System.out.println( "Reading Error in Repair" );
 			return null;
 		}
+
 		return repaired ;
 	}
 

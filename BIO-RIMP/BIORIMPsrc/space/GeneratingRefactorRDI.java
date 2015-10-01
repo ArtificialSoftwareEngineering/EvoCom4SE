@@ -156,7 +156,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 		return feasible;
 	}
 	@Override
-	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code) {
+	public OBSERVRefactoring repairRefactor(RefactoringOperation ref, MetaphorCode code, int break_point) {
 		// TODO Auto-generated method stub
 		OBSERVRefactoring refRepair = null;
 		int counter = 0;
@@ -230,12 +230,12 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 			counter++;
 
-			if(!feasible && counter > 10)
+			if( counter < break_point )
 				break;
 
 		}while( !feasible );
 
-		if( !feasible )
+		if( !feasible || counter < break_point )
 			refRepair = generatingRefactor( code );
 		else
 			refRepair = new OBSERVRefactoring(type.name(),params,feasible);

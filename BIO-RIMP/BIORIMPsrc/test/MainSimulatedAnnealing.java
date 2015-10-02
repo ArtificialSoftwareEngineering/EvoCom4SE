@@ -56,18 +56,16 @@ public class MainSimulatedAnnealing {
 		//MainMetrics.main(args);
 
 		//Second Step: Create the structures for the prediction
-
 		MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
 		init.main(args);
 		MetaphorCode metaphor = new MetaphorCode(init);
-
 
 		//processor.processSytem();
 
 		//Third Step: Optimization 
 		
 		// Search Space definition
-        int DIM = 10;
+        int DIM = 5;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
 
         // Variation definition

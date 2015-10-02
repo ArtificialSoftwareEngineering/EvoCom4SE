@@ -71,7 +71,7 @@ public class MainHillClimbing {
         //Third Step: Optimization 
         
         // Search Space definition
-        int DIM = 10;
+        int DIM = 7;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
         
         // Optimization Function
@@ -84,7 +84,7 @@ public class MainHillClimbing {
              
           	
         // Search method in RefactorSpace
-        int MAXITERS = 10000;
+        int MAXITERS = 1000;
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
                   

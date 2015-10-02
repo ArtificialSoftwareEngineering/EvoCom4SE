@@ -335,7 +335,15 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 
 			//sysType_src = code.getMapClass().get( g.generate()  );
 			if( ref.getSubRefs()  != null ){
-				sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+				if( !ref.getSubRefs().get(0).getParams().get("src").isEmpty() ){
+
+					sysType_src = (TypeDeclaration) ref.getSubRefs().get(0).getParams().get("src").get(0).getCodeObj();
+				}else{
+					if( !ref.getParams().get("src").isEmpty() )
+						sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+					else 
+						sysType_src = code.getMapClass().get( g.generate()  );
+				}
 
 			}else{
 				sysType_src = code.getMapClass().get( g.generate()  );

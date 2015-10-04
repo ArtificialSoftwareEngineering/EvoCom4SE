@@ -57,6 +57,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	}
 
 	//normalization and receives the weights
+	//FIXME VECTOR DEFAULT INCOMPLETE
 	private Double GQSm(LinkedHashMap<String, Double> bias){
 		Double min = Collections.min(bias.values());
 		Double max = Collections.max(bias.values());

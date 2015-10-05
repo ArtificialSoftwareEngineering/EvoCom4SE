@@ -11,22 +11,30 @@ import edu.wayne.cs.severe.redress2.exception.ReadException;
 import entity.MetaphorCode;
 import unalcol.clone.Clone;
 import unalcol.random.integer.IntUniform;
+import unalcol.random.raw.RawGenerator;
 import unalcol.search.space.Space;
+import unalcol.types.collection.bitarray.BitArray;
 
-public class RefactoringOperationSpace extends Space<List<RefactoringOperation>> {
-	protected int n = 1;
+public class VarLengthOperRefSpace extends Space< List<RefactoringOperation> > {
+	protected int minLength;
+	protected int maxVarGenes;
+	protected int gene_size;
 	protected MetaphorCode metaphor;
-
-
-	public RefactoringOperationSpace( MetaphorCode metaphor ){
-		this.metaphor = metaphor;
-	};
-
-	public RefactoringOperationSpace( int n, MetaphorCode metaphor ){
-		this.n = n; 
+	
+	public VarLengthOperRefSpace( int minLength, int maxLength, MetaphorCode metaphor ){
+		this.minLength = minLength;
+		this.maxVarGenes = maxLength - minLength;
+		this.gene_size = 1;
 		this.metaphor = metaphor;
 	}
 
+	public VarLengthOperRefSpace( int minLength, int maxLength, 
+			int gene_size, MetaphorCode metaphor ){
+		this.minLength = minLength;
+		this.gene_size = gene_size;
+		this.maxVarGenes = (maxLength-minLength)/gene_size;	
+		this.metaphor = metaphor;
+	}
 
 	@Override
 	public boolean feasible(List<RefactoringOperation> x) {
@@ -81,7 +89,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				break;
 			}
 		}
-		return x.size() <= n && feasible;
+		return minLength <= x.size() && x.size()<=minLength+maxVarGenes*gene_size && feasible;
 	}
 
 	@Override
@@ -91,6 +99,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 	@Override
 	public List<RefactoringOperation> repair(List<RefactoringOperation> x) {
+		int maxLength = minLength + maxVarGenes * gene_size;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 		String mapRefactor;
@@ -101,16 +110,25 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		List<RefactoringOperation> clon;
 		List<RefactoringOperation> repaired = new ArrayList<RefactoringOperation>();
 
-		if(x.size() > n){
+		if( x.size() > maxLength ){
+			//x = x.subBitArray(0,maxLength);
 			clon = new ArrayList<RefactoringOperation>();
-			for(int i = 0; i < n; i++){
+			for(int i = 0; i < maxLength; i++){
 				clon.add( x.get(i) );
-				//repaired.add( x.get(i) );
 			}
 		}else{
+			if( x.size() < minLength ){
+				//x = new BitArray(minLength, true);
+				clon = createRefOper( minLength );
+				for(int i=x.size(); i < minLength; i++){
+					x.add(clon.get(i));
+				}
+			}
+			for( int i=0; i<minLength;i++){
+				x.set(i,x.get(i));
+			}
 			clon = (List<RefactoringOperation>) Clone.create( x );
 		}
-
 
 		for( RefactoringOperation refOp : clon ){
 			mapRefactor = refOp.getRefType().getAcronym();	
@@ -153,7 +171,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 				specificRefactor = new GeneratingRefactorEC();
 				break;
 			}//END CASE
-			
+
 			feasible = specificRefactor.feasibleRefactor( refOp, metaphor );
 
 			if( !feasible ){
@@ -164,7 +182,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		}
 
 		oper.setRefactorings(refactorings);
-		
+
 		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
 				metaphor.getSysTypeDcls(),
 				metaphor.getLang(),
@@ -185,6 +203,12 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 	@Override
 	public List<RefactoringOperation> get() {
+		//return (maxVarGenes>0)?new BitArray(minLength+RawGenerator.integer(this, maxVarGenes*gene_size), true):new BitArray(minLength, true);
+		return (maxVarGenes>0)?createRefOper( minLength+RawGenerator.integer(this, maxVarGenes*gene_size) ):createRefOper( minLength );
+
+	}
+
+	public List<RefactoringOperation> createRefOper(int n) {
 		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
 				metaphor.getSysTypeDcls(),
 				metaphor.getLang(),

@@ -60,16 +60,11 @@ public class MainHillClimbing {
         //MainMetrics.main(args);
         
         //Second Step: Create the structures for the prediction
-        
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
         init.main(args);
         MetaphorCode metaphor = new MetaphorCode(init);
         
-     	
-        //processor.processSytem();
-        
         //Third Step: Optimization 
-        
         // Search Space definition
         int DIM = 7;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );

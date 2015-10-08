@@ -3,7 +3,6 @@
  */
 package view;
 import processing.core.*;
-import unalcol.clone.Clone;
 
 import org.gicentre.utils.geom.*;
 
@@ -58,7 +57,7 @@ public class MyProcessingSketch extends PApplet {
 	}
 
 	public void setup() {
-		noFill(); 
+		//noFill(); 
 		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
 		List<TypeDeclaration> childrenList;
 		
@@ -86,7 +85,7 @@ public class MyProcessingSketch extends PApplet {
 				d.setdotChildren( dotchildren );
 			}
 		} 
-
+		fill(255, 204);
 	}
 
 	public void draw() {
@@ -96,6 +95,9 @@ public class MyProcessingSketch extends PApplet {
 		textSize(10);
 		
 		motion_move_child();
+	    collide();
+		move();
+		
 		
 		
 		for (Dot d : hashGrid) 
@@ -119,7 +121,7 @@ public class MyProcessingSketch extends PApplet {
 		} 
 		else
 		{ 
-			strokeWeight(7); 
+			strokeWeight(15); 
 			stroke(120, 20, 20, 200); 
 
 			for (Dot d : dotsNearMouse)

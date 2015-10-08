@@ -100,7 +100,7 @@ public class MainHillClimbing {
         // Apply the search method
         Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
         
-        System.out.println( solution.quality() + "=" + solution.value());	
+        System.out.println( "QUALITY_:" + solution.quality() + "=" +"VALUE_:"+ solution.value());	
         
 		
 	}

@@ -22,7 +22,7 @@ import java.util.Set;
 public class MyProcessingSketch extends PApplet {
 
 	HashGrid<Dot> hashGrid; 
-	static int rad = 30;
+	static int rad = 15;
 	static final float RADIUS = rad;  // Search radius for hash grid 
 	MetaphorCode metaphor;
 	HierarchyBuilder builder;
@@ -92,13 +92,12 @@ public class MyProcessingSketch extends PApplet {
 		background(0); 
 		stroke(255); 
 		strokeWeight(1); 
-		textSize(10);
+		textSize(20);
 		
 		motion_move_child();
-	    collide();
+		collide();
 		move();
-		
-		
+		move_3() ;
 		
 		for (Dot d : hashGrid) 
 		{ 
@@ -116,8 +115,10 @@ public class MyProcessingSketch extends PApplet {
 		{ 
 			//hashGrid.removeAll(dotsNearMouse);
 			//motion_move_parent();
-		    collide();
+			collide();
 			move();
+			move_2() ;
+		    
 		} 
 		else
 		{ 
@@ -276,8 +277,6 @@ public class MyProcessingSketch extends PApplet {
 	}
 
 	public void motion_move_child(){
-
-		boolean bandera = false;
 		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
 		for (Dot d : hashGrid) 
 			hashGrid_.add(d);
@@ -291,18 +290,17 @@ public class MyProcessingSketch extends PApplet {
 						// dotReal.getPCT() < 1.0 && 
 						if( dotReal.getPCT() < 1 && 
 								dist(dotReal.getLocation().x, dotReal.getLocation().y, 
-										d.getLocation().x, d.getLocation().y ) > rad*3 ){
-							
+										d.getLocation().x, d.getLocation().y ) > rad*5 ){
+
 							dotReal.setPCTincrement();
-							
+
 							distX = d.getLocation().x - dotReal.getLocation().x;
 							distY = d.getLocation().y - dotReal.getLocation().y;
-							
+
 							x = dotReal.getLocation().x + (dotReal.getPCT() * distX * dotReal.xdirection );
 							y = dotReal.getLocation().y + (dotReal.getPCT() * distY * dotReal.ydirection );
 
 							dotReal.setLocation( x, y );
-							bandera = true;
 							//break;
 						}
 					}
@@ -343,19 +341,19 @@ public class MyProcessingSketch extends PApplet {
 	}
 
 	public void move() {
-		
-		
+
+
 		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
 		for (Dot d : hashGrid) 
 			hashGrid_.add(d);
 
 		for (Dot dotReal : hashGrid_) 
 		{
-			
+
 			x = dotReal.getLocation().x + dotReal.getVX();
 			y = dotReal.getLocation().y + dotReal.getVY();
-		
-			
+
+
 			if (x + rad > width) {
 				x = width - rad;
 				dotReal.setVX( dotReal.getVX() * friction );
@@ -366,7 +364,7 @@ public class MyProcessingSketch extends PApplet {
 				dotReal.setVX( dotReal.getVX() * friction );
 				//vx *= friction;
 			}
-			
+
 			if (y + rad > height) {
 				y = height - rad;
 				dotReal.setVY( dotReal.getVY() * friction );
@@ -377,7 +375,7 @@ public class MyProcessingSketch extends PApplet {
 				dotReal.setVY( dotReal.getVY() * friction );
 				//vy *= friction;
 			}
-			
+
 			dotReal.setLocation( x, y );
 
 			if (dotReal.getLocation().x > width-rad || dotReal.getLocation().x < rad) {
@@ -420,6 +418,121 @@ public class MyProcessingSketch extends PApplet {
 		} 
 	}
 
+	public void move_2() {
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot dotReal : hashGrid_) 
+		{
+			for (Dot dotother : hashGrid_) 
+			{
+				if(dist(dotReal.getLocation().x , dotReal.getLocation().y , 
+						dotother.getLocation().x, dotother.getLocation().y) < rad*2 ){
+					
+					dotother.setPCT_apartdecrement();
+					
+					distX = dotReal.getLocation().x - dotother.getLocation().x;
+					distY = dotReal.getLocation().y - dotother.getLocation().y;
+
+					x = dotother.getLocation().x - ( dotother.pct_apart * distX/2  );
+					y = dotother.getLocation().y -(dotother.pct_apart * distY/2  );
+
+					dotother.setLocation( x, y );
+				}
+
+			}
+
+		}
+
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
+
+		}
+
+		//Update Dot Children
+		List<Dot> dotchildren;
+		for (Dot d : hashGrid) 
+		{
+			if(d.getchildren() != null){
+				dotchildren = new ArrayList<Dot>();
+				for( TypeDeclaration dotChild : d.getchildren() ){
+					for (Dot dChild : hashGrid) 
+					{
+						if(dChild.systype.equals(dotChild))
+							dotchildren.add(dChild);
+					}
+				}
+				d.setdotChildren(dotchildren);
+			}
+		} 
+	}
+
+	public void move_3() {
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot dotReal : hashGrid_) 
+		{
+			for (Dot dotother : hashGrid_) 
+			{
+				if(dist(dotReal.getLocation().x , dotReal.getLocation().y , 
+						dotother.getLocation().x, dotother.getLocation().y) < rad*2 ){
+					
+					dotReal.setPCT_apartdecrement();
+					
+					distX = dotother.getLocation().x - dotReal.getLocation().x;
+					distY = dotother.getLocation().y - dotReal.getLocation().y;
+
+					x = dotReal.getLocation().x - ( dotReal.pct_apart * distX/2  );
+					y = dotReal.getLocation().y -(dotReal.pct_apart * distY/2  );
+
+					dotReal.setLocation( x, y );
+				}
+
+			}
+
+		}
+
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
+
+		}
+
+		//Update Dot Children
+		List<Dot> dotchildren;
+		for (Dot d : hashGrid) 
+		{
+			if(d.getchildren() != null){
+				dotchildren = new ArrayList<Dot>();
+				for( TypeDeclaration dotChild : d.getchildren() ){
+					for (Dot dChild : hashGrid) 
+					{
+						if(dChild.systype.equals(dotChild))
+							dotchildren.add(dChild);
+					}
+				}
+				d.setdotChildren(dotchildren);
+			}
+		} 
+	}
 
 	// Class for storing a point value. It must implement the Locatable 
 	// interface since objects of this type will be added to the hash grid. 
@@ -431,6 +544,7 @@ public class MyProcessingSketch extends PApplet {
 		List<TypeDeclaration> children;
 		List<Dot> dotchildren;
 		float pct = 0;
+		float pct_apart = 1;
 		float vx = 0;
 		float vy = 0;
 		
@@ -483,6 +597,10 @@ public class MyProcessingSketch extends PApplet {
 	  }
 	  public void setPCTincrement(){
 		  this.pct += step;
+	  }
+	  
+	  public void setPCT_apartdecrement(){
+		  this.pct_apart -= step;
 	  }
 	  
 	  public void setPCT(float pct){

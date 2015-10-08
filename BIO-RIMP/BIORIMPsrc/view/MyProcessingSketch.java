@@ -21,22 +21,30 @@ import java.util.Set;
  *
  */
 public class MyProcessingSketch extends PApplet {
-	 
+
 	HashGrid<Dot> hashGrid; 
-	static final float RADIUS = 50;  // Search radius for hash grid 
+	static int rad = 30;
+	static final float RADIUS = rad;  // Search radius for hash grid 
 	MetaphorCode metaphor;
 	HierarchyBuilder builder;
 
-	int rad = 20;
-	float xspeed = (float) 2.0;  // Speed of the shape
-	float yspeed = (float) 2.0;  // Speed of the shape
-
-	int xdire;
-	int ydire;
-
 	
+
+	double step = 0.001;    // Size of each step along the path
+
+	float beginX ;  // Initial x-coordinate
+	float beginY ;  // Initial y-coordinate
+	float endX ;   // Final x-coordinate
+	float endY;   // Final y-coordinate
+	float distX;          // X-axis distance to move
+	float distY;          // Y-axis distance to move
+	float x = (float) 0.0;        // Current x-coordinate
+	float y = (float) 0.0;        // Current y-coordinate
+	float spring = (float) 0.05;
+	float friction = (float) -0.9;
+
 	public void settings() {
-		 
+
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
 		String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
@@ -53,23 +61,29 @@ public class MyProcessingSketch extends PApplet {
 		noFill(); 
 		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
 		List<TypeDeclaration> childrenList;
+		
+		
 		for (TypeDeclaration systype : metaphor.getSysTypeDcls() ){
 			childrenList = metaphor.getBuilder().getChildClasses().get(systype.getQualifiedName());	
 			hashGrid.add( new Dot(random(width), random(height), systype, childrenList ));
 		}
+
+		//Listing children 
 		List<Dot> dotchildren;
 		for (Dot d : hashGrid) 
 		{
 			if(d.getchildren() != null){
 				dotchildren = new ArrayList<Dot>();
 				for( TypeDeclaration dotChild : d.getchildren() ){
-					for (Dot dChild : hashGrid) 
+					for (Dot dChild : hashGrid) //dotchild for 
 					{
-						if(dChild.systype.equals(dotChild))
+						if(dChild.systype.equals(dotChild)){
+							dChild.setEndLocation( d.getLocation().x , d.getLocation().y );
 							dotchildren.add(dChild);
+						}
 					}
 				}
-				d.setdotChildren(dotchildren);
+				d.setdotChildren( dotchildren );
 			}
 		} 
 
@@ -81,7 +95,8 @@ public class MyProcessingSketch extends PApplet {
 		strokeWeight(1); 
 		textSize(10);
 		
-		move();
+		motion_move_child();
+		
 		
 		for (Dot d : hashGrid) 
 		{ 
@@ -98,6 +113,8 @@ public class MyProcessingSketch extends PApplet {
 		if (mousePressed) 
 		{ 
 			//hashGrid.removeAll(dotsNearMouse);
+			//motion_move_parent();
+		    collide();
 			move();
 		} 
 		else
@@ -113,41 +130,277 @@ public class MyProcessingSketch extends PApplet {
 		}
 	}
 
-	public void move() {
-		HashGrid<Dot> hashGrid_ = hashGrid;
-	
-		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+	void collide() {
 		
-		List<TypeDeclaration> childrenList;
-		
-		for (Dot d : hashGrid_) 
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot dotReal : hashGrid_) 
 		{
-			
-			childrenList = d.getchildren();
-			hashGrid.add( new Dot(
-					d.getLocation().x + ( xspeed * d.xdirection ), 
-					d.getLocation().y + ( yspeed * d.ydirection ), 
-					d.getSystype(), childrenList,
-					xdire, ydire));
-			
-			// Test to see if the shape exceeds the boundaries of the screen
-			// If it does, reverse its direction by multiplying by -1
-			if (d.getLocation().x  > width-rad || d.getLocation().x < rad ) {
-				//if (d.getLocation().x > width-rad || d.getLocation().x < rad) {
-				xdire = d.xdirection * -1;
+			for (Dot dot : hashGrid_ ){
+
+				if( ! dotReal.equals(dot) ){
+					float dx = dot.getLocation().x - dotReal.getLocation().x;
+					float dy = dot.getLocation().y - dotReal.getLocation().y;
+					float distance = sqrt(dx*dx + dy*dy);
+					float minDist = rad*3;
+
+					if (distance < minDist) { 
+						float angle = atan2(dy, dx);
+						float targetX = x + cos(angle) * minDist;
+						float targetY = y + sin(angle) * minDist;
+						float ax = (targetX - dot.getLocation().x ) * spring;
+						float ay = (targetY - dot.getLocation().y ) * spring;
+						dotReal.setVX( dotReal.getVX() - ax );
+						dotReal.setVY( dotReal.getVY() - ay );
+
+						dot.setVX( dot.getVX() + ax );
+						dot.setVY( dot.getVY() + ay );
+					}
+				}
 			}
-			if (d.getLocation().y  > height-rad || d.getLocation().y < rad ) {
-				//if (d.getLocation().y >= height-rad || d.getLocation().y < rad) {
-				ydire = d.ydirection * -1;
-			}
-			
+		}
 
 		
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
 
 		}
 
+		//Update Dot Children
+		List<Dot> dotchildren;
+		for (Dot d : hashGrid) 
+		{
+			if(d.getchildren() != null){
+				dotchildren = new ArrayList<Dot>();
+				for( TypeDeclaration dotChild : d.getchildren() ){
+					for (Dot dChild : hashGrid) 
+					{
+						if(dChild.systype.equals(dotChild))
+							dotchildren.add(dChild);
+					}
+				}
+				d.setdotChildren(dotchildren);
+			}
+		} 
 
 
+	}
+
+	public void motion_move_parent(){
+		boolean bandera = false;
+		
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot d : hashGrid_) 
+		{
+			for (Dot dotChild : d.getdotchildren() ){
+				for(Dot dotReal : hashGrid_){
+					if( dotChild.getSystype().equals( dotReal.getSystype() ) ){
+
+						// dotReal.getPCT() < 1.0 && 
+						if( d.getPCT() < 1 &&
+								dist(dotReal.getLocation().x, dotReal.getLocation().y, 
+										d.getLocation().x, d.getLocation().y ) > rad ){
+							
+							d.setPCTincrement();
+							
+							distX = dotReal.getLocation().x - d.getLocation().x;
+							distY = dotReal.getLocation().y - d.getLocation().y;
+							
+							x = d.getLocation().x + (d.getPCT() * distX * d.xdirection );
+							y = d.getLocation().y + (d.getPCT() * distY * d.ydirection );
+
+							d.setLocation( x, y );
+
+							if (x > width-rad || x < rad) {
+								d.setXdirect();
+							}
+							if (y > height-rad || y < rad) {
+								d.setYdirect();
+							}
+							bandera = true;
+							break;
+						}
+					}
+				}
+				if ( bandera )
+					break;
+			}
+		}
+
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+		
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
+
+		}
+		
+		//Update Dot Children
+		List<Dot> dotchildren;
+		for (Dot d : hashGrid) 
+		{
+			if(d.getchildren() != null){
+				dotchildren = new ArrayList<Dot>();
+				for( TypeDeclaration dotChild : d.getchildren() ){
+					for (Dot dChild : hashGrid) 
+					{
+						if(dChild.systype.equals(dotChild))
+							dotchildren.add(dChild);
+					}
+				}
+				d.setdotChildren(dotchildren);
+			}
+		} 
+
+	}
+
+	public void motion_move_child(){
+
+		boolean bandera = false;
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot d : hashGrid_) 
+		{
+			for (Dot dotChild : d.getdotchildren() ){
+				for(Dot dotReal : hashGrid_){
+					if( dotChild.getSystype().equals( dotReal.getSystype() ) ){
+
+						// dotReal.getPCT() < 1.0 && 
+						if( dotReal.getPCT() < 1 && 
+								dist(dotReal.getLocation().x, dotReal.getLocation().y, 
+										d.getLocation().x, d.getLocation().y ) > rad*3 ){
+							
+							dotReal.setPCTincrement();
+							
+							distX = d.getLocation().x - dotReal.getLocation().x;
+							distY = d.getLocation().y - dotReal.getLocation().y;
+							
+							x = dotReal.getLocation().x + (dotReal.getPCT() * distX * dotReal.xdirection );
+							y = dotReal.getLocation().y + (dotReal.getPCT() * distY * dotReal.ydirection );
+
+							dotReal.setLocation( x, y );
+							bandera = true;
+							//break;
+						}
+					}
+				}
+			}
+		}
+
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
+
+		}
+
+		//Update Dot Children
+		List<Dot> dotchildren;
+		for (Dot d : hashGrid) 
+		{
+			if(d.getchildren() != null){
+				dotchildren = new ArrayList<Dot>();
+				for( TypeDeclaration dotChild : d.getchildren() ){
+					for (Dot dChild : hashGrid) 
+					{
+						if(dChild.systype.equals(dotChild))
+							dotchildren.add(dChild);
+					}
+				}
+				d.setdotChildren(dotchildren);
+			}
+		} 
+
+	}
+
+	public void move() {
+		
+		
+		HashGrid<Dot> hashGrid_ = new HashGrid<Dot>(width, height, RADIUS); 
+		for (Dot d : hashGrid) 
+			hashGrid_.add(d);
+
+		for (Dot dotReal : hashGrid_) 
+		{
+			
+			x = dotReal.getLocation().x + dotReal.getVX();
+			y = dotReal.getLocation().y + dotReal.getVY();
+		
+			
+			if (x + rad > width) {
+				x = width - rad;
+				dotReal.setVX( dotReal.getVX() * friction );
+				//vx *= friction; 
+			}
+			else if (x - rad < 0) {
+				x =rad;
+				dotReal.setVX( dotReal.getVX() * friction );
+				//vx *= friction;
+			}
+			
+			if (y + rad > height) {
+				y = height - rad;
+				dotReal.setVY( dotReal.getVY() * friction );
+				//vy *= friction; 
+			} 
+			else if (y - rad < 0) {
+				y = rad;
+				dotReal.setVY( dotReal.getVY() * friction );
+				//vy *= friction;
+			}
+			
+			dotReal.setLocation( x, y );
+
+			if (dotReal.getLocation().x > width-rad || dotReal.getLocation().x < rad) {
+				dotReal.setXdirect();
+			}
+			if (dotReal.getLocation().y > height-rad || dotReal.getLocation().y < rad) {
+				dotReal.setYdirect();
+			}
+
+		}
+
+		List<TypeDeclaration> childrenList;
+		hashGrid = new HashGrid<Dot>(width, height, RADIUS); 
+
+		for (Dot d : hashGrid_) 
+		{
+			childrenList = d.getchildren();
+			hashGrid.add( new Dot(
+					d.getLocation().x, 
+					d.getLocation().y, 
+					d.getSystype(), childrenList));	
+
+		}
+
+		//Update Dot Children
 		List<Dot> dotchildren;
 		for (Dot d : hashGrid) 
 		{
@@ -165,20 +418,19 @@ public class MyProcessingSketch extends PApplet {
 		} 
 	}
 
-	/*
-	public void mousePressed() {
-		for (Dot d : hashGrid) 
-			d.setLocation(new PVector(random(width), random(height)));
-	}*/
 
 	// Class for storing a point value. It must implement the Locatable 
 	// interface since objects of this type will be added to the hash grid. 
 	class Dot implements Locatable 
 	{ 
 		PVector d; 
+		PVector end;
 		TypeDeclaration systype;
 		List<TypeDeclaration> children;
 		List<Dot> dotchildren;
+		float pct = 0;
+		float vx = 0;
+		float vy = 0;
 		
 		int xdirection = 1;  // Left or Right
 		int ydirection = 1;  // Top to Bottom
@@ -200,8 +452,48 @@ public class MyProcessingSketch extends PApplet {
 	    this.children = children;
 	  }
 	  
-	  public void setLocation(PVector d){
-		  this.d = d;
+	  public void setVX(float vx){
+		  this.vx = vx;
+	  }
+	  
+	  public float getVX(){
+		  return this.vx;
+	  }
+	  
+	  public void setVY(float vy){
+		  this.vx = vy;
+	  }
+	  
+	  public float getVY(){
+		  return this.vy;
+	  }
+	  
+	  public void setXdirect(){
+		  this.xdirection *= -1;
+	  }
+	  
+	  public void setYdirect(){
+		  this.ydirection *= -1;
+	  }
+	  
+	  public float getPCT(){
+		  return this.pct;
+	  }
+	  public void setPCTincrement(){
+		  this.pct += step;
+	  }
+	  
+	  public void setPCT(float pct){
+		  this.pct = pct;
+	  }
+	  
+	  public void setLocation(float x, float y){
+		  this.d = new PVector(x, y);
+	  }
+	  
+	  public PVector getEndLocation() 
+	  { 
+	    return end;
 	  }
 	 
 	  public PVector getLocation() 
@@ -215,6 +507,10 @@ public class MyProcessingSketch extends PApplet {
 	  
 	  public void setdotChildren(List<Dot> dotchildren){
 		  this.dotchildren = dotchildren;
+	  }
+	  
+	  public void setEndLocation (float x, float y){
+		  this.end = new PVector(x, y);
 	  }
 	  
 	  public List<TypeDeclaration> getchildren(){

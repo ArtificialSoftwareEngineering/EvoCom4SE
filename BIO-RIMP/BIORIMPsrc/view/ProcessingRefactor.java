@@ -4,14 +4,17 @@
 package view;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.Map.Entry;
 
 import org.gicentre.utils.geom.HashGrid;
 import org.gicentre.utils.geom.Locatable;
 
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
 import operators.RefOperMutation;
@@ -26,6 +29,7 @@ import unalcol.io.Write;
 import unalcol.optimization.OptimizationFunction;
 import unalcol.optimization.OptimizationGoal;
 import unalcol.optimization.hillclimbing.HillClimbing;
+import unalcol.random.real.UniformGenerator;
 import unalcol.search.Goal;
 import unalcol.search.Solution;
 import unalcol.search.SolutionDescriptors;
@@ -137,8 +141,9 @@ public class ProcessingRefactor extends PApplet {
 			ellipse(d.getLocation().x, d.getLocation().y, rad, rad);
 			point(d.getLocation().x, d.getLocation().y);
 			text( d.getrefOper().getRefType().getAcronym() , d.getLocation().x, d.getLocation().y );
-		} 
+		}
 		
+
 		//Motion
 		motion_refactor();
 		motion_refactor_collition();
@@ -150,6 +155,11 @@ public class ProcessingRefactor extends PApplet {
 		//DrawLine
 		draw_line();
 		draw_point();
+		
+		//Draw params
+		draw_classes();
+		draw_line_params();
+
  
 		
 		if (mousePressed) 
@@ -223,7 +233,8 @@ public class ProcessingRefactor extends PApplet {
 			hashGrid.add( new Dot(
 					d.getLocation().x, 
 					d.getLocation().y, 
-					d.getrefOper(), d.others));	
+					d.getrefOper(), d.others,
+					d.getdotchildren()));	
 
 		}
 	}
@@ -249,7 +260,7 @@ public class ProcessingRefactor extends PApplet {
 			for(int i = 0; i < dotsofaSet.size(); i++){
 				if((i + 1) != dotsofaSet.size() ){
 					if (dist(dotsofaSet.get(i).getLocation().x, dotsofaSet.get(i).getLocation().y, 
-							dotsofaSet.get(i+1).getLocation().x , dotsofaSet.get(i+1).getLocation().y) > rad*5
+							dotsofaSet.get(i+1).getLocation().x , dotsofaSet.get(i+1).getLocation().y) > rad*rad
 							&& dotsofaSet.get(i+1).getPCT() < 1  
 							){
 						dotsofaSet.get(i+1).setPCTincrement();
@@ -275,7 +286,8 @@ public class ProcessingRefactor extends PApplet {
 			hashGrid.add( new Dot(
 					d.getLocation().x, 
 					d.getLocation().y, 
-					d.getrefOper(), d.others));	
+					d.getrefOper(), d.others,
+					d.getdotchildren()));	
 
 		}
 
@@ -315,7 +327,8 @@ public class ProcessingRefactor extends PApplet {
 			hashGrid.add( new Dot(
 					d.getLocation().x, 
 					d.getLocation().y, 
-					d.getrefOper(), d.others));	
+					d.getrefOper(), d.others,
+					d.getdotchildren()));	
 
 		}
 
@@ -359,7 +372,8 @@ public class ProcessingRefactor extends PApplet {
 			hashGrid.add( new Dot(
 					d.getLocation().x, 
 					d.getLocation().y, 
-					d.getrefOper(), d.others));	
+					d.getrefOper(), d.others,
+					d.getdotchildren()));	
 
 		}
 
@@ -389,6 +403,24 @@ public class ProcessingRefactor extends PApplet {
 
 	}
 
+	public void draw_line_params(){
+		stroke(0, 128, 255);
+
+		for (Dot d : hashGrid) 
+		{ 
+			for (PVector pChild : d.getdotchildren() ) 
+			{ 
+				if( d.getdotchildren() != null )
+					line(d.getLocation().x, d.getLocation().y, 
+							d.getLocation().x + pChild.x , d.getLocation().y + pChild.y	);
+			}
+
+		}
+
+	}
+
+
+	
 	public void draw_point(){
 		strokeWeight(15); 
 		stroke(255, 51, 0, 200); 
@@ -404,7 +436,7 @@ public class ProcessingRefactor extends PApplet {
 				}
 
 			}
-			
+
 			point(dotsofaSet.get(0).getLocation().x, dotsofaSet.get(0).getLocation().y);
 			/*
 			for(int i = 0; i < dotsofaSet.size(); i++){
@@ -414,6 +446,19 @@ public class ProcessingRefactor extends PApplet {
 			}*/
 		}
 
+	}
+
+	public void draw_classes(){
+		stroke(199);
+		strokeWeight(1);  
+		
+		for (Dot d : hashGrid) { 
+			for( PVector p : d.getdotchildren() ){
+				x = d.getLocation().x + p.x;
+				y = d.getLocation().y + p.y;
+				ellipse( x , y  , rad/2, rad/2 );
+			}
+		}
 	}
 
 	public void newRefactor(){
@@ -435,8 +480,8 @@ public class ProcessingRefactor extends PApplet {
 		PVector d; 
 		PVector end;
 		RefactoringOperation refOper;
-		Solution others;
-		List<Dot> dotchildren;
+		Solution< List<RefactoringOperation> > others;
+		List<PVector> dotchildren;
 		float pct = 0;
 		float pct_apart = 1;
 		float vx = 0;
@@ -445,11 +490,31 @@ public class ProcessingRefactor extends PApplet {
 		int xdirection = 1;  // Left or Right
 		int ydirection = 1;  // Top to Bottom
 
-		Dot(float x, float y, RefactoringOperation refOper, Solution solution) 
+
+		UniformGenerator g = new UniformGenerator(-rad*5, rad*5);
+
+		Dot(float x, float y, RefactoringOperation refOper, Solution< List<RefactoringOperation> > solution, List<PVector> dotchildren) 
 		{ 
 			d = new PVector(x, y);
 			this.refOper = refOper;
 			this.others = solution;
+			this.dotchildren = dotchildren;
+		}
+		
+		Dot(float x, float y, RefactoringOperation refOper, Solution< List<RefactoringOperation> > solution) 
+		{ 
+			d = new PVector(x, y);
+			this.refOper = refOper;
+			this.others = solution;
+			dotchildren = new ArrayList<PVector>();
+			if( ! (getrefOper().getParams() == null ||  getrefOper() ==null || getrefOper().getParams().entrySet() == null) )
+				for( Entry<String, List<RefactoringParameter>> params : getrefOper().getParams().entrySet() ){
+					if( params.getValue() != null )
+						for(RefactoringParameter refParam : params.getValue() ){
+							dotchildren.add( new PVector( (float)g.generate(), (float)g.generate() ) );
+						}
+				}
+
 		}
 
 		public void setVX(float vx){
@@ -509,7 +574,7 @@ public class ProcessingRefactor extends PApplet {
 			return refOper;
 		}
 
-		public void setdotChildren(List<Dot> dotchildren){
+		public void setdotChildren(List<PVector> dotchildren){
 			this.dotchildren = dotchildren;
 		}
 
@@ -521,7 +586,7 @@ public class ProcessingRefactor extends PApplet {
 			return this.others;
 		}
 
-		public List<Dot> getdotchildren(){
+		public List<PVector> getdotchildren(){
 			return this.dotchildren;
 		}
 

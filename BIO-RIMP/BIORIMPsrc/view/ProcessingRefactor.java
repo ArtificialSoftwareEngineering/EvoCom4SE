@@ -138,9 +138,11 @@ public class ProcessingRefactor extends PApplet {
 		
 		for (Dot d : hashGrid) 
 		{ 
-			ellipse(d.getLocation().x, d.getLocation().y, rad, rad);
-			point(d.getLocation().x, d.getLocation().y);
-			text( d.getrefOper().getRefType().getAcronym() , d.getLocation().x, d.getLocation().y );
+			x= d.getLocation().x % width;
+			y= d.getLocation().y % height;
+			ellipse(x , y , rad, rad);
+			point(x, y);
+			text( d.getrefOper().getRefType().getAcronym() , x, y );
 		}
 		
 
@@ -178,8 +180,10 @@ public class ProcessingRefactor extends PApplet {
 
 			for (Dot d : dotsNearMouse)
 			{ 
-				text( d.getrefOper().toString() , d.getLocation().x, d.getLocation().y );
-				point(d.getLocation().x, d.getLocation().y);
+				x= d.getLocation().x % width;
+				y= d.getLocation().y % height;
+				text( d.getrefOper().toString() , x, y );
+				point(x , y );
 			}
 		}
 
@@ -260,7 +264,7 @@ public class ProcessingRefactor extends PApplet {
 			for(int i = 0; i < dotsofaSet.size(); i++){
 				if((i + 1) != dotsofaSet.size() ){
 					if (dist(dotsofaSet.get(i).getLocation().x, dotsofaSet.get(i).getLocation().y, 
-							dotsofaSet.get(i+1).getLocation().x , dotsofaSet.get(i+1).getLocation().y) > rad*rad
+							dotsofaSet.get(i+1).getLocation().x , dotsofaSet.get(i+1).getLocation().y) > rad*2*rad
 							&& dotsofaSet.get(i+1).getPCT() < 1  
 							){
 						dotsofaSet.get(i+1).setPCTincrement();
@@ -303,15 +307,15 @@ public class ProcessingRefactor extends PApplet {
 			for (Dot dotother : hashGrid_) 
 			{
 				if(dist(dotReal.getLocation().x , dotReal.getLocation().y , 
-						dotother.getLocation().x, dotother.getLocation().y) < rad*2 ){
+						dotother.getLocation().x, dotother.getLocation().y) < rad*rad ){
 					
 					dotReal.setPCT_apartdecrement();
 					
 					distX = dotother.getLocation().x - dotReal.getLocation().x;
 					distY = dotother.getLocation().y - dotReal.getLocation().y;
 
-					x = dotReal.getLocation().x - ( dotReal.pct_apart * distX/2  );
-					y = dotReal.getLocation().y -(dotReal.pct_apart * distY/2  );
+					x = dotReal.getLocation().x - ( dotReal.pct_apart * distX/rad  );
+					y = dotReal.getLocation().y -(dotReal.pct_apart * distY/rad  );
 
 					dotReal.setLocation( x, y );
 				}
@@ -395,9 +399,10 @@ public class ProcessingRefactor extends PApplet {
 			}
 
 			for(int i = 0; i < dotsofaSet.size(); i++){
-				if((i + 1) != dotsofaSet.size() )
-					line(dotsofaSet.get(i).getLocation().x, dotsofaSet.get(i).getLocation().y, 
-							dotsofaSet.get(i+1).getLocation().x , dotsofaSet.get(i+1).getLocation().y	);
+				if((i + 1) != dotsofaSet.size() ){
+					line(dotsofaSet.get(i).getLocation().x % width, dotsofaSet.get(i).getLocation().y % height, 
+							dotsofaSet.get(i+1).getLocation().x % width , dotsofaSet.get(i+1).getLocation().y % height	);
+				}
 			}
 		}
 
@@ -411,8 +416,8 @@ public class ProcessingRefactor extends PApplet {
 			for (PVector pChild : d.getdotchildren() ) 
 			{ 
 				if( d.getdotchildren() != null )
-					line(d.getLocation().x, d.getLocation().y, 
-							d.getLocation().x + pChild.x , d.getLocation().y + pChild.y	);
+					line(d.getLocation().x % width , d.getLocation().y % height, 
+							d.getLocation().x + pChild.x % width, d.getLocation().y + pChild.y	% height);
 			}
 
 		}
@@ -436,8 +441,7 @@ public class ProcessingRefactor extends PApplet {
 				}
 
 			}
-
-			point(dotsofaSet.get(0).getLocation().x, dotsofaSet.get(0).getLocation().y);
+			point(dotsofaSet.get(0).getLocation().x % width, dotsofaSet.get(0).getLocation().y% height);
 			/*
 			for(int i = 0; i < dotsofaSet.size(); i++){
 				if((i + 1) != dotsofaSet.size() )
@@ -451,11 +455,11 @@ public class ProcessingRefactor extends PApplet {
 	public void draw_classes(){
 		stroke(199);
 		strokeWeight(1);  
-		
+
 		for (Dot d : hashGrid) { 
 			for( PVector p : d.getdotchildren() ){
-				x = d.getLocation().x + p.x;
-				y = d.getLocation().y + p.y;
+				x = d.getLocation().x + p.x  % width;
+				y = d.getLocation().y + p.y % height;
 				ellipse( x , y  , rad/2, rad/2 );
 			}
 		}

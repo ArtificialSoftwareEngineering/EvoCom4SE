@@ -61,10 +61,12 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		Double min = Collections.min(bias.values());
 		Double max = Collections.max(bias.values());
 		double fitness = 0;
-		double W[] = new double[11];
+		double W[] = new double[ bias.size() ];
+		double w = (double)1 / (double)bias.size();
+		System.out.println("BIAS SIZE: {" + w +"}");
 		for (Entry<String, Double> metric : bias.entrySet()) {
 			
-			fitness = fitness + ((metric.getValue() - min) / (max - min));
+			fitness = fitness + (w *((metric.getValue() - min) / (max - min)));
 			System.out.println("FITNESS: {" + fitness +"} | {"+((metric.getValue() - min) / (max - min))+"}");
 		}
 		System.out.println("FITNESS FINAL: {" + fitness +"}");

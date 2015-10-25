@@ -79,7 +79,7 @@ public class MainHillClimbing {
              
           	
         // Search method in RefactorSpace
-        int MAXITERS = 50;
+        int MAXITERS = 35;
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
                   

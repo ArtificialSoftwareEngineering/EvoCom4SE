@@ -65,7 +65,7 @@ public class MainSimulatedAnnealing {
 		//Third Step: Optimization 
 		
 		// Search Space definition
-        int DIM = 5;
+        int DIM = 7;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
 
         // Variation definition
@@ -77,7 +77,7 @@ public class MainSimulatedAnnealing {
         
     	
         // Search method
-        int MAXITERS = 100;
+        int MAXITERS = 30;
         SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
 
 

@@ -27,6 +27,7 @@ public class Solution<T> {
     
     public double quality( Goal<T> g ){
         if( g.nonStationary() ) qx = g.quality(x);
+        System.out.println( "···QUALITY············:" + qx );	
         return qx;
     }
     

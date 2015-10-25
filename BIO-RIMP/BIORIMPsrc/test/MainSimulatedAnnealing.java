@@ -77,7 +77,7 @@ public class MainSimulatedAnnealing {
         
     	
         // Search method
-        int MAXITERS = 30;
+        int MAXITERS = 100;
         SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
 
 

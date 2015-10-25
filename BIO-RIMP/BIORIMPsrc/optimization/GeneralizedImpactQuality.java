@@ -40,11 +40,12 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 			LinkedHashMap<String, LinkedHashMap<String, Double>> predictedMetrics = ActualMetrics( PredictingMetrics( x ) );
 			printFitness( predictedMetrics );
 
-			LinkedHashMap<String, Double> bias = TotalActualMetrics( predictedMetrics );
-			printFitness2(bias);
-
-			GQSm_ = GQSm(bias);
-
+			//LinkedHashMap<String, Double> bias = TotalActualMetrics( predictedMetrics );
+			//printFitness2(bias);
+			//GQSm_ = GQSm(bias); //First calculate proneness per metric and then normalize
+			
+			GQSm_ = GQSproneness( predictedMetrics ); //First normalize and then calculate proneness
+			
 		} catch (ReadException | IOException | CompilUnitException | WritingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -71,6 +72,88 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		}
 		System.out.println("FITNESS FINAL: {" + fitness +"}");
 		return fitness;
+	}	
+	
+	private Double GQSproneness( LinkedHashMap<String, LinkedHashMap<String, Double>> metricActualVector ){
+		double generalQuality = 0.0;
+		double denominator = 0.0;
+		double numerator = 0.0;
+
+		LinkedHashMap<String, Double> SUA_metric = new LinkedHashMap<String, Double>();
+		LinkedHashMap<String, Double> SUA_prev_metric = new LinkedHashMap<String, Double>();
+
+		for ( Entry<String, LinkedHashMap<String, Double>> clase : metricActualVector.entrySet() ) {
+			//1. Adding predicting metrics
+			for ( Entry<String, Double> metric : clase.getValue().entrySet() ) {
+				// evaluate if the metric is repeat for summing
+				if ( SUA_metric.containsKey( metric.getKey() ) ) {
+					SUA_metric.replace( metric.getKey() , 
+							SUA_metric.get( metric.getKey() ),
+							SUA_metric.get( metric.getKey() ) + metric.getValue() );
+				} else {
+					SUA_metric.put( metric.getKey(), metric.getValue() );
+				}
+			}
+
+			//2. Checking the class in prevMetrics
+			if ( prevMetrics.containsKey( clase.getKey() ) ) {
+				// Extracting prevMetrics
+				for ( Entry<String, Double> metric : prevMetrics.get( clase.getKey() ).entrySet() ) {
+					// Evaluate that the metric is impacted
+					if ( metricActualVector.get(clase.getKey()).containsKey( metric.getKey() ) ) {
+						// Evaluate if the metric is repeat for summing
+						if (SUA_prev_metric.containsKey(metric.getKey())) {
+							SUA_prev_metric.replace(metric.getKey(), 
+									SUA_prev_metric.get(metric.getKey()),
+									SUA_prev_metric.get(metric.getKey()) + metric.getValue());
+						} else {
+							SUA_prev_metric.put( metric.getKey(), metric.getValue() );
+						}
+					}
+				}
+			} else {
+				//For new classes
+				//Commented cause it is not necessary adding new classes metrics to the vector
+				/*
+				for ( Entry<String, Double> metric : clase.getValue().entrySet() ) {
+					// evaluate if the metric is repeat for summing
+					if ( SUA_prev_metric.containsKey( metric.getKey() ) ) {
+						SUA_prev_metric.replace( metric.getKey(), 
+												SUA_prev_metric.get(metric.getKey()),
+												SUA_prev_metric.get(metric.getKey()) + metric.getValue());
+					} else {
+						SUA_prev_metric.put( metric.getKey(), metric.getValue() );
+					}
+				}*/
+			}
+		}//End Loop Clase
+		
+		Double min = Collections.min( SUA_metric.values() );
+		Double max = Collections.max( SUA_metric.values() );
+		
+		Double minPrev = Collections.min( SUA_prev_metric.values() );
+		Double maxPrev = Collections.max( SUA_prev_metric.values() );
+		
+		double W[] = new double[ SUA_metric.size() ];
+		double w = (double)1 / (double)SUA_metric.size();
+
+		for ( Entry<String, Double> metric : SUA_prev_metric.entrySet() ) {
+			if ( SUA_metric.containsKey( metric.getKey() ) ) {
+				//Accumulate the metrics
+				numerator = numerator + (w *(( SUA_metric.get( metric.getKey() ) - min) / (max - min)));
+				denominator = denominator + (w *((metric.getValue() - minPrev) / (maxPrev - minPrev)));			
+
+			} else {
+				System.out.println("Something is wrong with prev_metrics");
+			}
+		}
+		System.out.println("Numerador: "+ numerator );
+		System.out.println("Denominador: "+  denominator );
+		generalQuality = numerator/denominator;
+		System.out.println("Proneness[FITNESS]: "+  generalQuality  );
+
+		return generalQuality;
+
 	}
 
 	private void PreviMetrics() {

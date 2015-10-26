@@ -88,6 +88,11 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 	public double feasibility(List<RefactoringOperation> x) {
 		return feasible(x)?1:0;
 	}
+	
+	//This function measures the feasibility of the order in the refactoring list
+	public int feasibilityCombination( List< RefactoringOperation > x ) {
+		return feasible(x)?1:0;
+	}
 
 	@Override
 	public List<RefactoringOperation> repair(List<RefactoringOperation> x) {

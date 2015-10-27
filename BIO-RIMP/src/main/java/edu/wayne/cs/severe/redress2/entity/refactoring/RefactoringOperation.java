@@ -76,7 +76,8 @@ public class RefactoringOperation {
 	//danaderp 1001 SetParams for transposition operator
 	public void setParamsTrans(){
 		List< RefactoringParameter > aux = new ArrayList< RefactoringParameter >();
-		if( params.containsKey("tgt") ){
+		if( params.containsKey("tgt")
+				&& !params.get("tgt").get(0).getObjState().equals( CodeObjState.NEW ) ){
 			aux.addAll( params.get("tgt") );
 			params.get("tgt").clear();
 			params.get("tgt").addAll( params.get("src") );

@@ -105,15 +105,23 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 
 		List<RefactoringOperation> clon;
 		List<RefactoringOperation> repaired = new ArrayList<RefactoringOperation>();
-
-		if(x.size() > n){
-			clon = new ArrayList<RefactoringOperation>();
-			for(int i = 0; i < n; i++){
-				clon.add( x.get(i) );
-				//repaired.add( x.get(i) );
+		
+		if(x != null){
+			if(x.size() > n){
+				clon = new ArrayList<RefactoringOperation>();
+				for(int i = 0; i < n; i++){
+					clon.add( x.get(i) );
+					//repaired.add( x.get(i) );
+				}
+			}else{
+				clon = (List<RefactoringOperation>) Clone.create( x );
+				if(x.size() < n ){
+					clon.addAll( getRefactoring(n - x.size()) );
+				}
 			}
 		}else{
-			clon = (List<RefactoringOperation>) Clone.create( x );
+			clon = new ArrayList<RefactoringOperation>();
+			clon.addAll( get() );
 		}
 
 
@@ -188,6 +196,76 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		return repaired ;
 	}
 
+	
+	public List<RefactoringOperation> getRefactoring(int k) {
+		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
+				metaphor.getSysTypeDcls(),
+				metaphor.getLang(),
+				metaphor.getBuilder());
+		int mapRefactor;
+		OBSERVRefactorings oper = new OBSERVRefactorings();
+		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
+
+		IntUniform g = new IntUniform ( Refactoring.values().length );
+		GeneratingRefactor randomRefactor = null;
+
+		for(int i = 0; i < k; i++){
+			mapRefactor = g.generate();
+			switch(mapRefactor){
+			case 0:
+				randomRefactor = new GeneratingRefactorPUF();
+				break;
+			case 1:
+				randomRefactor = new GeneratingRefactorMM();
+				break;
+			case 2:
+				randomRefactor = new GeneratingRefactorRMMO();
+				break;
+			case 3:
+				randomRefactor = new GeneratingRefactorRDI();
+				break;
+			case 4:
+				randomRefactor = new GeneratingRefactorMF();
+				break;
+			case 5:
+				randomRefactor = new GeneratingRefactorEM();
+				break;
+			case 6:
+				randomRefactor = new GeneratingRefactorPDM();
+				break;
+			case 7:
+				randomRefactor = new GeneratingRefactorRID();
+				break;
+			case 8:
+				randomRefactor = new GeneratingRefactorIM();
+				break;
+			case 9:
+				randomRefactor = new GeneratingRefactorPUM();
+				break;
+			case 10:
+				randomRefactor = new GeneratingRefactorPDF();
+				break;
+			case 11:
+				randomRefactor = new GeneratingRefactorEC();
+				break;
+			}//END CASE
+
+			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
+			refactorings.add( randomRefactor.generatingRefactor( metaphor ) );
+
+		}
+
+		oper.setRefactorings(refactorings);
+		try {
+			return reader.getRefactOperations( oper	);
+		} catch (ReadException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			System.out.println( "Reading Error" );
+			return null;
+		} 
+	}
+	
 	@Override
 	public List<RefactoringOperation> get() {
 		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
@@ -257,4 +335,5 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 			return null;
 		} 
 	}
+	
 }

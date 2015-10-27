@@ -6,6 +6,7 @@ import java.util.List;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
+import operators.ClassTransposition;
 import operators.RefOperMutation;
 import operators.RefOperTransposition;
 import operators.RefOperXOver;
@@ -95,11 +96,12 @@ public class MainHAEATest {
 		//IntensityMutation mutation = new IntensityMutation( 0.1, random, pick, adapt );
 		RefOperMutation mutation = new RefOperMutation( 0.5, metaphor );
 		ArityTwo< List<RefactoringOperation> > xover = new RefOperXOver();
-		ArityOne< List<RefactoringOperation> > transposition = new RefOperTransposition();
+		ArityOne< List<RefactoringOperation> > transpositionRef = new RefOperTransposition();
+		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		int POPSIZE = 50;
-		int MAXITERS = 100;
+		int POPSIZE = 10;
+		int MAXITERS = 10;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -157,7 +159,7 @@ public class MainHAEATest {
 		HaeaOperators<BitArray> operators = new SimpleHaeaOperators<BitArray>(opers);
 
 		// Search method
-		int POPSIZE = 100;
+		int POPSIZE = 10;
 		int MAXITERS = 10;
 		HAEA<BitArray> bin_search = new HAEA<BitArray>(POPSIZE, operators, new Tournament<BitArray>(4), MAXITERS );
 

@@ -1,5 +1,6 @@
 package edu.wayne.cs.severe.redress2.entity.refactoring;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -70,6 +71,19 @@ public class RefactoringOperation {
 				+ (params != null ? (params.toString()) : "")
 				+ (subRefs != null ? ("{" + subRefs + "}") : "")
 				+ "feasible : " + feasible;
+	}
+	
+	//danaderp 1001 SetParams for transposition operator
+	public void setParamsTrans(){
+		List< RefactoringParameter > aux = new ArrayList< RefactoringParameter >();
+		if( params.containsKey("tgt") ){
+			aux.addAll( params.get("tgt") );
+			params.get("tgt").clear();
+			params.get("tgt").addAll( params.get("src") );
+			params.get("src").clear();
+			params.get("src").addAll( aux );
+		}
+		
 	}
 
 	/**

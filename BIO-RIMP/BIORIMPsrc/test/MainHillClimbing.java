@@ -1,5 +1,8 @@
 package test;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,7 +82,7 @@ public class MainHillClimbing {
              
           	
         // Search method in RefactorSpace
-        int MAXITERS = 35;
+        int MAXITERS = 100;
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
                   
@@ -105,4 +108,24 @@ public class MainHillClimbing {
 		
 	}
 
+	public void escribirTextoArchivo(String nombreArchivo, String texto) {
+		FileWriter salida = null;
+		try {
+			salida = new FileWriter(nombreArchivo);
+			BufferedWriter escritor = new BufferedWriter(salida);
+			escritor.write(texto);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (salida != null) {
+				try {
+					salida.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+	}
+	
 }

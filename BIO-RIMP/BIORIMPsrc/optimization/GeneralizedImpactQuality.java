@@ -3,6 +3,9 @@
  */
 package optimization;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -71,6 +74,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 			System.out.println("FITNESS: {" + fitness +"} | {"+((metric.getValue() - min) / (max - min))+"}");
 		}
 		System.out.println("FITNESS FINAL: {" + fitness +"}");
+
 		return fitness;
 	}	
 	
@@ -151,7 +155,9 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		System.out.println("Denominador: "+  denominator );
 		generalQuality = numerator/denominator;
 		System.out.println("Proneness[FITNESS]: "+  generalQuality  );
-
+		
+		escribirTextoArchivo( String.valueOf(generalQuality) );
+		
 		return generalQuality;
 
 	}
@@ -328,4 +334,25 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 
 	}
 
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "D:/out.txt";
+		File archivo = new File(ruta);
+		BufferedWriter bw;
+		try {
+			if(archivo.exists()) {
+				bw = new BufferedWriter(new FileWriter(archivo));
+				bw.write( texto );
+			} else {
+				bw = new BufferedWriter(new FileWriter(archivo));
+				bw.write( texto );
+			}
+			bw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}
+
+	
 }

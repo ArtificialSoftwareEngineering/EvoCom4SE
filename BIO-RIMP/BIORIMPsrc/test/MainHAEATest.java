@@ -101,7 +101,7 @@ public class MainHAEATest {
 
 		// Search method
 		int POPSIZE = 10;
-		int MAXITERS = 10;
+		int MAXITERS = 100;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;

@@ -1,6 +1,7 @@
 package test;
 
 import java.io.BufferedWriter;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,7 +83,7 @@ public class MainHillClimbing {
              
           	
         // Search method in RefactorSpace
-        int MAXITERS = 100;
+        int MAXITERS = 1000;
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
                   
@@ -107,23 +108,18 @@ public class MainHillClimbing {
         
 		
 	}
-
-	public void escribirTextoArchivo(String nombreArchivo, String texto) {
-		FileWriter salida = null;
-		try {
-			salida = new FileWriter(nombreArchivo);
-			BufferedWriter escritor = new BufferedWriter(salida);
-			escritor.write(texto);
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			if (salida != null) {
-				try {
-					salida.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
+	
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "C:/Refactor/out.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Escribimos en el fichero un String y un caracter 97 (a)
+			fw.write( texto );
+			//fw.write(97);
+			//Guardamos los cambios del fichero
+			fw.flush();
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
 		}
 
 	}

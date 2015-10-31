@@ -5,6 +5,10 @@
  */
 package unalcol.search;
 
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+
 import unalcol.io.Write;
 
 /**
@@ -27,7 +31,6 @@ public class Solution<T> {
     
     public double quality( Goal<T> g ){
         if( g.nonStationary() ) qx = g.quality(x);
-        System.out.println( "···QUALITY············:" + qx );	
         return qx;
     }
     
@@ -36,6 +39,23 @@ public class Solution<T> {
     
     public String toString(){
     	String txt = Write.toString(x);
+    	escribirTextoArchivo(quality()+ "\r\n" + txt + "\r\n" );
     	return txt + "," + quality();
     }
+    
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "C:/Refactor/R.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Escribimos en el fichero un String y un caracter 97 (a)
+			fw.write( texto );
+			//fw.write(97);
+			//Guardamos los cambios del fichero
+			fw.flush();
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
+		}
+
+	}
+    
 }

@@ -1,4 +1,7 @@
 package test;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -131,5 +134,20 @@ public class MainSimulatedAnnealing {
     	refactor(); // Uncomment if testing real valued functions
  
     }
+    
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "C:/Refactor/out.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Escribimos en el fichero un String y un caracter 97 (a)
+			fw.write( texto );
+			//fw.write(97);
+			//Guardamos los cambios del fichero
+			fw.flush();
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
+		}
+
+	}
 
 }

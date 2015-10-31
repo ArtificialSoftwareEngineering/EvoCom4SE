@@ -5,6 +5,7 @@ package optimization;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Collections;
@@ -156,7 +157,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		generalQuality = numerator/denominator;
 		System.out.println("Proneness[FITNESS]: "+  generalQuality  );
 		
-		escribirTextoArchivo( String.valueOf(generalQuality) );
+		escribirTextoArchivo( String.valueOf(generalQuality) + "\r\n");
 		
 		return generalQuality;
 
@@ -335,21 +336,16 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	}
 
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/out.txt";
-		File archivo = new File(ruta);
-		BufferedWriter bw;
-		try {
-			if(archivo.exists()) {
-				bw = new BufferedWriter(new FileWriter(archivo));
-				bw.write( texto );
-			} else {
-				bw = new BufferedWriter(new FileWriter(archivo));
-				bw.write( texto );
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		String ruta = "C:/Refactor/out.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Escribimos en el fichero un String y un caracter 97 (a)
+			fw.write( texto );
+			//fw.write(97);
+			//Guardamos los cambios del fichero
+			fw.flush();
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
 		}
 
 	}

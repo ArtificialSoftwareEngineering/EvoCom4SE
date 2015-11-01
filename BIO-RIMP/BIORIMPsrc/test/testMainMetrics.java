@@ -8,7 +8,7 @@ public class testMainMetrics {
 		//First Test bith evolution library
 		// TODO Auto-generated method stub
 		String userPath = System.getProperty("user.dir");
-        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\evolution\\src","-s", "     evolution      " };
+        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\xerces\\src","-s", "     xerces      " };
         MainMetrics.main(args);
 	}
 

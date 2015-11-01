@@ -1,0 +1,540 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xml\serialize\XML11Serializer.java"><comment type="block">/*
+ * Copyright 1999-2002,2004,2005 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+
+
+<comment type="line">// Sep 14, 2000:</comment>
+<comment type="line">//  Fixed problem with namespace handling. Contributed by</comment>
+<comment type="line">//  David Blondeau &lt;blondeau@intalio.com&gt;</comment>
+<comment type="line">// Sep 14, 2000:</comment>
+<comment type="line">//  Fixed serializer to report IO exception directly, instead at</comment>
+<comment type="line">//  the end of document processing.</comment>
+<comment type="line">//  Reported by Patrick Higgins &lt;phiggins@transzap.com&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Fixed bug in startDocument not calling prepare.</comment>
+<comment type="line">//  Reported by Mikael Staldal &lt;d96-mst-ingen-reklam@d.kth.se&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Added ability to omit DOCTYPE declaration.</comment>
+
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xml</name>.<name>serialize</name></name>;</package>
+
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name>.<name>DOMMessageFormatter</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>Constants</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>NamespaceSupport</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>SymbolTable</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XML11Char</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLChar</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>SAXException</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DOMError</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Implements an XML serializer supporting both DOM and SAX pretty
+ * serializing. For usage instructions see {@link Serializer}.
+ * &lt;p&gt;
+ * If an output stream is used, the encoding is taken from the
+ * output format (defaults to &lt;tt&gt;UTF-8&lt;/tt&gt;). If a writer is
+ * used, make sure the writer uses the same encoding (if applies)
+ * as specified in the output format.
+ * &lt;p&gt;
+ * The serializer supports both DOM and SAX. SAX serializing is done by firing
+ * SAX events and using the serializer as a document handler. DOM serializing is done
+ * by calling {@link #serialize(Document)} or by using DOM Level 3  
+ * {@link org.w3c.dom.ls.DOMSerializer} and
+ * serializing with {@link org.w3c.dom.ls.DOMSerializer#write},
+ * {@link org.w3c.dom.ls.DOMSerializer#writeToString}.
+ * &lt;p&gt;
+ * If an I/O exception occurs while serializing, the serializer
+ * will not throw an exception directly, but only throw it
+ * at the end of serializing (either DOM or SAX's {@link
+ * org.xml.sax.DocumentHandler#endDocument}.
+ * &lt;p&gt;
+ * For elements that are not specified as whitespace preserving,
+ * the serializer will potentially break long text lines at space
+ * boundaries, indent lines, and serialize elements on separate
+ * lines. Line terminators will be regarded as spaces, and
+ * spaces at beginning of line will be stripped.
+ * @author &lt;a href="mailto:arkin@intalio.com"&gt;Assaf Arkin&lt;/a&gt;
+ * @author &lt;a href="mailto:rahul.srivastava@sun.com"&gt;Rahul Srivastava&lt;/a&gt;
+ * @author Elena Litani IBM
+ * @version $Revision: 1.14 $ $Date: 2005/05/03 11:12:21 $
+ * @see Serializer
+ */</comment>
+<class><specifier>public</specifier> class <name>XML11Serializer</name>
+<super><extends>extends <name>XMLSerializer</name></extends></super> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// constants</comment>
+    <comment type="line">//</comment>
+
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEBUG</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment> 
+    <comment type="line">// data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="line">//</comment> 
+    <comment type="line">// DOM Level 3 implementation: variables intialized in DOMSerializerImpl</comment>
+    <comment type="line">//</comment> 
+
+    <comment type="javadoc">/** stores namespaces in scope */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>NamespaceSupport</name></type> <name>fNSBinder</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** stores all namespace bindings on the current element */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>NamespaceSupport</name></type> <name>fLocalNSBinder</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** symbol table for serialization */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>SymbolTable</name></type> <name>fSymbolTable</name></decl>;</decl_stmt>    
+
+    <comment type="line">// is node dom level 1 node?</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fDOML1</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <comment type="line">// counter for new prefix names</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>int</name></type> <name>fNamespaceCounter</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>String</name></type> <name>PREFIX</name> =<init> <expr>"NS"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Controls whether namespace fixup should be performed during
+     * the serialization. 
+     * NOTE: if this field is set to true the following 
+     * fields need to be initialized: fNSBinder, fLocalNSBinder, fSymbolTable, 
+     * XMLSymbols.EMPTY_STRING, fXmlSymbol, fXmlnsSymbol, fNamespaceCounter.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fNamespaces</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>fPreserveSpace</name></decl>;</decl_stmt>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XML11Serializer</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setVersion</name></name><argument_list>(<argument><expr>"1.1"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XML11Serializer</name><parameter_list>( <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>format</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setVersion</name></name><argument_list>(<argument><expr>"1.1"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified writer
+     * using the specified output format. If &lt;tt&gt;format&lt;/tt&gt; is null,
+     * will use a default output format.
+     *
+     * @param writer The writer to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XML11Serializer</name><parameter_list>( <param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>writer</name></expr></argument>, <argument><expr><name>format</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setVersion</name></name><argument_list>(<argument><expr>"1.1"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified output
+     * stream using the specified output format. If &lt;tt&gt;format&lt;/tt&gt;
+     * is null, will use a default output format.
+     *
+     * @param output The output stream to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XML11Serializer</name><parameter_list>( <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>output</name></expr></argument>, <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setVersion</name></name><argument_list>(<argument><expr>"1.1"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------//</comment>
+    <comment type="line">// SAX content handler serializing methods //</comment>
+    <comment type="line">//-----------------------------------------//</comment>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>characters</name><parameter_list>( <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><name>state</name> = <call><name>content</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Check if text should be print as CDATA section or unescaped</comment>
+            <comment type="line">// based on elements listed in the output format (the element</comment>
+            <comment type="line">// state) or whether we are inside a CDATA section or entity.</comment>
+
+            <if>if <condition>( <expr><name><name>state</name>.<name>inCData</name></name> || <name><name>state</name>.<name>doCData</name></name></expr> )</condition><then> <block>{
+                <decl_stmt><decl><type><name>int</name></type>          <name>saveIndent</name></decl>;</decl_stmt>
+
+                <comment type="line">// Print a CDATA section. The text is not escaped, but ']]&gt;'</comment>
+                <comment type="line">// appearing in the code must be identified and dealt with.</comment>
+                <comment type="line">// The contents of a text node is considered space preserving.</comment>
+                <if>if <condition>( <expr>! <name><name>state</name>.<name>inCData</name></name></expr> )</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;![CDATA["</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>state</name>.<name>inCData</name></name> = true</expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name>saveIndent</name> = <call><name><name>_printer</name>.<name>getNextIndent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>setNextIndent</name></name><argument_list>( <argument><expr>0</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+                <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>end</name> =<init> <expr><name>start</name> + <name>length</name></expr></init></decl>;</decl_stmt>
+                <for>for ( <init><decl><type><name>int</name></type> <name>index</name> =<init> <expr><name>start</name></expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>end</name></expr>;</condition> <incr><expr>++<name>index</name></expr></incr> ) <block>{
+                    <expr_stmt><expr><name>ch</name> = <name><name>chars</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>ch</name> == ']' &amp;&amp; <name>index</name> + 2 &lt; <name>end</name> &amp;&amp;
+                        <name><name>chars</name><index>[ <expr><name>index</name> + 1</expr> ]</index></name> == ']' &amp;&amp; <name><name>chars</name><index>[ <expr><name>index</name> + 2</expr> ]</index></name> == '&gt;'</expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"]]]]&gt;&lt;![CDATA[&gt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>index</name> +=2</expr>;</expr_stmt> 
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                    <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <comment type="line">// check if it is surrogate</comment>
+                        <if>if <condition>(<expr>++<name>index</name> &lt; <name>end</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name><name>chars</name><index>[<expr><name>index</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> 
+                        <else>else <block>{
+                            <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                        }</block></else></if>
+                        <continue>continue;</continue>
+                    }</block></then> <else>else <block>{
+                        <if>if <condition>( <expr><call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <comment type="line">// The character is not printable -- split CDATA section</comment>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"]]&gt;&amp;#x"</expr></argument>)</argument_list></call></expr>;</expr_stmt>                        
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>                        
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>";&lt;![CDATA["</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                    }</block></else></if>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>setNextIndent</name></name><argument_list>( <argument><expr><name>saveIndent</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+            }</block></then> <else>else <block>{
+
+                <decl_stmt><decl><type><name>int</name></type> <name>saveIndent</name></decl>;</decl_stmt>
+
+                <if>if <condition>( <expr><name><name>state</name>.<name>preserveSpace</name></name></expr> )</condition><then> <block>{
+                    <comment type="line">// If preserving space then hold of indentation so no</comment>
+                    <comment type="line">// excessive spaces are printed at line breaks, escape</comment>
+                    <comment type="line">// the text content without replacing spaces and print</comment>
+                    <comment type="line">// the text breaking only at line breaks.</comment>
+                    <expr_stmt><expr><name>saveIndent</name> = <call><name><name>_printer</name>.<name>getNextIndent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>setNextIndent</name></name><argument_list>( <argument><expr>0</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>printText</name><argument_list>( <argument><expr><name>chars</name></expr></argument>, <argument><expr><name>start</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name><name>state</name>.<name>unescaped</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>setNextIndent</name></name><argument_list>( <argument><expr><name>saveIndent</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>printText</name><argument_list>( <argument><expr><name>chars</name></expr></argument>, <argument><expr><name>start</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name><name>state</name>.<name>unescaped</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block> <catch>catch ( <param><decl><type><name>IOException</name></type> <name>except</name></decl></param> ) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <comment type="line">//</comment>
+    <comment type="line">// overwrite printing functions to make sure serializer prints out valid XML</comment>
+    <comment type="line">//</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printEscaped</name><parameter_list>( <param><decl><type><name>String</name></type> <name>source</name></decl></param> )</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>source</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for ( <init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl> ;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr> ) <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>ch</name> =<init> <expr><call><name><name>source</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr>++<name>i</name> &lt;<name>length</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>source</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                }</block></else></if>
+                <continue>continue;</continue>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>ch</name> == '\n' || <name>ch</name> == '\r' || <name>ch</name> == '\t' || <name>ch</name> == 0x0085 || <name>ch</name> == 0x2028</expr>)</condition><then><block>{
+				<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&lt;'</expr>)</condition><then> <block>{
+				<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;lt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&amp;'</expr>)</condition><then> <block>{
+				<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;amp;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '"'</expr>)</condition><then> <block>{
+				<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;quot;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then> <else>else <if>if <condition>(<expr>(<name>ch</name> &gt;= ' ' &amp;&amp; <call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+				<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then> <else>else <block>{
+				<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></else></if></else></if></else></if></else></if></else></if>
+        }</block></for>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>printCDATAText</name><parameter_list>(<param><decl><type><name>String</name></type> <name>text</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>text</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>length</name></expr>;</condition> <incr><expr>++<name>index</name></expr></incr>) <block>{
+            <expr_stmt><expr><name>ch</name> = <call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name>ch</name> == ']'
+                &amp;&amp; <name>index</name> + 2 &lt; <name>length</name>
+                &amp;&amp; <call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name> + 1</expr></argument>)</argument_list></call> == ']'
+                &amp;&amp; <call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name> + 2</expr></argument>)</argument_list></call> == '&gt;'</expr>)</condition><then> <block>{ <comment type="line">// check for ']]&gt;'</comment>
+                <if>if <condition>(<expr><name>fDOMErrorHandler</name> != <name>null</name></expr>)</condition><then><block>{
+                    <comment type="line">// REVISIT: this means that if DOM Error handler is not registered we don't report any</comment>
+                    <comment type="line">// fatal errors and might serialize not wellformed document</comment>
+                <if>if <condition>(<expr>(<name>features</name> &amp; <name><name>DOMSerializerImpl</name>.<name>SPLITCDATA</name></name>) == 0
+                    &amp;&amp; (<name>features</name> &amp; <name><name>DOMSerializerImpl</name>.<name>WELLFORMED</name></name>) == 0</expr>)</condition><then> <block>{
+                    <comment type="line">// issue fatal error</comment>
+                    <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                        <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                            <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"EndingCDATA"</expr></argument>,
+                            <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name>modifyDOMError</name><argument_list>(
+                        <argument><expr><name>msg</name></expr></argument>,
+                        <argument><expr><name><name>DOMError</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>,
+                        <argument><expr><name>null</name></expr></argument>, <argument><expr><name>fCurrentNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><name>boolean</name></type> <name>continueProcess</name> =<init>
+                        <expr><call><name><name>fDOMErrorHandler</name>.<name>handleError</name></name><argument_list>(<argument><expr><name>fDOMError</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr>!<name>continueProcess</name></expr>)</condition><then> <block>{
+                        <throw>throw <expr>new <call><name>IOException</name><argument_list>()</argument_list></call></expr>;</throw>
+                    }</block></then></if>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// issue warning</comment>
+                    <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                        <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                            <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"SplittingCDATA"</expr></argument>,
+                            <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name>modifyDOMError</name><argument_list>(
+                        <argument><expr><name>msg</name></expr></argument>,
+                        <argument><expr><name><name>DOMError</name>.<name>SEVERITY_WARNING</name></name></expr></argument>,
+                        <argument><expr><name>null</name></expr></argument>, <argument><expr><name>fCurrentNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>fDOMErrorHandler</name>.<name>handleError</name></name><argument_list>(<argument><expr><name>fDOMError</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                }</block></then></if>
+                <comment type="line">// split CDATA section</comment>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"]]]]&gt;&lt;![CDATA[&gt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>index</name> += 2</expr>;</expr_stmt>
+                <continue>continue;</continue>
+            }</block></then></if>
+
+            <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// check if it is surrogate</comment>
+                <if>if <condition>(<expr>++<name>index</name> &lt; <name>length</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>fatalError</name><argument_list>(
+                        <argument><expr>"The character '"
+                            + (<name>char</name>) <name>ch</name>
+                            + "' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <continue>continue;</continue>
+            }</block></then> <else>else <block>{
+                <if>if <condition>(<expr><call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call>
+                    &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+
+                    <comment type="line">// The character is not printable -- split CDATA section</comment>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"]]&gt;&amp;#x"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>";&lt;![CDATA["</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></for>
+    }</block></function>
+
+
+    <comment type="line">// note that this "int" should, in all cases, be a char.</comment>
+    <comment type="line">// REVISIT:  make it a char...</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>printXMLChar</name><parameter_list>( <param><decl><type><name>int</name></type> <name>ch</name></decl></param> )</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    	
+    	<if>if <condition>(<expr><name>ch</name> == '\r' || <name>ch</name> == 0x0085 || <name>ch</name> == 0x2028</expr>)</condition><then> <block>{
+			<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    	}</block></then> <else>else <if>if <condition>( <expr><name>ch</name> == '&lt;'</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;lt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&amp;'</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;amp;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		}</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&gt;'</expr>)</condition><then><block>{
+			<comment type="line">// character sequence "]]&gt;" can't appear in content, therefore</comment>
+			<comment type="line">// we should escape '&gt;' </comment>
+			<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;gt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>( <expr><call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{ 
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+             <expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if></else></if></else></if></else></if>
+    }</block></function>
+
+
+
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>surrogates</name><parameter_list>(<param><decl><type><name>int</name></type> <name>high</name></decl></param>, <param><decl><type><name>int</name></type> <name>low</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws><block>{
+        <if>if <condition>(<expr><call><name><name>XMLChar</name>.<name>isHighSurrogate</name></name><argument_list>(<argument><expr><name>high</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isLowSurrogate</name></name><argument_list>(<argument><expr><name>low</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">//Invalid XML</comment>
+                <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>low</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+            }</block></then>
+            <else>else <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>supplemental</name> =<init> <expr><call><name><name>XMLChar</name>.<name>supplemental</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>high</name></expr></argument>, <argument><expr>(<name>char</name>)<name>low</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>supplemental</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">//Invalid XML</comment>
+                    <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>supplemental</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                }</block></then>
+                <else>else <block>{
+                    <if>if <condition>(<expr><call><name>content</name><argument_list>()</argument_list></call>.<name>inCData</name></expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"]]&gt;&amp;#x"</expr></argument>)</argument_list></call></expr>;</expr_stmt>                        
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>supplemental</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>                        
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>";&lt;![CDATA["</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then>  
+                    <else>else <block>{
+						<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>supplemental</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>high</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+        }</block></else></if>
+
+    }</block></function>
+
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printText</name><parameter_list>( <param><decl><type><name>String</name></type> <name>text</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>preserveSpace</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>unescaped</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>text</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>( <expr><name>preserveSpace</name></expr> )</condition><then> <block>{
+            <comment type="line">// Preserving spaces: the text must print exactly as it is,</comment>
+            <comment type="line">// without breaking when spaces appear in the text and without</comment>
+            <comment type="line">// consolidating spaces. If a line terminator is used, a line</comment>
+            <comment type="line">// break will occur.</comment>
+            <for>for ( <init><expr><name>index</name> = 0</expr> ;</init> <condition><expr><name>index</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>index</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>ch</name> = <call><name><name>text</name>.<name>charAt</name></name><argument_list>( <argument><expr><name>index</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>(<expr>++<name>index</name> &lt;<name>length</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>( <expr><name>unescaped</name>  &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></for>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Not preserving spaces: print one part at a time, and</comment>
+            <comment type="line">// use spaces between parts to break them into different</comment>
+            <comment type="line">// lines. Spaces at beginning of line will be stripped</comment>
+            <comment type="line">// by printing mechanism. Line terminator is treated</comment>
+            <comment type="line">// no different than other text part.</comment>
+            <for>for ( <init><expr><name>index</name> = 0</expr> ;</init> <condition><expr><name>index</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>index</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>ch</name> = <call><name><name>text</name>.<name>charAt</name></name><argument_list>( <argument><expr><name>index</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>(<expr>++<name>index</name> &lt;<name>length</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+
+                <if>if <condition>( <expr><name>unescaped</name> &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></for>
+        }</block></else></if>
+    }</block></function>
+
+
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printText</name><parameter_list>( <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>,
+                              <param><decl><type><name>boolean</name></type> <name>preserveSpace</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>unescaped</name></decl></param> )</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+
+        <if>if <condition>( <expr><name>preserveSpace</name></expr> )</condition><then> <block>{
+            <comment type="line">// Preserving spaces: the text must print exactly as it is,</comment>
+            <comment type="line">// without breaking when spaces appear in the text and without</comment>
+            <comment type="line">// consolidating spaces. If a line terminator is used, a line</comment>
+            <comment type="line">// break will occur.</comment>
+            <while>while <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition> <block>{
+                <expr_stmt><expr><name>ch</name> = <name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>( <expr><name>length</name>-- &gt; 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>( <expr><name>unescaped</name> &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></while>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Not preserving spaces: print one part at a time, and</comment>
+            <comment type="line">// use spaces between parts to break them into different</comment>
+            <comment type="line">// lines. Spaces at beginning of line will be stripped</comment>
+            <comment type="line">// by printing mechanism. Line terminator is treated</comment>
+            <comment type="line">// no different than other text part.</comment>
+            <while>while <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition> <block>{
+                <expr_stmt><expr><name>ch</name> = <name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XML11Char</name>.<name>isXML11Valid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>( <expr><name>length</name>-- &gt; 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+              
+                <if>if <condition>( <expr><name>unescaped</name> &amp;&amp; <call><name><name>XML11Char</name>.<name>isXML11ValidLiteral</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></while>
+        }</block></else></if>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>reset</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr>true</expr>;</return>
+
+    }</block></function>
+
+}</block></class>
+
+
+
+
+</unit>

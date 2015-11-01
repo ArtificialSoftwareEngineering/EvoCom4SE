@@ -1,0 +1,945 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\impl\xs\models\XSDFACM.java"><comment type="block">/*
+ * Copyright 1999-2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>models</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>QName</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>dtd</name>.<name>models</name>.<name>CMNode</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>dtd</name>.<name>models</name>.<name>CMStateSet</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>SubstitutionGroupHandler</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XSElementDecl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XSParticleDecl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XSModelGroupImpl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XSWildcardDecl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XMLSchemaException</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>XSConstraints</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Vector</name></name>;</import>
+
+<comment type="javadoc">/**
+ * DFAContentModel is the implementation of XSCMValidator that does
+ * all of the non-trivial element content validation. This class does
+ * the conversion from the regular expression to the DFA that
+ * it then uses in its validation algorithm.
+ *
+ * @xerces.internal 
+ *
+ * @author Neil Graham, IBM
+ * @version $Id: XSDFACM.java,v 1.13 2004/10/06 15:14:52 mrglavas Exp $
+ */</comment>
+<class><specifier>public</specifier> class <name>XSDFACM</name>
+    <super><implements>implements <name>XSCMValidator</name></implements></super> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constants</comment>
+    <comment type="line">//</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEBUG</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// special strings</comment>
+
+    <comment type="line">// debugging</comment>
+
+    <comment type="javadoc">/** Set to true to debug content model validation. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEBUG_VALIDATE_CONTENT</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * This is the map of unique input symbol elements to indices into
+     * each state's per-input symbol transition table entry. This is part
+     * of the built DFA information that must be kept around to do the
+     * actual validation.  Note tat since either XSElementDecl or XSParticleDecl object
+     * can live here, we've got to use an Object.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Object</name></type> <name><name>fElemMap</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is a map of whether the element map contains information
+     * related to ANY models.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name><name>fElemMapType</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * id of the unique input symbol
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name><name>fElemMapId</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** The element map size. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fElemMapSize</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is an array of booleans, one per state (there are
+     * fTransTableSize states in the DFA) that indicates whether that
+     * state is a final state.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name><name>fFinalStateFlags</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The list of follow positions for each NFA position (i.e. for each
+     * non-epsilon leaf node.) This is only used during the building of
+     * the DFA, and is let go afterwards.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>CMStateSet</name></type> <name><name>fFollowList</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is the head node of our intermediate representation. It is
+     * only non-null during the building of the DFA (just so that it
+     * does not have to be passed all around.) Once the DFA is built,
+     * this is no longer required so its nulled out.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>CMNode</name></type> <name>fHeadNode</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The count of leaf nodes. This is an important number that set some
+     * limits on the sizes of data structures in the DFA process.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fLeafCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * An array of non-epsilon leaf nodes, which is used during the DFA
+     * build operation, then dropped.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>XSCMLeaf</name></type> <name><name>fLeafList</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Array mapping ANY types to the leaf list. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name><name>fLeafListType</name><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is the transition table that is the main by product of all
+     * of the effort here. It is an array of arrays of ints. The first
+     * dimension is the number of states we end up with in the DFA. The
+     * second dimensions is the number of unique elements in the content
+     * model (fElemMapSize). Each entry in the second dimension indicates
+     * the new state given that input for the first dimension's start
+     * state.
+     * &lt;p&gt;
+     * The fElemMap array handles mapping from element indexes to
+     * positions in the second dimension of the transition table.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name><name>fTransTable</name><index>[]</index><index>[]</index></name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The number of valid entries in the transition table, and in the other
+     * related tables such as fFinalStateFlags.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fTransTableSize</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// temp variables</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constructors</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Constructs a DFA content model.
+     *
+     * @param syntaxTree    The syntax tree of the content model.
+     * @param leafCount     The number of leaves.
+     *
+     * @exception RuntimeException Thrown if DFA can't be built.
+     */</comment>
+
+   <constructor><specifier>public</specifier> <name>XSDFACM</name><parameter_list>(<param><decl><type><name>CMNode</name></type> <name>syntaxTree</name></decl></param>, <param><decl><type><name>int</name></type> <name>leafCount</name></decl></param>)</parameter_list> <block>{
+   
+        <comment type="line">// Store away our index and pools in members</comment>
+        <expr_stmt><expr><name>fLeafCount</name> = <name>leafCount</name></expr>;</expr_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Create some string pool indexes that represent the names of some</comment>
+        <comment type="line">//  magical nodes in the syntax tree.</comment>
+        <comment type="line">//  (already done in static initialization...</comment>
+        <comment type="line">//</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Ok, so lets grind through the building of the DFA. This method</comment>
+        <comment type="line">//  handles the high level logic of the algorithm, but it uses a</comment>
+        <comment type="line">//  number of helper classes to do its thing.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  In order to avoid having hundreds of references to the error and</comment>
+        <comment type="line">//  string handlers around, this guy and all of his helper classes</comment>
+        <comment type="line">//  just throw a simple exception and we then pass it along.</comment>
+        <comment type="line">//</comment>
+
+        <if>if<condition>(<expr><name>DEBUG_VALIDATE_CONTENT</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>XSDFACM</name>.<name>time</name></name> -= <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name>buildDFA</name><argument_list>(<argument><expr><name>syntaxTree</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if<condition>(<expr><name>DEBUG_VALIDATE_CONTENT</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>XSDFACM</name>.<name>time</name></name> += <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"DFA build: " + <name><name>XSDFACM</name>.<name>time</name></name> + "ms"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></constructor>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>long</name></type> <name>time</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// XSCMValidator methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * check whether the given state is one of the final states
+     *
+     * @param state       the state to check
+     *
+     * @return whether it's a final state
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isFinalState</name> <parameter_list>(<param><decl><type><name>int</name></type> <name>state</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>state</name> &lt; 0)? false :
+            <name><name>fFinalStateFlags</name><index>[<expr><name>state</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * one transition only
+     *
+     * @param curElem The current element's QName
+     * @param state stack to store the previous state
+     * @param subGroupHandler the substitution group handler
+     *
+     * @return  null if transition is invalid; otherwise the Object corresponding to the
+     *      XSElementDecl or XSWildcardDecl identified.  Also, the
+     *      state array will be modified to include the new state; this so that the validator can
+     *      store it away.
+     *
+     * @exception RuntimeException thrown on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Object</name></type> <name>oneTransition</name><parameter_list>(<param><decl><type><name>QName</name></type> <name>curElem</name></decl></param>, <param><decl><type><name><name>int</name><index>[]</index></name></type> <name>state</name></decl></param>, <param><decl><type><name>SubstitutionGroupHandler</name></type> <name>subGroupHandler</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>curState</name> =<init> <expr><name><name>state</name><index>[<expr>0</expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <if>if<condition>(<expr><name>curState</name> == <name><name>XSCMValidator</name>.<name>FIRST_ERROR</name></name> || <name>curState</name> == <name><name>XSCMValidator</name>.<name>SUBSEQUENT_ERROR</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// there was an error last time; so just go find correct Object in fElemmMap.</comment>
+            <comment type="line">// ... after resetting state[0].</comment>
+            <if>if<condition>(<expr><name>curState</name> == <name><name>XSCMValidator</name>.<name>FIRST_ERROR</name></name></expr>)</condition><then>
+                <expr_stmt><expr><name><name>state</name><index>[<expr>0</expr>]</index></name> = <name><name>XSCMValidator</name>.<name>SUBSEQUENT_ERROR</name></name></expr>;</expr_stmt></then></if>
+
+            <return>return <expr><call><name>findMatchingDecl</name><argument_list>(<argument><expr><name>curElem</name></expr></argument>, <argument><expr><name>subGroupHandler</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>nextState</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>elemIndex</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Object</name></type> <name>matchingDecl</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+        <for>for (<init>;</init> <condition><expr><name>elemIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>elemIndex</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name>nextState</name> = <name><name>fTransTable</name><index>[<expr><name>curState</name></expr>]</index><index>[<expr><name>elemIndex</name></expr>]</index></name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>nextState</name> == -1</expr>)</condition><then>
+                <continue>continue;</continue></then></if>
+            <decl_stmt><decl><type><name>int</name></type> <name>type</name> =<init> <expr><name><name>fElemMapType</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></init></decl> ;</decl_stmt>
+            <if>if <condition>(<expr><name>type</name> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>matchingDecl</name> = <call><name><name>subGroupHandler</name>.<name>getMatchingElemDecl</name></name><argument_list>(<argument><expr><name>curElem</name></expr></argument>, <argument><expr>(<name>XSElementDecl</name>)<name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>matchingDecl</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <break>break;</break>
+                }</block></then></if>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>type</name> == <name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>)</condition><then> <block>{
+                <if>if<condition>(<expr>((<name>XSWildcardDecl</name>)<name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name>).<call><name>allowNamespace</name><argument_list>(<argument><expr><name><name>curElem</name>.<name>uri</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>matchingDecl</name> = <name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr>;</expr_stmt>
+                    <break>break;</break>
+                }</block></then></if>
+            }</block></then></if></else></if>
+        }</block></for>
+
+        <comment type="line">// if we still can't find a match, set the state to first_error</comment>
+        <comment type="line">// and return null</comment>
+        <if>if <condition>(<expr><name>elemIndex</name> == <name>fElemMapSize</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>state</name><index>[<expr>1</expr>]</index></name> = <name><name>state</name><index>[<expr>0</expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name><index>[<expr>0</expr>]</index></name> = <name><name>XSCMValidator</name>.<name>FIRST_ERROR</name></name></expr>;</expr_stmt>
+            <return>return <expr><call><name>findMatchingDecl</name><argument_list>(<argument><expr><name>curElem</name></expr></argument>, <argument><expr><name>subGroupHandler</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then></if>
+
+        <expr_stmt><expr><name><name>state</name><index>[<expr>0</expr>]</index></name> = <name>nextState</name></expr>;</expr_stmt>
+        <return>return <expr><name>matchingDecl</name></expr>;</return>
+    }</block></function> <comment type="line">// oneTransition(QName, int[], SubstitutionGroupHandler):  Object</comment>
+
+    <function><type><name>Object</name></type> <name>findMatchingDecl</name><parameter_list>(<param><decl><type><name>QName</name></type> <name>curElem</name></decl></param>, <param><decl><type><name>SubstitutionGroupHandler</name></type> <name>subGroupHandler</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Object</name></type> <name>matchingDecl</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>int</name></type> <name>elemIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>elemIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>elemIndex</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>type</name> =<init> <expr><name><name>fElemMapType</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></init></decl> ;</decl_stmt>
+            <if>if <condition>(<expr><name>type</name> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>matchingDecl</name> = <call><name><name>subGroupHandler</name>.<name>getMatchingElemDecl</name></name><argument_list>(<argument><expr><name>curElem</name></expr></argument>, <argument><expr>(<name>XSElementDecl</name>)<name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>matchingDecl</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <return>return <expr><name>matchingDecl</name></expr>;</return>
+                }</block></then></if>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>type</name> == <name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>)</condition><then> <block>{
+                <if>if<condition>(<expr>((<name>XSWildcardDecl</name>)<name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name>).<call><name>allowNamespace</name><argument_list>(<argument><expr><name><name>curElem</name>.<name>uri</name></name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <return>return <expr><name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr>;</return></then></if>
+            }</block></then></if></else></if>
+        }</block></for>
+
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// This method returns the start states of the content model.</comment>
+    <function><type><specifier>public</specifier> <name>int</name><index>[]</index></type> <name>startContentModel</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>val</name> =<init> <expr>new <name><name>int</name><index>[<expr>2</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>val</name><index>[<expr>0</expr>]</index></name> = 0</expr>;</expr_stmt>
+        <return>return <expr><name>val</name></expr>;</return>
+    }</block></function> <comment type="line">// startContentModel():int[]</comment>
+
+    <comment type="line">// this method returns whether the last state was a valid final state</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>endContentModel</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>state</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>fFinalStateFlags</name><index>[<expr><name><name>state</name><index>[<expr>0</expr>]</index></name></expr>]</index></name></expr>;</return>
+    }</block></function> <comment type="line">// endContentModel(int[]):  boolean</comment>
+
+    <comment type="line">// Killed off whatCanGoHere; we may need it for DOM canInsert(...) etc.,</comment>
+    <comment type="line">// but we can put it back later.</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Private methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Builds the internal DFA transition table from the given syntax tree.
+     *
+     * @param syntaxTree The syntax tree.
+     *
+     * @exception RuntimeException Thrown if DFA cannot be built.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>buildDFA</name><parameter_list>(<param><decl><type><name>CMNode</name></type> <name>syntaxTree</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">//</comment>
+        <comment type="line">//  The first step we need to take is to rewrite the content model</comment>
+        <comment type="line">//  using our CMNode objects, and in the process get rid of any</comment>
+        <comment type="line">//  repetition short cuts, converting them into '*' style repetitions</comment>
+        <comment type="line">//  or getting rid of repetitions altogether.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  The conversions done are:</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  x+ -&gt; (x|x*)</comment>
+        <comment type="line">//  x? -&gt; (x|epsilon)</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  This is a relatively complex scenario. What is happening is that</comment>
+        <comment type="line">//  we create a top level binary node of which the special EOC value</comment>
+        <comment type="line">//  is set as the right side node. The the left side is set to the</comment>
+        <comment type="line">//  rewritten syntax tree. The source is the original content model</comment>
+        <comment type="line">//  info from the decl pool. The rewrite is done by buildSyntaxTree()</comment>
+        <comment type="line">//  which recurses the decl pool's content of the element and builds</comment>
+        <comment type="line">//  a new tree in the process.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  Note that, during this operation, we set each non-epsilon leaf</comment>
+        <comment type="line">//  node's DFA state position and count the number of such leafs, which</comment>
+        <comment type="line">//  is left in the fLeafCount member.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  The nodeTmp object is passed in just as a temp node to use during</comment>
+        <comment type="line">//  the recursion. Otherwise, we'd have to create a new node on every</comment>
+        <comment type="line">//  level of recursion, which would be piggy in Java (as is everything</comment>
+        <comment type="line">//  for that matter.)</comment>
+        <comment type="line">//</comment>
+
+        <comment type="block">/* MODIFIED (Jan, 2001)
+         *
+         * Use following rules.
+         *   nullable(x+) := nullable(x), first(x+) := first(x),  last(x+) := last(x)
+         *   nullable(x?) := true, first(x?) := first(x),  last(x?) := last(x)
+         *
+         * The same computation of follow as x* is applied to x+
+         *
+         * The modification drastically reduces computation time of
+         * "(a, (b, a+, (c, (b, a+)+, a+, (d,  (c, (b, a+)+, a+)+, (b, a+)+, a+)+)+)+)+"
+         */</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  And handle specially the EOC node, which also must be numbered</comment>
+        <comment type="line">//  and counted as a non-epsilon leaf node. It could not be handled</comment>
+        <comment type="line">//  in the above tree build because it was created before all that</comment>
+        <comment type="line">//  started. We save the EOC position since its used during the DFA</comment>
+        <comment type="line">//  building loop.</comment>
+        <comment type="line">//</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>EOCPos</name> =<init> <expr><name>fLeafCount</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>XSCMLeaf</name></type> <name>nodeEOC</name> =<init> <expr>new <call><name>XSCMLeaf</name><argument_list>(<argument><expr><name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>-1</expr></argument>, <argument><expr><name>fLeafCount</name>++</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>fHeadNode</name> = new <call><name>XSCMBinOp</name><argument_list>(
+            <argument><expr><name><name>XSModelGroupImpl</name>.<name>MODELGROUP_SEQUENCE</name></name></expr></argument>,
+            <argument><expr><name>syntaxTree</name></expr></argument>,
+            <argument><expr><name>nodeEOC</name></expr></argument>
+        )</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Ok, so now we have to iterate the new tree and do a little more</comment>
+        <comment type="line">//  work now that we know the leaf count. One thing we need to do is</comment>
+        <comment type="line">//  to calculate the first and last position sets of each node. This</comment>
+        <comment type="line">//  is cached away in each of the nodes.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  Along the way we also set the leaf count in each node as the</comment>
+        <comment type="line">//  maximum state count. They must know this in order to create their</comment>
+        <comment type="line">//  first/last pos sets.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  We also need to build an array of references to the non-epsilon</comment>
+        <comment type="line">//  leaf nodes. Since we iterate it in the same way as before, this</comment>
+        <comment type="line">//  will put them in the array according to their position values.</comment>
+        <comment type="line">//</comment>
+        <expr_stmt><expr><name>fLeafList</name> = new <name><name>XSCMLeaf</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fLeafListType</name> = new <name><name>int</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>postTreeBuildInit</name><argument_list>(<argument><expr><name>fHeadNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  And, moving onward... We now need to build the follow position</comment>
+        <comment type="line">//  sets for all the nodes. So we allocate an array of state sets,</comment>
+        <comment type="line">//  one for each leaf node (i.e. each DFA position.)</comment>
+        <comment type="line">//</comment>
+        <expr_stmt><expr><name>fFollowList</name> = new <name><name>CMStateSet</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>fLeafCount</name></expr>;</condition> <incr><expr><name>index</name>++</expr></incr>)
+            <expr_stmt><expr><name><name>fFollowList</name><index>[<expr><name>index</name></expr>]</index></name> = new <call><name>CMStateSet</name><argument_list>(<argument><expr><name>fLeafCount</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></for>
+        <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr><name>fHeadNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">//</comment>
+        <comment type="line">//  And finally the big push... Now we build the DFA using all the</comment>
+        <comment type="line">//  states and the tree we've built up. First we set up the various</comment>
+        <comment type="line">//  data structures we are going to use while we do this.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  First of all we need an array of unique element names in our</comment>
+        <comment type="line">//  content model. For each transition table entry, we need a set of</comment>
+        <comment type="line">//  contiguous indices to represent the transitions for a particular</comment>
+        <comment type="line">//  input element. So we need to a zero based range of indexes that</comment>
+        <comment type="line">//  map to element types. This element map provides that mapping.</comment>
+        <comment type="line">//</comment>
+        <expr_stmt><expr><name>fElemMap</name> = new <name><name>Object</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fElemMapType</name> = new <name><name>int</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fElemMapId</name> = new <name><name>int</name><index>[<expr><name>fLeafCount</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fElemMapSize</name> = 0</expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>outIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>outIndex</name> &lt; <name>fLeafCount</name></expr>;</condition> <incr><expr><name>outIndex</name>++</expr></incr>) <block>{
+            <comment type="line">// optimization from Henry Zongaro:</comment>
+            <comment type="line">//fElemMap[outIndex] = new Object ();</comment>
+            <expr_stmt><expr><name><name>fElemMap</name><index>[<expr><name>outIndex</name></expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><name>int</name></type> <name>inIndex</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>id</name> =<init> <expr><name><name>fLeafList</name><index>[<expr><name>outIndex</name></expr>]</index></name>.<call><name>getParticleId</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <for>for (<init>;</init> <condition><expr><name>inIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>inIndex</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name>id</name> == <name><name>fElemMapId</name><index>[<expr><name>inIndex</name></expr>]</index></name></expr>)</condition><then>
+                    <break>break;</break></then></if>
+            }</block></for>
+
+            <comment type="line">// If it was not in the list, then add it, if not the EOC node</comment>
+            <if>if <condition>(<expr><name>inIndex</name> == <name>fElemMapSize</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>fElemMap</name><index>[<expr><name>fElemMapSize</name></expr>]</index></name> = <name><name>fLeafList</name><index>[<expr><name>outIndex</name></expr>]</index></name>.<call><name>getLeaf</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>fElemMapType</name><index>[<expr><name>fElemMapSize</name></expr>]</index></name> = <name><name>fLeafListType</name><index>[<expr><name>outIndex</name></expr>]</index></name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>fElemMapId</name><index>[<expr><name>fElemMapSize</name></expr>]</index></name> = <name>id</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>fElemMapSize</name>++</expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+
+        <comment type="line">// the last entry in the element map must be the EOC element.</comment>
+        <comment type="line">// remove it from the map.</comment>
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name><name>fElemMapId</name><index>[<expr><name>fElemMapSize</name>-1</expr>]</index></name> != -1</expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"interal error in DFA: last element is not EOC."</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></then></if>
+        <expr_stmt><expr><name>fElemMapSize</name>--</expr>;</expr_stmt>
+
+        <comment type="javadoc">/***
+         * Optimization(Jan, 2001); We sort fLeafList according to
+         * elemIndex which is *uniquely* associated to each leaf.
+         * We are *assuming* that each element appears in at least one leaf.
+         **/</comment>
+
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>fLeafSorter</name> =<init> <expr>new <name><name>int</name><index>[<expr><name>fLeafCount</name> + <name>fElemMapSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>fSortCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>int</name></type> <name>elemIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>elemIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>elemIndex</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>id</name> =<init> <expr><name><name>fElemMapId</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>leafIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>leafIndex</name> &lt; <name>fLeafCount</name></expr>;</condition> <incr><expr><name>leafIndex</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name>id</name> == <name><name>fLeafList</name><index>[<expr><name>leafIndex</name></expr>]</index></name>.<call><name>getParticleId</name><argument_list>()</argument_list></call></expr>)</condition><then>
+                    <expr_stmt><expr><name><name>fLeafSorter</name><index>[<expr><name>fSortCount</name>++</expr>]</index></name> = <name>leafIndex</name></expr>;</expr_stmt></then></if>
+            }</block></for>
+            <expr_stmt><expr><name><name>fLeafSorter</name><index>[<expr><name>fSortCount</name>++</expr>]</index></name> = -1</expr>;</expr_stmt>
+        }</block></for>
+
+        <comment type="block">/* Optimization(Jan, 2001) */</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Next lets create some arrays, some that hold transient</comment>
+        <comment type="line">//  information during the DFA build and some that are permament.</comment>
+        <comment type="line">//  These are kind of sticky since we cannot know how big they will</comment>
+        <comment type="line">//  get, but we don't want to use any Java collections because of</comment>
+        <comment type="line">//  performance.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">//  Basically they will probably be about fLeafCount*2 on average,</comment>
+        <comment type="line">//  but can be as large as 2^(fLeafCount*2), worst case. So we start</comment>
+        <comment type="line">//  with fLeafCount*4 as a middle ground. This will be very unlikely</comment>
+        <comment type="line">//  to ever have to expand, though it if does, the overhead will be</comment>
+        <comment type="line">//  somewhat ugly.</comment>
+        <comment type="line">//</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>curArraySize</name> =<init> <expr><name>fLeafCount</name> * 4</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CMStateSet</name><index>[]</index></type> <name>statesToDo</name> =<init> <expr>new <name><name>CMStateSet</name><index>[<expr><name>curArraySize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>fFinalStateFlags</name> = new <name><name>boolean</name><index>[<expr><name>curArraySize</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fTransTable</name> = new <name><name>int</name><index>[<expr><name>curArraySize</name></expr>]</index><index>[]</index></name></expr>;</expr_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Ok we start with the initial set as the first pos set of the</comment>
+        <comment type="line">//  head node (which is the seq node that holds the content model</comment>
+        <comment type="line">//  and the EOC node.)</comment>
+        <comment type="line">//</comment>
+        <decl_stmt><decl><type><name>CMStateSet</name></type> <name>setT</name> =<init> <expr><call><name><name>fHeadNode</name>.<name>firstPos</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Init our two state flags. Basically the unmarked state counter</comment>
+        <comment type="line">//  is always chasing the current state counter. When it catches up,</comment>
+        <comment type="line">//  that means we made a pass through that did not add any new states</comment>
+        <comment type="line">//  to the lists, at which time we are done. We could have used a</comment>
+        <comment type="line">//  expanding array of flags which we used to mark off states as we</comment>
+        <comment type="line">//  complete them, but this is easier though less readable maybe.</comment>
+        <comment type="line">//</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>unmarkedState</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>curState</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Init the first transition table entry, and put the initial state</comment>
+        <comment type="line">//  into the states to do list, then bump the current state.</comment>
+        <comment type="line">//</comment>
+        <expr_stmt><expr><name><name>fTransTable</name><index>[<expr><name>curState</name></expr>]</index></name> = <call><name>makeDefStateList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>statesToDo</name><index>[<expr><name>curState</name></expr>]</index></name> = <name>setT</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>curState</name>++</expr>;</expr_stmt>
+
+        <comment type="block">/* Optimization(Jan, 2001); This is faster for
+         * a large content model such as, "(t001+|t002+|.... |t500+)".
+         */</comment>
+
+        <decl_stmt><decl><type><name><name>java</name>.<name>util</name>.<name>Hashtable</name></name></type> <name>stateTable</name> =<init> <expr>new <call><name><name>java</name>.<name>util</name>.<name>Hashtable</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="block">/* Optimization(Jan, 2001) */</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  Ok, almost done with the algorithm... We now enter the</comment>
+        <comment type="line">//  loop where we go until the states done counter catches up with</comment>
+        <comment type="line">//  the states to do counter.</comment>
+        <comment type="line">//</comment>
+        <while>while <condition>(<expr><name>unmarkedState</name> &lt; <name>curState</name></expr>)</condition> <block>{
+            <comment type="line">//</comment>
+            <comment type="line">//  Get the first unmarked state out of the list of states to do.</comment>
+            <comment type="line">//  And get the associated transition table entry.</comment>
+            <comment type="line">//</comment>
+            <expr_stmt><expr><name>setT</name> = <name><name>statesToDo</name><index>[<expr><name>unmarkedState</name></expr>]</index></name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>transEntry</name> =<init> <expr><name><name>fTransTable</name><index>[<expr><name>unmarkedState</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// Mark this one final if it contains the EOC state</comment>
+            <expr_stmt><expr><name><name>fFinalStateFlags</name><index>[<expr><name>unmarkedState</name></expr>]</index></name> = <call><name><name>setT</name>.<name>getBit</name></name><argument_list>(<argument><expr><name>EOCPos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Bump up the unmarked state count, marking this state done</comment>
+            <expr_stmt><expr><name>unmarkedState</name>++</expr>;</expr_stmt>
+
+            <comment type="line">// Loop through each possible input symbol in the element map</comment>
+            <decl_stmt><decl><type><name>CMStateSet</name></type> <name>newSet</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <comment type="block">/* Optimization(Jan, 2001) */</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>sorterIndex</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <comment type="block">/* Optimization(Jan, 2001) */</comment>
+            <for>for (<init><decl><type><name>int</name></type> <name>elemIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>elemIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>elemIndex</name>++</expr></incr>) <block>{
+                <comment type="line">//</comment>
+                <comment type="line">//  Build up a set of states which is the union of all of</comment>
+                <comment type="line">//  the follow sets of DFA positions that are in the current</comment>
+                <comment type="line">//  state. If we gave away the new set last time through then</comment>
+                <comment type="line">//  create a new one. Otherwise, zero out the existing one.</comment>
+                <comment type="line">//</comment>
+                <if>if <condition>(<expr><name>newSet</name> == <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><name>newSet</name> = new <call><name>CMStateSet</name><argument_list>(<argument><expr><name>fLeafCount</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name><name>newSet</name>.<name>zeroBits</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></else></if>
+
+                <comment type="block">/* Optimization(Jan, 2001) */</comment>
+                <decl_stmt><decl><type><name>int</name></type> <name>leafIndex</name> =<init> <expr><name><name>fLeafSorter</name><index>[<expr><name>sorterIndex</name>++</expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+                <while>while <condition>(<expr><name>leafIndex</name> != -1</expr>)</condition> <block>{
+                    <comment type="line">// If this leaf index (DFA position) is in the current set...</comment>
+                    <if>if <condition>(<expr><call><name><name>setT</name>.<name>getBit</name></name><argument_list>(<argument><expr><name>leafIndex</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <comment type="line">//</comment>
+                        <comment type="line">//  If this leaf is the current input symbol, then we</comment>
+                        <comment type="line">//  want to add its follow list to the set of states to</comment>
+                        <comment type="line">//  transition to from the current state.</comment>
+                        <comment type="line">//</comment>
+                        <expr_stmt><expr><call><name><name>newSet</name>.<name>union</name></name><argument_list>(<argument><expr><name><name>fFollowList</name><index>[<expr><name>leafIndex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+
+                   <expr_stmt><expr><name>leafIndex</name> = <name><name>fLeafSorter</name><index>[<expr><name>sorterIndex</name>++</expr>]</index></name></expr>;</expr_stmt>
+                }</block></while>
+                <comment type="block">/* Optimization(Jan, 2001) */</comment>
+
+                <comment type="line">//</comment>
+                <comment type="line">//  If this new set is not empty, then see if its in the list</comment>
+                <comment type="line">//  of states to do. If not, then add it.</comment>
+                <comment type="line">//</comment>
+                <if>if <condition>(<expr>!<call><name><name>newSet</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">//</comment>
+                    <comment type="line">//  Search the 'states to do' list to see if this new</comment>
+                    <comment type="line">//  state set is already in there.</comment>
+                    <comment type="line">//</comment>
+
+                    <comment type="block">/* Optimization(Jan, 2001) */</comment>
+                    <decl_stmt><decl><type><name>Integer</name></type> <name>stateObj</name> =<init> <expr>(<name>Integer</name>)<call><name><name>stateTable</name>.<name>get</name></name><argument_list>(<argument><expr><name>newSet</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <decl_stmt><decl><type><name>int</name></type> <name>stateIndex</name> =<init> <expr>(<name>stateObj</name> == <name>null</name> ? <name>curState</name> : <call><name><name>stateObj</name>.<name>intValue</name></name><argument_list>()</argument_list></call>)</expr></init></decl>;</decl_stmt>
+                    <comment type="block">/* Optimization(Jan, 2001) */</comment>
+
+                    <comment type="line">// If we did not find it, then add it</comment>
+                    <if>if <condition>(<expr><name>stateIndex</name> == <name>curState</name></expr>)</condition><then> <block>{
+                        <comment type="line">//</comment>
+                        <comment type="line">//  Put this new state into the states to do and init</comment>
+                        <comment type="line">//  a new entry at the same index in the transition</comment>
+                        <comment type="line">//  table.</comment>
+                        <comment type="line">//</comment>
+                        <expr_stmt><expr><name><name>statesToDo</name><index>[<expr><name>curState</name></expr>]</index></name> = <name>newSet</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>fTransTable</name><index>[<expr><name>curState</name></expr>]</index></name> = <call><name>makeDefStateList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                        <comment type="block">/* Optimization(Jan, 2001) */</comment>
+                        <expr_stmt><expr><call><name><name>stateTable</name>.<name>put</name></name><argument_list>(<argument><expr><name>newSet</name></expr></argument>, <argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>curState</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <comment type="block">/* Optimization(Jan, 2001) */</comment>
+
+                        <comment type="line">// We now have a new state to do so bump the count</comment>
+                        <expr_stmt><expr><name>curState</name>++</expr>;</expr_stmt>
+
+                        <comment type="line">//</comment>
+                        <comment type="line">//  Null out the new set to indicate we adopted it.</comment>
+                        <comment type="line">//  This will cause the creation of a new set on the</comment>
+                        <comment type="line">//  next time around the loop.</comment>
+                        <comment type="line">//</comment>
+                        <expr_stmt><expr><name>newSet</name> = <name>null</name></expr>;</expr_stmt>
+                    }</block></then></if>
+
+                    <comment type="line">//</comment>
+                    <comment type="line">//  Now set this state in the transition table's entry</comment>
+                    <comment type="line">//  for this element (using its index), with the DFA</comment>
+                    <comment type="line">//  state we will move to from the current state when we</comment>
+                    <comment type="line">//  see this input element.</comment>
+                    <comment type="line">//</comment>
+                    <expr_stmt><expr><name><name>transEntry</name><index>[<expr><name>elemIndex</name></expr>]</index></name> = <name>stateIndex</name></expr>;</expr_stmt>
+
+                    <comment type="line">// Expand the arrays if we're full</comment>
+                    <if>if <condition>(<expr><name>curState</name> == <name>curArraySize</name></expr>)</condition><then> <block>{
+                        <comment type="line">//</comment>
+                        <comment type="line">//  Yikes, we overflowed the initial array size, so</comment>
+                        <comment type="line">//  we've got to expand all of these arrays. So adjust</comment>
+                        <comment type="line">//  up the size by 50% and allocate new arrays.</comment>
+                        <comment type="line">//</comment>
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>newSize</name> =<init> <expr><call>(<name>int</name>)<argument_list>(<argument><expr><name>curArraySize</name> * 1.5</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <decl_stmt><decl><type><name>CMStateSet</name><index>[]</index></type> <name>newToDo</name> =<init> <expr>new <name><name>CMStateSet</name><index>[<expr><name>newSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                        <decl_stmt><decl><type><name>boolean</name><index>[]</index></type> <name>newFinalFlags</name> =<init> <expr>new <name><name>boolean</name><index>[<expr><name>newSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                        <decl_stmt><decl><type><name>int</name><index>[]</index><index>[]</index></type> <name>newTransTable</name> =<init> <expr>new <name><name>int</name><index>[<expr><name>newSize</name></expr>]</index><index>[]</index></name></expr></init></decl>;</decl_stmt>
+
+                        <comment type="line">// Copy over all of the existing content</comment>
+                        <for>for (<init><decl><type><name>int</name></type> <name>expIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>expIndex</name> &lt; <name>curArraySize</name></expr>;</condition> <incr><expr><name>expIndex</name>++</expr></incr>) <block>{
+                            <expr_stmt><expr><name><name>newToDo</name><index>[<expr><name>expIndex</name></expr>]</index></name> = <name><name>statesToDo</name><index>[<expr><name>expIndex</name></expr>]</index></name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name><name>newFinalFlags</name><index>[<expr><name>expIndex</name></expr>]</index></name> = <name><name>fFinalStateFlags</name><index>[<expr><name>expIndex</name></expr>]</index></name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name><name>newTransTable</name><index>[<expr><name>expIndex</name></expr>]</index></name> = <name><name>fTransTable</name><index>[<expr><name>expIndex</name></expr>]</index></name></expr>;</expr_stmt>
+                        }</block></for>
+
+                        <comment type="line">// Store the new array size</comment>
+                        <expr_stmt><expr><name>curArraySize</name> = <name>newSize</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>statesToDo</name> = <name>newToDo</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>fFinalStateFlags</name> = <name>newFinalFlags</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>fTransTable</name> = <name>newTransTable</name></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then></if>
+            }</block></for>
+        }</block></while>
+
+        <comment type="line">//</comment>
+        <comment type="line">//  And now we can say bye bye to the temp representation since we've</comment>
+        <comment type="line">//  built the DFA.</comment>
+        <comment type="line">//</comment>
+        <if>if <condition>(<expr><name>DEBUG_VALIDATE_CONTENT</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name>dumpTree</name><argument_list>(<argument><expr><name>fHeadNode</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        <expr_stmt><expr><name>fHeadNode</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fLeafList</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fFollowList</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fLeafListType</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fElemMapId</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Calculates the follow list of the current node.
+     *
+     * @param nodeCur The curent node.
+     *
+     * @exception RuntimeException Thrown if follow list cannot be calculated.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>calcFollowList</name><parameter_list>(<param><decl><type><name>CMNode</name></type> <name>nodeCur</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Recurse as required</comment>
+        <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSModelGroupImpl</name>.<name>MODELGROUP_CHOICE</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// Recurse only</comment>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getLeft</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getRight</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+         <else>else <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSModelGroupImpl</name>.<name>MODELGROUP_SEQUENCE</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// Recurse first</comment>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getLeft</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getRight</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">//</comment>
+            <comment type="line">//  Now handle our level. We use our left child's last pos</comment>
+            <comment type="line">//  set and our right child's first pos set, so go ahead and</comment>
+            <comment type="line">//  get them ahead of time.</comment>
+            <comment type="line">//</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>CMStateSet</name></type> <name>last</name>  =<init> <expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getLeft</name><argument_list>()</argument_list></call>.<call><name>lastPos</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>CMStateSet</name></type> <name>first</name> =<init> <expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getRight</name><argument_list>()</argument_list></call>.<call><name>firstPos</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">//</comment>
+            <comment type="line">//  Now, for every position which is in our left child's last set</comment>
+            <comment type="line">//  add all of the states in our right child's first set to the</comment>
+            <comment type="line">//  follow set for that position.</comment>
+            <comment type="line">//</comment>
+            <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>fLeafCount</name></expr>;</condition> <incr><expr><name>index</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><call><name><name>last</name>.<name>getBit</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <expr_stmt><expr><name><name>fFollowList</name><index>[<expr><name>index</name></expr>]</index></name>.<call><name>union</name><argument_list>(<argument><expr><name>first</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></for>
+        }</block></then>
+         <else>else <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_MORE</name></name>
+        || <call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ONE_OR_MORE</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// Recurse first</comment>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMUniOp</name>)<name>nodeCur</name>).<call><name>getChild</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">//</comment>
+            <comment type="line">//  Now handle our level. We use our own first and last position</comment>
+            <comment type="line">//  sets, so get them up front.</comment>
+            <comment type="line">//</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>CMStateSet</name></type> <name>first</name> =<init> <expr><call><name><name>nodeCur</name>.<name>firstPos</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>CMStateSet</name></type> <name>last</name>  =<init> <expr><call><name><name>nodeCur</name>.<name>lastPos</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">//</comment>
+            <comment type="line">//  For every position which is in our last position set, add all</comment>
+            <comment type="line">//  of our first position states to the follow set for that</comment>
+            <comment type="line">//  position.</comment>
+            <comment type="line">//</comment>
+            <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>fLeafCount</name></expr>;</condition> <incr><expr><name>index</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><call><name><name>last</name>.<name>getBit</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <expr_stmt><expr><name><name>fFollowList</name><index>[<expr><name>index</name></expr>]</index></name>.<call><name>union</name><argument_list>(<argument><expr><name>first</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></for>
+        }</block></then>
+
+        <else>else <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_ONE</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// Recurse only</comment>
+            <expr_stmt><expr><call><name>calcFollowList</name><argument_list>(<argument><expr>((<name>XSCMUniOp</name>)<name>nodeCur</name>).<call><name>getChild</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if></else></if></else></if>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Dumps the tree of the current node to standard output.
+     *
+     * @param nodeCur The current node.
+     * @param level   The maximum levels to output.
+     *
+     * @exception RuntimeException Thrown on error.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>dumpTree</name><parameter_list>(<param><decl><type><name>CMNode</name></type> <name>nodeCur</name></decl></param>, <param><decl><type><name>int</name></type> <name>level</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>level</name></expr>;</condition> <incr><expr><name>index</name>++</expr></incr>)
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"   "</expr></argument>)</argument_list></call></expr>;</expr_stmt></for>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>type</name> =<init> <expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <switch>switch<condition>(<expr><name>type</name></expr> )</condition> <block>{
+
+        <case>case <expr><name><name>XSModelGroupImpl</name>.<name>MODELGROUP_CHOICE</name></name></expr>:
+        </case><case>case <expr><name><name>XSModelGroupImpl</name>.<name>MODELGROUP_SEQUENCE</name></name></expr>: <block>{
+            <if>if <condition>(<expr><name>type</name> == <name><name>XSModelGroupImpl</name>.<name>MODELGROUP_CHOICE</name></name></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Choice Node "</expr></argument>)</argument_list></call></expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Seq Node "</expr></argument>)</argument_list></call></expr>;</expr_stmt></else></if>
+
+            <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>isNullable</name></name><argument_list>()</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Nullable "</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"firstPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>firstPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>" lastPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>lastPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name>dumpTree</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getLeft</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>level</name>+1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>dumpTree</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getRight</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>level</name>+1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        }</block>
+        </case><case>case <expr><name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_MORE</name></name></expr>:
+        </case><case>case <expr><name><name>XSParticleDecl</name>.<name>PARTICLE_ONE_OR_MORE</name></name></expr>:
+        </case><case>case <expr><name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_ONE</name></name></expr>: <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Rep Node "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>isNullable</name></name><argument_list>()</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Nullable "</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"firstPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>firstPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>" lastPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>lastPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name>dumpTree</name><argument_list>(<argument><expr>((<name>XSCMUniOp</name>)<name>nodeCur</name>).<call><name>getChild</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>level</name>+1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        }</block>
+        </case><case>case <expr><name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr>: <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name>
+            <argument_list>(
+                <argument><expr>"Leaf: (pos="
+                + ((<name>XSCMLeaf</name>)<name>nodeCur</name>).<call><name>getPosition</name><argument_list>()</argument_list></call>
+                + "), "
+                + "(elemIndex="
+                + ((<name>XSCMLeaf</name>)<name>nodeCur</name>).<call><name>getLeaf</name><argument_list>()</argument_list></call>
+                + ") "</expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>isNullable</name></name><argument_list>()</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>" Nullable "</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"firstPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>firstPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>" lastPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>lastPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        }</block>
+        </case><case>case <expr><name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>:
+              <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"Any Node: "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>"firstPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>firstPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>print</name></name><argument_list>(<argument><expr>" lastPos="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr><call><name><name>nodeCur</name>.<name>lastPos</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        </case><default>default: <block>{
+            <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"ImplementationMessages.VAL_NIICM"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block>
+        </default>}</block></switch>
+
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * -1 is used to represent bad transitions in the transition table
+     * entry for each state. So each entry is initialized to an all -1
+     * array. This method creates a new entry and initializes it.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>int</name><index>[]</index></type> <name>makeDefStateList</name><parameter_list>()</parameter_list>
+    <block>{
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>retArray</name> =<init> <expr>new <name><name>int</name><index>[<expr><name>fElemMapSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>index</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>index</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>index</name>++</expr></incr>)
+            <expr_stmt><expr><name><name>retArray</name><index>[<expr><name>index</name></expr>]</index></name> = -1</expr>;</expr_stmt></for>
+        <return>return <expr><name>retArray</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Post tree build initialization. */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>postTreeBuildInit</name><parameter_list>(<param><decl><type><name>CMNode</name></type> <name>nodeCur</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>RuntimeException</name></expr></argument></throws> <block>{
+        <comment type="line">// Set the maximum states on this node</comment>
+        <expr_stmt><expr><call><name><name>nodeCur</name>.<name>setMaxStates</name></name><argument_list>(<argument><expr><name>fLeafCount</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>XSCMLeaf</name></type> <name>leaf</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>pos</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <comment type="line">// Recurse as required</comment>
+        <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>leaf</name> = (<name>XSCMLeaf</name>)<name>nodeCur</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>pos</name> = <call><name><name>leaf</name>.<name>getPosition</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>fLeafList</name><index>[<expr><name>pos</name></expr>]</index></name> = <name>leaf</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>fLeafListType</name><index>[<expr><name>pos</name></expr>]</index></name> = <name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr>(<call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSModelGroupImpl</name>.<name>MODELGROUP_CHOICE</name></name>) ||
+                 (<call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSModelGroupImpl</name>.<name>MODELGROUP_SEQUENCE</name></name>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>postTreeBuildInit</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getLeft</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>postTreeBuildInit</name><argument_list>(<argument><expr>((<name>XSCMBinOp</name>)<name>nodeCur</name>).<call><name>getRight</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_MORE</name></name> ||
+                 <call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ONE_OR_MORE</name></name> ||
+                 <call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ZERO_OR_ONE</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>postTreeBuildInit</name><argument_list>(<argument><expr>((<name>XSCMUniOp</name>)<name>nodeCur</name>).<call><name>getChild</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><call><name><name>nodeCur</name>.<name>type</name></name><argument_list>()</argument_list></call> == <name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr>)</condition><then> <block>{
+            <comment type="line">//  Put this node in the leaf list at the current index if its</comment>
+            <comment type="line">//  a non-epsilon leaf.</comment>
+            <expr_stmt><expr><name>leaf</name> = (<name>XSCMLeaf</name>)<name>nodeCur</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>pos</name> = <call><name><name>leaf</name>.<name>getPosition</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>fLeafList</name><index>[<expr><name>pos</name></expr>]</index></name> = <name>leaf</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>fLeafListType</name><index>[<expr><name>pos</name></expr>]</index></name> = <name><name>XSParticleDecl</name>.<name>PARTICLE_ELEMENT</name></name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"ImplementationMessages.VAL_NIICM"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></else></if></else></if></else></if></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * check whether this content violates UPA constraint.
+     *
+     * @param subGroupHandler the substitution group handler
+     * @return true if this content model contains other or list wildcard
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>checkUniqueParticleAttribution</name><parameter_list>(<param><decl><type><name>SubstitutionGroupHandler</name></type> <name>subGroupHandler</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>XMLSchemaException</name></expr></argument></throws> <block>{
+        <comment type="line">// Unique Particle Attribution</comment>
+        <comment type="line">// store the conflict results between any two elements in fElemMap</comment>
+        <comment type="line">// 0: not compared; -1: no conflict; 1: conflict</comment>
+        <comment type="line">// initialize the conflict table (all 0 initially)</comment>
+        <decl_stmt><decl><type><name>byte</name></type> <name><name>conflictTable</name><index>[]</index><index>[]</index></name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>fElemMapSize</name></expr>]</index><index>[<expr><name>fElemMapSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// for each state, check whether it has overlap transitions</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fTransTable</name>.<name>length</name></name> &amp;&amp; <name><name>fTransTable</name><index>[<expr><name>i</name></expr>]</index></name> != <name>null</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>j</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>j</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>k</name> =<init> <expr><name>j</name>+1</expr></init></decl>;</init> <condition><expr><name>k</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>k</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>fTransTable</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> != -1 &amp;&amp;
+                        <name><name>fTransTable</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>k</name></expr>]</index></name> != -1</expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><name><name>conflictTable</name><index>[<expr><name>j</name></expr>]</index><index>[<expr><name>k</name></expr>]</index></name> == 0</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name><name>conflictTable</name><index>[<expr><name>j</name></expr>]</index><index>[<expr><name>k</name></expr>]</index></name> = <call><name><name>XSConstraints</name>.<name>overlapUPA</name></name>
+                                                   <argument_list>(<argument><expr><name><name>fElemMap</name><index>[<expr><name>j</name></expr>]</index></name></expr></argument>,<argument><expr><name><name>fElemMap</name><index>[<expr><name>k</name></expr>]</index></name></expr></argument>,
+                                                   <argument><expr><name>subGroupHandler</name></expr></argument>)</argument_list></call> ?
+                                                   (<name>byte</name>)1 : (<name>byte</name>)-1</expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></then></if>
+                }</block></for>
+            }</block></for>
+        }</block></for>
+
+        <comment type="line">// report all errors</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>j</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>j</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name><name>conflictTable</name><index>[<expr><name>i</name></expr>]</index><index>[<expr><name>j</name></expr>]</index></name> == 1</expr>)</condition><then> <block>{
+                    <comment type="line">//errors.newError("cos-nonambig", new Object[]{fElemMap[i].toString(),</comment>
+                    <comment type="line">//                                             fElemMap[j].toString()});</comment>
+                    <comment type="line">// REVISIT: do we want to report all errors? or just one?</comment>
+                    <throw>throw <expr>new <call><name>XMLSchemaException</name><argument_list>(<argument><expr>"cos-nonambig"</expr></argument>, <argument><expr>new <name><name>Object</name><index>[]</index></name><block>{<expr><name><name>fElemMap</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>toString</name><argument_list>()</argument_list></call></expr>,
+                                                                              <expr><name><name>fElemMap</name><index>[<expr><name>j</name></expr>]</index></name>.<call><name>toString</name><argument_list>()</argument_list></call></expr>}</block></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then></if>
+            }</block></for>
+        }</block></for>
+
+        <comment type="line">// if there is a other or list wildcard, we need to check this CM</comment>
+        <comment type="line">// again, if this grammar is cached.</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><name><name>fElemMapType</name><index>[<expr><name>i</name></expr>]</index></name> == <name><name>XSParticleDecl</name>.<name>PARTICLE_WILDCARD</name></name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>XSWildcardDecl</name></type> <name>wildcard</name> =<init> <expr>(<name>XSWildcardDecl</name>)<name><name>fElemMap</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name><name>wildcard</name>.<name>fType</name></name> == <name><name>XSWildcardDecl</name>.<name>NSCONSTRAINT_LIST</name></name> ||
+                    <name><name>wildcard</name>.<name>fType</name></name> == <name><name>XSWildcardDecl</name>.<name>NSCONSTRAINT_NOT</name></name></expr>)</condition><then> <block>{
+                    <return>return <expr>true</expr>;</return>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></for>
+
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Check which elements are valid to appear at this point. This method also
+     * works if the state is in error, in which case it returns what should
+     * have been seen.
+     * 
+     * @param state  the current state
+     * @return       a Vector whose entries are instances of
+     *               either XSWildcardDecl or XSElementDecl.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Vector</name></type> <name>whatCanGoHere</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>state</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>curState</name> =<init> <expr><name><name>state</name><index>[<expr>0</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>curState</name> &lt; 0</expr>)</condition><then>
+            <expr_stmt><expr><name>curState</name> = <name><name>state</name><index>[<expr>1</expr>]</index></name></expr>;</expr_stmt></then></if>
+
+        <decl_stmt><decl><type><name>Vector</name></type> <name>ret</name> =<init> <expr>new <call><name>Vector</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>elemIndex</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>elemIndex</name> &lt; <name>fElemMapSize</name></expr>;</condition> <incr><expr><name>elemIndex</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><name><name>fTransTable</name><index>[<expr><name>curState</name></expr>]</index><index>[<expr><name>elemIndex</name></expr>]</index></name> != -1</expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>ret</name>.<name>addElement</name></name><argument_list>(<argument><expr><name><name>fElemMap</name><index>[<expr><name>elemIndex</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></for>
+        <return>return <expr><name>ret</name></expr>;</return>
+    }</block></function>
+        
+}</block></class> <comment type="line">// class DFAContentModel</comment>
+</unit>

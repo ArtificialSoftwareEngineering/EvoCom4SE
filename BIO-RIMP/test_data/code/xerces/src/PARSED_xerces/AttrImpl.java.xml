@@ -1,0 +1,1237 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\dom\AttrImpl.java"><comment type="block">/*
+ * Copyright 1999-2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectOutputStream</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>TypeInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Attr</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DOMException</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Element</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Node</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>NodeList</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Text</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Attribute represents an XML-style attribute of an
+ * Element. Typically, the allowable values are controlled by its
+ * declaration in the Document Type Definition (DTD) governing this
+ * kind of document.
+ * &lt;P&gt;
+ * If the attribute has not been explicitly assigned a value, but has
+ * been declared in the DTD, it will exist and have that default. Only
+ * if neither the document nor the DTD specifies a value will the
+ * Attribute really be considered absent and have no value; in that
+ * case, querying the attribute will return null.
+ * &lt;P&gt;
+ * Attributes may have multiple children that contain their data. (XML
+ * allows attributes to contain entity references, and tokenized
+ * attribute types such as NMTOKENS may have a child for each token.)
+ * For convenience, the Attribute object's getValue() method returns
+ * the string version of the attribute's value.
+ * &lt;P&gt;
+ * Attributes are not children of the Elements they belong to, in the
+ * usual sense, and have no valid Parent reference. However, the spec
+ * says they _do_ belong to a specific Element, and an INUSE exception
+ * is to be thrown if the user attempts to explicitly share them
+ * between elements.
+ * &lt;P&gt;
+ * Note that Elements do not permit attributes to appear to be shared
+ * (see the INUSE exception), so this object's mutability is
+ * officially not an issue.
+ * &lt;p&gt;
+ * Note: The ownerNode attribute is used to store the Element the Attr
+ * node is associated with. Attr nodes do not have parent nodes.
+ * Besides, the getOwnerElement() method can be used to get the element node
+ * this attribute is associated with.
+ * &lt;P&gt;
+ * AttrImpl does not support Namespaces. AttrNSImpl, which inherits from
+ * it, does.
+ *
+ * &lt;p&gt;AttrImpl used to inherit from ParentNode. It now directly inherits from
+ * NodeImpl and provide its own implementation of the ParentNode's behavior.
+ * The reason is that we now try and avoid to always create a Text node to
+ * hold the value of an attribute. The DOM spec requires it, so we still have
+ * to do it in case getFirstChild() is called for instance. The reason
+ * attribute values are stored as a list of nodes is so that they can carry
+ * more than a simple string. They can also contain EntityReference nodes.
+ * However, most of the times people only have a single string that they only
+ * set and get through Element.set/getAttribute or Attr.set/getValue. In this
+ * new version, the Attr node has a value pointer which can either be the
+ * String directly or a pointer to the first ChildNode. A flag tells which one
+ * it currently is. Note that while we try to stick with the direct String as
+ * much as possible once we've switched to a node there is no going back. This
+ * is because we have no way to know whether the application keeps referring to
+ * the node we once returned.
+ * &lt;p&gt; The gain in memory varies on the density of attributes in the document.
+ * But in the tests I've run I've seen up to 12% of memory gain. And the good
+ * thing is that it also leads to a slight gain in speed because we allocate
+ * fewer objects! I mean, that's until we have to actually create the node...
+ * &lt;p&gt;
+ * To avoid too much duplicated code, I got rid of ParentNode and renamed
+ * ChildAndParentNode, which I never really liked, to ParentNode for
+ * simplicity, this doesn't make much of a difference in memory usage because
+ * there are only very few objects that are only a Parent. This is only true
+ * now because AttrImpl now inherits directly from NodeImpl and has its own
+ * implementation of the ParentNode's node behavior. So there is still some
+ * duplicated code there.
+ * &lt;p&gt;
+ * This class doesn't directly support mutation events, however, it notifies
+ * the document when mutations are performed so that the document class do so.
+ *
+ * &lt;p&gt;&lt;b&gt;WARNING&lt;/b&gt;: Some of the code here is partially duplicated in
+ * ParentNode, be careful to keep these two classes in sync!
+ *
+ * @xerces.internal
+ *
+ * @see AttrNSImpl 
+ *
+ * @author Arnaud  Le Hors, IBM
+ * @author Joe Kesselman, IBM
+ * @author Andy Clark, IBM 
+ * @version $Id: AttrImpl.java,v 1.64 2005/05/02 22:02:22 mrglavas Exp $
+ * @since PR-DOM-Level-1-19980818.
+ *
+ */</comment>
+<class><specifier>public</specifier> class <name>AttrImpl</name>
+    <super><extends>extends <name>NodeImpl</name></extends>
+    <implements>implements <name>Attr</name>, <name>TypeInfo</name></implements></super><block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constants</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Serialization version. */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>7277707688218972102L</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** DTD namespace. **/</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>DTD_URI</name> =<init> <expr>"http://www.w3.org/TR/REC-xml"</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** This can either be a String or the first child node. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>Object</name></type> <name>value</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Attribute name. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>String</name></type> <name>name</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** Type information */</comment>
+    <comment type="line">// REVISIT: we are losing the type information in DOM during serialization</comment>
+    <decl_stmt><decl><type><name>transient</name> <name>Object</name></type> <name>type</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <name>TextImpl</name></type> <name>textNode</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constructors</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Attribute has no public constructor. Please use the factory
+     * method in the Document class.
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>AttrImpl</name><parameter_list>(<param><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDocument</name></decl></param>, <param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+    	<expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>ownerDocument</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>name</name></name> = <name>name</name></expr>;</expr_stmt>
+        <comment type="javadoc">/** False for default attributes. */</comment>
+        <expr_stmt><expr><call><name>isSpecified</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>hasStringValue</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">// for AttrNSImpl</comment>
+    <constructor><specifier>protected</specifier> <name>AttrImpl</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+    <comment type="line">// Support for DOM Level 3 renameNode method.</comment>
+    <comment type="line">// Note: This only deals with part of the pb. It is expected to be</comment>
+    <comment type="line">// called after the Attr has been detached for one thing.</comment>
+    <comment type="line">// CoreDocumentImpl does all the work.</comment>
+    <function><type><name>void</name></type> <name>rename</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>name</name></name> = <name>name</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// create a real text node as child if we don't have one yet</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>makeChildNode</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>TextImpl</name></type> <name>text</name> =<init>
+                    <expr>(<name>TextImpl</name>) <call><name>ownerDocument</name><argument_list>()</argument_list></call>.<call><name>createTextNode</name><argument_list>(<argument><expr>(<name>String</name>) <name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>value</name> = <name>text</name></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>text</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>text</name>.<name>previousSibling</name></name> = <name>text</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>text</name>.<name>ownerNode</name></name> = <name>this</name></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>text</name>.<name>isOwned</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>hasStringValue</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * NON-DOM
+     * set the ownerDocument of this node and its children
+     */</comment>
+    <function><type><name>void</name></type> <name>setOwnerDocument</name><parameter_list>(<param><decl><type><name>CoreDocumentImpl</name></type> <name>doc</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>super</name>.<name>setOwnerDocument</name></name><argument_list>(<argument><expr><name>doc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr>!<call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <for>for (<init><decl><type><name>ChildNode</name></type> <name>child</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</init>
+                 <condition><expr><name>child</name> != <name>null</name></expr>;</condition> <incr><expr><name>child</name> = <name><name>child</name>.<name>nextSibling</name></name></expr></incr>) <block>{
+                <expr_stmt><expr><call><name><name>child</name>.<name>setOwnerDocument</name></name><argument_list>(<argument><expr><name>doc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * NON-DOM: set the type of this attribute to be ID type.
+     * 
+     * @param id
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setIdAttribute</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>id</name></decl></param>)</parameter_list><block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>isIdAttribute</name><argument_list>(<argument><expr><name>id</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <comment type="javadoc">/** DOM Level 3: isId*/</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isId</name><parameter_list>()</parameter_list><block>{
+        <comment type="line">// REVISIT: should an attribute that is not in the tree return</comment>
+        <comment type="line">// isID true?</comment>
+        <return>return <expr><call><name>isIdAttribute</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+
+    <comment type="line">//</comment>
+    <comment type="line">// Node methods</comment>
+    <comment type="line">//</comment>
+    
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>cloneNode</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>deep</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>AttrImpl</name></type> <name>clone</name> =<init> <expr>(<name>AttrImpl</name>) <call><name><name>super</name>.<name>cloneNode</name></name><argument_list>(<argument><expr><name>deep</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// take care of case where there are kids</comment>
+    	<if>if <condition>(<expr>!<call><name><name>clone</name>.<name>hasStringValue</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+
+            <comment type="line">// Need to break the association w/ original kids</comment>
+            <expr_stmt><expr><name><name>clone</name>.<name>value</name></name> = <name>null</name></expr>;</expr_stmt>
+
+            <comment type="line">// Cloning an Attribute always clones its children, </comment>
+            <comment type="line">// since they represent its value, no matter whether this </comment>
+            <comment type="line">// is a deep clone or not</comment>
+            <for>for (<init><decl><type><name>Node</name></type> <name>child</name> =<init> <expr>(<name>Node</name>) <name>value</name></expr></init></decl>;</init> <condition><expr><name>child</name> != <name>null</name></expr>;</condition>
+                 <incr><expr><name>child</name> = <call><name><name>child</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+                 <expr_stmt><expr><call><name><name>clone</name>.<name>appendChild</name></name><argument_list>(<argument><expr><call><name><name>child</name>.<name>cloneNode</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>clone</name>.<name>isSpecified</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>clone</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * A short integer indicating what type of node this is. The named
+     * constants for this value are defined in the org.w3c.dom.Node interface.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>short</name></type> <name>getNodeType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>Node</name>.<name>ATTRIBUTE_NODE</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the attribute name
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getNodeName</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>name</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Implicit in the rerouting of getNodeValue to getValue is the
+     * need to redefine setNodeValue, for symmetry's sake.  Note that
+     * since we're explicitly providing a value, Specified should be set
+     * true.... even if that value equals the default.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setNodeValue</name><parameter_list>(<param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+    	<expr_stmt><expr><call><name>setValue</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * @see org.w3c.dom.TypeInfo#getTypeName()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getTypeName</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>(<name>String</name>)<name>type</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * @see org.w3c.dom.TypeInfo#getTypeNamespace()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getTypeNamespace</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>type</name> != <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>DTD_URI</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Method getSchemaTypeInfo.
+     * @return TypeInfo
+     */</comment>
+    <function><type><specifier>public</specifier> <name>TypeInfo</name></type> <name>getSchemaTypeInfo</name><parameter_list>()</parameter_list><block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * In Attribute objects, NodeValue is considered a synonym for
+     * Value.
+     *
+     * @see #getValue()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getNodeValue</name><parameter_list>()</parameter_list> <block>{
+    	<return>return <expr><call><name>getValue</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Attr methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * In Attributes, NodeName is considered a synonym for the
+     * attribute's Name
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getName</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    	<return>return <expr><name>name</name></expr>;</return>
+
+    }</block></function> <comment type="line">// getName():String</comment>
+
+    <comment type="javadoc">/**
+     * The DOM doesn't clearly define what setValue(null) means. I've taken it
+     * as "remove all children", which from outside should appear
+     * similar to setting it to the empty string.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setValue</name><parameter_list>(<param><decl><type><name>String</name></type> <name>newvalue</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDocument</name> =<init> <expr><call><name>ownerDocument</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><name><name>ownerDocument</name>.<name>errorChecking</name></name> &amp;&amp; <call><name>isReadOnly</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NO_MODIFICATION_ALLOWED_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NO_MODIFICATION_ALLOWED_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        
+        <decl_stmt><decl><type><name>Element</name></type> <name>ownerElement</name> =<init> <expr><call><name>getOwnerElement</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>oldvalue</name> =<init> <expr>""</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>ownerDocument</name>.<name>getMutationEvents</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// Can no longer just discard the kids; they may have</comment>
+                <comment type="line">// event listeners waiting for them to disconnect.</comment>
+                <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>oldvalue</name> = (<name>String</name>) <name>value</name></expr>;</expr_stmt>
+                    <comment type="line">// create an actual text node as our child so</comment>
+                    <comment type="line">// that we can use it in the event</comment>
+                    <if>if <condition>(<expr><name>textNode</name> == <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>textNode</name> = (<name>TextImpl</name>)
+                            <call><name><name>ownerDocument</name>.<name>createTextNode</name></name><argument_list>(<argument><expr>(<name>String</name>) <name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then>
+                    <else>else <block>{
+                        <expr_stmt><expr><name><name>textNode</name>.<name>data</name></name> = (<name>String</name>) <name>value</name></expr>;</expr_stmt>
+                    }</block></else></if>
+                    <expr_stmt><expr><name>value</name> = <name>textNode</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>textNode</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>textNode</name>.<name>previousSibling</name></name> = <name>textNode</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>textNode</name>.<name>ownerNode</name></name> = <name>this</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>textNode</name>.<name>isOwned</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>hasStringValue</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>internalRemoveChild</name><argument_list>(<argument><expr><name>textNode</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>oldvalue</name> = <call><name>getValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <while>while <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition> <block>{
+                        <expr_stmt><expr><call><name>internalRemoveChild</name><argument_list>(<argument><expr>(<name>Node</name>) <name>value</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></while>
+                }</block></else></if>
+            }</block></then>
+            <else>else <block>{
+                <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>oldvalue</name> = (<name>String</name>) <name>value</name></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <comment type="line">// simply discard children if any</comment>
+                    <expr_stmt><expr><name>oldvalue</name> = <call><name>getValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <comment type="line">// remove ref from first child to last child</comment>
+                    <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><name><name>firstChild</name>.<name>previousSibling</name></name> = <name>null</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>firstChild</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>firstChild</name>.<name>ownerNode</name></name> = <name>ownerDocument</name></expr>;</expr_stmt>
+                }</block></else></if>
+                <comment type="line">// then remove ref to current value</comment>
+                <expr_stmt><expr><name>value</name> = <name>null</name></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>needsSyncChildren</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <if>if <condition>(<expr><call><name>isIdAttribute</name><argument_list>()</argument_list></call> &amp;&amp; <name>ownerElement</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>removeIdentifier</name></name><argument_list>(<argument><expr><name>oldvalue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// Create and add the new one, generating only non-aggregate events</comment>
+        <comment type="line">// (There are no listeners on the new Text, but there may be</comment>
+        <comment type="line">// capture/bubble listeners on the Attr.</comment>
+        <comment type="line">// Note that aggregate events are NOT dispatched here,</comment>
+        <comment type="line">// since we need to combine the remove and insert.</comment>
+    	<expr_stmt><expr><call><name>isSpecified</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name><name>ownerDocument</name>.<name>getMutationEvents</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// if there are any event handlers create a real node</comment>
+            <expr_stmt><expr><call><name>internalInsertBefore</name><argument_list>(<argument><expr><call><name><name>ownerDocument</name>.<name>createTextNode</name></name><argument_list>(<argument><expr><name>newvalue</name></expr></argument>)</argument_list></call></expr></argument>,
+                                 <argument><expr><name>null</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>hasStringValue</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// notify document</comment>
+            <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>modifiedAttrValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>oldvalue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <comment type="line">// directly store the string</comment>
+            <expr_stmt><expr><name>value</name> = <name>newvalue</name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>hasStringValue</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>changed</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <if>if <condition>(<expr><call><name>isIdAttribute</name><argument_list>()</argument_list></call> &amp;&amp; <name>ownerElement</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>putIdentifier</name></name><argument_list>(<argument><expr><name>newvalue</name></expr></argument>, <argument><expr><name>ownerElement</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+    }</block></function> <comment type="line">// setValue(String)</comment>
+
+    <comment type="javadoc">/**
+     * The "string value" of an Attribute is its text representation,
+     * which in turn is a concatenation of the string values of its children.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getValue</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>""</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>(<name>String</name>) <name>value</name></expr>;</return>
+        }</block></then></if>
+        
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>((<name>ChildNode</name>) <name>value</name>)</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>data</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>firstChild</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>)</condition><then><block>{
+                <expr_stmt><expr><name>data</name> = ((<name>EntityReferenceImpl</name>)<name>firstChild</name>).<call><name>getEntityRefValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+                <expr_stmt><expr><name>data</name> =  <call><name><name>firstChild</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>node</name> =<init> <expr><name><name>firstChild</name>.<name>nextSibling</name></name></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><name>node</name> == <name>null</name> || <name>data</name> == <name>null</name></expr>)</condition><then>  <return>return <expr>(<name>data</name> == <name>null</name>)?"":<name>data</name></expr>;</return></then></if>
+        
+        <decl_stmt><decl><type><name>StringBuffer</name></type> <name>value</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    	<while>while <condition>(<expr><name>node</name> != <name>null</name></expr>)</condition> <block>{
+            <if>if <condition>(<expr><call><name><name>node</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call>  == <name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>)</condition><then><block>{
+                <expr_stmt><expr><name>data</name> = ((<name>EntityReferenceImpl</name>)<name>node</name>).<call><name>getEntityRefValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>data</name> == <name>null</name></expr>)</condition><then> <return>return <expr>""</expr>;</return></then></if>
+                <expr_stmt><expr><call><name><name>value</name>.<name>append</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>value</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>node</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <expr_stmt><expr><name>node</name> = <name><name>node</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+    	}</block></while>
+    	<return>return <expr><call><name><name>value</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+
+    }</block></function> <comment type="line">// getValue():String</comment>
+    
+    
+    <comment type="javadoc">/**
+     * The "specified" flag is true if and only if this attribute's
+     * value was explicitly specified in the original document. Note that
+     * the implementation, not the user, is in charge of this
+     * property. If the user asserts an Attribute value (even if it ends
+     * up having the same value as the default), it is considered a
+     * specified attribute. If you really want to revert to the default,
+     * delete the attribute from the Element, and the Implementation will
+     * re-assert the default (if any) in its place, with the appropriate
+     * specified=false setting.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>getSpecified</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    	<return>return <expr><call><name>isSpecified</name><argument_list>()</argument_list></call></expr>;</return>
+
+    }</block></function> <comment type="line">// getSpecified():boolean</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Attr2 methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Returns the element node that this attribute is associated with,
+     * or null if the attribute has not been added to an element.
+     *
+     * @see #getOwnerElement
+     *
+     * @deprecated Previous working draft of DOM Level 2. New method
+     *             is &lt;tt&gt;getOwnerElement()&lt;/tt&gt;.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Element</name></type> <name>getElement</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// if we have an owner, ownerNode is our ownerElement, otherwise it's</comment>
+        <comment type="line">// our ownerDocument and we don't have an ownerElement</comment>
+        <return>return <expr><call>(<name>Element</name>) <argument_list>(<argument><expr><call><name>isOwned</name><argument_list>()</argument_list></call> ? <name>ownerNode</name> : <name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the element node that this attribute is associated with,
+     * or null if the attribute has not been added to an element.
+     *
+     * @since WD-DOM-Level-2-19990719
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Element</name></type> <name>getOwnerElement</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// if we have an owner, ownerNode is our ownerElement, otherwise it's</comment>
+        <comment type="line">// our ownerDocument and we don't have an ownerElement</comment>
+        <return>return <expr><call>(<name>Element</name>) <argument_list>(<argument><expr><call><name>isOwned</name><argument_list>()</argument_list></call> ? <name>ownerNode</name> : <name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>normalize</name><parameter_list>()</parameter_list> <block>{
+
+        <comment type="line">// No need to normalize if already normalized or</comment>
+        <comment type="line">// if value is kept as a String.</comment>
+        <if>if <condition>(<expr><call><name>isNormalized</name><argument_list>()</argument_list></call> || <call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then>
+            <return>return;</return></then></if>
+
+        <decl_stmt><decl><type><name>Node</name></type> <name>kid</name>, <name>next</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>(<name>ChildNode</name>)<name>value</name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><expr><name>kid</name> = <name>firstChild</name></expr>;</init> <condition><expr><name>kid</name> != <name>null</name></expr>;</condition> <incr><expr><name>kid</name> = <name>next</name></expr></incr>) <block>{
+            <expr_stmt><expr><name>next</name> = <call><name><name>kid</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// If kid is a text node, we need to check for one of two</comment>
+            <comment type="line">// conditions:</comment>
+            <comment type="line">//   1) There is an adjacent text node</comment>
+            <comment type="line">//   2) There is no adjacent text node, but kid is</comment>
+            <comment type="line">//      an empty text node.</comment>
+            <if>if <condition>( <expr><call><name><name>kid</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr> )</condition><then>
+            <block>{
+                <comment type="line">// If an adjacent text node, merge it with kid</comment>
+                <if>if <condition>( <expr><name>next</name>!=<name>null</name> &amp;&amp; <call><name><name>next</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr> )</condition><then>
+                <block>{
+                    <expr_stmt><expr>((<name>Text</name>)<name>kid</name>).<call><name>appendData</name><argument_list>(<argument><expr><call><name><name>next</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>removeChild</name><argument_list>( <argument><expr><name>next</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>next</name> = <name>kid</name></expr>;</expr_stmt> <comment type="line">// Don't advance; there might be another.</comment>
+                }</block></then>
+                <else>else
+                <block>{
+                    <comment type="line">// If kid is empty, remove it</comment>
+                    <if>if <condition>( <expr><call><name><name>kid</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call> == <name>null</name> || <call><name><name>kid</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call>.<call><name>length</name><argument_list>()</argument_list></call> == 0</expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name>removeChild</name><argument_list>( <argument><expr><name>kid</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+            }</block></then></if>
+        }</block></for>
+
+        <expr_stmt><expr><call><name>isNormalized</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function> <comment type="line">// normalize()</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Public methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** NON-DOM, for use by parser */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setSpecified</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>arg</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    	<expr_stmt><expr><call><name>isSpecified</name><argument_list>(<argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function> <comment type="line">// setSpecified(boolean)</comment>
+    
+	<comment type="javadoc">/**
+	 * NON-DOM: used by the parser
+	 * @param type
+	 */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setType</name> <parameter_list>(<param><decl><type><name>Object</name></type> <name>type</name></decl></param>)</parameter_list><block>{
+        <expr_stmt><expr><name><name>this</name>.<name>type</name></name> = <name>type</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Object methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** NON-DOM method for debugging convenience */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    	<return>return <expr><call><name>getName</name><argument_list>()</argument_list></call> + "=" + "\"" + <call><name>getValue</name><argument_list>()</argument_list></call> + "\""</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Test whether this node has any children. Convenience shorthand
+     * for (Node.getFirstChild()!=null)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasChildNodes</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>value</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Obtain a NodeList enumerating all children of this node. If there
+     * are none, an (initially) empty NodeList is returned.
+     * &lt;p&gt;
+     * NodeLists are "live"; as children are added/removed the NodeList
+     * will immediately reflect those changes. Also, the NodeList refers
+     * to the actual nodes, so changes to those nodes made via the DOM tree
+     * will be reflected in the NodeList and vice versa.
+     * &lt;p&gt;
+     * In this implementation, Nodes implement the NodeList interface and
+     * provide their own getChildNodes() support. Other DOMs may solve this
+     * differently.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>NodeList</name></type> <name>getChildNodes</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// JKESS: KNOWN ISSUE HERE </comment>
+
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>this</name></expr>;</return>
+
+    }</block></function> <comment type="line">// getChildNodes():NodeList</comment>
+
+    <comment type="javadoc">/** The first child of this Node, or null if none. */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>getFirstChild</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>makeChildNode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    	<return>return <expr>(<name>Node</name>) <name>value</name></expr>;</return>
+
+    }</block></function>   <comment type="line">// getFirstChild():Node</comment>
+
+    <comment type="javadoc">/** The last child of this Node, or null if none. */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>getLastChild</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><call><name>lastChild</name><argument_list>()</argument_list></call></expr>;</return>
+
+    }</block></function> <comment type="line">// getLastChild():Node</comment>
+
+    <function><type><specifier>final</specifier> <name>ChildNode</name></type> <name>lastChild</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// last child is stored as the previous sibling of first child</comment>
+        <expr_stmt><expr><call><name>makeChildNode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>value</name> != <name>null</name> ? ((<name>ChildNode</name>) <name>value</name>).<name>previousSibling</name> : <name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>final</specifier> <name>void</name></type> <name>lastChild</name><parameter_list>(<param><decl><type><name>ChildNode</name></type> <name>node</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// store lastChild as previous sibling of first child</comment>
+        <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr>((<name>ChildNode</name>) <name>value</name>).<name>previousSibling</name> = <name>node</name></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Move one or more node(s) to our list of children. Note that this
+     * implicitly removes them from their previous parent.
+     *
+     * @param newChild The Node to be moved to our subtree. As a
+     * convenience feature, inserting a DocumentNode will instead insert
+     * all its children.
+     *
+     * @param refChild Current child which newChild should be placed
+     * immediately before. If refChild is null, the insertion occurs
+     * after all existing Nodes, like appendChild().
+     *
+     * @return newChild, in its new state (relocated, or emptied in the case of
+     * DocumentNode.)
+     *
+     * @throws DOMException(HIERARCHY_REQUEST_ERR) if newChild is of a
+     * type that shouldn't be a child of this node, or if newChild is an
+     * ancestor of this node.
+     *
+     * @throws DOMException(WRONG_DOCUMENT_ERR) if newChild has a
+     * different owner document than we do.
+     *
+     * @throws DOMException(NOT_FOUND_ERR) if refChild is not a child of
+     * this node.
+     *
+     * @throws DOMException(NO_MODIFICATION_ALLOWED_ERR) if this node is
+     * read-only.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>insertBefore</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>newChild</name></decl></param>, <param><decl><type><name>Node</name></type> <name>refChild</name></decl></param>)</parameter_list> 
+        <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+        <comment type="line">// Tail-call; optimizer should be able to do good things with.</comment>
+        <return>return <expr><call><name>internalInsertBefore</name><argument_list>(<argument><expr><name>newChild</name></expr></argument>, <argument><expr><name>refChild</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function> <comment type="line">// insertBefore(Node,Node):Node</comment>
+     
+    <comment type="javadoc">/** NON-DOM INTERNAL: Within DOM actions,we sometimes need to be able
+     * to control which mutation events are spawned. This version of the
+     * insertBefore operation allows us to do so. It is not intended
+     * for use by application programs.
+     */</comment>
+    <function><type><name>Node</name></type> <name>internalInsertBefore</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>newChild</name></decl></param>, <param><decl><type><name>Node</name></type> <name>refChild</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>replace</name></decl></param>)</parameter_list> 
+        <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+
+        <decl_stmt><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDocument</name> =<init> <expr><call><name>ownerDocument</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>errorChecking</name> =<init> <expr><name><name>ownerDocument</name>.<name>errorChecking</name></name></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><call><name><name>newChild</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>DOCUMENT_FRAGMENT_NODE</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// SLOW BUT SAFE: We could insert the whole subtree without</comment>
+            <comment type="line">// juggling so many next/previous pointers. (Wipe out the</comment>
+            <comment type="line">// parent's child-list, patch the parent pointers, set the</comment>
+            <comment type="line">// ends of the list.) But we know some subclasses have special-</comment>
+            <comment type="line">// case behavior they add to insertBefore(), so we don't risk it.</comment>
+            <comment type="line">// This approch also takes fewer bytecodes.</comment>
+
+            <comment type="line">// NOTE: If one of the children is not a legal child of this</comment>
+            <comment type="line">// node, throw HIERARCHY_REQUEST_ERR before _any_ of the children</comment>
+            <comment type="line">// have been transferred. (Alternative behaviors would be to</comment>
+            <comment type="line">// reparent up to the first failure point or reparent all those</comment>
+            <comment type="line">// which are acceptable to the target node, neither of which is</comment>
+            <comment type="line">// as robust. PR-DOM-0818 isn't entirely clear on which it</comment>
+            <comment type="line">// recommends?????</comment>
+
+            <comment type="line">// No need to check kids for right-document; if they weren't,</comment>
+            <comment type="line">// they wouldn't be kids of that DocFrag.</comment>
+            <if>if <condition>(<expr><name>errorChecking</name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>Node</name></type> <name>kid</name> =<init> <expr><call><name><name>newChild</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <comment type="line">// Prescan</comment>
+                     <condition><expr><name>kid</name> != <name>null</name></expr>;</condition> <incr><expr><name>kid</name> = <call><name><name>kid</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+
+                    <if>if <condition>(<expr>!<call><name><name>ownerDocument</name>.<name>isKidOK</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>kid</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"HIERARCHY_REQUEST_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>HIERARCHY_REQUEST_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+                    }</block></then></if>
+                }</block></for>
+            }</block></then></if>
+
+            <while>while <condition>(<expr><call><name><name>newChild</name>.<name>hasChildNodes</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name>insertBefore</name><argument_list>(<argument><expr><call><name><name>newChild</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>refChild</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <return>return <expr><name>newChild</name></expr>;</return>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>newChild</name> == <name>refChild</name></expr>)</condition><then> <block>{
+            <comment type="line">// stupid case that must be handled as a no-op triggering events...</comment>
+            <expr_stmt><expr><name>refChild</name> = <call><name><name>refChild</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>removeChild</name><argument_list>(<argument><expr><name>newChild</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>insertBefore</name><argument_list>(<argument><expr><name>newChild</name></expr></argument>, <argument><expr><name>refChild</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name>newChild</name></expr>;</return>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>errorChecking</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isReadOnly</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NO_MODIFICATION_ALLOWED_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NO_MODIFICATION_ALLOWED_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr><call><name><name>newChild</name>.<name>getOwnerDocument</name></name><argument_list>()</argument_list></call> != <name>ownerDocument</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"WRONG_DOCUMENT_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>WRONG_DOCUMENT_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr>!<call><name><name>ownerDocument</name>.<name>isKidOK</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>newChild</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"HIERARCHY_REQUEST_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>HIERARCHY_REQUEST_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <comment type="line">// refChild must be a child of this node (or null)</comment>
+            <if>if <condition>(<expr><name>refChild</name> != <name>null</name> &amp;&amp; <call><name><name>refChild</name>.<name>getParentNode</name></name><argument_list>()</argument_list></call> != <name>this</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NOT_FOUND_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NOT_FOUND_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+
+            <comment type="line">// Prevent cycles in the tree</comment>
+            <comment type="line">// newChild cannot be ancestor of this Node,</comment>
+            <comment type="line">// and actually cannot be this</comment>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>treeSafe</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>NodeImpl</name></type> <name>a</name> =<init> <expr><name>this</name></expr></init></decl>;</init> <condition><expr><name>treeSafe</name> &amp;&amp; <name>a</name> != <name>null</name></expr>;</condition> <incr><expr><name>a</name> = <call><name><name>a</name>.<name>parentNode</name></name><argument_list>()</argument_list></call></expr></incr>)
+            <block>{
+                <expr_stmt><expr><name>treeSafe</name> = <name>newChild</name> != <name>a</name></expr>;</expr_stmt>
+            }</block></for>
+            <if>if <condition>(<expr>!<name>treeSafe</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"HIERARCHY_REQUEST_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>HIERARCHY_REQUEST_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name>makeChildNode</name><argument_list>()</argument_list></call></expr>;</expr_stmt> <comment type="line">// make sure we have a node and not a string</comment>
+
+        <comment type="line">// notify document</comment>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>insertingNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>replace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Convert to internal type, to avoid repeated casting</comment>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>newInternal</name> =<init> <expr>(<name>ChildNode</name>)<name>newChild</name></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>Node</name></type> <name>oldparent</name> =<init> <expr><call><name><name>newInternal</name>.<name>parentNode</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>oldparent</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>oldparent</name>.<name>removeChild</name></name><argument_list>(<argument><expr><name>newInternal</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Convert to internal type, to avoid repeated casting</comment>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>refInternal</name> =<init> <expr>(<name>ChildNode</name>) <name>refChild</name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Attach up</comment>
+        <expr_stmt><expr><name><name>newInternal</name>.<name>ownerNode</name></name> = <name>this</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>newInternal</name>.<name>isOwned</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Attach before and after</comment>
+        <comment type="line">// Note: firstChild.previousSibling == lastChild!!</comment>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>firstChild</name> == <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// this our first and only child</comment>
+            <expr_stmt><expr><name>value</name> = <name>newInternal</name></expr>;</expr_stmt> <comment type="line">// firstchild = newInternal;</comment>
+            <expr_stmt><expr><call><name><name>newInternal</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>newInternal</name>.<name>previousSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <if>if <condition>(<expr><name>refInternal</name> == <name>null</name></expr>)</condition><then> <block>{
+                <comment type="line">// this is an append</comment>
+                <decl_stmt><decl><type><name>ChildNode</name></type> <name>lastChild</name> =<init> <expr><name><name>firstChild</name>.<name>previousSibling</name></name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name><name>lastChild</name>.<name>nextSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>newInternal</name>.<name>previousSibling</name></name> = <name>lastChild</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>firstChild</name>.<name>previousSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <comment type="line">// this is an insert</comment>
+                <if>if <condition>(<expr><name>refChild</name> == <name>firstChild</name></expr>)</condition><then> <block>{
+                    <comment type="line">// at the head of the list</comment>
+                    <expr_stmt><expr><call><name><name>firstChild</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>newInternal</name>.<name>nextSibling</name></name> = <name>firstChild</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>newInternal</name>.<name>previousSibling</name></name> = <name><name>firstChild</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>firstChild</name>.<name>previousSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = <name>newInternal</name></expr>;</expr_stmt> <comment type="line">// firstChild = newInternal;</comment>
+                    <expr_stmt><expr><call><name><name>newInternal</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <comment type="line">// somewhere in the middle</comment>
+                    <decl_stmt><decl><type><name>ChildNode</name></type> <name>prev</name> =<init> <expr><name><name>refInternal</name>.<name>previousSibling</name></name></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><name><name>newInternal</name>.<name>nextSibling</name></name> = <name>refInternal</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>prev</name>.<name>nextSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>refInternal</name>.<name>previousSibling</name></name> = <name>newInternal</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>newInternal</name>.<name>previousSibling</name></name> = <name>prev</name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></else></if>
+
+        <expr_stmt><expr><call><name>changed</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// notify document</comment>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>insertedNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>newInternal</name></expr></argument>, <argument><expr><name>replace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><call><name>checkNormalizationAfterInsert</name><argument_list>(<argument><expr><name>newInternal</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>newChild</name></expr>;</return>
+
+    }</block></function> <comment type="line">// internalInsertBefore(Node,Node,int):Node</comment>
+
+    <comment type="javadoc">/**
+     * Remove a child from this Node. The removed child's subtree
+     * remains intact so it may be re-inserted elsewhere.
+     *
+     * @return oldChild, in its new state (removed).
+     *
+     * @throws DOMException(NOT_FOUND_ERR) if oldChild is not a child of
+     * this node.
+     *
+     * @throws DOMException(NO_MODIFICATION_ALLOWED_ERR) if this node is
+     * read-only.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>removeChild</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>oldChild</name></decl></param>)</parameter_list> 
+        <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+        <comment type="line">// Tail-call, should be optimizable</comment>
+        <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// we don't have any child per say so it can't be one of them!</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NOT_FOUND_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NOT_FOUND_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>            
+        }</block></then></if>
+        <return>return <expr><call><name>internalRemoveChild</name><argument_list>(<argument><expr><name>oldChild</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function> <comment type="line">// removeChild(Node) :Node</comment>
+     
+    <comment type="javadoc">/** NON-DOM INTERNAL: Within DOM actions,we sometimes need to be able
+     * to control which mutation events are spawned. This version of the
+     * removeChild operation allows us to do so. It is not intended
+     * for use by application programs.
+     */</comment>
+    <function><type><name>Node</name></type> <name>internalRemoveChild</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>oldChild</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>replace</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+
+        <decl_stmt><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDocument</name> =<init> <expr><call><name>ownerDocument</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>ownerDocument</name>.<name>errorChecking</name></name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isReadOnly</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NO_MODIFICATION_ALLOWED_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NO_MODIFICATION_ALLOWED_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>oldChild</name> != <name>null</name> &amp;&amp; <call><name><name>oldChild</name>.<name>getParentNode</name></name><argument_list>()</argument_list></call> != <name>this</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NOT_FOUND_ERR"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NOT_FOUND_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>oldInternal</name> =<init> <expr>(<name>ChildNode</name>) <name>oldChild</name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// notify document</comment>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>removingNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>oldInternal</name></expr></argument>, <argument><expr><name>replace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Patch linked list around oldChild</comment>
+        <comment type="line">// Note: lastChild == firstChild.previousSibling</comment>
+        <if>if <condition>(<expr><name>oldInternal</name> == <name>value</name></expr>)</condition><then> <block>{ <comment type="line">// oldInternal == firstChild</comment>
+            <comment type="line">// removing first child</comment>
+            <expr_stmt><expr><call><name><name>oldInternal</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// next line is: firstChild = oldInternal.nextSibling</comment>
+            <expr_stmt><expr><name>value</name> = <name><name>oldInternal</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>firstChild</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>firstChild</name>.<name>isFirstChild</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>firstChild</name>.<name>previousSibling</name></name> = <name><name>oldInternal</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>prev</name> =<init> <expr><name><name>oldInternal</name>.<name>previousSibling</name></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>next</name> =<init> <expr><name><name>oldInternal</name>.<name>nextSibling</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>prev</name>.<name>nextSibling</name></name> = <name>next</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>next</name> == <name>null</name></expr>)</condition><then> <block>{
+                <comment type="line">// removing last child</comment>
+                <decl_stmt><decl><type><name>ChildNode</name></type> <name>firstChild</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name><name>firstChild</name>.<name>previousSibling</name></name> = <name>prev</name></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <comment type="line">// removing some other child in the middle</comment>
+                <expr_stmt><expr><name><name>next</name>.<name>previousSibling</name></name> = <name>prev</name></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></else></if>
+
+        <comment type="line">// Save previous sibling for normalization checking.</comment>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>oldPreviousSibling</name> =<init> <expr><call><name><name>oldInternal</name>.<name>previousSibling</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Remove oldInternal's references to tree</comment>
+        <expr_stmt><expr><name><name>oldInternal</name>.<name>ownerNode</name></name>       = <name>ownerDocument</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>oldInternal</name>.<name>isOwned</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>oldInternal</name>.<name>nextSibling</name></name>     = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>oldInternal</name>.<name>previousSibling</name></name> = <name>null</name></expr>;</expr_stmt>
+
+        <expr_stmt><expr><call><name>changed</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// notify document</comment>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>removedNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>replace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><call><name>checkNormalizationAfterRemove</name><argument_list>(<argument><expr><name>oldPreviousSibling</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>oldInternal</name></expr>;</return>
+
+    }</block></function> <comment type="line">// internalRemoveChild(Node,int):Node</comment>
+
+    <comment type="javadoc">/**
+     * Make newChild occupy the location that oldChild used to
+     * have. Note that newChild will first be removed from its previous
+     * parent, if any. Equivalent to inserting newChild before oldChild,
+     * then removing oldChild.
+     *
+     * @return oldChild, in its new state (removed).
+     *
+     * @throws DOMException(HIERARCHY_REQUEST_ERR) if newChild is of a
+     * type that shouldn't be a child of this node, or if newChild is
+     * one of our ancestors.
+     *
+     * @throws DOMException(WRONG_DOCUMENT_ERR) if newChild has a
+     * different owner document than we do.
+     *
+     * @throws DOMException(NOT_FOUND_ERR) if oldChild is not a child of
+     * this node.
+     *
+     * @throws DOMException(NO_MODIFICATION_ALLOWED_ERR) if this node is
+     * read-only.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>replaceChild</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>newChild</name></decl></param>, <param><decl><type><name>Node</name></type> <name>oldChild</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+
+        <expr_stmt><expr><call><name>makeChildNode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// If Mutation Events are being generated, this operation might</comment>
+        <comment type="line">// throw aggregate events twice when modifying an Attr -- once </comment>
+        <comment type="line">// on insertion and once on removal. DOM Level 2 does not specify </comment>
+        <comment type="line">// this as either desirable or undesirable, but hints that</comment>
+        <comment type="line">// aggregations should be issued only once per user request.</comment>
+
+        <comment type="line">// notify document</comment>
+        <decl_stmt><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDocument</name> =<init> <expr><call><name>ownerDocument</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>replacingNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><call><name>internalInsertBefore</name><argument_list>(<argument><expr><name>newChild</name></expr></argument>, <argument><expr><name>oldChild</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>newChild</name> != <name>oldChild</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>internalRemoveChild</name><argument_list>(<argument><expr><name>oldChild</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// notify document</comment>
+        <expr_stmt><expr><call><name><name>ownerDocument</name>.<name>replacedNode</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>oldChild</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//</comment>
+    <comment type="line">// NodeList methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * NodeList method: Count the immediate children of this node
+     * @return int
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getLength</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>1</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>node</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init>;</init> <condition><expr><name>node</name> != <name>null</name></expr>;</condition> <incr><expr><name>node</name> = <name><name>node</name>.<name>nextSibling</name></name></expr></incr>) <block>{
+            <expr_stmt><expr><name>length</name>++</expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>length</name></expr>;</return>
+
+    }</block></function> <comment type="line">// getLength():int</comment>
+
+    <comment type="javadoc">/**
+     * NodeList method: Return the Nth immediate child of this node, or
+     * null if the index is out of bounds.
+     * @return org.w3c.dom.Node
+     * @param Index int
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>item</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>index</name> != 0 || <name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name>makeChildNode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <return>return <expr>(<name>Node</name>) <name>value</name></expr>;</return>
+            }</block></else></if>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>index</name> &lt; 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>ChildNode</name></type> <name>node</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>index</name> &amp;&amp; <name>node</name> != <name>null</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name>node</name> = <name><name>node</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+        }</block></for> 
+        <return>return <expr><name>node</name></expr>;</return>
+
+    }</block></function> <comment type="line">// item(int):Node</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// DOM3</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * DOM Level 3 WD- Experimental.
+     * Override inherited behavior from ParentNode to support deep equal.
+     * isEqualNode is always deep on Attr nodes.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isEqualNode</name><parameter_list>(<param><decl><type><name>Node</name></type> <name>arg</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>super</name>.<name>isEqualNode</name></name><argument_list>(<argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Introduced in DOM Level 3. &lt;p&gt;
+     * Checks if a type is derived from another by restriction. See:
+     * http://www.w3.org/TR/DOM-Level-3-Core/core.html#TypeInfo-isDerivedFrom
+     * 
+     * @param ancestorNS 
+     *        The namspace of the ancestor type declaration
+     * @param ancestorName
+     *        The name of the ancestor type declaration
+     * @param type
+     *        The reference type definition
+     * 
+     * @return boolean True if the type is derived by restriciton for the
+     *         reference type
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isDerivedFrom</name><parameter_list>(<param><decl><type><name>String</name></type> <name>typeNamespaceArg</name></decl></param>, 
+                                 <param><decl><type><name>String</name></type> <name>typeNameArg</name></decl></param>, 
+                                 <param><decl><type><name>int</name></type> <name>derivationMethod</name></decl></param>)</parameter_list> <block>{
+                                 	
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+        
+
+    <comment type="line">//</comment>
+    <comment type="line">// Public methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Override default behavior so that if deep is true, children are also
+     * toggled.
+     * @see Node
+     * &lt;P&gt;
+     * Note: this will not change the state of an EntityReference or its
+     * children, which are always read-only.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setReadOnly</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>readOnly</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>deep</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><call><name><name>super</name>.<name>setReadOnly</name></name><argument_list>(<argument><expr><name>readOnly</name></expr></argument>, <argument><expr><name>deep</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name>deep</name></expr>)</condition><then> <block>{
+
+            <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><call><name>hasStringValue</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <return>return;</return>
+            }</block></then></if>
+            <comment type="line">// Recursively set kids</comment>
+            <for>for (<init><decl><type><name>ChildNode</name></type> <name>mykid</name> =<init> <expr>(<name>ChildNode</name>) <name>value</name></expr></init></decl>;</init>
+                 <condition><expr><name>mykid</name> != <name>null</name></expr>;</condition>
+                 <incr><expr><name>mykid</name> = <name><name>mykid</name>.<name>nextSibling</name></name></expr></incr>) <block>{
+                <if>if <condition>(<expr><call><name><name>mykid</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> != <name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>mykid</name>.<name>setReadOnly</name></name><argument_list>(<argument><expr><name>readOnly</name></expr></argument>,<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+        }</block></then></if>
+    }</block></function> <comment type="line">// setReadOnly(boolean,boolean)</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Protected methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Override this method in subclass to hook in efficient
+     * internal data structure.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>synchronizeChildren</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// By default just change the flag to avoid calling this method again</comment>
+        <expr_stmt><expr><call><name>needsSyncChildren</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Checks the normalized state of this node after inserting a child.
+     * If the inserted child causes this node to be unnormalized, then this
+     * node is flagged accordingly.
+     * The conditions for changing the normalized state are:
+     * &lt;ul&gt;
+     * &lt;li&gt;The inserted child is a text node and one of its adjacent siblings
+     * is also a text node.
+     * &lt;li&gt;The inserted child is is itself unnormalized.
+     * &lt;/ul&gt;
+     *
+     * @param insertedChild the child node that was inserted into this node
+     *
+     * @throws NullPointerException if the inserted child is &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><name>void</name></type> <name>checkNormalizationAfterInsert</name><parameter_list>(<param><decl><type><name>ChildNode</name></type> <name>insertedChild</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// See if insertion caused this node to be unnormalized.</comment>
+        <if>if <condition>(<expr><call><name><name>insertedChild</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>prev</name> =<init> <expr><call><name><name>insertedChild</name>.<name>previousSibling</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>next</name> =<init> <expr><name><name>insertedChild</name>.<name>nextSibling</name></name></expr></init></decl>;</decl_stmt>
+            <comment type="line">// If an adjacent sibling of the new child is a text node,</comment>
+            <comment type="line">// flag this node as unnormalized.</comment>
+            <if>if <condition>(<expr>(<name>prev</name> != <name>null</name> &amp;&amp; <call><name><name>prev</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name>) ||
+                (<name>next</name> != <name>null</name> &amp;&amp; <call><name><name>next</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name>)</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>isNormalized</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then>
+        <else>else <block>{
+            <comment type="line">// If the new child is not normalized,</comment>
+            <comment type="line">// then this node is inherently not normalized.</comment>
+            <if>if <condition>(<expr>!<call><name><name>insertedChild</name>.<name>isNormalized</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>isNormalized</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+    }</block></function> <comment type="line">// checkNormalizationAfterInsert(ChildNode)</comment>
+
+    <comment type="javadoc">/**
+     * Checks the normalized of this node after removing a child.
+     * If the removed child causes this node to be unnormalized, then this
+     * node is flagged accordingly.
+     * The conditions for changing the normalized state are:
+     * &lt;ul&gt;
+     * &lt;li&gt;The removed child had two adjacent siblings that were text nodes.
+     * &lt;/ul&gt;
+     *
+     * @param previousSibling the previous sibling of the removed child, or
+     * &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><name>void</name></type> <name>checkNormalizationAfterRemove</name><parameter_list>(<param><decl><type><name>ChildNode</name></type> <name>previousSibling</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// See if removal caused this node to be unnormalized.</comment>
+        <comment type="line">// If the adjacent siblings of the removed child were both text nodes,</comment>
+        <comment type="line">// flag this node as unnormalized.</comment>
+        <if>if <condition>(<expr><name>previousSibling</name> != <name>null</name> &amp;&amp;
+            <call><name><name>previousSibling</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr>)</condition><then> <block>{
+
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>next</name> =<init> <expr><name><name>previousSibling</name>.<name>nextSibling</name></name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>next</name> != <name>null</name> &amp;&amp; <call><name><name>next</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>isNormalized</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+    }</block></function> <comment type="line">// checkNormalizationAfterRemove(ChildNode)</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Serialization methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Serialize object. */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><name>ObjectOutputStream</name></type> <name>out</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <comment type="line">// synchronize chilren</comment>
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// write object</comment>
+        <expr_stmt><expr><call><name><name>out</name>.<name>defaultWriteObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function> <comment type="line">// writeObject(ObjectOutputStream)</comment>
+
+    <comment type="javadoc">/** Deserialize object. */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>ois</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>ClassNotFoundException</name></expr></argument>, <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <comment type="line">// perform default deseralization</comment>
+        <expr_stmt><expr><call><name><name>ois</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// hardset synchildren - so we don't try to sync -</comment>
+        <comment type="line">// it does not make any sense to try to synchildren when we just</comment>
+        <comment type="line">// deserialize object.</comment>
+        <expr_stmt><expr><call><name>needsSyncChildren</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function> <comment type="line">// readObject(ObjectInputStream)</comment>
+
+
+}</block></class> <comment type="line">// class AttrImpl</comment>
+</unit>

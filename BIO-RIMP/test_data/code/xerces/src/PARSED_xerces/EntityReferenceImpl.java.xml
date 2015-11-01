@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\dom\EntityReferenceImpl.java"><comment type="block">/*
+ * Copyright 1999-2002,2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>URI</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DocumentType</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>EntityReference</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>NamedNodeMap</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Node</name></name>;</import>
+
+<comment type="javadoc">/**
+ * EntityReference models the XML &amp;entityname; syntax, when used for
+ * entities defined by the DOM. Entities hardcoded into XML, such as
+ * character entities, should instead have been translated into text
+ * by the code which generated the DOM tree.
+ * &lt;P&gt;
+ * An XML processor has the alternative of fully expanding Entities
+ * into the normal document tree. If it does so, no EntityReference nodes
+ * will appear.
+ * &lt;P&gt;
+ * Similarly, non-validating XML processors are not required to read
+ * or process entity declarations made in the external subset or
+ * declared in external parameter entities. Hence, some applications
+ * may not make the replacement value available for Parsed Entities 
+ * of these types.
+ * &lt;P&gt;
+ * EntityReference behaves as a read-only node, and the children of 
+ * the EntityReference (which reflect those of the Entity, and should
+ * also be read-only) give its replacement value, if any. They are 
+ * supposed to automagically stay in synch if the DocumentType is 
+ * updated with new values for the Entity.
+ * &lt;P&gt;
+ * The defined behavior makes efficient storage difficult for the DOM
+ * implementor. We can't just look aside to the Entity's definition
+ * in the DocumentType since those nodes have the wrong parent (unless
+ * we can come up with a clever "imaginary parent" mechanism). We
+ * must at least appear to clone those children... which raises the
+ * issue of keeping the reference synchronized with its parent.
+ * This leads me back to the "cached image of centrally defined data"
+ * solution, much as I dislike it.
+ * &lt;P&gt;
+ * For now I have decided, since REC-DOM-Level-1-19980818 doesn't
+ * cover this in much detail, that synchronization doesn't have to be
+ * considered while the user is deep in the tree. That is, if you're
+ * looking within one of the EntityReferennce's children and the Entity
+ * changes, you won't be informed; instead, you will continue to access
+ * the same object -- which may or may not still be part of the tree.
+ * This is the same behavior that obtains elsewhere in the DOM if the
+ * subtree you're looking at is deleted from its parent, so it's
+ * acceptable here. (If it really bothers folks, we could set things
+ * up so deleted subtrees are walked and marked invalid, but that's
+ * not part of the DOM's defined behavior.)
+ * &lt;P&gt;
+ * As a result, only the EntityReference itself has to be aware of
+ * changes in the Entity. And it can take advantage of the same
+ * structure-change-monitoring code I implemented to support
+ * DeepNodeList.
+ * 
+ * @xerces.internal
+ * 
+ * @author Arnaud  Le Hors, IBM
+ * @author Joe Kesselman, IBM
+ * @author Andy Clark, IBM
+ * @author Ralf Pfeiffer, IBM
+ * @version $Id: EntityReferenceImpl.java,v 1.27 2004/10/05 17:12:51 mrglavas Exp $
+ * @since  PR-DOM-Level-1-19980818.
+ */</comment>
+<class><specifier>public</specifier> class <name>EntityReferenceImpl</name> 
+<super><extends>extends <name>ParentNode</name></extends>
+<implements>implements <name>EntityReference</name></implements></super> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constants</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Serialization version. */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>-7381452955687102062L</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Name of Entity referenced */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>String</name></type> <name>name</name></decl>;</decl_stmt>
+    <comment type="javadoc">/** Base URI*/</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>String</name></type> <name>baseURI</name></decl>;</decl_stmt>
+    
+
+    <comment type="javadoc">/** Entity changes. */</comment>
+    <comment type="line">//protected int entityChanges = -1;	</comment>
+
+    <comment type="javadoc">/** Enable synchronize. */</comment>
+    <comment type="line">//protected boolean fEnableSynchronize = false;</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constructors</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Factory constructor. */</comment>
+    <constructor><specifier>public</specifier> <name>EntityReferenceImpl</name><parameter_list>(<param><decl><type><name>CoreDocumentImpl</name></type> <name>ownerDoc</name></decl></param>, <param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>ownerDoc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>name</name></name> = <name>name</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>isReadOnly</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>needsSyncChildren</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Node methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** 
+     * A short integer indicating what type of node this is. The named
+     * constants for this value are defined in the org.w3c.dom.Node interface.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>short</name></type> <name>getNodeType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the name of the entity referenced
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getNodeName</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>name</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Clone node. */</comment>
+    <function><type><specifier>public</specifier> <name>Node</name></type> <name>cloneNode</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>deep</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>EntityReferenceImpl</name></type> <name>er</name> =<init> <expr>(<name>EntityReferenceImpl</name>)<call><name><name>super</name>.<name>cloneNode</name></name><argument_list>(<argument><expr><name>deep</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>er</name>.<name>setReadOnly</name></name><argument_list>(<argument><expr>true</expr></argument>, <argument><expr><name>deep</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>er</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the absolute base URI of this node or null if the implementation
+     * wasn't able to obtain an absolute URI. Note: If the URI is malformed, a
+     * null is returned.
+     * 
+     * @return The absolute base URI of this node or null.
+     * @since DOM Level 3
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getBaseURI</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>baseURI</name> == <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>DocumentType</name></type> <name>doctype</name></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>NamedNodeMap</name></type> <name>entities</name></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>EntityImpl</name></type> <name>entDef</name></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>null</name> != (<name>doctype</name> = <call><name>getOwnerDocument</name><argument_list>()</argument_list></call>.<call><name>getDoctype</name><argument_list>()</argument_list></call>) &amp;&amp; 
+                <name>null</name> != (<name>entities</name> = <call><name><name>doctype</name>.<name>getEntities</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+
+                <expr_stmt><expr><name>entDef</name> = (<name>EntityImpl</name>)<call><name><name>entities</name>.<name>getNamedItem</name></name><argument_list>(<argument><expr><call><name>getNodeName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>entDef</name> !=<name>null</name></expr>)</condition><then> <block>{
+                    <return>return <expr><call><name><name>entDef</name>.<name>getBaseURI</name></name><argument_list>()</argument_list></call></expr>;</return>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then> <else>else <if>if <condition>(<expr><name>baseURI</name> != <name>null</name> &amp;&amp; <call><name><name>baseURI</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0</expr> )</condition><then> <block>{<comment type="line">// attribute value is always empty string</comment>
+            <try>try <block>{
+                <return>return <expr>new <call><name>URI</name><argument_list>(<argument><expr><name>baseURI</name></expr></argument>)</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+            }</block>
+            <catch>catch (<param><decl><type><name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>URI</name>.<name>MalformedURIException</name></name></type> <name>e</name></decl></param>)<block>{
+                <comment type="line">// REVISIT: what should happen in this case?</comment>
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></catch></try>
+        }</block></then></if></else></if>        
+        <return>return <expr><name>baseURI</name></expr>;</return>    
+    }</block></function>
+
+
+    <comment type="javadoc">/** NON-DOM: set base uri*/</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setBaseURI</name><parameter_list>(<param><decl><type><name>String</name></type> <name>uri</name></decl></param>)</parameter_list><block>{
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>baseURI</name> = <name>uri</name></expr>;</expr_stmt>
+    }</block></function>
+    
+	<comment type="javadoc">/**
+	 * NON-DOM: compute string representation of the entity reference.
+     * This method is used to retrieve a string value for an attribute node that has child nodes. 
+	 * @return String representing a value of this entity ref. or 
+     *          null if any node other than EntityReference, Text is encountered
+     *          during computation
+	 */</comment>
+    <function><type><specifier>protected</specifier> <name>String</name></type> <name>getEntityRefValue</name> <parameter_list>()</parameter_list><block>{
+        <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then><block>{
+            <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+       
+        <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr>""</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>firstChild</name> != <name>null</name></expr>)</condition><then><block>{
+          <if>if <condition>(<expr><call><name><name>firstChild</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>)</condition><then><block>{
+              <expr_stmt><expr><name>value</name> = ((<name>EntityReferenceImpl</name>)<name>firstChild</name>).<call><name>getEntityRefValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then>
+          <else>else <if>if <condition>(<expr><call><name><name>firstChild</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr>)</condition><then><block>{
+            <expr_stmt><expr><name>value</name> = <call><name><name>firstChild</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then>
+          <else>else <block>{
+             <comment type="line">// invalid to have other types of nodes in attr value</comment>
+            <return>return <expr><name>null</name></expr>;</return>
+          }</block></else></if></else></if>
+          
+          <if>if <condition>(<expr><name><name>firstChild</name>.<name>nextSibling</name></name> == <name>null</name></expr>)</condition><then><block>{
+            <return>return <expr><name>value</name></expr>;</return>
+          }</block></then>
+          <else>else <block>{
+            <decl_stmt><decl><type><name>StringBuffer</name></type> <name>buff</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>ChildNode</name></type> <name>next</name> =<init> <expr><name><name>firstChild</name>.<name>nextSibling</name></name></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><name>next</name> != <name>null</name></expr>)</condition><block>{   
+            
+                <if>if <condition>(<expr><call><name><name>next</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>ENTITY_REFERENCE_NODE</name></name></expr>)</condition><then><block>{
+                   <expr_stmt><expr><name>value</name> = ((<name>EntityReferenceImpl</name>)<name>next</name>).<call><name>getEntityRefValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <if>if <condition>(<expr><call><name><name>next</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>TEXT_NODE</name></name></expr>)</condition><then><block>{
+                  <expr_stmt><expr><name>value</name> = <call><name><name>next</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <comment type="line">// invalid to have other types of nodes in attr value</comment>
+                    <return>return <expr><name>null</name></expr>;</return>
+                }</block></else></if></else></if>
+                <expr_stmt><expr><call><name><name>buff</name>.<name>append</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>next</name> = <name><name>next</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+
+            }</block></while>
+            <return>return <expr><call><name><name>buff</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>  
+          }</block></else></if>   
+        }</block></then></if> 
+        <return>return <expr>""</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * EntityReference's children are a reflection of those defined in the
+     * named Entity. This method creates them if they haven't been created yet.
+     * This doesn't support editing the Entity though, since this only called
+     * once for all.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>synchronizeChildren</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// no need to synchronize again</comment>
+        <expr_stmt><expr><call><name>needsSyncChildren</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>DocumentType</name></type> <name>doctype</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>NamedNodeMap</name></type> <name>entities</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>EntityImpl</name></type> <name>entDef</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>null</name> != (<name>doctype</name> = <call><name>getOwnerDocument</name><argument_list>()</argument_list></call>.<call><name>getDoctype</name><argument_list>()</argument_list></call>) &amp;&amp; 
+            <name>null</name> != (<name>entities</name> = <call><name><name>doctype</name>.<name>getEntities</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+
+            <expr_stmt><expr><name>entDef</name> = (<name>EntityImpl</name>)<call><name><name>entities</name>.<name>getNamedItem</name></name><argument_list>(<argument><expr><call><name>getNodeName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// No Entity by this name, stop here.</comment>
+            <if>if <condition>(<expr><name>entDef</name> == <name>null</name></expr>)</condition><then>
+                <return>return;</return></then></if>
+
+            <comment type="line">// If entity's definition exists, clone its kids</comment>
+            <expr_stmt><expr><call><name>isReadOnly</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>Node</name></type> <name>defkid</name> =<init> <expr><call><name><name>entDef</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init>
+                <condition><expr><name>defkid</name> != <name>null</name></expr>;</condition>
+                <incr><expr><name>defkid</name> = <call><name><name>defkid</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+                <decl_stmt><decl><type><name>Node</name></type> <name>newkid</name> =<init> <expr><call><name><name>defkid</name>.<name>cloneNode</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>insertBefore</name><argument_list>(<argument><expr><name>newkid</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+            <expr_stmt><expr><call><name>setReadOnly</name><argument_list>(<argument><expr>true</expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * NON-DOM: sets the node and its children value.     
+     * &lt;P&gt;
+     * Note: make sure that entity reference and its kids could be set readonly.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setReadOnly</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>readOnly</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>deep</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name>needsSyncData</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>synchronizeData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>deep</name></expr>)</condition><then> <block>{
+
+            <if>if <condition>(<expr><call><name>needsSyncChildren</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>synchronizeChildren</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <comment type="line">// Recursively set kids</comment>
+            <for>for (<init><decl><type><name>ChildNode</name></type> <name>mykid</name> =<init> <expr><name>firstChild</name></expr></init></decl>;</init>
+                 <condition><expr><name>mykid</name> != <name>null</name></expr>;</condition>
+                 <incr><expr><name>mykid</name> = <name><name>mykid</name>.<name>nextSibling</name></name></expr></incr>) <block>{
+                     
+                <expr_stmt><expr><call><name><name>mykid</name>.<name>setReadOnly</name></name><argument_list>(<argument><expr><name>readOnly</name></expr></argument>,<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                
+            }</block></for>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>isReadOnly</name><argument_list>(<argument><expr><name>readOnly</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function> <comment type="line">// setReadOnly(boolean,boolean)</comment>
+
+
+    <comment type="javadoc">/**
+     * Enable the synchronize method which may do cloning. This method is enabled
+     * when the parser is done with an EntityReference.
+    /***
+    // revisit: enable editing of Entity
+    public void enableSynchronize(boolean enableSynchronize) {
+        fEnableSynchronize= enableSynchronize;
+    }
+    /***/</comment>
+
+    <comment type="javadoc">/**
+     * EntityReference's children are a reflection of those defined in the
+     * named Entity. This method updates them if the Entity is changed.
+     * &lt;P&gt;
+     * It is unclear what the least-cost resynch mechanism is.
+     * If we expect the kids to be shallow, and/or expect changes
+     * to the Entity contents to be rare, wiping them all out
+     * and recloning is simplest.
+     * &lt;P&gt;
+     * If we expect them to be deep,
+     * it might be better to first decide which kids (if any)
+     * persist, and keep the ones (if any) that are unchanged
+     * rather than doing all the work of cloning them again.
+     * But that latter gets into having to convolve the two child lists,
+     * insert new information in the right order (and possibly reorder
+     * the existing kids), and a few other complexities that I really
+     * don't want to deal with in this implementation.
+     * &lt;P&gt;
+     * Note that if we decide that we need to update the EntityReference's
+     * contents, we have to turn off the readOnly flag temporarily to do so.
+     * When we get around to adding multitasking support, this whole method
+     * should probably be an atomic operation.
+     * 
+     * @see DocumentTypeImpl
+     * @see EntityImpl
+     */</comment>
+    <comment type="line">// The Xerces parser invokes callbacks for startEnityReference</comment>
+    <comment type="line">// the parsed value of the entity EACH TIME, so it is actually </comment>
+    <comment type="line">// easier to create the nodes through the callbacks rather than</comment>
+    <comment type="line">// clone the Entity.</comment>
+    <comment type="javadoc">/***
+    // revisit: enable editing of Entity
+    private void synchronize() {
+        if (!fEnableSynchronize) {
+            return;
+        }
+        DocumentType doctype;
+        NamedNodeMap entities;
+        EntityImpl entDef;
+        if (null != (doctype = getOwnerDocument().getDoctype()) &amp;&amp; 
+            null != (entities = doctype.getEntities())) {
+            
+            entDef = (EntityImpl)entities.getNamedItem(getNodeName());
+
+            // No Entity by this name. If we had a change count, reset it.
+            if(null==entDef)
+                entityChanges=-1;
+
+            // If no kids availalble, wipe any pre-existing children.
+            // (See discussion above.)
+            // Note that we have to use the superclass to avoid recursion
+            // through Synchronize.
+            readOnly=false;
+            if(null==entDef || !entDef.hasChildNodes())
+                for(Node kid=super.getFirstChild();
+                    kid!=null;
+                    kid=super.getFirstChild())
+                    removeChild(kid);
+
+            // If entity's definition changed, clone its kids
+            // (See discussion above.)
+            if(null!=entDef &amp;&amp; entDef.changes!=entityChanges) {
+                for(Node defkid=entDef.getFirstChild();
+                    defkid!=null;
+                    defkid=defkid.getNextSibling()) {
+                    
+                    NodeImpl newkid=(NodeImpl) defkid.cloneNode(true);
+                    newkid.setReadOnly(true,true);
+                    insertBefore(newkid,null);
+                }
+                entityChanges=entDef.changes;
+            }
+            readOnly=true;
+        }
+    }
+     /***/</comment>
+
+
+}</block></class> <comment type="line">// class EntityReferenceImpl</comment>
+</unit>

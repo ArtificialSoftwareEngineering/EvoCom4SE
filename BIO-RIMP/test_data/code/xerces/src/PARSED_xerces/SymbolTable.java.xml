@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\util\SymbolTable.java"><comment type="block">/*
+ * Copyright 2000-2002,2004,2005 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name></name>;</package>
+
+<comment type="javadoc">/**
+ * This class is a symbol table implementation that guarantees that
+ * strings used as identifiers are unique references. Multiple calls
+ * to &lt;code&gt;addSymbol&lt;/code&gt; will always return the same string
+ * reference.
+ * &lt;p&gt;
+ * The symbol table performs the same task as &lt;code&gt;String.intern()&lt;/code&gt;
+ * with the following differences:
+ * &lt;ul&gt;
+ *  &lt;li&gt;
+ *   A new string object does not need to be created in order to
+ *   retrieve a unique reference. Symbols can be added by using
+ *   a series of characters in a character array.
+ *  &lt;/li&gt;
+ *  &lt;li&gt;
+ *   Users of the symbol table can provide their own symbol hashing
+ *   implementation. For example, a simple string hashing algorithm
+ *   may fail to produce a balanced set of hashcodes for symbols
+ *   that are &lt;em&gt;mostly&lt;/em&gt; unique. Strings with similar leading
+ *   characters are especially prone to this poor hashing behavior.
+ *  &lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * An instance of &lt;code&gt;SymbolTable&lt;/code&gt; has two parameters that affect its
+ * performance: &lt;i&gt;initial capacity&lt;/i&gt; and &lt;i&gt;load factor&lt;/i&gt;.  The
+ * &lt;i&gt;capacity&lt;/i&gt; is the number of &lt;i&gt;buckets&lt;/i&gt; in the SymbolTable, and the
+ * &lt;i&gt;initial capacity&lt;/i&gt; is simply the capacity at the time the SymbolTable
+ * is created.  Note that the SymbolTable is &lt;i&gt;open&lt;/i&gt;: in the case of a "hash
+ * collision", a single bucket stores multiple entries, which must be searched
+ * sequentially.  The &lt;i&gt;load factor&lt;/i&gt; is a measure of how full the SymbolTable
+ * is allowed to get before its capacity is automatically increased.
+ * When the number of entries in the SymbolTable exceeds the product of the load
+ * factor and the current capacity, the capacity is increased by calling the
+ * &lt;code&gt;rehash&lt;/code&gt; method.&lt;p&gt;
+ *
+ * Generally, the default load factor (.75) offers a good tradeoff between
+ * time and space costs.  Higher values decrease the space overhead but
+ * increase the time cost to look up an entry (which is reflected in most
+ * &lt;tt&gt;SymbolTable&lt;/tt&gt; operations, including &lt;tt&gt;addSymbol&lt;/tt&gt; and &lt;tt&gt;containsSymbol&lt;/tt&gt;).&lt;p&gt;
+ *
+ * The initial capacity controls a tradeoff between wasted space and the
+ * need for &lt;code&gt;rehash&lt;/code&gt; operations, which are time-consuming.
+ * No &lt;code&gt;rehash&lt;/code&gt; operations will &lt;i&gt;ever&lt;/i&gt; occur if the initial
+ * capacity is greater than the maximum number of entries the
+ * &lt;tt&gt;Hashtable&lt;/tt&gt; will contain divided by its load factor.  However,
+ * setting the initial capacity too high can waste space.&lt;p&gt;
+ *
+ * If many entries are to be made into a &lt;code&gt;SymbolTable&lt;/code&gt;, 
+ * creating it with a sufficiently large capacity may allow the 
+ * entries to be inserted more efficiently than letting it perform 
+ * automatic rehashing as needed to grow the table. &lt;p&gt;
+
+ * @see SymbolHash
+ *
+ * @author Andy Clark
+ * @author John Kim, IBM
+ *
+ * @version $Id: SymbolTable.java,v 1.10 2005/03/14 23:09:35 mrglavas Exp $
+ */</comment>
+<class><specifier>public</specifier> class <name>SymbolTable</name> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constants</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Default table size. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TABLE_SIZE</name> =<init> <expr>101</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Buckets. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>Entry</name><index>[]</index></type> <name>fBuckets</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** actual table size **/</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>int</name></type> <name>fTableSize</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The total number of entries in the hash table. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>transient</name> <name>int</name></type> <name>fCount</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The table is rehashed when its size exceeds this threshold.  (The
+     * value of this field is (int)(capacity * loadFactor).) */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>int</name></type> <name>fThreshold</name></decl>;</decl_stmt>
+							 
+    <comment type="javadoc">/** The load factor for the SymbolTable. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>float</name></type> <name>fLoadFactor</name></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constructors</comment>
+    <comment type="line">//</comment>
+    
+    <comment type="javadoc">/**
+     * Constructs a new, empty SymbolTable with the specified initial 
+     * capacity and the specified load factor.
+     *
+     * @param      initialCapacity   the initial capacity of the SymbolTable.
+     * @param      loadFactor        the load factor of the SymbolTable.
+     * @throws     IllegalArgumentException  if the initial capacity is less
+     *             than zero, or if the load factor is nonpositive.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SymbolTable</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>, <param><decl><type><name>float</name></type> <name>loadFactor</name></decl></param>)</parameter_list> <block>{
+        
+        <if>if <condition>(<expr><name>initialCapacity</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Illegal Capacity: " + <name>initialCapacity</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr><name>loadFactor</name> &lt;= 0 || <call><name><name>Float</name>.<name>isNaN</name></name><argument_list>(<argument><expr><name>loadFactor</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Illegal Load: " + <name>loadFactor</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr><name>initialCapacity</name> == 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>initialCapacity</name> = 1</expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <expr_stmt><expr><name>fLoadFactor</name> = <name>loadFactor</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fTableSize</name> = <name>initialCapacity</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fBuckets</name> = new <name><name>Entry</name><index>[<expr><name>fTableSize</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fThreshold</name> = <call>(<name>int</name>)<argument_list>(<argument><expr><name>fTableSize</name> * <name>loadFactor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fCount</name> = 0</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new, empty SymbolTable with the specified initial capacity
+     * and default load factor, which is &lt;tt&gt;0.75&lt;/tt&gt;.
+     *
+     * @param     initialCapacity   the initial capacity of the hashtable.
+     * @throws    IllegalArgumentException if the initial capacity is less
+     *            than zero.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SymbolTable</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>initialCapacity</name></expr></argument>, <argument><expr>0.75f</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <comment type="javadoc">/**
+     * Constructs a new, empty SymbolTable with a default initial capacity (101)
+     * and load factor, which is &lt;tt&gt;0.75&lt;/tt&gt;. 
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SymbolTable</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>TABLE_SIZE</name></expr></argument>, <argument><expr>0.75f</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Public methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Adds the specified symbol to the symbol table and returns a
+     * reference to the unique symbol. If the symbol already exists,
+     * the previous symbol reference is returned instead, in order
+     * guarantee that symbol references remain unique.
+     *
+     * @param symbol The new symbol.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>addSymbol</name><parameter_list>(<param><decl><type><name>String</name></type> <name>symbol</name></decl></param>)</parameter_list> <block>{
+        
+        <comment type="line">// search for identical symbol</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>bucket</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><name>symbol</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></init></decl>;</init> <condition><expr><name>entry</name> != <name>null</name></expr>;</condition> <incr><expr><name>entry</name> = <name><name>entry</name>.<name>next</name></name></expr></incr>) <block>{
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>symbol</name>.<name>equals</name></name><argument_list>(<argument><expr><name>symbol</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr><name><name>entry</name>.<name>symbol</name></name></expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        
+        <if>if <condition>(<expr><name>fCount</name> &gt;= <name>fThreshold</name></expr>)</condition><then> <block>{
+            <comment type="line">// Rehash the table if the threshold is exceeded</comment>
+            <expr_stmt><expr><call><name>rehash</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>bucket</name> = <call><name>hash</name><argument_list>(<argument><expr><name>symbol</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr>;</expr_stmt>
+        }</block></then></if> 
+        
+        <comment type="line">// create new entry</comment>
+        <decl_stmt><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr>new <call><name>Entry</name><argument_list>(<argument><expr><name>symbol</name></expr></argument>, <argument><expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name> = <name>entry</name></expr>;</expr_stmt>
+        <expr_stmt><expr>++<name>fCount</name></expr>;</expr_stmt>
+        <return>return <expr><name><name>entry</name>.<name>symbol</name></name></expr>;</return>
+        
+    }</block></function> <comment type="line">// addSymbol(String):String</comment>
+
+    <comment type="javadoc">/**
+     * Adds the specified symbol to the symbol table and returns a
+     * reference to the unique symbol. If the symbol already exists,
+     * the previous symbol reference is returned instead, in order
+     * guarantee that symbol references remain unique.
+     *
+     * @param buffer The buffer containing the new symbol.
+     * @param offset The offset into the buffer of the new symbol.
+     * @param length The length of the new symbol in the buffer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>addSymbol</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+        
+        <comment type="line">// search for identical symbol</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>bucket</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr></init></decl>;</decl_stmt>
+        <label><name>OUTER</name>:</label> <for>for (<init><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></init></decl>;</init> <condition><expr><name>entry</name> != <name>null</name></expr>;</condition> <incr><expr><name>entry</name> = <name><name>entry</name>.<name>next</name></name></expr></incr>) <block>{
+            <if>if <condition>(<expr><name>length</name> == <name><name>entry</name>.<name>characters</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>buffer</name><index>[<expr><name>offset</name> + <name>i</name></expr>]</index></name> != <name><name>entry</name>.<name>characters</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then> <block>{
+                        <continue>continue OUTER;</continue>
+                    }</block></then></if>
+                }</block></for>
+                <return>return <expr><name><name>entry</name>.<name>symbol</name></name></expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        
+        <if>if <condition>(<expr><name>fCount</name> &gt;= <name>fThreshold</name></expr>)</condition><then> <block>{
+            <comment type="line">// Rehash the table if the threshold is exceeded</comment>
+            <expr_stmt><expr><call><name>rehash</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>bucket</name> = <call><name>hash</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr>;</expr_stmt>
+        }</block></then></if> 
+        
+        <comment type="line">// add new entry</comment>
+        <decl_stmt><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr>new <call><name>Entry</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name> = <name>entry</name></expr>;</expr_stmt>
+        <expr_stmt><expr>++<name>fCount</name></expr>;</expr_stmt>
+        <return>return <expr><name><name>entry</name>.<name>symbol</name></name></expr>;</return>
+        
+    }</block></function> <comment type="line">// addSymbol(char[],int,int):String</comment>
+
+    <comment type="javadoc">/**
+     * Returns a hashcode value for the specified symbol. The value
+     * returned by this method must be identical to the value returned
+     * by the &lt;code&gt;hash(char[],int,int)&lt;/code&gt; method when called
+     * with the character array that comprises the symbol string.
+     *
+     * @param symbol The symbol to hash.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hash</name><parameter_list>(<param><decl><type><name>String</name></type> <name>symbol</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>symbol</name>.<name>hashCode</name></name><argument_list>()</argument_list></call> &amp; 0x7FFFFFF</expr>;</return>
+    }</block></function> <comment type="line">// hash(String):int</comment>
+
+    <comment type="javadoc">/**
+     * Returns a hashcode value for the specified symbol information.
+     * The value returned by this method must be identical to the value
+     * returned by the &lt;code&gt;hash(String)&lt;/code&gt; method when called
+     * with the string object created from the symbol information.
+     *
+     * @param buffer The character buffer containing the symbol.
+     * @param offset The offset into the character buffer of the start
+     *               of the symbol.
+     * @param length The length of the symbol.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hash</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>int</name></type> <name>code</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+            <expr_stmt><expr><name>code</name> = <name>code</name> * 31 + <name><name>buffer</name><index>[<expr><name>offset</name> + <name>i</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>code</name> &amp; 0x7FFFFFF</expr>;</return>
+
+    }</block></function> <comment type="line">// hash(char[],int,int):int</comment>
+
+    <comment type="javadoc">/**
+     * Increases the capacity of and internally reorganizes this 
+     * SymbolTable, in order to accommodate and access its entries more 
+     * efficiently.  This method is called automatically when the 
+     * number of keys in the SymbolTable exceeds this hashtable's capacity 
+     * and load factor. 
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>rehash</name><parameter_list>()</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>int</name></type> <name>oldCapacity</name> =<init> <expr><name><name>fBuckets</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Entry</name><index>[]</index></type> <name>oldTable</name> =<init> <expr><name>fBuckets</name></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>newCapacity</name> =<init> <expr><name>oldCapacity</name> * 2 + 1</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Entry</name><index>[]</index></type> <name>newTable</name> =<init> <expr>new <name><name>Entry</name><index>[<expr><name>newCapacity</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><name>fThreshold</name> = <call>(<name>int</name>)<argument_list>(<argument><expr><name>newCapacity</name> * <name>fLoadFactor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fBuckets</name> = <name>newTable</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fTableSize</name> = <name><name>fBuckets</name>.<name>length</name></name></expr>;</expr_stmt>
+
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>oldCapacity</name></expr></init></decl> ;</init> <condition><expr><name>i</name>-- &gt; 0</expr> ;</condition><incr/>) <block>{
+            <for>for (<init><decl><type><name>Entry</name></type> <name>old</name> =<init> <expr><name><name>oldTable</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl> ;</init> <condition><expr><name>old</name> != <name>null</name></expr> ;</condition> <incr/>) <block>{
+                <decl_stmt><decl><type><name>Entry</name></type> <name>e</name> =<init> <expr><name>old</name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>old</name> = <name><name>old</name>.<name>next</name></name></expr>;</expr_stmt>
+
+                <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><name><name>e</name>.<name>characters</name></name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>e</name>.<name>characters</name>.<name>length</name></name></expr></argument>)</argument_list></call> % <name>newCapacity</name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name><name>e</name>.<name>next</name></name> = <name><name>newTable</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>newTable</name><index>[<expr><name>index</name></expr>]</index></name> = <name>e</name></expr>;</expr_stmt>
+            }</block></for>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns true if the symbol table already contains the specified
+     * symbol.
+     *
+     * @param symbol The symbol to look for.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsSymbol</name><parameter_list>(<param><decl><type><name>String</name></type> <name>symbol</name></decl></param>)</parameter_list> <block>{
+
+        <comment type="line">// search for identical symbol</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>bucket</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><name>symbol</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>symbol</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <label><name>OUTER</name>:</label> <for>for (<init><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></init></decl>;</init> <condition><expr><name>entry</name> != <name>null</name></expr>;</condition> <incr><expr><name>entry</name> = <name><name>entry</name>.<name>next</name></name></expr></incr>) <block>{
+            <if>if <condition>(<expr><name>length</name> == <name><name>entry</name>.<name>characters</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><call><name><name>symbol</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> != <name><name>entry</name>.<name>characters</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then> <block>{
+                        <continue>continue OUTER;</continue>
+                    }</block></then></if>
+                }</block></for>
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></for>
+
+        <return>return <expr>false</expr>;</return>
+
+    }</block></function> <comment type="line">// containsSymbol(String):boolean</comment>
+
+    <comment type="javadoc">/**
+     * Returns true if the symbol table already contains the specified
+     * symbol.
+     *
+     * @param buffer The buffer containing the symbol to look for.
+     * @param offset The offset into the buffer.
+     * @param length The length of the symbol in the buffer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsSymbol</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+
+        <comment type="line">// search for identical symbol</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>bucket</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call> % <name>fTableSize</name></expr></init></decl>;</decl_stmt>
+        <label><name>OUTER</name>:</label> <for>for (<init><decl><type><name>Entry</name></type> <name>entry</name> =<init> <expr><name><name>fBuckets</name><index>[<expr><name>bucket</name></expr>]</index></name></expr></init></decl>;</init> <condition><expr><name>entry</name> != <name>null</name></expr>;</condition> <incr><expr><name>entry</name> = <name><name>entry</name>.<name>next</name></name></expr></incr>) <block>{
+            <if>if <condition>(<expr><name>length</name> == <name><name>entry</name>.<name>characters</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>buffer</name><index>[<expr><name>offset</name> + <name>i</name></expr>]</index></name> != <name><name>entry</name>.<name>characters</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then> <block>{
+                        <continue>continue OUTER;</continue>
+                    }</block></then></if>
+                }</block></for>
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></for>
+
+        <return>return <expr>false</expr>;</return>
+
+    }</block></function> <comment type="line">// containsSymbol(char[],int,int):boolean</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Classes</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * This class is a symbol table entry. Each entry acts as a node
+     * in a linked list.
+     */</comment>
+    <class><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Entry</name> <block>{
+
+        <comment type="line">//</comment>
+        <comment type="line">// Data</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/** Symbol. */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <name>String</name></type> <name>symbol</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Symbol characters. This information is duplicated here for
+         * comparison performance.
+         */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <name>char</name><index>[]</index></type> <name>characters</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/** The next entry. */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <name>Entry</name></type> <name>next</name></decl>;</decl_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">// Constructors</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/**
+         * Constructs a new entry from the specified symbol and next entry
+         * reference.
+         */</comment>
+        <constructor><specifier>public</specifier> <name>Entry</name><parameter_list>(<param><decl><type><name>String</name></type> <name>symbol</name></decl></param>, <param><decl><type><name>Entry</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>symbol</name></name> = <call><name><name>symbol</name>.<name>intern</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>characters</name> = new <name><name>char</name><index>[<expr><call><name><name>symbol</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>symbol</name>.<name>getChars</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name><name>characters</name>.<name>length</name></name></expr></argument>, <argument><expr><name>characters</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>next</name></name> = <name>next</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Constructs a new entry from the specified symbol information and
+         * next entry reference.
+         */</comment>
+        <constructor><specifier>public</specifier> <name>Entry</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>ch</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>, <param><decl><type><name>Entry</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>characters</name> = new <name><name>char</name><index>[<expr><name>length</name></expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>characters</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>symbol</name> = new <call><name>String</name><argument_list>(<argument><expr><name>characters</name></expr></argument>)</argument_list></call>.<call><name>intern</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>next</name></name> = <name>next</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+    }</block></class> <comment type="line">// class Entry</comment>
+
+}</block></class> <comment type="line">// class SymbolTable</comment>
+</unit>

@@ -1,0 +1,884 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xml\serialize\HTMLSerializer.java"><comment type="block">/*
+ * Copyright 1999-2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+
+<comment type="line">// Sep 14, 2000:</comment>
+<comment type="line">//  Fixed serializer to report IO exception directly, instead at</comment>
+<comment type="line">//  the end of document processing.</comment>
+<comment type="line">//  Reported by Patrick Higgins &lt;phiggins@transzap.com&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Fixed bug in startDocument not calling prepare.</comment>
+<comment type="line">//  Reported by Mikael Staldal &lt;d96-mst-ingen-reklam@d.kth.se&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Added ability to omit DOCTYPE declaration.</comment>
+<comment type="line">// Sep 1, 2000:</comment>
+<comment type="line">//   If no output format is provided the serializer now defaults</comment>
+<comment type="line">//   to ISO-8859-1 encoding. Reported by Mikael Staldal</comment>
+<comment type="line">//   &lt;d96-mst@d.kth.se&gt;</comment>
+
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xml</name>.<name>serialize</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name>.<name>DOMMessageFormatter</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Enumeration</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Attr</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Element</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>NamedNodeMap</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Node</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>AttributeList</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>Attributes</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>SAXException</name></name>;</import>
+
+
+<comment type="javadoc">/**
+ * Implements an HTML/XHTML serializer supporting both DOM and SAX
+ * pretty serializing. HTML/XHTML mode is determined in the
+ * constructor.  For usage instructions see {@link Serializer}.
+ * &lt;p&gt;
+ * If an output stream is used, the encoding is taken from the
+ * output format (defaults to &lt;tt&gt;UTF-8&lt;/tt&gt;). If a writer is
+ * used, make sure the writer uses the same encoding (if applies)
+ * as specified in the output format.
+ * &lt;p&gt;
+ * The serializer supports both DOM and SAX. DOM serializing is done
+ * by calling {@link #serialize} and SAX serializing is done by firing
+ * SAX events and using the serializer as a document handler.
+ * &lt;p&gt;
+ * If an I/O exception occurs while serializing, the serializer
+ * will not throw an exception directly, but only throw it
+ * at the end of serializing (either DOM or SAX's {@link
+ * org.xml.sax.DocumentHandler#endDocument}.
+ * &lt;p&gt;
+ * For elements that are not specified as whitespace preserving,
+ * the serializer will potentially break long text lines at space
+ * boundaries, indent lines, and serialize elements on separate
+ * lines. Line terminators will be regarded as spaces, and
+ * spaces at beginning of line will be stripped.
+ * &lt;p&gt;
+ * XHTML is slightly different than HTML:
+ * &lt;ul&gt;
+ * &lt;li&gt;Element/attribute names are lower case and case matters
+ * &lt;li&gt;Attributes must specify value, even if empty string
+ * &lt;li&gt;Empty elements must have '/' in empty tag
+ * &lt;li&gt;Contents of SCRIPT and STYLE elements serialized as CDATA
+ * &lt;/ul&gt;
+ *
+ * @deprecated This class was deprecated in Xerces 2.6.2. It is
+ * recommended that new applications use JAXP's Transformation API 
+ * for XML (TrAX) for serializing HTML. See the Xerces documentation
+ * for more information.
+ * @version $Revision: 1.28 $ $Date: 2004/09/06 22:57:13 $
+ * @author &lt;a href="mailto:arkin@intalio.com"&gt;Assaf Arkin&lt;/a&gt;
+ * @see Serializer
+ */</comment>
+<class><specifier>public</specifier> class <name>HTMLSerializer</name>
+    <super><extends>extends <name>BaseMarkupSerializer</name></extends></super>
+<block>{
+
+
+    <comment type="javadoc">/**
+     * True if serializing in XHTML format.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>_xhtml</name></decl>;</decl_stmt>
+
+
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>XHTMLNamespace</name> =<init> <expr>"http://www.w3.org/1999/xhtml"</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// for users to override XHTMLNamespace if need be.</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>fUserXHTMLNamespace</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new HTML/XHTML serializer depending on the value of
+     * &lt;tt&gt;xhtml&lt;/tt&gt;. The serializer cannot be used without calling
+     * {@link #setOutputCharStream} or {@link #setOutputByteStream} first.
+     *
+     * @param xhtml True if XHTML serializing
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>HTMLSerializer</name><parameter_list>( <param><decl><type><name>boolean</name></type> <name>xhtml</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>format</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>_xhtml</name> = <name>xhtml</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HTMLSerializer</name><parameter_list>()</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>( <argument><expr>false</expr></argument>, <argument><expr>new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>HTML</name></name></expr></argument>, <argument><expr>"ISO-8859-1"</expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HTMLSerializer</name><parameter_list>( <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>( <argument><expr>false</expr></argument>, <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>HTML</name></name></expr></argument>, <argument><expr>"ISO-8859-1"</expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified writer
+     * using the specified output format. If &lt;tt&gt;format&lt;/tt&gt; is null,
+     * will use a default output format.
+     *
+     * @param writer The writer to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HTMLSerializer</name><parameter_list>( <param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>( <argument><expr>false</expr></argument>, <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>HTML</name></name></expr></argument>, <argument><expr>"ISO-8859-1"</expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setOutputCharStream</name><argument_list>( <argument><expr><name>writer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified output
+     * stream using the specified output format. If &lt;tt&gt;format&lt;/tt&gt;
+     * is null, will use a default output format.
+     *
+     * @param output The output stream to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HTMLSerializer</name><parameter_list>( <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>( <argument><expr>false</expr></argument>, <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>HTML</name></name></expr></argument>, <argument><expr>"ISO-8859-1"</expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setOutputByteStream</name><argument_list>( <argument><expr><name>output</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setOutputFormat</name><parameter_list>( <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list>
+    <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>setOutputFormat</name></name><argument_list>( <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>HTML</name></name></expr></argument>, <argument><expr>"ISO-8859-1"</expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// Set  value for alternate XHTML namespace.</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setXHTMLNamespace</name><parameter_list>(<param><decl><type><name>String</name></type> <name>newNamespace</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>fUserXHTMLNamespace</name> = <name>newNamespace</name></expr>;</expr_stmt>
+    }</block></function> <comment type="line">// setXHTMLNamespace(String)</comment>
+
+    <comment type="line">//-----------------------------------------//</comment>
+    <comment type="line">// SAX content handler serializing methods //</comment>
+    <comment type="line">//-----------------------------------------//</comment>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>startElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                              <param><decl><type><name>String</name></type> <name>rawName</name></decl></param>, <param><decl><type><name>Attributes</name></type> <name>attrs</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>preserveSpace</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>htmlName</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>addNSAttr</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <if>if <condition>( <expr><name>_printer</name> == <name>null</name></expr> )</condition><then>
+            	<throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>( 
+				    <argument><expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+				    <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"NoWriterSupplied"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw></then></if>
+
+            <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>( <expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr> )</condition><then> <block>{
+                <comment type="line">// If this is the root element handle it differently.</comment>
+                <comment type="line">// If the first root element in the document, serialize</comment>
+                <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+                <comment type="line">// to that of the output format.</comment>
+                <if>if <condition>( <expr>! <name>_started</name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr>(<name>localName</name> == <name>null</name> || <call><name><name>localName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) 
+                        ? <name>rawName</name> : <name>localName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></then> <else>else <block>{
+                <comment type="line">// For any other element, if first in parent, then</comment>
+                <comment type="line">// close parent's opening tag and use the parnet's</comment>
+                <comment type="line">// space preserving.</comment>
+                <if>if <condition>( <expr><name><name>state</name>.<name>empty</name></name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// Indent this element on a new line if the first</comment>
+                <comment type="line">// content of the parent element or immediately</comment>
+                <comment type="line">// following an element.</comment>
+                <if>if <condition>( <expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                     ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> )</expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></else></if>
+            <expr_stmt><expr><name>preserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+            <comment type="line">// Do not change the current element state yet.</comment>
+            <comment type="line">// This only happens in endElement().</comment>
+            
+            <comment type="line">// As per SAX2, the namespace URI is an empty string if the element has no</comment>
+            <comment type="line">// namespace URI, or namespaces is turned off. The check against null protects</comment>
+            <comment type="line">// against broken SAX implementations, so I've left it there. - mrglavas</comment>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>hasNamespaceURI</name> =<init> <expr>(<name>namespaceURI</name> != <name>null</name> &amp;&amp; <call><name><name>namespaceURI</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0)</expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// SAX2: rawName (QName) could be empty string if </comment>
+            <comment type="line">// namespace-prefixes property is false.</comment>
+            <if>if <condition>( <expr><name>rawName</name> == <name>null</name> || <call><name><name>rawName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>rawName</name> = <name>localName</name></expr>;</expr_stmt>
+                <if>if <condition>( <expr><name>hasNamespaceURI</name></expr> )</condition><then> <block>{
+                    <decl_stmt><decl><type><name>String</name></type> <name>prefix</name></decl>;</decl_stmt>
+                    <expr_stmt><expr><name>prefix</name> = <call><name>getPrefix</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>prefix</name> != <name>null</name> &amp;&amp; <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0</expr> )</condition><then>
+                        <expr_stmt><expr><name>rawName</name> = <name>prefix</name> + ":" + <name>localName</name></expr>;</expr_stmt></then></if>
+                }</block></then></if>
+                <expr_stmt><expr><name>addNSAttr</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>( <expr>!<name>hasNamespaceURI</name></expr> )</condition><then>
+                <expr_stmt><expr><name>htmlName</name> = <name>rawName</name></expr>;</expr_stmt></then>
+            <else>else <block>{
+                <if>if <condition>( <expr><call><name><name>namespaceURI</name>.<name>equals</name></name><argument_list>( <argument><expr><name>XHTMLNamespace</name></expr></argument> )</argument_list></call> ||
+                        (<name>fUserXHTMLNamespace</name> != <name>null</name> &amp;&amp; <call><name><name>fUserXHTMLNamespace</name>.<name>equals</name></name><argument_list>(<argument><expr><name>namespaceURI</name></expr></argument>)</argument_list></call>)</expr> )</condition><then>
+                    <expr_stmt><expr><name>htmlName</name> = <name>localName</name></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><name>htmlName</name> = <name>null</name></expr>;</expr_stmt></else></if>
+            }</block></else></if>
+
+            <comment type="line">// XHTML: element names are lower case, DOM will be different</comment>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name><name>rawName</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>rawName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// For each attribute serialize it's name and value as one part,</comment>
+            <comment type="line">// separated with a space so the element can be broken on</comment>
+            <comment type="line">// multiple lines.</comment>
+            <if>if <condition>( <expr><name>attrs</name> != <name>null</name></expr> )</condition><then> <block>{
+                <for>for ( <init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr> ) <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>name</name> = <call><name><name>attrs</name>.<name>getQName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call>.<call><name>toLowerCase</name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = <call><name><name>attrs</name>.<name>getValue</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>_xhtml</name> || <name>hasNamespaceURI</name></expr> )</condition><then> <block>{
+                        <comment type="line">// XHTML: print empty string for null values.</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\"\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                    }</block></then> <else>else <block>{
+                        <comment type="line">// HTML: Empty values print as attribute name, no value.</comment>
+                        <comment type="line">// HTML: URI attributes will print unescaped</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><name>value</name> = ""</expr>;</expr_stmt>
+                        }</block></then></if>
+                        <if>if <condition>( <expr>!<call><name><name>_format</name>.<name>getPreserveEmptyAttributes</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isURI</name></name><argument_list>( <argument><expr><name>rawName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name>escapeURI</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isBoolean</name></name><argument_list>( <argument><expr><name>rawName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if></else></if></else></if>
+                    }</block></else></if>
+                }</block></for>
+            }</block></then></if>
+            <if>if <condition>( <expr><name>htmlName</name> != <name>null</name> &amp;&amp; <call><name><name>HTMLdtd</name>.<name>isPreserveSpace</name></name><argument_list>( <argument><expr><name>htmlName</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+                <expr_stmt><expr><name>preserveSpace</name> = true</expr>;</expr_stmt></then></if>
+
+            <if>if <condition>( <expr><name>addNSAttr</name></expr> )</condition><then> <block>{
+                <decl_stmt><decl><type><name>Enumeration</name></type> <name>keys</name></decl>;</decl_stmt>
+
+                <expr_stmt><expr><name>keys</name> = <call><name><name>_prefixes</name>.<name>keys</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <while>while <condition>( <expr><call><name><name>keys</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr> )</condition> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = (<name>String</name>) <call><name><name>keys</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>name</name> = (<name>String</name>) <call><name><name>_prefixes</name>.<name>get</name></name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><call><name><name>name</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"xmlns=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"xmlns:"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></while>
+            }</block></then></if>
+
+            <comment type="line">// Now it's time to enter a new element state</comment>
+            <comment type="line">// with the tag name and space preserving.</comment>
+            <comment type="line">// We still do not change the curent element state.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument>, <argument><expr><name>localName</name></expr></argument>, <argument><expr><name>rawName</name></expr></argument>, <argument><expr><name>preserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Prevents line breaks inside A/TD</comment>
+
+            <if>if <condition>( <expr><name>htmlName</name> != <name>null</name> &amp;&amp; ( <call><name><name>htmlName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"A"</expr></argument> )</argument_list></call> ||
+                                       <call><name><name>htmlName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"TD"</expr></argument> )</argument_list></call> )</expr> )</condition><then> <block>{
+                <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// Handle SCRIPT and STYLE specifically by changing the</comment>
+            <comment type="line">// state of the current element to CDATA (XHTML) or</comment>
+            <comment type="line">// unescaped (HTML).</comment>
+            <if>if <condition>( <expr><name>htmlName</name> != <name>null</name> &amp;&amp; ( <call><name><name>rawName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"SCRIPT"</expr></argument> )</argument_list></call> ||
+                                       <call><name><name>rawName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"STYLE"</expr></argument> )</argument_list></call> )</expr> )</condition><then> <block>{
+                <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                    <comment type="line">// XHTML: Print contents as CDATA section</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = true</expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// HTML: Print contents unescaped</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = true</expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block> <catch>catch ( <param><decl><type><name>IOException</name></type> <name>except</name></decl></param> ) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                            <param><decl><type><name>String</name></type> <name>rawName</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <try>try <block>{
+            <expr_stmt><expr><call><name>endElementIO</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument>, <argument><expr><name>localName</name></expr></argument>, <argument><expr><name>rawName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch ( <param><decl><type><name>IOException</name></type> <name>except</name></decl></param> ) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElementIO</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                              <param><decl><type><name>String</name></type> <name>rawName</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>htmlName</name></decl>;</decl_stmt>
+
+        <comment type="line">// Works much like content() with additions for closing</comment>
+        <comment type="line">// an element. Note the different checks for the closed</comment>
+        <comment type="line">// element's state and the parent element's state.</comment>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>unindent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>( <expr><name><name>state</name>.<name>namespaceURI</name></name> == <name>null</name> || <call><name><name>state</name>.<name>namespaceURI</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr> )</condition><then>
+            <expr_stmt><expr><name>htmlName</name> = <name><name>state</name>.<name>rawName</name></name></expr>;</expr_stmt></then>
+        <else>else <block>{
+            <if>if <condition>( <expr><call><name><name>state</name>.<name>namespaceURI</name>.<name>equals</name></name><argument_list>( <argument><expr><name>XHTMLNamespace</name></expr></argument> )</argument_list></call> ||
+                        (<name>fUserXHTMLNamespace</name> != <name>null</name> &amp;&amp; <call><name><name>fUserXHTMLNamespace</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>state</name>.<name>namespaceURI</name></name></expr></argument>)</argument_list></call>)</expr> )</condition><then>
+                <expr_stmt><expr><name>htmlName</name> = <name><name>state</name>.<name>localName</name></name></expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><name>htmlName</name> = <name>null</name></expr>;</expr_stmt></else></if>
+        }</block></else></if>
+
+        <if>if <condition>( <expr><name>_xhtml</name></expr>)</condition><then> <block>{
+            <if>if <condition>( <expr><name><name>state</name>.<name>empty</name></name></expr> )</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" /&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <comment type="line">// Must leave CData section first</comment>
+                <if>if <condition>( <expr><name><name>state</name>.<name>inCData</name></name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// XHTML: element names are lower case, DOM will be different</comment>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;/"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name><name>state</name>.<name>rawName</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then> <else>else <block>{
+            <if>if <condition>( <expr><name><name>state</name>.<name>empty</name></name></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            <comment type="line">// This element is not empty and that last content was</comment>
+            <comment type="line">// another element, so print a line break before that</comment>
+            <comment type="line">// last element and this element's closing tag.</comment>
+            <comment type="line">// [keith] Provided this is not an anchor.</comment>
+            <comment type="line">// HTML: some elements do not print closing tag (e.g. LI)</comment>
+            <if>if <condition>( <expr><name>htmlName</name> == <name>null</name> || ! <call><name><name>HTMLdtd</name>.<name>isOnlyOpening</name></name><argument_list>( <argument><expr><name>htmlName</name></expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                <if>if <condition>( <expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp; <name><name>state</name>.<name>afterElement</name></name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// Must leave CData section first (Illegal in HTML, but still)</comment>
+                <if>if <condition>( <expr><name><name>state</name>.<name>inCData</name></name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;/"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name><name>state</name>.<name>rawName</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+        <comment type="line">// Leave the element state and update that of the parent</comment>
+        <comment type="line">// (if we're not root) to not empty and after element.</comment>
+        <expr_stmt><expr><name>state</name> = <call><name>leaveElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// Temporary hack to prevent line breaks inside A/TD</comment>
+        <if>if <condition>( <expr><name>htmlName</name> == <name>null</name> || ( ! <call><name><name>htmlName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"A"</expr></argument> )</argument_list></call> &amp;&amp;
+                                   ! <call><name><name>htmlName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"TD"</expr></argument> )</argument_list></call> )</expr> )</condition><then>
+
+            <expr_stmt><expr><name><name>state</name>.<name>afterElement</name></name> = true</expr>;</expr_stmt></then></if>
+        <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+        <if>if <condition>( <expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr> )</condition><then>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+    }</block></function>
+
+
+    <comment type="line">//------------------------------------------//</comment>
+    <comment type="line">// SAX document handler serializing methods //</comment>
+    <comment type="line">//------------------------------------------//</comment>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>characters</name><parameter_list>( <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <comment type="line">// HTML: no CDATA section</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>content</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>super</name>.<name>characters</name></name><argument_list>( <argument><expr><name>chars</name></expr></argument>, <argument><expr><name>start</name></expr></argument>, <argument><expr><name>length</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch ( <param><decl><type><name>IOException</name></type> <name>except</name></decl></param> ) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>startElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>tagName</name></decl></param>, <param><decl><type><name>AttributeList</name></type> <name>attrs</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>preserveSpace</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <if>if <condition>( <expr><name>_printer</name> == <name>null</name></expr> )</condition><then>
+                <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>( 
+				    <argument><expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+				    <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"NoWriterSupplied"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw></then></if>
+
+
+            <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>( <expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr> )</condition><then> <block>{
+                <comment type="line">// If this is the root element handle it differently.</comment>
+                <comment type="line">// If the first root element in the document, serialize</comment>
+                <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+                <comment type="line">// to that of the output format.</comment>
+                <if>if <condition>( <expr>! <name>_started</name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></then> <else>else <block>{
+                <comment type="line">// For any other element, if first in parent, then</comment>
+                <comment type="line">// close parent's opening tag and use the parnet's</comment>
+                <comment type="line">// space preserving.</comment>
+                <if>if <condition>( <expr><name><name>state</name>.<name>empty</name></name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// Indent this element on a new line if the first</comment>
+                <comment type="line">// content of the parent element or immediately</comment>
+                <comment type="line">// following an element.</comment>
+                <if>if <condition>( <expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                     ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> )</expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></else></if>
+            <expr_stmt><expr><name>preserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+            <comment type="line">// Do not change the current element state yet.</comment>
+            <comment type="line">// This only happens in endElement().</comment>
+
+            <comment type="line">// XHTML: element names are lower case, DOM will be different</comment>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name><name>tagName</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// For each attribute serialize it's name and value as one part,</comment>
+            <comment type="line">// separated with a space so the element can be broken on</comment>
+            <comment type="line">// multiple lines.</comment>
+            <if>if <condition>( <expr><name>attrs</name> != <name>null</name></expr> )</condition><then> <block>{
+                <for>for ( <init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr> ) <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>name</name> = <call><name><name>attrs</name>.<name>getName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call>.<call><name>toLowerCase</name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = <call><name><name>attrs</name>.<name>getValue</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                        <comment type="line">// XHTML: print empty string for null values.</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\"\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                    }</block></then> <else>else <block>{
+                        <comment type="line">// HTML: Empty values print as attribute name, no value.</comment>
+                        <comment type="line">// HTML: URI attributes will print unescaped</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><name>value</name> = ""</expr>;</expr_stmt>
+                        }</block></then></if>
+                        <if>if <condition>( <expr>!<call><name><name>_format</name>.<name>getPreserveEmptyAttributes</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isURI</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name>escapeURI</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isBoolean</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if></else></if></else></if>
+                    }</block></else></if>
+                }</block></for>
+            }</block></then></if>
+            <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isPreserveSpace</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+                <expr_stmt><expr><name>preserveSpace</name> = true</expr>;</expr_stmt></then></if>
+
+            <comment type="line">// Now it's time to enter a new element state</comment>
+            <comment type="line">// with the tag name and space preserving.</comment>
+            <comment type="line">// We still do not change the curent element state.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>preserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Prevents line breaks inside A/TD</comment>
+            <if>if <condition>( <expr><call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"A"</expr></argument> )</argument_list></call> || <call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"TD"</expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// Handle SCRIPT and STYLE specifically by changing the</comment>
+            <comment type="line">// state of the current element to CDATA (XHTML) or</comment>
+            <comment type="line">// unescaped (HTML).</comment>
+            <if>if <condition>( <expr><call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"SCRIPT"</expr></argument> )</argument_list></call> ||
+                 <call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"STYLE"</expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                    <comment type="line">// XHTML: Print contents as CDATA section</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = true</expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// HTML: Print contents unescaped</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = true</expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block> <catch>catch ( <param><decl><type><name>IOException</name></type> <name>except</name></decl></param> ) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>tagName</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <expr_stmt><expr><call><name>endElement</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="line">//------------------------------------------//</comment>
+    <comment type="line">// Generic node serializing methods methods //</comment>
+    <comment type="line">//------------------------------------------//</comment>
+
+
+    <comment type="javadoc">/**
+     * Called to serialize the document's DOCTYPE by the root element.
+     * The document type declaration must name the root element,
+     * but the root element is only known when that element is serialized,
+     * and not at the start of the document.
+     * &lt;p&gt;
+     * This method will check if it has not been called before ({@link #_started}),
+     * will serialize the document type declaration, and will serialize all
+     * pre-root comments and PIs that were accumulated in the document
+     * (see {@link #serializePreRoot}). Pre-root will be serialized even if
+     * this is not the first root element of the document.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>startDocument</name><parameter_list>( <param><decl><type><name>String</name></type> <name>rootTagName</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl>;</decl_stmt>
+
+        <comment type="line">// Not supported in HTML/XHTML, but we still have to switch</comment>
+        <comment type="line">// out of DTD mode.</comment>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>leaveDTD</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>( <expr>! <name>_started</name></expr> )</condition><then> <block>{
+            <comment type="line">// If the public and system identifiers were not specified</comment>
+            <comment type="line">// in the output format, use the appropriate ones for HTML</comment>
+            <comment type="line">// or XHTML.</comment>
+            <if>if <condition>( <expr><name>_docTypePublicId</name> == <name>null</name> &amp;&amp; <name>_docTypeSystemId</name> == <name>null</name></expr> )</condition><then> <block>{
+                <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                    <expr_stmt><expr><name>_docTypePublicId</name> = <name><name>HTMLdtd</name>.<name>XHTMLPublicId</name></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>_docTypeSystemId</name> = <name><name>HTMLdtd</name>.<name>XHTMLSystemId</name></name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>_docTypePublicId</name> = <name><name>HTMLdtd</name>.<name>HTMLPublicId</name></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>_docTypeSystemId</name> = <name><name>HTMLdtd</name>.<name>HTMLSystemId</name></name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+
+            <if>if <condition>( <expr>! <call><name><name>_format</name>.<name>getOmitDocumentType</name></name><argument_list>()</argument_list></call></expr> )</condition><then> <block>{
+                <comment type="line">// XHTML: If public identifier and system identifier</comment>
+                <comment type="line">//  specified, print them, else print just system identifier</comment>
+                <comment type="line">// HTML: If public identifier specified, print it with</comment>
+                <comment type="line">//  system identifier, if specified.</comment>
+                <comment type="line">// XHTML requires that all element names are lower case, so the</comment>
+                <comment type="line">// root on the DOCTYPE must be 'html'. - mrglavas</comment>
+                <if>if <condition>( <expr><name>_docTypePublicId</name> != <name>null</name> &amp;&amp; ( ! <name>_xhtml</name> || <name>_docTypeSystemId</name> != <name>null</name> )</expr>  )</condition><then> <block>{
+                    <if>if <condition>(<expr><name>_xhtml</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE html PUBLIC "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then>
+                    <else>else <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE HTML PUBLIC "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                    <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypePublicId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>_docTypeSystemId</name> != <name>null</name></expr> )</condition><then> <block>{
+                        <if>if <condition>( <expr><name>_indenting</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"                      "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>' '</expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+                        <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypeSystemId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>( <expr><name>_docTypeSystemId</name> != <name>null</name></expr> )</condition><then> <block>{
+                    <if>if <condition>(<expr><name>_xhtml</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE html SYSTEM "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then>
+                    <else>else <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE HTML SYSTEM "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                    <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypeSystemId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if></else></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <expr_stmt><expr><name>_started</name> = true</expr>;</expr_stmt>
+        <comment type="line">// Always serialize these, even if not te first root element.</comment>
+        <expr_stmt><expr><call><name>serializePreRoot</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * Called to serialize a DOM element. Equivalent to calling {@link
+     * #startElement}, {@link #endElement} and serializing everything
+     * inbetween, but better optimized.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>serializeElement</name><parameter_list>( <param><decl><type><name>Element</name></type> <name>elem</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>Attr</name></type>         <name>attr</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>NamedNodeMap</name></type> <name>attrMap</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Node</name></type>         <name>child</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>preserveSpace</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>tagName</name></decl>;</decl_stmt>
+
+        <expr_stmt><expr><name>tagName</name> = <call><name><name>elem</name>.<name>getTagName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>( <expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr> )</condition><then> <block>{
+            <comment type="line">// If this is the root element handle it differently.</comment>
+            <comment type="line">// If the first root element in the document, serialize</comment>
+            <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+            <comment type="line">// to that of the output format.</comment>
+            <if>if <condition>( <expr>! <name>_started</name></expr> )</condition><then>
+                <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></then> <else>else <block>{
+            <comment type="line">// For any other element, if first in parent, then</comment>
+            <comment type="line">// close parent's opening tag and use the parnet's</comment>
+            <comment type="line">// space preserving.</comment>
+            <if>if <condition>( <expr><name><name>state</name>.<name>empty</name></name></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            <comment type="line">// Indent this element on a new line if the first</comment>
+            <comment type="line">// content of the parent element or immediately</comment>
+            <comment type="line">// following an element.</comment>
+            <if>if <condition>( <expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                 ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> )</expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></else></if>
+        <expr_stmt><expr><name>preserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+        <comment type="line">// Do not change the current element state yet.</comment>
+        <comment type="line">// This only happens in endElement().</comment>
+
+        <comment type="line">// XHTML: element names are lower case, DOM will be different</comment>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name><name>tagName</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+        <else>else
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Lookup the element's attribute, but only print specified</comment>
+        <comment type="line">// attributes. (Unspecified attributes are derived from the DTD.</comment>
+        <comment type="line">// For each attribute print it's name and value as one part,</comment>
+        <comment type="line">// separated with a space so the element can be broken on</comment>
+        <comment type="line">// multiple lines.</comment>
+        <expr_stmt><expr><name>attrMap</name> = <call><name><name>elem</name>.<name>getAttributes</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>( <expr><name>attrMap</name> != <name>null</name></expr> )</condition><then> <block>{
+            <for>for ( <init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <call><name><name>attrMap</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>attr</name> = (<name>Attr</name>) <call><name><name>attrMap</name>.<name>item</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>name</name> = <call><name><name>attr</name>.<name>getName</name></name><argument_list>()</argument_list></call>.<call><name>toLowerCase</name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>value</name> = <call><name><name>attr</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>( <expr><call><name><name>attr</name>.<name>getSpecified</name></name><argument_list>()</argument_list></call></expr> )</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                        <comment type="line">// XHTML: print empty string for null values.</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\"\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                    }</block></then> <else>else <block>{
+                        <comment type="line">// HTML: Empty values print as attribute name, no value.</comment>
+                        <comment type="line">// HTML: URI attributes will print unescaped</comment>
+                        <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><name>value</name> = ""</expr>;</expr_stmt>
+                        }</block></then></if>
+                        <if>if <condition>( <expr>!<call><name><name>_format</name>.<name>getPreserveEmptyAttributes</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isURI</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name>escapeURI</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isBoolean</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                        <else>else <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if></else></if></else></if>
+                    }</block></else></if>
+                }</block></then></if>
+            }</block></for>
+        }</block></then></if>
+        <if>if <condition>( <expr><call><name><name>HTMLdtd</name>.<name>isPreserveSpace</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr> )</condition><then>
+            <expr_stmt><expr><name>preserveSpace</name> = true</expr>;</expr_stmt></then></if>
+
+        <comment type="line">// If element has children, or if element is not an empty tag,</comment>
+        <comment type="line">// serialize an opening tag.</comment>
+        <if>if <condition>( <expr><call><name><name>elem</name>.<name>hasChildNodes</name></name><argument_list>()</argument_list></call> || ! <call><name><name>HTMLdtd</name>.<name>isEmptyTag</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+            <comment type="line">// Enter an element state, and serialize the children</comment>
+            <comment type="line">// one by one. Finally, end the element.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>preserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Prevents line breaks inside A/TD</comment>
+            <if>if <condition>( <expr><call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"A"</expr></argument> )</argument_list></call> || <call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"TD"</expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// Handle SCRIPT and STYLE specifically by changing the</comment>
+            <comment type="line">// state of the current element to CDATA (XHTML) or</comment>
+            <comment type="line">// unescaped (HTML).</comment>
+            <if>if <condition>( <expr><call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"SCRIPT"</expr></argument> )</argument_list></call> ||
+                 <call><name><name>tagName</name>.<name>equalsIgnoreCase</name></name><argument_list>( <argument><expr>"STYLE"</expr></argument> )</argument_list></call></expr> )</condition><then> <block>{
+                <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then> <block>{
+                    <comment type="line">// XHTML: Print contents as CDATA section</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = true</expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// HTML: Print contents unescaped</comment>
+                    <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = true</expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+            <expr_stmt><expr><name>child</name> = <call><name><name>elem</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <while>while <condition>( <expr><name>child</name> != <name>null</name></expr> )</condition> <block>{
+                <expr_stmt><expr><call><name>serializeNode</name><argument_list>( <argument><expr><name>child</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>child</name> = <call><name><name>child</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <expr_stmt><expr><call><name>endElementIO</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>unindent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// XHTML: Close empty tag with ' /&gt;' so it's XML and HTML compatible.</comment>
+            <comment type="line">// HTML: Empty tags are defined as such in DTD no in document.</comment>
+            <if>if <condition>( <expr><name>_xhtml</name></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" /&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            <comment type="line">// After element but parent element is no longer empty.</comment>
+            <expr_stmt><expr><name><name>state</name>.<name>afterElement</name></name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+            <if>if <condition>( <expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr> )</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></else></if>
+    }</block></function>
+
+
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>characters</name><parameter_list>( <param><decl><type><name>String</name></type> <name>text</name></decl></param> )</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+
+        <comment type="line">// HTML: no CDATA section</comment>
+        <expr_stmt><expr><name>state</name> = <call><name>content</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>super</name>.<name>characters</name></name><argument_list>( <argument><expr><name>text</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <function><type><specifier>protected</specifier> <name>String</name></type> <name>getEntityRef</name><parameter_list>( <param><decl><type><name>int</name></type> <name>ch</name></decl></param> )</parameter_list>
+    <block>{
+        <return>return <expr><call><name><name>HTMLdtd</name>.<name>fromChar</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</return>
+    }</block></function>
+
+
+    <function><type><specifier>protected</specifier> <name>String</name></type> <name>escapeURI</name><parameter_list>( <param><decl><type><name>String</name></type> <name>uri</name></decl></param> )</parameter_list>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name></decl>;</decl_stmt>
+
+        <comment type="line">// XXX  Apparently Netscape doesn't like if we escape the URI</comment>
+        <comment type="line">//      using %nn, so we leave it as is, just remove any quotes.</comment>
+        <expr_stmt><expr><name>index</name> = <call><name><name>uri</name>.<name>indexOf</name></name><argument_list>( <argument><expr>"\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>( <expr><name>index</name> &gt;= 0</expr> )</condition><then>
+            <return>return <expr><call><name><name>uri</name>.<name>substring</name></name><argument_list>( <argument><expr>0</expr></argument>, <argument><expr><name>index</name></expr></argument> )</argument_list></call></expr>;</return></then>
+        <else>else
+            <return>return <expr><name>uri</name></expr>;</return></else></if>
+    }</block></function>
+
+
+}</block></class>
+
+
+
+
+</unit>

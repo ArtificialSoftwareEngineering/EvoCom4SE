@@ -54,6 +54,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 			if(feasible){
 				//Hierarchy verification parents 
+				if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
 				if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 						if( clase.equals(sysType_tgt) ){
@@ -66,6 +67,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 				if(feasible){
 					//Hierarchy verification children
+					if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
 					if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 						for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
 							if( clase.equals(sysType_tgt) ){
@@ -127,6 +129,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 		//Hierarchy verification parents 
 		for( TypeDeclaration src_class : src ){
+			if( code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) != null )
 			if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
 				for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
 					for( TypeDeclaration tgt_class : tgt ){
@@ -141,6 +144,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 		//Hierarchy verification children
 		for( TypeDeclaration src_class : src ){
+			if( code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) != null )
 			if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
 				for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
 					for( TypeDeclaration tgt_class : tgt ){
@@ -205,6 +209,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 			if(feasible){
 				//Hierarchy verification parents 
+				if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null)
 				if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 						if( clase.equals(sysType_tgt) ){
@@ -217,6 +222,7 @@ public class GeneratingRefactorRDI extends GeneratingRefactor {
 
 				if(feasible){
 					//Hierarchy verification children
+					if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
 					if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 						for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
 							if( clase.equals(sysType_tgt) ){

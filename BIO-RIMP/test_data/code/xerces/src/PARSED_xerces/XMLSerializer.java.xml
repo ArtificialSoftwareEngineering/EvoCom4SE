@@ -1,0 +1,1472 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xml\serialize\XMLSerializer.java"><comment type="block">/*
+ * Copyright 1999-2002,2004,2005 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+
+
+<comment type="line">// Sep 14, 2000:</comment>
+<comment type="line">//  Fixed problem with namespace handling. Contributed by</comment>
+<comment type="line">//  David Blondeau &lt;blondeau@intalio.com&gt;</comment>
+<comment type="line">// Sep 14, 2000:</comment>
+<comment type="line">//  Fixed serializer to report IO exception directly, instead at</comment>
+<comment type="line">//  the end of document processing.</comment>
+<comment type="line">//  Reported by Patrick Higgins &lt;phiggins@transzap.com&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Fixed bug in startDocument not calling prepare.</comment>
+<comment type="line">//  Reported by Mikael Staldal &lt;d96-mst-ingen-reklam@d.kth.se&gt;</comment>
+<comment type="line">// Aug 21, 2000:</comment>
+<comment type="line">//  Added ability to omit DOCTYPE declaration.</comment>
+
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xml</name>.<name>serialize</name></name>;</package>
+
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Enumeration</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name>.<name>DOMMessageFormatter</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>NamespaceSupport</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>SymbolTable</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLChar</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLSymbols</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>NamespaceContext</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Attr</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DOMError</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Element</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>NamedNodeMap</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Node</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>traversal</name>.<name>NodeFilter</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>AttributeList</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>Attributes</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>SAXException</name></name>;</import>
+<import>import <name><name>org</name>.<name>xml</name>.<name>sax</name>.<name>helpers</name>.<name>AttributesImpl</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Implements an XML serializer supporting both DOM and SAX pretty
+ * serializing. For usage instructions see {@link Serializer}.
+ * &lt;p&gt;
+ * If an output stream is used, the encoding is taken from the
+ * output format (defaults to &lt;tt&gt;UTF-8&lt;/tt&gt;). If a writer is
+ * used, make sure the writer uses the same encoding (if applies)
+ * as specified in the output format.
+ * &lt;p&gt;
+ * The serializer supports both DOM and SAX. SAX serializing is done by firing
+ * SAX events and using the serializer as a document handler. DOM serializing is done
+ * by calling {@link #serialize(Document)} or by using DOM Level 3  
+ * {@link org.w3c.dom.ls.DOMSerializer} and
+ * serializing with {@link org.w3c.dom.ls.DOMSerializer#write},
+ * {@link org.w3c.dom.ls.DOMSerializer#writeToString}.
+ * &lt;p&gt;
+ * If an I/O exception occurs while serializing, the serializer
+ * will not throw an exception directly, but only throw it
+ * at the end of serializing (either DOM or SAX's {@link
+ * org.xml.sax.DocumentHandler#endDocument}.
+ * &lt;p&gt;
+ * For elements that are not specified as whitespace preserving,
+ * the serializer will potentially break long text lines at space
+ * boundaries, indent lines, and serialize elements on separate
+ * lines. Line terminators will be regarded as spaces, and
+ * spaces at beginning of line will be stripped.
+ * @author &lt;a href="mailto:arkin@intalio.com"&gt;Assaf Arkin&lt;/a&gt;
+ * @author &lt;a href="mailto:rahul.srivastava@sun.com"&gt;Rahul Srivastava&lt;/a&gt;
+ * @author Elena Litani IBM
+ * @version $Revision: 1.66 $ $Date: 2005/05/03 11:12:21 $
+ * @see Serializer
+ */</comment>
+<class><specifier>public</specifier> class <name>XMLSerializer</name>
+<super><extends>extends <name>BaseMarkupSerializer</name></extends></super> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// constants</comment>
+    <comment type="line">//</comment>
+
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEBUG</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment> 
+    <comment type="line">// data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="line">//</comment> 
+    <comment type="line">// DOM Level 3 implementation: variables intialized in DOMSerializerImpl</comment>
+    <comment type="line">//</comment> 
+
+    <comment type="javadoc">/** stores namespaces in scope */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>NamespaceSupport</name></type> <name>fNSBinder</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** stores all namespace bindings on the current element */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>NamespaceSupport</name></type> <name>fLocalNSBinder</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** symbol table for serialization */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>SymbolTable</name></type> <name>fSymbolTable</name></decl>;</decl_stmt>    
+
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>String</name></type> <name>PREFIX</name> =<init> <expr>"NS"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Controls whether namespace fixup should be performed during
+     * the serialization. 
+     * NOTE: if this field is set to true the following 
+     * fields need to be initialized: fNSBinder, fLocalNSBinder, fSymbolTable, 
+     * XMLSymbols.EMPTY_STRING, fXmlSymbol, fXmlnsSymbol
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fNamespaces</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Controls whether namespace prefixes will be printed out during serialization
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fNamespacePrefixes</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+	
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>fPreserveSpace</name></decl>;</decl_stmt>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XMLSerializer</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr>new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer. The serializer cannot be used without
+     * calling {@link #setOutputCharStream} or {@link #setOutputByteStream}
+     * first.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XMLSerializer</name><parameter_list>( <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setMethod</name></name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified writer
+     * using the specified output format. If &lt;tt&gt;format&lt;/tt&gt; is null,
+     * will use a default output format.
+     *
+     * @param writer The writer to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XMLSerializer</name><parameter_list>( <param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setMethod</name></name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setOutputCharStream</name><argument_list>( <argument><expr><name>writer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <comment type="javadoc">/**
+     * Constructs a new serializer that writes to the specified output
+     * stream using the specified output format. If &lt;tt&gt;format&lt;/tt&gt;
+     * is null, will use a default output format.
+     *
+     * @param output The output stream to use
+     * @param format The output format to use, null for the default
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XMLSerializer</name><parameter_list>( <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>( <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_format</name>.<name>setMethod</name></name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setOutputByteStream</name><argument_list>( <argument><expr><name>output</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setOutputFormat</name><parameter_list>( <param><decl><type><name>OutputFormat</name></type> <name>format</name></decl></param> )</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>setOutputFormat</name></name><argument_list>( <argument><expr><name>format</name> != <name>null</name> ? <name>format</name> : new <call><name>OutputFormat</name><argument_list>( <argument><expr><name><name>Method</name>.<name>XML</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr>false</expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * This methods turns on namespace fixup algorithm during
+     * DOM serialization.
+     * @see org.w3c.dom.ls.DOMSerializer
+     * 
+     * @param namespaces
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setNamespaces</name> <parameter_list>(<param><decl><type><name>boolean</name></type> <name>namespaces</name></decl></param>)</parameter_list><block>{
+        <expr_stmt><expr><name>fNamespaces</name> = <name>namespaces</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>fNSBinder</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>fNSBinder</name> = new <call><name>NamespaceSupport</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fLocalNSBinder</name> = new <call><name>NamespaceSupport</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fSymbolTable</name> = new <call><name>SymbolTable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------//</comment>
+    <comment type="line">// SAX content handler serializing methods //</comment>
+    <comment type="line">//-----------------------------------------//</comment>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>startElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                              <param><decl><type><name>String</name></type> <name>rawName</name></decl></param>, <param><decl><type><name>Attributes</name></type> <name>attrs</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>preserveSpace</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>addNSAttr</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;startElement("+<name>namespaceURI</name>+","+<name>localName</name>+
+                               ","+<name>rawName</name>+")"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <try>try <block>{
+            <if>if <condition>(<expr><name>_printer</name> == <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>, <argument><expr>"NoWriterSupplied"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+
+            <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// If this is the root element handle it differently.</comment>
+                <comment type="line">// If the first root element in the document, serialize</comment>
+                <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+                <comment type="line">// to that of the output format.</comment>
+                <if>if <condition>(<expr>! <name>_started</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr>( <name>localName</name> == <name>null</name> || <call><name><name>localName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0 ) ? <name>rawName</name> : <name>localName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></then> <else>else <block>{
+                <comment type="line">// For any other element, if first in parent, then</comment>
+                <comment type="line">// close parent's opening tag and use the parnet's</comment>
+                <comment type="line">// space preserving.</comment>
+                <if>if <condition>(<expr><name><name>state</name>.<name>empty</name></name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// Must leave CData section first</comment>
+                <if>if <condition>(<expr><name><name>state</name>.<name>inCData</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>state</name>.<name>inCData</name></name> = false</expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">// Indent this element on a new line if the first</comment>
+                <comment type="line">// content of the parent element or immediately</comment>
+                <comment type="line">// following an element or a comment</comment>
+                <if>if <condition>(<expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                    ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> || <name><name>state</name>.<name>afterComment</name></name>)</expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></else></if>
+            <expr_stmt><expr><name>preserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+            <comment type="line">//We remove the namespaces from the attributes list so that they will</comment>
+            <comment type="line">//be in _prefixes</comment>
+            <expr_stmt><expr><name>attrs</name> = <call><name>extractNamespaces</name><argument_list>(<argument><expr><name>attrs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Do not change the current element state yet.</comment>
+            <comment type="line">// This only happens in endElement().</comment>
+            <if>if <condition>(<expr><name>rawName</name> == <name>null</name> || <call><name><name>rawName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>localName</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>, <argument><expr>"NoName"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <throw>throw <expr>new <call><name>SAXException</name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>namespaceURI</name> != <name>null</name> &amp;&amp; ! <call><name><name>namespaceURI</name>.<name>equals</name></name><argument_list>( <argument><expr>""</expr></argument> )</argument_list></call></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>String</name></type> <name>prefix</name></decl>;</decl_stmt>
+                    <expr_stmt><expr><name>prefix</name> = <call><name>getPrefix</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>prefix</name> != <name>null</name> &amp;&amp; <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then>
+                        <expr_stmt><expr><name>rawName</name> = <name>prefix</name> + ":" + <name>localName</name></expr>;</expr_stmt></then>
+                    <else>else
+                        <expr_stmt><expr><name>rawName</name> = <name>localName</name></expr>;</expr_stmt></else></if>
+                }</block></then> <else>else
+                    <expr_stmt><expr><name>rawName</name> = <name>localName</name></expr>;</expr_stmt></else></if>
+                <expr_stmt><expr><name>addNSAttr</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>rawName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// For each attribute print it's name and value as one part,</comment>
+            <comment type="line">// separated with a space so the element can be broken on</comment>
+            <comment type="line">// multiple lines.</comment>
+            <if>if <condition>(<expr><name>attrs</name> != <name>null</name></expr>)</condition><then> <block>{
+                <for>for (<init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                    <expr_stmt><expr><name>name</name> = <call><name><name>attrs</name>.<name>getQName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>name</name> != <name>null</name> &amp;&amp; <call><name><name>name</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                        <decl_stmt><decl><type><name>String</name></type> <name>prefix</name></decl>;</decl_stmt>
+                        <decl_stmt><decl><type><name>String</name></type> <name>attrURI</name></decl>;</decl_stmt>
+
+                        <expr_stmt><expr><name>name</name> = <call><name><name>attrs</name>.<name>getLocalName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>attrURI</name> = <call><name><name>attrs</name>.<name>getURI</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr>( <name>attrURI</name> != <name>null</name> &amp;&amp; <call><name><name>attrURI</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0 ) &amp;&amp;
+                            ( <name>namespaceURI</name> == <name>null</name> || <call><name><name>namespaceURI</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0 ||
+                              ! <call><name><name>attrURI</name>.<name>equals</name></name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument> )</argument_list></call> )</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>prefix</name> = <call><name>getPrefix</name><argument_list>( <argument><expr><name>attrURI</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><name>prefix</name> != <name>null</name> &amp;&amp; <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then>
+                                <expr_stmt><expr><name>name</name> = <name>prefix</name> + ":" + <name>name</name></expr>;</expr_stmt></then></if>
+                        }</block></then></if>
+                    }</block></then></if>
+
+                    <expr_stmt><expr><name>value</name> = <call><name><name>attrs</name>.<name>getValue</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then>
+                        <expr_stmt><expr><name>value</name> = ""</expr>;</expr_stmt></then></if>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+                    <comment type="line">// If the attribute xml:space exists, determine whether</comment>
+                    <comment type="line">// to preserve spaces in this and child nodes based on</comment>
+                    <comment type="line">// its value.</comment>
+                    <if>if <condition>(<expr><call><name><name>name</name>.<name>equals</name></name><argument_list>( <argument><expr>"xml:space"</expr></argument> )</argument_list></call></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><call><name><name>value</name>.<name>equals</name></name><argument_list>( <argument><expr>"preserve"</expr></argument> )</argument_list></call></expr>)</condition><then>
+                            <expr_stmt><expr><name>preserveSpace</name> = true</expr>;</expr_stmt></then>
+                        <else>else
+                            <expr_stmt><expr><name>preserveSpace</name> = <call><name><name>_format</name>.<name>getPreserveSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></else></if>
+                    }</block></then></if>
+                }</block></for>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><name>_prefixes</name> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Enumeration</name></type> <name>keys</name></decl>;</decl_stmt>
+
+                <expr_stmt><expr><name>keys</name> = <call><name><name>_prefixes</name>.<name>keys</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <while>while <condition>(<expr><call><name><name>keys</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = (<name>String</name>) <call><name><name>keys</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>name</name> = (<name>String</name>) <call><name><name>_prefixes</name>.<name>get</name></name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><call><name><name>name</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"xmlns=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"xmlns:"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></while>
+            }</block></then></if>
+
+            <comment type="line">// Now it's time to enter a new element state</comment>
+            <comment type="line">// with the tag name and space preserving.</comment>
+            <comment type="line">// We still do not change the curent element state.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument>, <argument><expr><name>localName</name></expr></argument>, <argument><expr><name>rawName</name></expr></argument>, <argument><expr><name>preserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>name</name> = ( <name>localName</name> == <name>null</name> || <call><name><name>localName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0 ) ? <name>rawName</name> : <name>namespaceURI</name> + "^" + <name>localName</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = <call><name><name>_format</name>.<name>isCDataElement</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = <call><name><name>_format</name>.<name>isNonEscapingElement</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>except</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                            <param><decl><type><name>String</name></type> <name>rawName</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <try>try <block>{
+            <expr_stmt><expr><call><name>endElementIO</name><argument_list>( <argument><expr><name>namespaceURI</name></expr></argument>, <argument><expr><name>localName</name></expr></argument>, <argument><expr><name>rawName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>except</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElementIO</name><parameter_list>( <param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>, <param><decl><type><name>String</name></type> <name>localName</name></decl></param>,
+                              <param><decl><type><name>String</name></type> <name>rawName</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;endElement: " +<name>rawName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// Works much like content() with additions for closing</comment>
+        <comment type="line">// an element. Note the different checks for the closed</comment>
+        <comment type="line">// element's state and the parent element's state.</comment>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>unindent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name><name>state</name>.<name>empty</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"/&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Must leave CData section first</comment>
+            <if>if <condition>(<expr><name><name>state</name>.<name>inCData</name></name></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            <comment type="line">// This element is not empty and that last content was</comment>
+            <comment type="line">// another element, so print a line break before that</comment>
+            <comment type="line">// last element and this element's closing tag.</comment>
+            <if>if <condition>(<expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp; (<name><name>state</name>.<name>afterElement</name></name> || <name><name>state</name>.<name>afterComment</name></name>)</expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;/"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name><name>state</name>.<name>rawName</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <comment type="line">// Leave the element state and update that of the parent</comment>
+        <comment type="line">// (if we're not root) to not empty and after element.</comment>
+        <expr_stmt><expr><name>state</name> = <call><name>leaveElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>state</name>.<name>afterElement</name></name> = true</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>state</name>.<name>afterComment</name></name> = false</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+    }</block></function>
+
+
+    <comment type="line">//------------------------------------------//</comment>
+    <comment type="line">// SAX document handler serializing methods //</comment>
+    <comment type="line">//------------------------------------------//</comment>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>startElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>tagName</name></decl></param>, <param><decl><type><name>AttributeList</name></type> <name>attrs</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type>      <name>preserveSpace</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+
+
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;startElement("+<name>tagName</name>+")"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <try>try <block>{
+            <if>if <condition>(<expr><name>_printer</name> == <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(<argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>, <argument><expr>"NoWriterSupplied"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+
+            <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// If this is the root element handle it differently.</comment>
+                <comment type="line">// If the first root element in the document, serialize</comment>
+                <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+                <comment type="line">// to that of the output format.</comment>
+                <if>if <condition>(<expr>! <name>_started</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></then> <else>else <block>{
+                <comment type="line">// For any other element, if first in parent, then</comment>
+                <comment type="line">// close parent's opening tag and use the parnet's</comment>
+                <comment type="line">// space preserving.</comment>
+                <if>if <condition>(<expr><name><name>state</name>.<name>empty</name></name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <comment type="line">// Must leave CData section first</comment>
+                <if>if <condition>(<expr><name><name>state</name>.<name>inCData</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>state</name>.<name>inCData</name></name> = false</expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">// Indent this element on a new line if the first</comment>
+                <comment type="line">// content of the parent element or immediately</comment>
+                <comment type="line">// following an element.</comment>
+                <if>if <condition>(<expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                    ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> || <name><name>state</name>.<name>afterComment</name></name>)</expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></else></if>
+            <expr_stmt><expr><name>preserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+            <comment type="line">// Do not change the current element state yet.</comment>
+            <comment type="line">// This only happens in endElement().</comment>
+
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// For each attribute print it's name and value as one part,</comment>
+            <comment type="line">// separated with a space so the element can be broken on</comment>
+            <comment type="line">// multiple lines.</comment>
+            <if>if <condition>(<expr><name>attrs</name> != <name>null</name></expr>)</condition><then> <block>{
+                <for>for (<init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>name</name> = <call><name><name>attrs</name>.<name>getName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>value</name> = <call><name><name>attrs</name>.<name>getValue</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+
+                    <comment type="line">// If the attribute xml:space exists, determine whether</comment>
+                    <comment type="line">// to preserve spaces in this and child nodes based on</comment>
+                    <comment type="line">// its value.</comment>
+                    <if>if <condition>(<expr><call><name><name>name</name>.<name>equals</name></name><argument_list>( <argument><expr>"xml:space"</expr></argument> )</argument_list></call></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><call><name><name>value</name>.<name>equals</name></name><argument_list>( <argument><expr>"preserve"</expr></argument> )</argument_list></call></expr>)</condition><then>
+                            <expr_stmt><expr><name>preserveSpace</name> = true</expr>;</expr_stmt></then>
+                        <else>else
+                            <expr_stmt><expr><name>preserveSpace</name> = <call><name><name>_format</name>.<name>getPreserveSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></else></if>
+                    }</block></then></if>
+                }</block></for>
+            }</block></then></if>
+            <comment type="line">// Now it's time to enter a new element state</comment>
+            <comment type="line">// with the tag name and space preserving.</comment>
+            <comment type="line">// We still do not change the curent element state.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>preserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = <call><name><name>_format</name>.<name>isCDataElement</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = <call><name><name>_format</name>.<name>isNonEscapingElement</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>except</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>SAXException</name><argument_list>( <argument><expr><name>except</name></expr></argument> )</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+
+    }</block></function>
+
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>endElement</name><parameter_list>( <param><decl><type><name>String</name></type> <name>tagName</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <expr_stmt><expr><call><name>endElement</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+
+    <comment type="line">//------------------------------------------//</comment>
+    <comment type="line">// Generic node serializing methods methods //</comment>
+    <comment type="line">//------------------------------------------//</comment>
+
+
+    <comment type="javadoc">/**
+     * Called to serialize the document's DOCTYPE by the root element.
+     * The document type declaration must name the root element,
+     * but the root element is only known when that element is serialized,
+     * and not at the start of the document.
+     * &lt;p&gt;
+     * This method will check if it has not been called before ({@link #_started}),
+     * will serialize the document type declaration, and will serialize all
+     * pre-root comments and PIs that were accumulated in the document
+     * (see {@link #serializePreRoot}). Pre-root will be serialized even if
+     * this is not the first root element of the document.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>startDocument</name><parameter_list>( <param><decl><type><name>String</name></type> <name>rootTagName</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>int</name></type>    <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>dtd</name></decl>;</decl_stmt>
+
+        <expr_stmt><expr><name>dtd</name> = <call><name><name>_printer</name>.<name>leaveDTD</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr>! <name>_started</name></expr>)</condition><then> <block>{
+
+            <if>if <condition>(<expr>! <call><name><name>_format</name>.<name>getOmitXMLDeclaration</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>StringBuffer</name></type>    <name>buffer</name></decl>;</decl_stmt>
+
+                <comment type="line">// Serialize the document declaration appreaing at the head</comment>
+                <comment type="line">// of very XML document (unless asked not to).</comment>
+                <expr_stmt><expr><name>buffer</name> = new <call><name>StringBuffer</name><argument_list>( <argument><expr>"&lt;?xml version=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name><name>_format</name>.<name>getVersion</name></name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr><call><name><name>_format</name>.<name>getVersion</name></name><argument_list>()</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>"1.0"</expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>format_encoding</name> =<init>  <expr><call><name><name>_format</name>.<name>getEncoding</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>format_encoding</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>" encoding=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr><name>format_encoding</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <if>if <condition>(<expr><call><name><name>_format</name>.<name>getStandalone</name></name><argument_list>()</argument_list></call> &amp;&amp; <name>_docTypeSystemId</name> == <name>null</name> &amp;&amp;
+                    <name>_docTypePublicId</name> == <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>" standalone=\"yes\""</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>( <argument><expr>"?&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>buffer</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <if>if <condition>(<expr>! <call><name><name>_format</name>.<name>getOmitDocumentType</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>_docTypeSystemId</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <comment type="line">// System identifier must be specified to print DOCTYPE.</comment>
+                    <comment type="line">// If public identifier is specified print 'PUBLIC</comment>
+                    <comment type="line">// &lt;public&gt; &lt;system&gt;', if not, print 'SYSTEM &lt;system&gt;'.</comment>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>rootTagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>_docTypePublicId</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" PUBLIC "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypePublicId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>_indenting</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <for>for (<init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; 18 + <call><name><name>rootTagName</name>.<name>length</name></name><argument_list>()</argument_list></call></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr>)
+                                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" "</expr></argument> )</argument_list></call></expr>;</expr_stmt></for>
+                        }</block></then> <else>else
+                            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" "</expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+                        <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypeSystemId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" SYSTEM "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printDoctypeURL</name><argument_list>( <argument><expr><name>_docTypeSystemId</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+
+                    <comment type="line">// If we accumulated any DTD contents while printing.</comment>
+                    <comment type="line">// this would be the place to print it.</comment>
+                    <if>if <condition>(<expr><name>dtd</name> != <name>null</name> &amp;&amp; <call><name><name>dtd</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" ["</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>printText</name><argument_list>( <argument><expr><name>dtd</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr>true</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>']'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>dtd</name> != <name>null</name> &amp;&amp; <call><name><name>dtd</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"&lt;!DOCTYPE "</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>rootTagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>" ["</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>printText</name><argument_list>( <argument><expr><name>dtd</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr>true</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if></else></if>
+            }</block></then></if>
+        }</block></then></if>
+        <expr_stmt><expr><name>_started</name> = true</expr>;</expr_stmt>
+        <comment type="line">// Always serialize these, even if not te first root element.</comment>
+        <expr_stmt><expr><call><name>serializePreRoot</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * Called to serialize a DOM element. Equivalent to calling {@link
+     * #startElement}, {@link #endElement} and serializing everything
+     * inbetween, but better optimized.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>serializeElement</name><parameter_list>( <param><decl><type><name>Element</name></type> <name>elem</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>Attr</name></type>         <name>attr</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>NamedNodeMap</name></type> <name>attrMap</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type>          <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Node</name></type>         <name>child</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ElementState</name></type> <name>state</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>name</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>value</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>       <name>tagName</name></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>prefix</name>, <name>localUri</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>uri</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>fNamespaces</name></expr>)</condition><then> <block>{
+            <comment type="line">// local binder stores namespace declaration</comment>
+            <comment type="line">// that has been printed out during namespace fixup of</comment>
+            <comment type="line">// the current element</comment>
+            <expr_stmt><expr><call><name><name>fLocalNSBinder</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// add new namespace context        </comment>
+            <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>pushContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;startElement: " +<call><name><name>elem</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call> +" ns="+<call><name><name>elem</name>.<name>getNamespaceURI</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>tagName</name> = <call><name><name>elem</name>.<name>getTagName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>state</name> = <call><name>getElementState</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// If this is the root element handle it differently.</comment>
+            <comment type="line">// If the first root element in the document, serialize</comment>
+            <comment type="line">// the document's DOCTYPE. Space preserving defaults</comment>
+            <comment type="line">// to that of the output format.</comment>
+
+            <if>if <condition>(<expr>! <name>_started</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>startDocument</name><argument_list>( <argument><expr><name>tagName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then> <else>else <block>{
+            <comment type="line">// For any other element, if first in parent, then</comment>
+            <comment type="line">// close parent's opening tag and use the parent's</comment>
+            <comment type="line">// space preserving.</comment>
+            <if>if <condition>(<expr><name><name>state</name>.<name>empty</name></name></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&gt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt></then></if>
+            <comment type="line">// Must leave CData section first</comment>
+            <if>if <condition>(<expr><name><name>state</name>.<name>inCData</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"]]&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>state</name>.<name>inCData</name></name> = false</expr>;</expr_stmt>
+            }</block></then></if>
+            <comment type="line">// Indent this element on a new line if the first</comment>
+            <comment type="line">// content of the parent element or immediately</comment>
+            <comment type="line">// following an element.</comment>
+            <if>if <condition>(<expr><name>_indenting</name> &amp;&amp; ! <name><name>state</name>.<name>preserveSpace</name></name> &amp;&amp;
+                ( <name><name>state</name>.<name>empty</name></name> || <name><name>state</name>.<name>afterElement</name></name> || <name><name>state</name>.<name>afterComment</name></name>)</expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>breakLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></else></if>
+
+        <comment type="line">// Do not change the current element state yet.</comment>
+        <comment type="line">// This only happens in endElement().</comment>
+        <expr_stmt><expr><name>fPreserveSpace</name> = <name><name>state</name>.<name>preserveSpace</name></name></expr>;</expr_stmt>
+
+
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>attrMap</name> = <name>null</name></expr>;</expr_stmt>
+        <comment type="line">// retrieve attributes </comment>
+        <if>if <condition>(<expr><call><name><name>elem</name>.<name>hasAttributes</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>attrMap</name> = <call><name><name>elem</name>.<name>getAttributes</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>length</name> = <call><name><name>attrMap</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr>!<name>fNamespaces</name></expr>)</condition><then> <block>{ <comment type="line">// no namespace fixup should be performed                    </comment>
+
+            <comment type="line">// serialize element name</comment>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// For each attribute print it's name and value as one part,</comment>
+            <comment type="line">// separated with a space so the element can be broken on</comment>
+            <comment type="line">// multiple lines.</comment>
+            <for>for ( <init><expr><name>i</name> = 0</expr> ;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>i</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>attr</name> = (<name>Attr</name>) <call><name><name>attrMap</name>.<name>item</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>name</name> = <call><name><name>attr</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>value</name> = <call><name><name>attr</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>( <expr><name>value</name> == <name>null</name></expr> )</condition><then>
+                    <expr_stmt><expr><name>value</name> = ""</expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name>printAttribute</name> <argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><call><name><name>attr</name>.<name>getSpecified</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then> <else>else <block>{ <comment type="line">// do namespace fixup</comment>
+
+            <comment type="line">// REVISIT: some optimization could probably be done to avoid traversing </comment>
+            <comment type="line">//          attributes twice.</comment>
+            <comment type="line">//</comment>
+
+            <comment type="line">// ---------------------------------------</comment>
+            <comment type="line">// record all valid namespace declarations</comment>
+            <comment type="line">// before attempting to fix element's namespace</comment>
+            <comment type="line">// ---------------------------------------</comment>
+
+            <for>for (<init><expr><name>i</name> = 0</expr>;</init><condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition><incr><expr><name>i</name>++</expr></incr>) <block>{
+
+                <expr_stmt><expr><name>attr</name> = (<name>Attr</name>) <call><name><name>attrMap</name>.<name>item</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>uri</name> = <call><name><name>attr</name>.<name>getNamespaceURI</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">// check if attribute is a namespace decl </comment>
+                <if>if <condition>(<expr><name>uri</name> != <name>null</name> &amp;&amp; <call><name><name>uri</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>NamespaceContext</name>.<name>XMLNS_URI</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+
+                    <expr_stmt><expr><name>value</name> = <call><name><name>attr</name>.<name>getNodeValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>value</name>=<name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+
+                    <if>if <condition>(<expr><call><name><name>value</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>NamespaceContext</name>.<name>XMLNS_URI</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><name>fDOMErrorHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                                <argument><expr><name><name>DOMMessageFormatter</name>.<name>XML_DOMAIN</name></name></expr></argument>,<argument><expr>"CantBindXMLNS"</expr></argument>,<argument><expr><name>null</name></expr></argument> )</argument_list></call></expr></init></decl>;</decl_stmt>
+                            <expr_stmt><expr><call><name>modifyDOMError</name><argument_list>(<argument><expr><name>msg</name></expr></argument>,  <argument><expr><name><name>DOMError</name>.<name>SEVERITY_ERROR</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <decl_stmt><decl><type><name>boolean</name></type> <name>continueProcess</name> =<init> <expr><call><name><name>fDOMErrorHandler</name>.<name>handleError</name></name><argument_list>(<argument><expr><name>fDOMError</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                            <if>if <condition>(<expr>!<name>continueProcess</name></expr>)</condition><then> <block>{
+                                <comment type="line">// stop the namespace fixup and validation</comment>
+            	                <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>( 
+            	                    <argument><expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+            	                    <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+            	                    <argument><expr>"SerializationStopped"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                            }</block></then></if>
+                        }</block></then></if>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>prefix</name> = <call><name><name>attr</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>prefix</name> = (<name>prefix</name> == <name>null</name> || 
+                                  <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> :<call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <decl_stmt><decl><type><name>String</name></type> <name>localpart</name> =<init> <expr><call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>( <argument><expr><call><name><name>attr</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{ <comment type="line">//xmlns:prefix</comment>
+                            <expr_stmt><expr><name>value</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <comment type="line">// record valid decl</comment>
+                            <if>if <condition>(<expr><call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>localpart</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            }</block></then> <else>else <block>{
+                                <comment type="line">// REVISIT: issue error on invalid declarations</comment>
+                                <comment type="line">//          xmlns:foo = ""</comment>
+                            }</block></else></if>
+                            <continue>continue;</continue>
+                        }</block></then> <else>else <block>{ <comment type="line">// xmlns</comment>
+                            <comment type="line">// empty prefix is always bound ("" or some string)</comment>
+
+                            <expr_stmt><expr><name>value</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <continue>continue;</continue>
+                        }</block></else></if>
+                    }</block></else></if>  <comment type="line">// end-else: valid declaration</comment>
+                }</block></then></if> <comment type="line">// end-if: namespace declaration </comment>
+            }</block></for>  <comment type="line">// end-for</comment>
+
+            <comment type="line">//-----------------------</comment>
+            <comment type="line">// get element uri/prefix</comment>
+            <comment type="line">//-----------------------</comment>
+            <expr_stmt><expr><name>uri</name> = <call><name><name>elem</name>.<name>getNamespaceURI</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>            
+            <expr_stmt><expr><name>prefix</name> = <call><name><name>elem</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">//----------------------</comment>
+            <comment type="line">// output element name</comment>
+            <comment type="line">//----------------------</comment>
+            <comment type="line">// REVISIT: this could be removed if we always convert empty string to null</comment>
+            <comment type="line">//          for the namespaces.</comment>
+            <if>if <condition>(<expr>(<name>uri</name> !=<name>null</name> &amp;&amp; <name>prefix</name> !=<name>null</name> ) &amp;&amp; <call><name><name>uri</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0 &amp;&amp; <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call>!=0</expr>)</condition><then> <block>{
+                <comment type="line">// uri is an empty string and element has some prefix</comment>
+                <comment type="line">// the namespace alg later will fix up the namespace attributes</comment>
+                <comment type="line">// remove element prefix </comment>
+                <expr_stmt><expr><name>prefix</name> = <name>null</name></expr>;</expr_stmt> 
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><call><name><name>elem</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'&lt;'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>indent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+
+
+            <comment type="line">// ---------------------------------------------------------</comment>
+            <comment type="line">// Fix up namespaces for element: per DOM L3 </comment>
+            <comment type="line">// Need to consider the following cases:</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// case 1: &lt;foo:elem xmlns:ns1="myURI" xmlns="default"/&gt; </comment>
+            <comment type="line">// Assume "foo", "ns1" are declared on the parent. We should not miss </comment>
+            <comment type="line">// redeclaration for both "ns1" and default namespace. To solve this </comment>
+            <comment type="line">// we add a local binder that stores declaration only for current element.</comment>
+            <comment type="line">// This way we avoid outputing duplicate declarations for the same element</comment>
+            <comment type="line">// as well as we are not omitting redeclarations.</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// case 2: &lt;elem xmlns="" xmlns="default"/&gt; </comment>
+            <comment type="line">// We need to bind default namespace to empty string, to be able to </comment>
+            <comment type="line">// omit duplicate declarations for the same element</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// case 3: &lt;xsl:stylesheet xmlns:xsl="http://xsl"&gt;</comment>
+            <comment type="line">// We create another element body bound to the "http://xsl" namespace</comment>
+            <comment type="line">// as well as namespace attribute rebounding xsl to another namespace.</comment>
+            <comment type="line">// &lt;xsl:body xmlns:xsl="http://another"&gt;</comment>
+            <comment type="line">// Need to make sure that the new namespace decl value is changed to </comment>
+            <comment type="line">// "http://xsl"</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// ---------------------------------------------------------</comment>
+            <comment type="line">// check if prefix/namespace is correct for current element</comment>
+            <comment type="line">// ---------------------------------------------------------</comment>
+
+
+            <if>if <condition>(<expr><name>uri</name> != <name>null</name></expr>)</condition><then> <block>{  <comment type="line">// Element has a namespace</comment>
+                <expr_stmt><expr><name>uri</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>prefix</name> = (<name>prefix</name> == <name>null</name> || 
+                          <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> :<call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call> == <name>uri</name></expr>)</condition><then> <block>{
+                    <comment type="line">// The xmlns:prefix=namespace or xmlns="default" was declared at parent.</comment>
+                    <comment type="line">// The binder always stores mapping of empty prefix to "".</comment>
+                    <comment type="line">// (NOTE: local binder does not store this kind of binding!)</comment>
+                    <comment type="line">// Thus the case where element was declared with uri="" (with or without a prefix)</comment>
+                    <comment type="line">// will be covered here.</comment>
+
+                }</block></then> <else>else <block>{
+                    <comment type="line">// the prefix is either undeclared </comment>
+                    <comment type="line">// or</comment>
+                    <comment type="line">// conflict: the prefix is bound to another URI</comment>
+                    <if>if <condition>(<expr><name>fNamespacePrefixes</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>printNamespaceAttr</name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><call><name><name>fLocalNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then> <else>else <block>{ <comment type="line">// Element has no namespace</comment>
+                <if>if <condition>(<expr><call><name><name>elem</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+                    <comment type="line">//  DOM Level 1 node!</comment>
+                    <if>if <condition>(<expr><name>fDOMErrorHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                            <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, <argument><expr>"NullLocalElementName"</expr></argument>, 
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name><block>{<expr><call><name><name>elem</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr>}</block></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name>modifyDOMError</name><argument_list>(<argument><expr><name>msg</name></expr></argument>,<argument><expr><name><name>DOMError</name>.<name>SEVERITY_ERROR</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>elem</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <decl_stmt><decl><type><name>boolean</name></type> <name>continueProcess</name> =<init> <expr><call><name><name>fDOMErrorHandler</name>.<name>handleError</name></name><argument_list>(<argument><expr><name>fDOMError</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <comment type="line">// REVISIT: should we terminate upon request?</comment>
+                        <if>if <condition>(<expr>!<name>continueProcess</name></expr>)</condition><then> <block>{
+                           <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>( 
+            	               <argument><expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+            	               <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+            	               <argument><expr>"SerializationStopped"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                        }</block></then></if>
+                    }</block></then></if>
+                }</block></then> <else>else <block>{ <comment type="line">// uri=null and no colon (DOM L2 node)</comment>
+                    <expr_stmt><expr><name>uri</name> = <call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    <if>if <condition>(<expr><name>uri</name> !=<name>null</name> &amp;&amp; <call><name><name>uri</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then> <block>{
+                        <comment type="line">// there is a default namespace decl that is bound to</comment>
+                        <comment type="line">// non-zero length uri, output xmlns=""</comment>
+                        <if>if <condition>(<expr><name>fNamespacePrefixes</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>printNamespaceAttr</name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <expr_stmt><expr><call><name><name>fLocalNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+            }</block></else></if>
+
+
+            <comment type="line">// -----------------------------------------</comment>
+            <comment type="line">// Fix up namespaces for attributes: per DOM L3 </comment>
+            <comment type="line">// check if prefix/namespace is correct the attributes</comment>
+            <comment type="line">// -----------------------------------------</comment>
+
+            <for>for (<init><expr><name>i</name> = 0</expr>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+
+                <expr_stmt><expr><name>attr</name> = (<name>Attr</name>) <call><name><name>attrMap</name>.<name>item</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>value</name> = <call><name><name>attr</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>name</name> = <call><name><name>attr</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>  
+              
+                <expr_stmt><expr><name>uri</name> = <call><name><name>attr</name>.<name>getNamespaceURI</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                <comment type="line">// Fix attribute that was declared with a prefix and namespace=""</comment>
+                <if>if <condition>(<expr><name>uri</name> !=<name>null</name> &amp;&amp; <call><name><name>uri</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>uri</name>=<name>null</name></expr>;</expr_stmt>
+                    <comment type="line">// we must remove prefix for this attribute</comment>
+                    <expr_stmt><expr><name>name</name>=<call><name><name>attr</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;process attribute: "+<call><name><name>attr</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">// make sure that value is never null.</comment>
+                <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>value</name>=<name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <if>if <condition>(<expr><name>uri</name> != <name>null</name></expr>)</condition><then> <block>{  <comment type="line">// attribute has namespace !=null</comment>
+                    <expr_stmt><expr><name>prefix</name> = <call><name><name>attr</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>prefix</name> = <name>prefix</name> == <name>null</name> ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> :<call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><name>String</name></type> <name>localpart</name> =<init> <expr><call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>( <argument><expr><call><name><name>attr</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+
+
+                    <comment type="line">// ---------------------------------------------------</comment>
+                    <comment type="line">// print namespace declarations namespace declarations </comment>
+                    <comment type="line">// ---------------------------------------------------</comment>
+                    <if>if <condition>(<expr><name>uri</name> != <name>null</name> &amp;&amp; <call><name><name>uri</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>NamespaceContext</name>.<name>XMLNS_URI</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <comment type="line">// check if we need to output this declaration</comment>
+                        <expr_stmt><expr><name>prefix</name> = <call><name><name>attr</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>prefix</name> = (<name>prefix</name> == <name>null</name> || 
+                                  <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> : <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>localpart</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>( <argument><expr><call><name><name>attr</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{ <comment type="line">//xmlns:prefix</comment>
+                            <expr_stmt><expr><name>localUri</name> = <call><name><name>fLocalNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>localpart</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>  <comment type="line">// local prefix mapping</comment>
+                            <expr_stmt><expr><name>value</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0</expr> )</condition><then> <block>{
+                                <if>if <condition>(<expr><name>localUri</name> == <name>null</name></expr>)</condition><then> <block>{
+                                    <comment type="line">// declaration was not printed while fixing element namespace binding</comment>
+                                    
+                                    <comment type="line">// If the DOM Level 3 namespace-prefixes feature is set to false</comment>
+                                    <comment type="line">// do not print xmlns attributes</comment>
+                                    <if>if <condition>(<expr><name>fNamespacePrefixes</name></expr>)</condition><then> <block>{
+                                        <expr_stmt><expr><call><name>printNamespaceAttr</name><argument_list>(<argument><expr><name>localpart</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                    }</block></then></if>
+                                    	
+                                    <comment type="line">// case 4: &lt;elem xmlns:xx="foo" xx:attr=""/&gt;</comment>
+                                    <comment type="line">// where attribute is bound to "bar". </comment>
+                                    <comment type="line">// If the xmlns:xx is output here first, later we should not</comment>
+                                    <comment type="line">// redeclare "xx" prefix. Instead we would pick up different prefix</comment>
+                                    <comment type="line">// for the attribute.</comment>
+                                    <comment type="line">// final: &lt;elem xmlns:xx="foo" NS1:attr="" xmlns:NS1="bar"/&gt;</comment>
+                                    <expr_stmt><expr><call><name><name>fLocalNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>localpart</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                }</block></then></if>
+                            }</block></then> <else>else <block>{
+                                <comment type="line">// REVISIT: issue error on invalid declarations</comment>
+                                <comment type="line">//          xmlns:foo = ""</comment>
+                            }</block></else></if>
+                            <continue>continue;</continue>
+                        }</block></then> <else>else <block>{ <comment type="line">// xmlns</comment>
+                            <comment type="line">// empty prefix is always bound ("" or some string)</comment>
+
+                            <expr_stmt><expr><name>uri</name> = <call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>localUri</name>=<call><name><name>fLocalNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>value</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><name>localUri</name> == <name>null</name></expr> )</condition><then><block>{
+                                <comment type="line">// declaration was not printed while fixing element namespace binding</comment>
+                                <if>if <condition>(<expr><name>fNamespacePrefixes</name></expr>)</condition><then> <block>{
+                                    <expr_stmt><expr><call><name>printNamespaceAttr</name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                }</block></then></if>
+                                <comment type="line">// case 4 does not apply here since attributes can't use</comment>
+                                <comment type="line">// default namespace</comment>
+                            }</block></then></if>
+                            <continue>continue;</continue>
+                        }</block></else></if>
+
+                    }</block></then></if>
+                    <expr_stmt><expr><name>uri</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    <comment type="line">// find if for this prefix a URI was already declared</comment>
+                    <decl_stmt><decl><type><name>String</name></type> <name>declaredURI</name> =<init>  <expr><call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                    <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> || <name>declaredURI</name> != <name>uri</name></expr>)</condition><then> <block>{
+                        <comment type="line">// attribute has no prefix (default namespace decl does not apply to attributes) </comment>
+                        <comment type="line">// OR</comment>
+                        <comment type="line">// attribute prefix is not declared</comment>
+                        <comment type="line">// OR</comment>
+                        <comment type="line">// conflict: attr URI does not match the prefix in scope</comment>
+
+                        <expr_stmt><expr><name>name</name>  = <call><name><name>attr</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <comment type="line">// Find if any prefix for attributes namespace URI is available</comment>
+                        <comment type="line">// in the scope</comment>
+                        <decl_stmt><decl><type><name>String</name></type> <name>declaredPrefix</name> =<init> <expr><call><name><name>fNSBinder</name>.<name>getPrefix</name></name><argument_list>(<argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                        <if>if <condition>(<expr><name>declaredPrefix</name> !=<name>null</name> &amp;&amp; <name>declaredPrefix</name> !=<name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>)</condition><then> <block>{
+                            <comment type="line">// use the prefix that was found</comment>
+                            <expr_stmt><expr><name>prefix</name> = <name>declaredPrefix</name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>name</name>=<name>prefix</name>+":"+<name>localpart</name></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt; cound not find prefix for the attribute: " +<name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+
+                            <if>if <condition>(<expr><name>prefix</name> != <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> &amp;&amp; <call><name><name>fLocalNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+                                <comment type="line">// the current prefix is not null and it has no in scope declaration</comment>
+
+                                <comment type="line">// use this prefix</comment>
+                            }</block></then> <else>else <block>{
+                                <comment type="line">// find a prefix following the pattern "NS" +index (starting at 1)</comment>
+                                <comment type="line">// make sure this prefix is not declared in the current scope.</comment>
+                                <decl_stmt><decl><type><name>int</name></type> <name>counter</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+                                <expr_stmt><expr><name>prefix</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>PREFIX</name> + <name>counter</name>++</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                <while>while <condition>(<expr><call><name><name>fLocalNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call>!=<name>null</name></expr>)</condition> <block>{
+                                    <expr_stmt><expr><name>prefix</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>PREFIX</name> +<name>counter</name>++</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                }</block></while>
+                                <expr_stmt><expr><name>name</name>=<name>prefix</name>+":"+<name>localpart</name></expr>;</expr_stmt>
+                            }</block></else></if>
+                            <comment type="line">// add declaration for the new prefix</comment>
+                            <if>if <condition>(<expr><name>fNamespacePrefixes</name></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name>printNamespaceAttr</name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+                            <expr_stmt><expr><name>value</name> = <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>fLocalNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>                        
+
+                        <comment type="line">// change prefix for this attribute</comment>
+                    }</block></then></if>
+
+                    <expr_stmt><expr><call><name>printAttribute</name> <argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr>(<name>value</name>==<name>null</name>)?<name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name>:<name>value</name></expr></argument>, <argument><expr><call><name><name>attr</name>.<name>getSpecified</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{ <comment type="line">// attribute uri == null</comment>
+                    <if>if <condition>(<expr><call><name><name>attr</name>.<name>getLocalName</name></name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><name>fDOMErrorHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                                <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>, 
+                                <argument><expr>"NullLocalAttrName"</expr></argument>, <argument><expr>new <name><name>Object</name><index>[]</index></name><block>{<expr><call><name><name>attr</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr>}</block></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>                            
+                            <expr_stmt><expr><call><name>modifyDOMError</name><argument_list>(<argument><expr><name>msg</name></expr></argument>, <argument><expr><name><name>DOMError</name>.<name>SEVERITY_ERROR</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <decl_stmt><decl><type><name>boolean</name></type> <name>continueProcess</name> =<init> <expr><call><name><name>fDOMErrorHandler</name>.<name>handleError</name></name><argument_list>(<argument><expr><name>fDOMError</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                            <if>if <condition>(<expr>!<name>continueProcess</name></expr>)</condition><then> <block>{
+                                <comment type="line">// stop the namespace fixup and validation</comment>
+                                <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>( 
+            	                   <argument><expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+            	                   <argument><expr><name><name>DOMMessageFormatter</name>.<name>SERIALIZER_DOMAIN</name></name></expr></argument>,
+            	                   <argument><expr>"SerializationStopped"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                            }</block></then></if>
+                        }</block></then></if>
+                        <expr_stmt><expr><call><name>printAttribute</name> <argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><call><name><name>attr</name>.<name>getSpecified</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{ <comment type="line">// uri=null and no colon</comment>
+
+                        <comment type="line">// no fix up is needed: default namespace decl does not </comment>
+                        <comment type="line">// apply to attributes</comment>
+                        <expr_stmt><expr><call><name>printAttribute</name> <argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><call><name><name>attr</name>.<name>getSpecified</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></else></if>
+            }</block></for> <comment type="line">// end loop for attributes</comment>
+
+        }</block></else></if><comment type="line">// end namespace fixup algorithm</comment>
+
+
+        <comment type="line">// If element has children, then serialize them, otherwise</comment>
+        <comment type="line">// serialize en empty tag.        </comment>
+        <if>if <condition>(<expr><call><name><name>elem</name>.<name>hasChildNodes</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// Enter an element state, and serialize the children</comment>
+            <comment type="line">// one by one. Finally, end the element.</comment>
+            <expr_stmt><expr><name>state</name> = <call><name>enterElementState</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument>, <argument><expr><name>fPreserveSpace</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>doCData</name></name> = <call><name><name>_format</name>.<name>isCDataElement</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>unescaped</name></name> = <call><name><name>_format</name>.<name>isNonEscapingElement</name></name><argument_list>( <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>child</name> = <call><name><name>elem</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <while>while <condition>(<expr><name>child</name> != <name>null</name></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name>serializeNode</name><argument_list>( <argument><expr><name>child</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>child</name> = <call><name><name>child</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <if>if <condition>(<expr><name>fNamespaces</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>popContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>endElementIO</name><argument_list>( <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>tagName</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;endElement: " +<call><name><name>elem</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>fNamespaces</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>popContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>unindent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"/&gt;"</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// After element but parent element is no longer empty.</comment>
+            <expr_stmt><expr><name><name>state</name>.<name>afterElement</name></name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>afterComment</name></name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>state</name>.<name>empty</name></name> = false</expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>isDocumentState</name><argument_list>()</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></else></if>
+    }</block></function>
+
+
+
+    <comment type="javadoc">/**
+     * Serializes a namespace attribute with the given prefix and value for URI.
+     * In case prefix is empty will serialize default namespace declaration.
+     * 
+     * @param prefix
+     * @param uri
+     * @exception IOException
+     */</comment>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>printNamespaceAttr</name><parameter_list>(<param><decl><type><name>String</name></type> <name>prefix</name></decl></param>, <param><decl><type><name>String</name></type> <name>uri</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws><block>{
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"=&gt;add xmlns=\""+<name>uri</name>+"\" declaration"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"=&gt;add xmlns:"+<name>prefix</name>+"=\""+<name>uri</name>+"\" declaration"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"xmlns:"+<name>prefix</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>uri</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+
+    <comment type="javadoc">/**
+     * Prints attribute. 
+     * NOTE: xml:space attribute modifies output format
+     * 
+     * @param name
+     * @param value
+     * @param isSpecified
+     * @exception IOException
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>printAttribute</name> <parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>isSpecified</name></decl></param>, <param><decl><type><name>Attr</name></type> <name>attr</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws><block>{
+
+        <if>if <condition>(<expr><name>isSpecified</name> || (<name>features</name> &amp; <name><name>DOMSerializerImpl</name>.<name>DISCARDDEFAULT</name></name>) == 0</expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>fDOMFilter</name> !=<name>null</name> &amp;&amp; 
+                (<call><name><name>fDOMFilter</name>.<name>getWhatToShow</name></name><argument_list>()</argument_list></call> &amp; <name><name>NodeFilter</name>.<name>SHOW_ATTRIBUTE</name></name>)!= 0</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>short</name></type> <name>code</name> =<init> <expr><call><name><name>fDOMFilter</name>.<name>acceptNode</name></name><argument_list>(<argument><expr><name>attr</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <switch>switch <condition>(<expr><name>code</name></expr>)</condition> <block>{
+                    <case>case <expr><name><name>NodeFilter</name>.<name>FILTER_REJECT</name></name></expr>:
+                    </case><case>case <expr><name><name>NodeFilter</name>.<name>FILTER_SKIP</name></name></expr>: <block>{ 
+                        <return>return;</return>
+                    }</block>
+                    </case><default>default: <block>{
+                        <comment type="line">// fall through</comment>
+                    }</block>
+                </default>}</block></switch>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>name</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>"=\""</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>printEscaped</name><argument_list>( <argument><expr><name>value</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr>'"'</expr></argument> )</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// If the attribute xml:space exists, determine whether</comment>
+        <comment type="line">// to preserve spaces in this and child nodes based on</comment>
+        <comment type="line">// its value.</comment>
+        <if>if <condition>(<expr><call><name><name>name</name>.<name>equals</name></name><argument_list>( <argument><expr>"xml:space"</expr></argument> )</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>value</name>.<name>equals</name></name><argument_list>( <argument><expr>"preserve"</expr></argument> )</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><name>fPreserveSpace</name> = true</expr>;</expr_stmt></then>
+            <else>else
+                <expr_stmt><expr><name>fPreserveSpace</name> = <call><name><name>_format</name>.<name>getPreserveSpace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <name>String</name></type> <name>getEntityRef</name><parameter_list>( <param><decl><type><name>int</name></type> <name>ch</name></decl></param> )</parameter_list> <block>{
+        <comment type="line">// Encode special XML characters into the equivalent character references.</comment>
+        <comment type="line">// These five are defined by default for all XML documents.</comment>
+        <switch>switch <condition>(<expr><name>ch</name></expr>)</condition> <block>{
+        <case>case <expr>'&lt;'</expr>:
+            <return>return <expr>"lt"</expr>;</return>
+        </case><case>case <expr>'&gt;'</expr>:
+            <return>return <expr>"gt"</expr>;</return>
+        </case><case>case <expr>'"'</expr>:
+            <return>return <expr>"quot"</expr>;</return>
+        </case><case>case <expr>'\''</expr>:
+            <return>return <expr>"apos"</expr>;</return>
+        </case><case>case <expr>'&amp;'</expr>:
+            <return>return <expr>"amp"</expr>;</return>
+        </case>}</block></switch>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+
+    <comment type="javadoc">/** Retrieve and remove the namespaces declarations from the list of attributes.
+     *
+     */</comment>
+    <function><type><specifier>private</specifier> <name>Attributes</name></type> <name>extractNamespaces</name><parameter_list>( <param><decl><type><name>Attributes</name></type> <name>attrs</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>SAXException</name></expr></argument></throws>
+    <block>{
+        <decl_stmt><decl><type><name>AttributesImpl</name></type> <name>attrsOnly</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>         <name>rawName</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type>            <name>i</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type>            <name>indexColon</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type>         <name>prefix</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type>            <name>length</name></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>attrs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>length</name> = <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>attrsOnly</name> = new <call><name>AttributesImpl</name><argument_list>( <argument><expr><name>attrs</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+        <for>for (<init><expr><name>i</name> = <name>length</name> - 1</expr> ;</init> <condition><expr><name>i</name> &gt;= 0</expr> ;</condition> <incr><expr>--<name>i</name></expr></incr>) <block>{
+            <expr_stmt><expr><name>rawName</name> = <call><name><name>attrsOnly</name>.<name>getQName</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">//We have to exclude the namespaces declarations from the attributes</comment>
+            <comment type="line">//Append only when the feature http://xml.org/sax/features/namespace-prefixes"</comment>
+            <comment type="line">//is TRUE</comment>
+            <if>if <condition>(<expr><call><name><name>rawName</name>.<name>startsWith</name></name><argument_list>( <argument><expr>"xmlns"</expr></argument> )</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name><name>rawName</name>.<name>length</name></name><argument_list>()</argument_list></call> == 5</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>startPrefixMapping</name><argument_list>( <argument><expr>""</expr></argument>, <argument><expr><call><name><name>attrs</name>.<name>getValue</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>attrsOnly</name>.<name>removeAttribute</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><call><name><name>rawName</name>.<name>charAt</name></name><argument_list>(<argument><expr>5</expr></argument>)</argument_list></call> == ':'</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>startPrefixMapping</name><argument_list>(<argument><expr><call><name><name>rawName</name>.<name>substring</name></name><argument_list>(<argument><expr>6</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>attrs</name>.<name>getValue</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>attrsOnly</name>.<name>removeAttribute</name></name><argument_list>( <argument><expr><name>i</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if></else></if>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>attrsOnly</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Printing attribute value</comment>
+    <comment type="line">//</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printEscaped</name><parameter_list>(<param><decl><type><name>String</name></type> <name>source</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>source</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>ch</name> =<init> <expr><call><name><name>source</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isValid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr>++<name>i</name> &lt; <name>length</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>source</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '" + (<name>char</name>) <name>ch</name> + "' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <continue>continue;</continue>
+            }</block></then></if>
+            <comment type="line">// escape NL, CR, TAB</comment>
+            <if>if <condition>(<expr><name>ch</name> == '\n' || <name>ch</name> == '\r' || <name>ch</name> == '\t'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&lt;'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;lt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&amp;'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;amp;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '"'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;quot;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr>(<name>ch</name> &gt;= ' ' &amp;&amp; <call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if></else></if></else></if></else></if></else></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/** print text data */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printXMLChar</name><parameter_list>( <param><decl><type><name>int</name></type> <name>ch</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    	<if>if <condition>(<expr><name>ch</name> == '\r'</expr>)</condition><then> <block>{
+			<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    	}</block></then> <else>else <if>if <condition>( <expr><name>ch</name> == '&lt;'</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;lt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&amp;'</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;amp;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '&gt;'</expr>)</condition><then><block>{
+        	<comment type="line">// character sequence "]]&gt;" can't appear in content, therefore</comment>
+        	<comment type="line">// we should escape '&gt;' </comment>
+			<expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>"&amp;gt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>        	
+        }</block></then> <else>else <if>if <condition>( <expr><name>ch</name> == '\n' ||  <name>ch</name> == '\t' ||
+                    ( <name>ch</name> &gt;= ' ' &amp;&amp; <call><name><name>_encodingInfo</name>.<name>isPrintable</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+			<expr_stmt><expr><call><name>printHex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if></else></if></else></if></else></if>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printText</name><parameter_list>( <param><decl><type><name>String</name></type> <name>text</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>preserveSpace</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>unescaped</name></decl></param> )</parameter_list>
+    <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>text</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>( <expr><name>preserveSpace</name></expr> )</condition><then> <block>{
+            <comment type="line">// Preserving spaces: the text must print exactly as it is,</comment>
+            <comment type="line">// without breaking when spaces appear in the text and without</comment>
+            <comment type="line">// consolidating spaces. If a line terminator is used, a line</comment>
+            <comment type="line">// break will occur.</comment>
+            <for>for ( <init><expr><name>index</name> = 0</expr> ;</init> <condition><expr><name>index</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>index</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>ch</name> = <call><name><name>text</name>.<name>charAt</name></name><argument_list>( <argument><expr><name>index</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isValid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>(<expr>++<name>index</name> &lt;<name>length</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>( <expr><name>unescaped</name></expr> )</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></for>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Not preserving spaces: print one part at a time, and</comment>
+            <comment type="line">// use spaces between parts to break them into different</comment>
+            <comment type="line">// lines. Spaces at beginning of line will be stripped</comment>
+            <comment type="line">// by printing mechanism. Line terminator is treated</comment>
+            <comment type="line">// no different than other text part.</comment>
+            <for>for ( <init><expr><name>index</name> = 0</expr> ;</init> <condition><expr><name>index</name> &lt; <name>length</name></expr> ;</condition> <incr><expr>++<name>index</name></expr></incr> ) <block>{
+                <expr_stmt><expr><name>ch</name> = <call><name><name>text</name>.<name>charAt</name></name><argument_list>( <argument><expr><name>index</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isValid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>(<expr>++<name>index</name> &lt;<name>length</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><call><name><name>text</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+
+				<if>if <condition>( <expr><name>unescaped</name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></for>
+        }</block></else></if>
+    }</block></function>
+
+
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>printText</name><parameter_list>( <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>,
+                              <param><decl><type><name>boolean</name></type> <name>preserveSpace</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>unescaped</name></decl></param> )</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>ch</name></decl>;</decl_stmt>
+
+        <if>if <condition>( <expr><name>preserveSpace</name></expr> )</condition><then> <block>{
+            <comment type="line">// Preserving spaces: the text must print exactly as it is,</comment>
+            <comment type="line">// without breaking when spaces appear in the text and without</comment>
+            <comment type="line">// consolidating spaces. If a line terminator is used, a line</comment>
+            <comment type="line">// break will occur.</comment>
+            <while>while <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition> <block>{
+                <expr_stmt><expr><name>ch</name> = <name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isValid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>( <expr><name>unescaped</name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></while>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Not preserving spaces: print one part at a time, and</comment>
+            <comment type="line">// use spaces between parts to break them into different</comment>
+            <comment type="line">// lines. Spaces at beginning of line will be stripped</comment>
+            <comment type="line">// by printing mechanism. Line terminator is treated</comment>
+            <comment type="line">// no different than other text part.</comment>
+            <while>while <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition> <block>{
+                <expr_stmt><expr><name>ch</name> = <name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isValid</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// check if it is surrogate</comment>
+                    <if>if <condition>( <expr><name>length</name>-- &gt; 0</expr> )</condition><then> <block>{
+                        <expr_stmt><expr><call><name>surrogates</name><argument_list>(<argument><expr><name>ch</name></expr></argument>, <argument><expr><name><name>chars</name><index>[<expr><name>start</name>++</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The character '"+(<name>char</name>)<name>ch</name>+"' is an invalid XML character"</expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+                    }</block></else></if>
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>( <expr><name>unescaped</name></expr> )</condition><then>
+                    <expr_stmt><expr><call><name><name>_printer</name>.<name>printText</name></name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></then>
+                <else>else
+                    <expr_stmt><expr><call><name>printXMLChar</name><argument_list>( <argument><expr><name>ch</name></expr></argument> )</argument_list></call></expr>;</expr_stmt></else></if>
+            }</block></while>
+        }</block></else></if>
+    }</block></function>
+
+
+   <comment type="javadoc">/**
+    * DOM Level 3:
+    * Check a node to determine if it contains unbound namespace prefixes.
+    *
+    * @param node The node to check for unbound namespace prefices
+    */</comment>
+	<function><type><specifier>protected</specifier> <name>void</name></type> <name>checkUnboundNamespacePrefixedNode</name> <parameter_list>(<param><decl><type><name>Node</name></type> <name>node</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws><block>{
+
+		<if>if <condition>(<expr><name>fNamespaces</name></expr>)</condition><then> <block>{
+
+   			<if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+			    <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;serializeNode("+<call><name><name>node</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call>+") [Entity Reference - Namespaces on]"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;Declared Prefix Count: " + <call><name><name>fNSBinder</name>.<name>getDeclaredPrefixCount</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;Node Name: " + <call><name><name>node</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;First Child Node Name: " + <call><name><name>node</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call>.<call><name>getNodeName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;First Child Node Prefix: " + <call><name><name>node</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call>.<call><name>getPrefix</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;First Child Node NamespaceURI: " + <call><name><name>node</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call>.<call><name>getNamespaceURI</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>			
+			}</block></then></if>
+
+		
+			<decl_stmt><decl><type><name>Node</name></type> <name>child</name>, <name>next</name></decl>;</decl_stmt>
+	        <for>for (<init><expr><name>child</name> = <call><name><name>node</name>.<name>getFirstChild</name></name><argument_list>()</argument_list></call></expr>;</init> <condition><expr><name>child</name> != <name>null</name></expr>;</condition> <incr><expr><name>child</name> = <name>next</name></expr></incr>) <block>{
+	            <expr_stmt><expr><name>next</name> = <call><name><name>child</name>.<name>getNextSibling</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+			    <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <block>{
+			        <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;serializeNode("+<call><name><name>child</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call>+") [Child Node]"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			        <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"==&gt;serializeNode("+<call><name><name>child</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call>+") [Child Node Prefix]"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	            }</block></then></if>    
+	
+		 	    <comment type="line">//If a NamespaceURI is not declared for the current</comment>
+		 	    <comment type="line">//node's prefix, raise a fatal error.</comment>
+		 	    <decl_stmt><decl><type><name>String</name></type> <name>prefix</name> =<init> <expr><call><name><name>child</name>.<name>getPrefix</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>prefix</name> = (<name>prefix</name> == <name>null</name> || 
+                        <call><name><name>prefix</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> : <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		 	    <if>if <condition>(<expr><call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call> == <name>null</name> &amp;&amp; <name>prefix</name> != <name>null</name></expr>)</condition><then> <block>{
+					<expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The replacement text of the entity node '" 
+								+ <call><name><name>node</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call>  
+								+ "' contains an element node '" 
+								+ <call><name><name>child</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call> 
+								+ "' with an undeclared prefix '" 
+								+ <name>prefix</name> + "'."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		 	    }</block></then></if>	
+
+				<if>if <condition>(<expr><call><name><name>child</name>.<name>getNodeType</name></name><argument_list>()</argument_list></call> == <name><name>Node</name>.<name>ELEMENT_NODE</name></name></expr>)</condition><then> <block>{
+					
+					<decl_stmt><decl><type><name>NamedNodeMap</name></type> <name>attrs</name> =<init> <expr><call><name><name>child</name>.<name>getAttributes</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+					
+					<for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt; <call><name><name>attrs</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name>++</expr></incr> ) <block>{
+						
+				 	    <decl_stmt><decl><type><name>String</name></type> <name>attrPrefix</name> =<init> <expr><call><name><name>attrs</name>.<name>item</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call>.<call><name>getPrefix</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><name>attrPrefix</name> = (<name>attrPrefix</name> == <name>null</name> || 
+                                <call><name><name>attrPrefix</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0) ? <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name> : <call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>attrPrefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				 	    <if>if <condition>(<expr><call><name><name>fNSBinder</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>attrPrefix</name></expr></argument>)</argument_list></call> == <name>null</name> &amp;&amp; <name>attrPrefix</name> != <name>null</name></expr>)</condition><then> <block>{
+							<expr_stmt><expr><call><name>fatalError</name><argument_list>(<argument><expr>"The replacement text of the entity node '" 
+										+ <call><name><name>node</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call>  
+										+ "' contains an element node '" 
+										+ <call><name><name>child</name>.<name>getNodeName</name></name><argument_list>()</argument_list></call> 
+										+ "' with an attribute '" 
+										+ <call><name><name>attrs</name>.<name>item</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call>.<call><name>getNodeName</name><argument_list>()</argument_list></call> 										
+										+ "' an undeclared prefix '" 
+										+ <name>attrPrefix</name> + "'."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				 	    }</block></then></if>	
+						
+					}</block></for>	
+
+				}</block></then></if>
+					
+				<if>if <condition>(<expr><call><name><name>child</name>.<name>hasChildNodes</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+					<expr_stmt><expr><call><name>checkUnboundNamespacePrefixedNode</name><argument_list>(<argument><expr><name>child</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				}</block></then></if>	
+	        }</block></for>
+		}</block></then></if>    
+	}</block></function>	
+
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>reset</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>fNSBinder</name> != <name>null</name></expr>)</condition><then><block>{
+            <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// during serialization always have a mapping to empty string</comment>
+            <comment type="line">// so we assume there is a declaration.</comment>
+            <expr_stmt><expr><call><name><name>fNSBinder</name>.<name>declarePrefix</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>, <argument><expr><name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+}</block></class>
+
+
+
+
+</unit>

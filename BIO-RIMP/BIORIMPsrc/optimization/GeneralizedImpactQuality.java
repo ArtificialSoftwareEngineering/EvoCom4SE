@@ -336,7 +336,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	}
 
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "C:/Refactor/out.txt";
+		String ruta = "D:/F_XERCES_HILL_01.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

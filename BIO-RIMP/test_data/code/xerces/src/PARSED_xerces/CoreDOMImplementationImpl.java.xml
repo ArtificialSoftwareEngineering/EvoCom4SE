@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\dom\CoreDOMImplementationImpl.java"><comment type="block">/*
+ * Copyright 1999-2005 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>dom</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>RevalidationHandler</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>parsers</name>.<name>DOMParserImpl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLChar</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>grammars</name>.<name>XMLGrammarDescription</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xml</name>.<name>serialize</name>.<name>DOMSerializerImpl</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DOMException</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DOMImplementation</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Document</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>DocumentType</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>Element</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>ls</name>.<name>LSParser</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>ls</name>.<name>DOMImplementationLS</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>ls</name>.<name>LSInput</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>ls</name>.<name>LSOutput</name></name>;</import>
+<import>import <name><name>org</name>.<name>w3c</name>.<name>dom</name>.<name>ls</name>.<name>LSSerializer</name></name>;</import>
+<comment type="javadoc">/**
+ * The DOMImplementation class is description of a particular
+ * implementation of the Document Object Model. As such its data is
+ * static, shared by all instances of this implementation.
+ * &lt;P&gt;
+ * The DOM API requires that it be a real object rather than static
+ * methods. However, there's nothing that says it can't be a singleton,
+ * so that's how I've implemented it.
+ * &lt;P&gt;
+ * This particular class, along with CoreDocumentImpl, supports the DOM
+ * Core and Load/Save (Experimental). Optional modules are supported by
+ * the more complete DOMImplementation class along with DocumentImpl.
+ * 
+ * @xerces.internal
+ * 
+ * @version $Id: CoreDOMImplementationImpl.java,v 1.35 2005/05/10 15:36:42 ankitp Exp $
+ * @since PR-DOM-Level-1-19980818.
+ */</comment>
+<class><specifier>public</specifier> class <name>CoreDOMImplementationImpl</name>
+	<super><implements>implements <name>DOMImplementation</name>, <name>DOMImplementationLS</name></implements></super> <block>{
+	<comment type="line">//</comment>
+	<comment type="line">// Data</comment>
+	<comment type="line">//</comment>
+
+    <comment type="line">// validators pool</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SIZE</name> =<init> <expr>2</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>RevalidationHandler</name></type> <name><name>validators</name><index>[]</index></name> =<init> <expr>new <name><name>RevalidationHandler</name><index>[<expr><name>SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>RevalidationHandler</name></type> <name><name>dtdValidators</name><index>[]</index></name> =<init> <expr>new <name><name>RevalidationHandler</name><index>[<expr><name>SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>freeValidatorIndex</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>freeDTDValidatorIndex</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>currentSize</name> =<init> <expr><name>SIZE</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Document and doctype counter.  Used to assign order to documents and</comment>
+    <comment type="line">// doctypes without owners, on an demand basis.   Used for</comment>
+    <comment type="line">// compareDocumentPosition</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>docAndDoctypeCounter</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    
+	<comment type="line">// static</comment>
+	<comment type="javadoc">/** Dom implementation singleton. */</comment>
+	<decl_stmt><decl><type><specifier>static</specifier> <name>CoreDOMImplementationImpl</name></type> <name>singleton</name> =<init>
+		<expr>new <call><name>CoreDOMImplementationImpl</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+	<comment type="line">//</comment>
+	<comment type="line">// Public methods</comment>
+	<comment type="line">//</comment>
+	<comment type="javadoc">/** NON-DOM: Obtain and return the single shared object */</comment>
+	<function><type><specifier>public</specifier> <specifier>static</specifier> <name>DOMImplementation</name></type> <name>getDOMImplementation</name><parameter_list>()</parameter_list> <block>{
+		<return>return <expr><name>singleton</name></expr>;</return>
+	}</block></function>
+	<comment type="line">//</comment>
+	<comment type="line">// DOMImplementation methods</comment>
+	<comment type="line">//</comment>
+	<comment type="javadoc">/**
+	 * Test if the DOM implementation supports a specific "feature" --
+	 * currently meaning language and level thereof.
+	 *
+	 * @param feature The package name of the feature to test.
+	 * In Level 1, supported values are "HTML" and "XML" (case-insensitive).
+	 * At this writing, org.apache.xerces.dom supports only XML.
+	 *
+	 * @param version The version number of the feature being tested.
+	 * This is interpreted as "Version of the DOM API supported for the
+	 * specified Feature", and in Level 1 should be "1.0"
+	 *
+	 * @return true iff this implementation is compatable with the specified
+	 * feature and version.
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasFeature</name><parameter_list>(<param><decl><type><name>String</name></type> <name>feature</name></decl></param>, <param><decl><type><name>String</name></type> <name>version</name></decl></param>)</parameter_list> <block>{
+	    
+	    <decl_stmt><decl><type><name>boolean</name></type> <name>anyVersion</name> =<init> <expr><name>version</name> == <name>null</name> || <call><name><name>version</name>.<name>length</name></name><argument_list>()</argument_list></call> == 0</expr></init></decl>;</decl_stmt>
+	    
+	    <comment type="line">// check if Xalan implementation is around and if yes report true for supporting</comment>
+	    <comment type="line">// XPath API</comment>
+	    <comment type="line">// if a plus sign "+" is prepended to any feature name, implementations </comment>
+	    <comment type="line">// are considered in which the specified feature may not be directly </comment>
+	    <comment type="line">// castable DOMImplementation.getFeature(feature, version). Without a </comment>
+	    <comment type="line">// plus, only features whose interfaces are directly castable are considered.</comment>
+	    <if>if <condition>(<expr>(<call><name><name>feature</name>.<name>equalsIgnoreCase</name></name><argument_list>(<argument><expr>"+XPath"</expr></argument>)</argument_list></call>)       
+	        &amp;&amp; (<name>anyVersion</name> || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"3.0"</expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+	        <try>try <block>{
+	            <decl_stmt><decl><type><name>Class</name></type> <name>xpathClass</name> =<init> <expr><call><name><name>ObjectFactory</name>.<name>findProviderClass</name></name><argument_list>(
+	                <argument><expr>"org.apache.xpath.domapi.XPathEvaluatorImpl"</expr></argument>,
+	                <argument><expr><call><name><name>ObjectFactory</name>.<name>findClassLoader</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                
+                <comment type="line">// Check if the DOM XPath implementation implements</comment>
+                <comment type="line">// the interface org.w3c.dom.XPathEvaluator</comment>
+                <decl_stmt><decl><type><name>Class</name></type> <name><name>interfaces</name><index>[]</index></name> =<init> <expr><call><name><name>xpathClass</name>.<name>getInterfaces</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>interfaces</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>interfaces</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getName</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(
+                        <argument><expr>"org.w3c.dom.xpath.XPathEvaluator"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <return>return <expr>true</expr>;</return>
+                    }</block></then></if>
+                }</block></for>
+	        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+	            <return>return <expr>false</expr>;</return>
+	        }</block></catch></try>
+	        <return>return <expr>true</expr>;</return>
+	    }</block></then></if>
+	    <if>if <condition>(<expr><call><name><name>feature</name>.<name>startsWith</name></name><argument_list>(<argument><expr>"+"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+	        <expr_stmt><expr><name>feature</name> = <call><name><name>feature</name>.<name>substring</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	    }</block></then></if>
+	    <return>return <expr>(
+	        <call><name><name>feature</name>.<name>equalsIgnoreCase</name></name><argument_list>(<argument><expr>"Core"</expr></argument>)</argument_list></call>
+	            &amp;&amp; (<name>anyVersion</name>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"1.0"</expr></argument>)</argument_list></call>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"2.0"</expr></argument>)</argument_list></call>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"3.0"</expr></argument>)</argument_list></call>))
+	                || (<call><name><name>feature</name>.<name>equalsIgnoreCase</name></name><argument_list>(<argument><expr>"XML"</expr></argument>)</argument_list></call>
+	            &amp;&amp; (<name>anyVersion</name>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"1.0"</expr></argument>)</argument_list></call>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"2.0"</expr></argument>)</argument_list></call>
+	                || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"3.0"</expr></argument>)</argument_list></call>))
+	                || (<call><name><name>feature</name>.<name>equalsIgnoreCase</name></name><argument_list>(<argument><expr>"LS"</expr></argument>)</argument_list></call>
+	            &amp;&amp; (<name>anyVersion</name> || <call><name><name>version</name>.<name>equals</name></name><argument_list>(<argument><expr>"3.0"</expr></argument>)</argument_list></call>))</expr>;</return>
+	}</block></function> <comment type="line">// hasFeature(String,String):boolean</comment>
+
+
+	<comment type="javadoc">/**
+	 * Introduced in DOM Level 2. &lt;p&gt;
+	 *
+	 * Creates an empty DocumentType node.
+	 *
+	 * @param qualifiedName The qualified name of the document type to be created.
+	 * @param publicID The document type public identifier.
+	 * @param systemID The document type system identifier.
+	 * @since WD-DOM-Level-2-19990923
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>DocumentType</name></type> <name>createDocumentType</name><parameter_list>( <param><decl><type><name>String</name></type> <name>qualifiedName</name></decl></param>,
+                                    <param><decl><type><name>String</name></type> <name>publicID</name></decl></param>, <param><decl><type><name>String</name></type> <name>systemID</name></decl></param>)</parameter_list> <block>{
+		<comment type="line">// REVISIT: this might allow creation of invalid name for DOCTYPE</comment>
+		<comment type="line">//          xmlns prefix.</comment>
+		<comment type="line">//          also there is no way for a user to turn off error checking.</comment>
+		<expr_stmt><expr><call><name>checkQName</name><argument_list>(<argument><expr><name>qualifiedName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<return>return <expr>new <call><name>DocumentTypeImpl</name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name>qualifiedName</name></expr></argument>, <argument><expr><name>publicID</name></expr></argument>, <argument><expr><name>systemID</name></expr></argument>)</argument_list></call></expr>;</return>
+	}</block></function>
+
+    <function><type><specifier>final</specifier> <name>void</name></type> <name>checkQName</name><parameter_list>(<param><decl><type><name>String</name></type> <name>qname</name></decl></param>)</parameter_list><block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><call><name><name>qname</name>.<name>indexOf</name></name><argument_list>(<argument><expr>':'</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>lastIndex</name> =<init> <expr><call><name><name>qname</name>.<name>lastIndexOf</name></name><argument_list>(<argument><expr>':'</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>qname</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// it is an error for NCName to have more than one ':'</comment>
+        <comment type="line">// check if it is valid QName [Namespace in XML production 6]</comment>
+        <if>if <condition>(<expr><name>index</name> == 0 || <name>index</name> == <name>length</name> - 1 || <name>lastIndex</name> != <name>index</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                    <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"NAMESPACE_ERR"</expr></argument>,
+                    <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NAMESPACE_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>start</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <comment type="line">// Namespace in XML production [6]</comment>
+        <if>if <condition>(<expr><name>index</name> &gt; 0</expr>)</condition><then> <block>{
+            <comment type="line">// check that prefix is NCName</comment>
+            <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isNCNameStart</name></name><argument_list>(<argument><expr><call><name><name>qname</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>start</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                    <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                        <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"INVALID_CHARACTER_ERR"</expr></argument>,
+                        <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>INVALID_CHARACTER_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>index</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isNCName</name></name><argument_list>(<argument><expr><call><name><name>qname</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                        <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                            <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"INVALID_CHARACTER_ERR"</expr></argument>,
+                            <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <throw>throw <expr>new <call><name>DOMException</name><argument_list>(
+                        <argument><expr><name><name>DOMException</name>.<name>INVALID_CHARACTER_ERR</name></name></expr></argument>,
+                        <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then></if>
+            }</block></for>
+            <expr_stmt><expr><name>start</name> = <name>index</name> + 1</expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// check local part</comment>
+        <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isNCNameStart</name></name><argument_list>(<argument><expr><call><name><name>qname</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>start</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// REVISIT: add qname parameter to the message</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                    <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"INVALID_CHARACTER_ERR"</expr></argument>,
+                    <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>INVALID_CHARACTER_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>start</name> + 1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr>!<call><name><name>XMLChar</name>.<name>isNCName</name></name><argument_list>(<argument><expr><call><name><name>qname</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+                    <expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+                        <argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"INVALID_CHARACTER_ERR"</expr></argument>,
+                        <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>INVALID_CHARACTER_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+
+	<comment type="javadoc">/**
+	 * Introduced in DOM Level 2. &lt;p&gt;
+	 *
+	 * Creates an XML Document object of the specified type with its document
+	 * element.
+	 *
+	 * @param namespaceURI     The namespace URI of the document
+	 *                         element to create, or null.
+	 * @param qualifiedName    The qualified name of the document
+	 *                         element to create.
+	 * @param doctype          The type of document to be created or null.&lt;p&gt;
+	 *
+	 *                         When doctype is not null, its
+	 *                         Node.ownerDocument attribute is set to
+	 *                         the document being created.
+	 * @return Document        A new Document object.
+	 * @throws DOMException    WRONG_DOCUMENT_ERR: Raised if doctype has
+	 *                         already been used with a different document.
+	 * @since WD-DOM-Level-2-19990923
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>Document</name></type> <name>createDocument</name><parameter_list>(
+		<param><decl><type><name>String</name></type> <name>namespaceURI</name></decl></param>,
+		<param><decl><type><name>String</name></type> <name>qualifiedName</name></decl></param>,
+		<param><decl><type><name>DocumentType</name></type> <name>doctype</name></decl></param>)</parameter_list>
+		<throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+		<if>if <condition>(<expr><name>doctype</name> != <name>null</name> &amp;&amp; <call><name><name>doctype</name>.<name>getOwnerDocument</name></name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+			<decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+				<expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+					<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+					<argument><expr>"WRONG_DOCUMENT_ERR"</expr></argument>,
+					<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+			<throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>WRONG_DOCUMENT_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+		}</block></then></if>
+		<decl_stmt><decl><type><name>CoreDocumentImpl</name></type> <name>doc</name> =<init> <expr>new <call><name>CoreDocumentImpl</name><argument_list>(<argument><expr><name>doctype</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+		<decl_stmt><decl><type><name>Element</name></type> <name>e</name> =<init> <expr><call><name><name>doc</name>.<name>createElementNS</name></name><argument_list>(<argument><expr><name>namespaceURI</name></expr></argument>, <argument><expr><name>qualifiedName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+		<expr_stmt><expr><call><name><name>doc</name>.<name>appendChild</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<return>return <expr><name>doc</name></expr>;</return>
+	}</block></function>
+
+	<comment type="javadoc">/**
+	 * DOM Level 3 WD - Experimental.
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>Object</name></type> <name>getFeature</name><parameter_list>(<param><decl><type><name>String</name></type> <name>feature</name></decl></param>, <param><decl><type><name>String</name></type> <name>version</name></decl></param>)</parameter_list> <block>{
+	    <if>if <condition>(<expr><call><name><name>singleton</name>.<name>hasFeature</name></name><argument_list>(<argument><expr><name>feature</name></expr></argument>, <argument><expr><name>version</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+	        <if>if <condition>(<expr>(<call><name><name>feature</name>.<name>equalsIgnoreCase</name></name><argument_list>(<argument><expr>"+XPath"</expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+	            <try>try <block>{
+	                <decl_stmt><decl><type><name>Class</name></type> <name>xpathClass</name> =<init> <expr><call><name><name>ObjectFactory</name>.<name>findProviderClass</name></name><argument_list>(
+	                    <argument><expr>"org.apache.xpath.domapi.XPathEvaluatorImpl"</expr></argument>,
+	                    <argument><expr><call><name><name>ObjectFactory</name>.<name>findClassLoader</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+	                
+	                <comment type="line">// Check if the DOM XPath implementation implements</comment>
+	                <comment type="line">// the interface org.w3c.dom.XPathEvaluator</comment>
+	                <decl_stmt><decl><type><name>Class</name></type> <name><name>interfaces</name><index>[]</index></name> =<init> <expr><call><name><name>xpathClass</name>.<name>getInterfaces</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+	                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>interfaces</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+	                    <if>if <condition>(<expr><name><name>interfaces</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getName</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(
+	                        <argument><expr>"org.w3c.dom.xpath.XPathEvaluator"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+	                        <return>return <expr><call><name><name>xpathClass</name>.<name>newInstance</name></name><argument_list>()</argument_list></call></expr>;</return>
+	                    }</block></then></if>
+	                }</block></for>
+	            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+	                <return>return <expr><name>null</name></expr>;</return>
+	            }</block></catch></try>
+	        }</block></then> <else>else <block>{
+	            <return>return <expr><name>singleton</name></expr>;</return>
+	        }</block></else></if>
+	    }</block></then></if>
+	    <return>return <expr><name>null</name></expr>;</return>
+	}</block></function>
+
+	<comment type="line">// DOM L3 LS</comment>
+
+	<comment type="javadoc">/**
+	 * DOM Level 3 LS CR - Experimental.
+     * Create a new &lt;code&gt;LSParser&lt;/code&gt;. The newly constructed parser may
+     * then be configured by means of its &lt;code&gt;DOMConfiguration&lt;/code&gt;
+     * object, and used to parse documents by means of its &lt;code&gt;parse&lt;/code&gt;
+     *  method.
+     * @param mode  The &lt;code&gt;mode&lt;/code&gt; argument is either
+     *   &lt;code&gt;MODE_SYNCHRONOUS&lt;/code&gt; or &lt;code&gt;MODE_ASYNCHRONOUS&lt;/code&gt;, if
+     *   &lt;code&gt;mode&lt;/code&gt; is &lt;code&gt;MODE_SYNCHRONOUS&lt;/code&gt; then the
+     *   &lt;code&gt;LSParser&lt;/code&gt; that is created will operate in synchronous
+     *   mode, if it's &lt;code&gt;MODE_ASYNCHRONOUS&lt;/code&gt; then the
+     *   &lt;code&gt;LSParser&lt;/code&gt; that is created will operate in asynchronous
+     *   mode.
+     * @param schemaType  An absolute URI representing the type of the schema
+     *   language used during the load of a &lt;code&gt;Document&lt;/code&gt; using the
+     *   newly created &lt;code&gt;LSParser&lt;/code&gt;. Note that no lexical checking
+     *   is done on the absolute URI. In order to create a
+     *   &lt;code&gt;LSParser&lt;/code&gt; for any kind of schema types (i.e. the
+     *   LSParser will be free to use any schema found), use the value
+     *   &lt;code&gt;null&lt;/code&gt;.
+     * &lt;p &gt;&lt;b&gt;Note:&lt;/b&gt;    For W3C XML Schema [&lt;a href='http://www.w3.org/TR/2001/REC-xmlschema-1-20010502/'&gt;XML Schema Part 1&lt;/a&gt;]
+     *   , applications must use the value
+     *   &lt;code&gt;"http://www.w3.org/2001/XMLSchema"&lt;/code&gt;. For XML DTD [&lt;a href='http://www.w3.org/TR/2000/REC-xml-20001006'&gt;XML 1.0&lt;/a&gt;],
+     *   applications must use the value
+     *   &lt;code&gt;"http://www.w3.org/TR/REC-xml"&lt;/code&gt;. Other Schema languages
+     *   are outside the scope of the W3C and therefore should recommend an
+     *   absolute URI in order to use this method.
+     * @return  The newly created &lt;code&gt;LSParser&lt;/code&gt; object. This
+     *   &lt;code&gt;LSParser&lt;/code&gt; is either synchronous or asynchronous
+     *   depending on the value of the &lt;code&gt;mode&lt;/code&gt; argument.
+     * &lt;p &gt;&lt;b&gt;Note:&lt;/b&gt;    By default, the newly created &lt;code&gt;LSParser&lt;/code&gt;
+     *    does not contain a &lt;code&gt;DOMErrorHandler&lt;/code&gt;, i.e. the value of
+     *   the "&lt;a href='http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030609/core.html#parameter-error-handler'&gt;
+     *   error-handler&lt;/a&gt;" configuration parameter is &lt;code&gt;null&lt;/code&gt;. However, implementations
+     *   may provide a default error handler at creation time. In that case,
+     *   the initial value of the &lt;code&gt;"error-handler"&lt;/code&gt; configuration
+     *   parameter on the new created &lt;code&gt;LSParser&lt;/code&gt; contains a
+     *   reference to the default error handler.
+     * @exception DOMException
+     *    NOT_SUPPORTED_ERR: Raised if the requested mode or schema type is
+     *   not supported.
+	 */</comment>
+        <function><type><specifier>public</specifier> <name>LSParser</name></type> <name>createLSParser</name><parameter_list>(<param><decl><type><name>short</name></type> <name>mode</name></decl></param>, <param><decl><type><name>String</name></type> <name>schemaType</name></decl></param>)</parameter_list>
+		<throws>throws <argument><expr><name>DOMException</name></expr></argument></throws> <block>{
+		<if>if <condition>(<expr><name>mode</name> != <name><name>DOMImplementationLS</name>.<name>MODE_SYNCHRONOUS</name></name> || (<name>schemaType</name> !=<name>null</name> &amp;&amp;
+		   !"http://www.w3.org/2001/XMLSchema".<call><name>equals</name><argument_list>(<argument><expr><name>schemaType</name></expr></argument>)</argument_list></call> &amp;&amp;
+			!"http://www.w3.org/TR/REC-xml".<call><name>equals</name><argument_list>(<argument><expr><name>schemaType</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+			<decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init>
+				<expr><call><name><name>DOMMessageFormatter</name>.<name>formatMessage</name></name><argument_list>(
+					<argument><expr><name><name>DOMMessageFormatter</name>.<name>DOM_DOMAIN</name></name></expr></argument>,
+					<argument><expr>"NOT_SUPPORTED_ERR"</expr></argument>,
+					<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+			<throw>throw <expr>new <call><name>DOMException</name><argument_list>(<argument><expr><name><name>DOMException</name>.<name>NOT_SUPPORTED_ERR</name></name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</throw>
+		}</block></then></if>
+		<if>if <condition>(<expr><name>schemaType</name> != <name>null</name>
+			&amp;&amp; <call><name><name>schemaType</name>.<name>equals</name></name><argument_list>(<argument><expr>"http://www.w3.org/TR/REC-xml"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+			<return>return <expr>new <call><name>DOMParserImpl</name><argument_list>(
+				<argument><expr>"org.apache.xerces.parsers.DTDConfiguration"</expr></argument>,
+				<argument><expr><name>schemaType</name></expr></argument>)</argument_list></call></expr>;</return>
+		}</block></then>
+		<else>else <block>{
+			<comment type="line">// create default parser configuration validating against XMLSchemas</comment>
+			<return>return <expr>new <call><name>DOMParserImpl</name><argument_list>(
+				<argument><expr>"org.apache.xerces.parsers.XIncludeAwareParserConfiguration"</expr></argument>,
+				<argument><expr><name>schemaType</name></expr></argument>)</argument_list></call></expr>;</return>
+		}</block></else></if>
+	}</block></function>
+
+	<comment type="javadoc">/**
+	 * DOM Level 3 LS CR - Experimental.
+         * Create a new &lt;code&gt;LSSerializer&lt;/code&gt; object.
+         * @return The newly created &lt;code&gt;LSSerializer&lt;/code&gt; object.
+         * &lt;p &gt;&lt;b&gt;Note:&lt;/b&gt;    By default, the newly created
+         * &lt;code&gt;LSSerializer&lt;/code&gt; has no &lt;code&gt;DOMErrorHandler&lt;/code&gt;,
+         * i.e. the value of the &lt;code&gt;"error-handler"&lt;/code&gt; configuration
+         * parameter is &lt;code&gt;null&lt;/code&gt;. However, implementations may
+         * provide a default error handler at creation time. In that case, the
+         * initial value of the &lt;code&gt;"error-handler"&lt;/code&gt; configuration
+         * parameter on the new created &lt;code&gt;LSSerializer&lt;/code&gt; contains a
+         * reference to the default error handler.
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>LSSerializer</name></type> <name>createLSSerializer</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>DOMSerializerImpl</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function> 
+	<comment type="javadoc">/**
+	 * DOM Level 3 LS CR - Experimental.
+         * Create a new empty input source.
+         * @return  The newly created input object.
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>LSInput</name></type> <name>createLSInput</name><parameter_list>()</parameter_list> <block>{
+		<return>return <expr>new <call><name>DOMInputImpl</name><argument_list>()</argument_list></call></expr>;</return>
+	}</block></function>
+
+	<comment type="line">//</comment>
+	<comment type="line">// Protected methods</comment>
+	<comment type="line">//</comment>
+	<comment type="javadoc">/** NON-DOM: retrieve validator. */</comment>
+	<function><type><specifier>synchronized</specifier> <name>RevalidationHandler</name></type> <name>getValidator</name><parameter_list>(<param><decl><type><name>String</name></type> <name>schemaType</name></decl></param>)</parameter_list> <block>{
+		<comment type="line">// REVISIT: implement retrieving DTD validator</comment>
+        <if>if <condition>(<expr><name>schemaType</name> == <name><name>XMLGrammarDescription</name>.<name>XML_SCHEMA</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// create new validator - we should not attempt</comment>
+            <comment type="line">// to restrict the number of validation handlers being</comment>
+            <comment type="line">// requested</comment>
+            <if>if<condition>(<expr><name>freeValidatorIndex</name> &lt; 0</expr>)</condition><then> <block>{
+                <return>return <expr><call>(<name>RevalidationHandler</name>) <argument_list>(<argument><expr><call><name><name>ObjectFactory</name>
+                            .<name>newInstance</name></name><argument_list>(
+                                <argument><expr>"org.apache.xerces.impl.xs.XMLSchemaValidator"</expr></argument>,
+                                <argument><expr><call><name><name>ObjectFactory</name>.<name>findClassLoader</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                <argument><expr>true</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+            <comment type="line">// return first available validator</comment>
+            <decl_stmt><decl><type><name>RevalidationHandler</name></type> <name>val</name> =<init> <expr><name><name>validators</name><index>[<expr><name>freeValidatorIndex</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>validators</name><index>[<expr><name>freeValidatorIndex</name>--</expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+            <return>return <expr><name>val</name></expr>;</return>
+        }</block></then>
+        <else>else <if>if<condition>(<expr><name>schemaType</name> == <name><name>XMLGrammarDescription</name>.<name>XML_DTD</name></name></expr>)</condition><then> <block>{
+            <if>if<condition>(<expr><name>freeDTDValidatorIndex</name> &lt; 0</expr>)</condition><then> <block>{
+                <return>return <expr><call>(<name>RevalidationHandler</name>) <argument_list>(<argument><expr><call><name><name>ObjectFactory</name>
+                            .<name>newInstance</name></name><argument_list>(
+                                <argument><expr>"org.apache.xerces.impl.dtd.XMLDTDValidator"</expr></argument>,
+                                <argument><expr><call><name><name>ObjectFactory</name>.<name>findClassLoader</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                <argument><expr>true</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+            <comment type="line">// return first available validator</comment>
+            <decl_stmt><decl><type><name>RevalidationHandler</name></type> <name>val</name> =<init> <expr><name><name>dtdValidators</name><index>[<expr><name>freeDTDValidatorIndex</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>dtdValidators</name><index>[<expr><name>freeDTDValidatorIndex</name>--</expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+            <return>return <expr><name>val</name></expr>;</return>
+        }</block></then></if></else></if>
+        <return>return <expr><name>null</name></expr>;</return>
+	}</block></function>
+
+	<comment type="javadoc">/** NON-DOM: release validator */</comment>
+	<function><type><specifier>synchronized</specifier> <name>void</name></type> <name>releaseValidator</name><parameter_list>(<param><decl><type><name>String</name></type> <name>schemaType</name></decl></param>,
+                                         <param><decl><type><name>RevalidationHandler</name></type> <name>validator</name></decl></param>)</parameter_list> <block>{
+       <comment type="line">// REVISIT: implement support for DTD validators as well</comment>
+       <if>if<condition>(<expr><name>schemaType</name> == <name><name>XMLGrammarDescription</name>.<name>XML_SCHEMA</name></name></expr>)</condition><then> <block>{
+           <expr_stmt><expr>++<name>freeValidatorIndex</name></expr>;</expr_stmt>
+           <if>if <condition>(<expr><name><name>validators</name>.<name>length</name></name> == <name>freeValidatorIndex</name></expr> )</condition><then><block>{
+                <comment type="line">// resize size of the validators</comment>
+                <expr_stmt><expr><name>currentSize</name>+=<name>SIZE</name></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>RevalidationHandler</name></type> <name><name>newarray</name><index>[]</index></name> =<init>  <expr>new <name><name>RevalidationHandler</name><index>[<expr><name>currentSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>validators</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>newarray</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>validators</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>validators</name> = <name>newarray</name></expr>;</expr_stmt>
+           }</block></then></if>
+           <expr_stmt><expr><name><name>validators</name><index>[<expr><name>freeValidatorIndex</name></expr>]</index></name>=<name>validator</name></expr>;</expr_stmt>
+       }</block></then>
+       <else>else <if>if<condition>(<expr><name>schemaType</name> == <name><name>XMLGrammarDescription</name>.<name>XML_DTD</name></name></expr>)</condition><then> <block>{
+           <expr_stmt><expr>++<name>freeDTDValidatorIndex</name></expr>;</expr_stmt>
+           <if>if <condition>(<expr><name><name>dtdValidators</name>.<name>length</name></name> == <name>freeDTDValidatorIndex</name></expr> )</condition><then><block>{
+                <comment type="line">// resize size of the validators</comment>
+                <expr_stmt><expr><name>currentSize</name>+=<name>SIZE</name></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>RevalidationHandler</name></type> <name><name>newarray</name><index>[]</index></name> =<init>  <expr>new <name><name>RevalidationHandler</name><index>[<expr><name>currentSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>dtdValidators</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>newarray</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>dtdValidators</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>dtdValidators</name> = <name>newarray</name></expr>;</expr_stmt>
+           }</block></then></if>
+           <expr_stmt><expr><name><name>dtdValidators</name><index>[<expr><name>freeDTDValidatorIndex</name></expr>]</index></name>=<name>validator</name></expr>;</expr_stmt>
+       }</block></then></if></else></if>
+	}</block></function>
+
+       <comment type="javadoc">/** NON-DOM:  increment document/doctype counter */</comment>
+       <function><type><specifier>protected</specifier> <specifier>synchronized</specifier> <name>int</name></type> <name>assignDocumentNumber</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>++<name>docAndDoctypeCounter</name></expr>;</return>
+       }</block></function>
+       <comment type="javadoc">/** NON-DOM:  increment document/doctype counter */</comment>
+       <function><type><specifier>protected</specifier> <specifier>synchronized</specifier> <name>int</name></type> <name>assignDocTypeNumber</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>++<name>docAndDoctypeCounter</name></expr>;</return>
+       }</block></function>
+
+    <comment type="block">/* DOM Level 3 LS CR - Experimental.
+     *
+     * Create a new empty output destination object where
+     * &lt;code&gt;LSOutput.characterStream&lt;/code&gt;,
+     * &lt;code&gt;LSOutput.byteStream&lt;/code&gt;, &lt;code&gt;LSOutput.systemId&lt;/code&gt;,
+     * &lt;code&gt;LSOutput.encoding&lt;/code&gt; are null.
+
+     * @return  The newly created output object.
+     */</comment>
+       <function><type><specifier>public</specifier> <name>LSOutput</name></type> <name>createLSOutput</name><parameter_list>()</parameter_list> <block>{
+           <return>return <expr>new <call><name>DOMOutputImpl</name><argument_list>()</argument_list></call></expr>;</return>
+       }</block></function>
+
+}</block></class> <comment type="line">// class DOMImplementationImpl</comment>
+</unit>

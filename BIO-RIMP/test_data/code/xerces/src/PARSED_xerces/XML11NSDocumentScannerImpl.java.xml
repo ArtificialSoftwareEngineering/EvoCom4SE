@@ -1,0 +1,846 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\impl\XML11NSDocumentScannerImpl.java"><comment type="block">/*
+ * Copyright 1999-2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>dtd</name>.<name>XMLDTDValidatorFilter</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>msg</name>.<name>XMLMessageFormatter</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLAttributesImpl</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLSymbols</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>NamespaceContext</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>QName</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>XMLDocumentHandler</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>XNIException</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>parser</name>.<name>XMLComponentManager</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>parser</name>.<name>XMLConfigurationException</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>parser</name>.<name>XMLDocumentSource</name></name>;</import>
+
+<comment type="javadoc">/**
+ * The scanner acts as the source for the document
+ * information which is communicated to the document handler.
+ *
+ * This class scans an XML document, checks if document has a DTD, and if
+ * DTD is not found the scanner will remove the DTD Validator from the pipeline and perform
+ * namespace binding.
+ *
+ * Note: This scanner should only be used when the namespace processing is on!
+ *
+ * &lt;p&gt;
+ * This component requires the following features and properties from the
+ * component manager that uses it:
+ * &lt;ul&gt;
+ *  &lt;li&gt;http://xml.org/sax/features/namespaces {true} -- if the value of this
+ *      feature is set to false this scanner must not be used.&lt;/li&gt;
+ *  &lt;li&gt;http://xml.org/sax/features/validation&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/features/nonvalidating/load-external-dtd&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/features/scanner/notify-char-refs&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/features/scanner/notify-builtin-refs&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/properties/internal/symbol-table&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/properties/internal/error-reporter&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/properties/internal/entity-manager&lt;/li&gt;
+ *  &lt;li&gt;http://apache.org/xml/properties/internal/dtd-scanner&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * @xerces.internal
+ *
+ * @author Elena Litani, IBM
+ * @author Michael Glavassevich, IBM
+ * 
+ * @version $Id: XML11NSDocumentScannerImpl.java,v 1.13 2004/10/04 21:45:49 mrglavas Exp $
+ */</comment>
+<class><specifier>public</specifier> class <name>XML11NSDocumentScannerImpl</name> <super><extends>extends <name>XML11DocumentScannerImpl</name></extends></super> <block>{
+
+    <comment type="javadoc">/** 
+     * If is true, the dtd validator is no longer in the pipeline
+     * and the scanner should bind namespaces 
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fBindNamespaces</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * If validating parser, make sure we report an error in the
+     *  scanner if DTD grammar is missing.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fPerformValidation</name></decl>;</decl_stmt>
+
+    <comment type="line">// private data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** DTD validator */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>XMLDTDValidatorFilter</name></type> <name>fDTDValidator</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** 
+     * Saw spaces after element name or between attributes.
+     * 
+     * This is reserved for the case where scanning of a start element spans
+     * several methods, as is the case when scanning the start of a root element 
+     * where a DTD external subset may be read after scanning the element name.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>fSawSpace</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The scanner is responsible for removing DTD validator
+     * from the pipeline if it is not needed.
+     * 
+     * @param validator the DTD validator from the pipeline
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setDTDValidator</name><parameter_list>(<param><decl><type><name>XMLDTDValidatorFilter</name></type> <name>validator</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>fDTDValidator</name> = <name>validator</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Scans a start element. This method will handle the binding of
+     * namespace information and notifying the handler of the start
+     * of the element.
+     * &lt;p&gt;
+     * &lt;pre&gt;
+     * [44] EmptyElemTag ::= '&amp;lt;' Name (S Attribute)* S? '/&gt;'
+     * [40] STag ::= '&amp;lt;' Name (S Attribute)* S? '&gt;'
+     * &lt;/pre&gt;
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This method assumes that the leading
+     * '&amp;lt;' character has been consumed.
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This method uses the fElementQName and
+     * fAttributes variables. The contents of these variables will be
+     * destroyed. The caller should copy important information out of
+     * these variables before calling this method.
+     *
+     * @return True if element is empty. (i.e. It matches
+     *          production [44].
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>scanStartElement</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&gt;&gt;&gt; scanStartElementNS()"</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+        <comment type="line">// Note: namespace processing is on by default</comment>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanQName</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// REVISIT - [Q] Why do we need this local variable? -- mrglavas</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>rawname</name> =<init> <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>pushContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>fScannerState</name> == <name>SCANNER_STATE_ROOT_ELEMENT</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>fPerformValidation</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                        <argument><expr><name><name>XMLMessageFormatter</name>.<name>XML_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"MSG_GRAMMAR_NOT_FOUND"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>,
+                        <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    <if>if <condition>(<expr><name>fDoctypeName</name> == <name>null</name>
+                        || !<call><name><name>fDoctypeName</name>.<name>equals</name></name><argument_list>(<argument><expr><name>rawname</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XML_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"RootElementTypeMustMatchDoctypedecl"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fDoctypeName</name></expr>, <expr><name>rawname</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// push element stack</comment>
+        <expr_stmt><expr><name>fCurrentElement</name> = <call><name><name>fElementStack</name>.<name>pushElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// attributes</comment>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>empty</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>fAttributes</name>.<name>removeAllAttributes</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <do>do <block>{
+            <comment type="line">// spaces</comment>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>sawSpace</name> =<init> <expr><call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// end tag?</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>fEntityScanner</name>.<name>peekChar</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>c</name> == '&gt;'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanChar</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == '/'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanChar</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>fEntityScanner</name>.<name>skipChar</name></name><argument_list>(<argument><expr>'&gt;'</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementUnterminated"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name>empty</name> = true</expr>;</expr_stmt>
+                <break>break;</break>
+            }</block></then> <else>else <if>if <condition>(<expr>!<call><name>isValidNameStartChar</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> || !<name>sawSpace</name></expr>)</condition><then> <block>{
+                <comment type="line">// Second chance. Check if this character is a high</comment>
+                <comment type="line">// surrogate of a valid name start character.</comment>
+                <if>if <condition>(<expr>!<call><name>isValidNameStartHighSurrogate</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> || !<name>sawSpace</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementUnterminated"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if></else></if></else></if>
+
+            <comment type="line">// attributes</comment>
+            <expr_stmt><expr><call><name>scanAttribute</name><argument_list>(<argument><expr><name>fAttributes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        }</block> while <condition>(<expr>true</expr>)</condition>;</do>
+
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+            <comment type="line">// REVISIT: is it required? forbit xmlns prefix for element</comment>
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                    <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"ElementXMLNSPrefix"</expr></argument>,
+                    <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                    <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// bind the element</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>prefix</name> =<init>
+                <expr><name><name>fElementQName</name>.<name>prefix</name></name> != <name>null</name>
+                    ? <name><name>fElementQName</name>.<name>prefix</name></name>
+                    : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></init></decl>;</decl_stmt>
+            <comment type="line">// assign uri to the element</comment>
+            <expr_stmt><expr><name><name>fElementQName</name>.<name>uri</name></name> = <call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// make sure that object in the element stack is updated as well</comment>
+            <expr_stmt><expr><name><name>fCurrentElement</name>.<name>uri</name></name> = <name><name>fElementQName</name>.<name>uri</name></name></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> == <name>null</name> &amp;&amp; <name><name>fElementQName</name>.<name>uri</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>fElementQName</name>.<name>prefix</name></name> = <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+                <comment type="line">// making sure that the object in the element stack is updated too.</comment>
+                <expr_stmt><expr><name><name>fCurrentElement</name>.<name>prefix</name></name> = <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> != <name>null</name> &amp;&amp; <name><name>fElementQName</name>.<name>uri</name></name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                    <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"ElementPrefixUnbound"</expr></argument>,
+                    <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                        <expr><name><name>fElementQName</name>.<name>prefix</name></name></expr>,
+                        <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                    <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// bind attributes (xmlns are already bound bellow)</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>fAttributes</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name><name>fAttributes</name>.<name>getName</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name>fAttributeQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <decl_stmt><decl><type><name>String</name></type> <name>aprefix</name> =<init>
+                    <expr><name><name>fAttributeQName</name>.<name>prefix</name></name> != <name>null</name>
+                        ? <name><name>fAttributeQName</name>.<name>prefix</name></name>
+                        : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>uri</name> =<init> <expr><call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>aprefix</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <comment type="line">// REVISIT: try removing the first "if" and see if it is faster.</comment>
+                <comment type="line">//</comment>
+                <if>if <condition>(<expr><name><name>fAttributeQName</name>.<name>uri</name></name> != <name>null</name>
+                    &amp;&amp; <name><name>fAttributeQName</name>.<name>uri</name></name> == <name>uri</name></expr>)</condition><then> <block>{
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>aprefix</name> != <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>fAttributeQName</name>.<name>uri</name></name> = <name>uri</name></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>uri</name> == <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributePrefixUnbound"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>fAttributeQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name>aprefix</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><call><name><name>fAttributes</name>.<name>setURI</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+
+            <if>if <condition>(<expr><name>length</name> &gt; 1</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>QName</name></type> <name>name</name> =<init> <expr><call><name><name>fAttributes</name>.<name>checkDuplicatesNS</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>name</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name><name>name</name>.<name>uri</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributeNSNotUnique"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>name</name>.<name>localpart</name></name></expr>,
+                                <expr><name><name>name</name>.<name>uri</name></name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributeNotUnique"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>name</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// call handler</comment>
+        <if>if <condition>(<expr><name>fDocumentHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>empty</name></expr>)</condition><then> <block>{
+
+                <comment type="line">//decrease the markup depth..</comment>
+                <expr_stmt><expr><name>fMarkupDepth</name>--</expr>;</expr_stmt>
+
+                <comment type="line">// check that this element was opened in the same entity</comment>
+                <if>if <condition>(<expr><name>fMarkupDepth</name> &lt; <name><name>fEntityStack</name><index>[<expr><name>fEntityDepth</name> - 1</expr>]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementEntityMismatch"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <expr_stmt><expr><call><name><name>fDocumentHandler</name>.<name>emptyElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>, <argument><expr><name>fAttributes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>popContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">//pop the element off the stack..</comment>
+                <expr_stmt><expr><call><name><name>fElementStack</name>.<name>popElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>fDocumentHandler</name>.<name>startElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>, <argument><expr><name>fAttributes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&lt;&lt;&lt; scanStartElement(): " + <name>empty</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        <return>return <expr><name>empty</name></expr>;</return>
+
+    }</block></function> <comment type="line">// scanStartElement():boolean</comment>
+    
+    <comment type="javadoc">/**
+     * Scans the name of an element in a start or empty tag. 
+     * 
+     * @see #scanStartElement()
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>scanStartElementName</name> <parameter_list>()</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+        <comment type="line">// Note: namespace processing is on by default</comment>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanQName</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// Must skip spaces here because the DTD scanner</comment>
+        <comment type="line">// would consume them at the end of the external subset.</comment>
+        <expr_stmt><expr><name>fSawSpace</name> = <call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function> <comment type="line">// scanStartElementName()</comment>
+    
+    <comment type="javadoc">/**
+     * Scans the remainder of a start or empty tag after the element name.
+     * 
+     * @see #scanStartElement
+     * @return True if element is empty.
+     */</comment>    
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>scanStartElementAfterName</name><parameter_list>()</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+
+        <comment type="line">// REVISIT - [Q] Why do we need this local variable? -- mrglavas</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>rawname</name> =<init> <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>pushContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>fScannerState</name> == <name>SCANNER_STATE_ROOT_ELEMENT</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>fPerformValidation</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                        <argument><expr><name><name>XMLMessageFormatter</name>.<name>XML_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"MSG_GRAMMAR_NOT_FOUND"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>,
+                        <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    <if>if <condition>(<expr><name>fDoctypeName</name> == <name>null</name>
+                        || !<call><name><name>fDoctypeName</name>.<name>equals</name></name><argument_list>(<argument><expr><name>rawname</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XML_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"RootElementTypeMustMatchDoctypedecl"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fDoctypeName</name></expr>, <expr><name>rawname</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// push element stack</comment>
+        <expr_stmt><expr><name>fCurrentElement</name> = <call><name><name>fElementStack</name>.<name>pushElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// attributes</comment>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>empty</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>fAttributes</name>.<name>removeAllAttributes</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <do>do <block>{
+        	
+            <comment type="line">// end tag?</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>fEntityScanner</name>.<name>peekChar</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>c</name> == '&gt;'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanChar</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == '/'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanChar</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>fEntityScanner</name>.<name>skipChar</name></name><argument_list>(<argument><expr>'&gt;'</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementUnterminated"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name>empty</name> = true</expr>;</expr_stmt>
+                <break>break;</break>
+            }</block></then> <else>else <if>if <condition>(<expr>!<call><name>isValidNameStartChar</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> || !<name>fSawSpace</name></expr>)</condition><then> <block>{
+                <comment type="line">// Second chance. Check if this character is a high</comment>
+                <comment type="line">// surrogate of a valid name start character.</comment>
+                <if>if <condition>(<expr>!<call><name>isValidNameStartHighSurrogate</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> || !<name>fSawSpace</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementUnterminated"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>rawname</name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if></else></if></else></if>
+
+            <comment type="line">// attributes</comment>
+            <expr_stmt><expr><call><name>scanAttribute</name><argument_list>(<argument><expr><name>fAttributes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            <comment type="line">// spaces</comment>
+            <expr_stmt><expr><name>fSawSpace</name> = <call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        }</block> while <condition>(<expr>true</expr>)</condition>;</do>
+
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+            <comment type="line">// REVISIT: is it required? forbit xmlns prefix for element</comment>
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                    <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"ElementXMLNSPrefix"</expr></argument>,
+                    <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                    <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// bind the element</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>prefix</name> =<init>
+                <expr><name><name>fElementQName</name>.<name>prefix</name></name> != <name>null</name>
+                    ? <name><name>fElementQName</name>.<name>prefix</name></name>
+                    : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></init></decl>;</decl_stmt>
+            <comment type="line">// assign uri to the element</comment>
+            <expr_stmt><expr><name><name>fElementQName</name>.<name>uri</name></name> = <call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>prefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// make sure that object in the element stack is updated as well</comment>
+            <expr_stmt><expr><name><name>fCurrentElement</name>.<name>uri</name></name> = <name><name>fElementQName</name>.<name>uri</name></name></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> == <name>null</name> &amp;&amp; <name><name>fElementQName</name>.<name>uri</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>fElementQName</name>.<name>prefix</name></name> = <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+                <comment type="line">// making sure that the object in the element stack is updated too.</comment>
+                <expr_stmt><expr><name><name>fCurrentElement</name>.<name>prefix</name></name> = <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name><name>fElementQName</name>.<name>prefix</name></name> != <name>null</name> &amp;&amp; <name><name>fElementQName</name>.<name>uri</name></name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                    <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                    <argument><expr>"ElementPrefixUnbound"</expr></argument>,
+                    <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                        <expr><name><name>fElementQName</name>.<name>prefix</name></name></expr>,
+                        <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                    <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// bind attributes (xmlns are already bound bellow)</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>fAttributes</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name><name>fAttributes</name>.<name>getName</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name>fAttributeQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <decl_stmt><decl><type><name>String</name></type> <name>aprefix</name> =<init>
+                    <expr><name><name>fAttributeQName</name>.<name>prefix</name></name> != <name>null</name>
+                        ? <name><name>fAttributeQName</name>.<name>prefix</name></name>
+                        : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>uri</name> =<init> <expr><call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name>aprefix</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <comment type="line">// REVISIT: try removing the first "if" and see if it is faster.</comment>
+                <comment type="line">//</comment>
+                <if>if <condition>(<expr><name><name>fAttributeQName</name>.<name>uri</name></name> != <name>null</name>
+                    &amp;&amp; <name><name>fAttributeQName</name>.<name>uri</name></name> == <name>uri</name></expr>)</condition><then> <block>{
+                    <continue>continue;</continue>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>aprefix</name> != <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>fAttributeQName</name>.<name>uri</name></name> = <name>uri</name></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>uri</name> == <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributePrefixUnbound"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>fAttributeQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name>aprefix</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><call><name><name>fAttributes</name>.<name>setURI</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name>uri</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+
+            <if>if <condition>(<expr><name>length</name> &gt; 1</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>QName</name></type> <name>name</name> =<init> <expr><call><name><name>fAttributes</name>.<name>checkDuplicatesNS</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>name</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name><name>name</name>.<name>uri</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributeNSNotUnique"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>name</name>.<name>localpart</name></name></expr>,
+                                <expr><name><name>name</name>.<name>uri</name></name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"AttributeNotUnique"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                                <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr>,
+                                <expr><name><name>name</name>.<name>rawname</name></name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// call handler</comment>
+        <if>if <condition>(<expr><name>fDocumentHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>empty</name></expr>)</condition><then> <block>{
+
+                <comment type="line">//decrease the markup depth..</comment>
+                <expr_stmt><expr><name>fMarkupDepth</name>--</expr>;</expr_stmt>
+
+                <comment type="line">// check that this element was opened in the same entity</comment>
+                <if>if <condition>(<expr><name>fMarkupDepth</name> &lt; <name><name>fEntityStack</name><index>[<expr><name>fEntityDepth</name> - 1</expr>]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                        <argument><expr>"ElementEntityMismatch"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <expr_stmt><expr><call><name><name>fDocumentHandler</name>.<name>emptyElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>, <argument><expr><name>fAttributes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>popContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">//pop the element off the stack..</comment>
+                <expr_stmt><expr><call><name><name>fElementStack</name>.<name>popElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>fDocumentHandler</name>.<name>startElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>, <argument><expr><name>fAttributes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&lt;&lt;&lt; scanStartElementAfterName(): " + <name>empty</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        <return>return <expr><name>empty</name></expr>;</return>
+        
+    }</block></function> <comment type="line">// scanStartElementAfterName()</comment>
+
+    <comment type="javadoc">/**
+     * Scans an attribute.
+     * &lt;p&gt;
+     * &lt;pre&gt;
+     * [41] Attribute ::= Name Eq AttValue
+     * &lt;/pre&gt;
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This method assumes that the next
+     * character on the stream is the first character of the attribute
+     * name.
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This method uses the fAttributeQName and
+     * fQName variables. The contents of these variables will be
+     * destroyed.
+     *
+     * @param attributes The attributes list for the scanned attribute.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>scanAttribute</name><parameter_list>(<param><decl><type><name>XMLAttributesImpl</name></type> <name>attributes</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&gt;&gt;&gt; scanAttribute()"</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+        <comment type="line">// name</comment>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>scanQName</name></name><argument_list>(<argument><expr><name>fAttributeQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// equals</comment>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr>!<call><name><name>fEntityScanner</name>.<name>skipChar</name></name><argument_list>(<argument><expr>'='</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                <argument><expr>"EqRequiredInAttribute"</expr></argument>,
+                <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                    <expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr>,
+                    <expr><name><name>fAttributeQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// content</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>attrIndex</name></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>attrIndex</name> = <call><name><name>attributes</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>attributes</name>.<name>addAttributeNS</name></name><argument_list>(
+                <argument><expr><name>fAttributeQName</name></expr></argument>,
+                <argument><expr><name><name>XMLSymbols</name>.<name>fCDATASymbol</name></name></expr></argument>,
+                <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>oldLen</name> =<init> <expr><call><name><name>attributes</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>attrIndex</name> =
+                <call><name><name>attributes</name>.<name>addAttribute</name></name><argument_list>(
+                    <argument><expr><name>fAttributeQName</name></expr></argument>,
+                    <argument><expr><name><name>XMLSymbols</name>.<name>fCDATASymbol</name></name></expr></argument>,
+                    <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// WFC: Unique Att Spec</comment>
+            <if>if <condition>(<expr><name>oldLen</name> == <call><name><name>attributes</name>.<name>getLength</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                    <argument><expr>"AttributeNotUnique"</expr></argument>,
+                    <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                        <expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr>,
+                        <expr><name><name>fAttributeQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+
+        <comment type="line">//REVISIT: one more case needs to be included: external PE and standalone is no</comment>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>isVC</name> =<init> <expr><name>fHasExternalDTD</name> &amp;&amp; !<name>fStandalone</name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Scan attribute value and return true if the non-normalized and normalized value are the same</comment>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>isSameNormalizedAttr</name> =<init> <expr><call><name>scanAttributeValue</name><argument_list>(<argument><expr><name><name>this</name>.<name>fTempString</name></name></expr></argument>, <argument><expr><name>fTempString2</name></expr></argument>, 
+                <argument><expr><name><name>fAttributeQName</name>.<name>rawname</name></name></expr></argument>,<argument><expr><name>isVC</name></expr></argument>,<argument><expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr><call><name><name>fTempString</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>attributes</name>.<name>setValue</name></name><argument_list>(<argument><expr><name>attrIndex</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// If the non-normalized and normalized value are the same, avoid creating a new string.</comment>
+        <if>if <condition>(<expr>!<name>isSameNormalizedAttr</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>attributes</name>.<name>setNonNormalizedValue</name></name><argument_list>(<argument><expr><name>attrIndex</name></expr></argument>, <argument><expr><call><name><name>fTempString2</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>attributes</name>.<name>setSpecified</name></name><argument_list>(<argument><expr><name>attrIndex</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// record namespace declarations if any.</comment>
+        <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+
+            <decl_stmt><decl><type><name>String</name></type> <name>localpart</name> =<init> <expr><name><name>fAttributeQName</name>.<name>localpart</name></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>prefix</name> =<init>
+                <expr><name><name>fAttributeQName</name>.<name>prefix</name></name> != <name>null</name>
+                    ? <name><name>fAttributeQName</name>.<name>prefix</name></name>
+                    : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr></init></decl>;</decl_stmt>
+            <comment type="line">// when it's of form xmlns="..." or xmlns:prefix="...",</comment>
+            <comment type="line">// it's a namespace declaration. but prefix:xmlns="..." isn't.</comment>
+            <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name>
+                || <name>prefix</name> == <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name>
+                &amp;&amp; <name>localpart</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{
+
+                <comment type="line">// get the internalized value of this attribute</comment>
+                <decl_stmt><decl><type><name>String</name></type> <name>uri</name> =<init> <expr><call><name><name>fSymbolTable</name>.<name>addSymbol</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <comment type="line">// 1. "xmlns" can't be bound to any namespace</comment>
+                <if>if <condition>(<expr><name>prefix</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name>
+                    &amp;&amp; <name>localpart</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                        <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"CantBindXMLNS"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fAttributeQName</name></expr> }</block></expr></argument>,
+                        <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <comment type="line">// 2. the namespace for "xmlns" can't be bound to any prefix</comment>
+                <if>if <condition>(<expr><name>uri</name> == <name><name>NamespaceContext</name>.<name>XMLNS_URI</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                        <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                        <argument><expr>"CantBindXMLNS"</expr></argument>,
+                        <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fAttributeQName</name></expr> }</block></expr></argument>,
+                        <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <comment type="line">// 3. "xml" can't be bound to any other namespace than it's own</comment>
+                <if>if <condition>(<expr><name>localpart</name> == <name><name>XMLSymbols</name>.<name>PREFIX_XML</name></name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>uri</name> != <name><name>NamespaceContext</name>.<name>XML_URI</name></name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"CantBindXML"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fAttributeQName</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then>
+                <comment type="line">// 4. the namespace for "xml" can't be bound to any other prefix</comment>
+                <else>else <block>{
+                    <if>if <condition>(<expr><name>uri</name> == <name><name>NamespaceContext</name>.<name>XML_URI</name></name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>fErrorReporter</name>.<name>reportError</name></name><argument_list>(
+                            <argument><expr><name><name>XMLMessageFormatter</name>.<name>XMLNS_DOMAIN</name></name></expr></argument>,
+                            <argument><expr>"CantBindXML"</expr></argument>,
+                            <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>fAttributeQName</name></expr> }</block></expr></argument>,
+                            <argument><expr><name><name>XMLErrorReporter</name>.<name>SEVERITY_FATAL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+
+                <expr_stmt><expr><name>prefix</name> =
+                    <name>localpart</name> != <name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name>
+                        ? <name>localpart</name>
+                        : <name><name>XMLSymbols</name>.<name>EMPTY_STRING</name></name></expr>;</expr_stmt>
+
+                <comment type="line">// Declare prefix in context. Removing the association between a prefix and a </comment>
+                <comment type="line">// namespace name is permitted in XML 1.1, so if the uri value is the empty string, </comment>
+                <comment type="line">// the prefix is being unbound. -- mrglavas</comment>
+                <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>declarePrefix</name></name><argument_list>(
+                    <argument><expr><name>prefix</name></expr></argument>,
+                    <argument><expr><call><name><name>uri</name>.<name>length</name></name><argument_list>()</argument_list></call> != 0 ? <name>uri</name> : <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">// bind namespace attribute to a namespace</comment>
+                <expr_stmt><expr><call><name><name>attributes</name>.<name>setURI</name></name><argument_list>(
+                    <argument><expr><name>attrIndex</name></expr></argument>,
+                    <argument><expr><call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name><name>XMLSymbols</name>.<name>PREFIX_XMLNS</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            }</block></then> <else>else <block>{
+                <comment type="line">// attempt to bind attribute</comment>
+                <if>if <condition>(<expr><name><name>fAttributeQName</name>.<name>prefix</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>attributes</name>.<name>setURI</name></name><argument_list>(
+                        <argument><expr><name>attrIndex</name></expr></argument>,
+                        <argument><expr><call><name><name>fNamespaceContext</name>.<name>getURI</name></name><argument_list>(<argument><expr><name><name>fAttributeQName</name>.<name>prefix</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&lt;&lt;&lt; scanAttribute()"</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+    }</block></function> <comment type="line">// scanAttribute(XMLAttributes)</comment>
+
+    <comment type="javadoc">/**
+     * Scans an end element.
+     * &lt;p&gt;
+     * &lt;pre&gt;
+     * [42] ETag ::= '&amp;lt;/' Name S? '&gt;'
+     * &lt;/pre&gt;
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This method uses the fElementQName variable.
+     * The contents of this variable will be destroyed. The caller should
+     * copy the needed information out of this variable before calling
+     * this method.
+     *
+     * @return The element depth.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>int</name></type> <name>scanEndElement</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>DEBUG_CONTENT_SCANNING</name></expr>)</condition><then>
+            <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"&gt;&gt;&gt; scanEndElement()"</expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+
+        <comment type="line">// pop context</comment>
+        <expr_stmt><expr><call><name><name>fElementStack</name>.<name>popElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Take advantage of the fact that next string _should_ be "fElementQName.rawName",</comment>
+        <comment type="line">//In scanners most of the time is consumed on checks done for XML characters, we can</comment>
+        <comment type="line">// optimize on it and avoid the checks done for endElement,</comment>
+        <comment type="line">//we will also avoid symbol table lookup - neeraj.bajaj@sun.com</comment>
+
+        <comment type="line">// this should work both for namespace processing true or false...</comment>
+
+        <comment type="line">//REVISIT: if the string is not the same as expected.. we need to do better error handling..</comment>
+        <comment type="line">//We can skip this for now... In any case if the string doesn't match -- document is not well formed.</comment>
+        <if>if <condition>(<expr>!<call><name><name>fEntityScanner</name>.<name>skipString</name></name><argument_list>(<argument><expr><name><name>fElementQName</name>.<name>rawname</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                <argument><expr>"ETagRequired"</expr></argument>,
+                <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// end</comment>
+        <expr_stmt><expr><call><name><name>fEntityScanner</name>.<name>skipSpaces</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr>!<call><name><name>fEntityScanner</name>.<name>skipChar</name></name><argument_list>(<argument><expr>'&gt;'</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                <argument><expr>"ETagUnterminated"</expr></argument>,
+                <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fElementQName</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>fMarkupDepth</name>--</expr>;</expr_stmt>
+
+        <comment type="line">//we have increased the depth for two markup "&lt;" characters</comment>
+        <expr_stmt><expr><name>fMarkupDepth</name>--</expr>;</expr_stmt>
+
+        <comment type="line">// check that this element was opened in the same entity</comment>
+        <if>if <condition>(<expr><name>fMarkupDepth</name> &lt; <name><name>fEntityStack</name><index>[<expr><name>fEntityDepth</name> - 1</expr>]</index></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>reportFatalError</name><argument_list>(
+                <argument><expr>"ElementEntityMismatch"</expr></argument>,
+                <argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name><name>fCurrentElement</name>.<name>rawname</name></name></expr> }</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// call handler</comment>
+        <if>if <condition>(<expr><name>fDocumentHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+
+            <expr_stmt><expr><call><name><name>fDocumentHandler</name>.<name>endElement</name></name><argument_list>(<argument><expr><name>fElementQName</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>fBindNamespaces</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>fNamespaceContext</name>.<name>popContext</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+        }</block></then></if>
+
+        <return>return <expr><name>fMarkupDepth</name></expr>;</return>
+
+    }</block></function> <comment type="line">// scanEndElement():int</comment>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>reset</name><parameter_list>(<param><decl><type><name>XMLComponentManager</name></type> <name>componentManager</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>XMLConfigurationException</name></expr></argument></throws> <block>{
+
+        <expr_stmt><expr><call><name><name>super</name>.<name>reset</name></name><argument_list>(<argument><expr><name>componentManager</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fPerformValidation</name> = false</expr>;</expr_stmt>
+        <expr_stmt><expr><name>fBindNamespaces</name> = false</expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/** Creates a content dispatcher. */</comment>
+    <function><type><specifier>protected</specifier> <name>Dispatcher</name></type> <name>createContentDispatcher</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>NS11ContentDispatcher</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function> <comment type="line">// createContentDispatcher():Dispatcher</comment>
+
+    <comment type="javadoc">/**
+     * Dispatcher to handle content scanning.
+     */</comment>
+    <class><specifier>protected</specifier> <specifier>final</specifier> class <name>NS11ContentDispatcher</name> <super><extends>extends <name>ContentDispatcher</name></extends></super> <block>{
+        <comment type="javadoc">/**
+         * Scan for root element hook. This method is a hook for
+         * subclasses to add code that handles scanning for the root
+         * element. This method will also attempt to remove DTD validator
+         * from the pipeline, if there is no DTD grammar. If DTD validator
+         * is no longer in the pipeline bind namespaces in the scanner.
+         *
+         *
+         * @return True if the caller should stop and return true which
+         *          allows the scanner to switch to a new scanning
+         *          dispatcher. A return value of false indicates that
+         *          the content dispatcher should continue as normal.
+         */</comment>
+        <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>scanRootElementHook</name><parameter_list>()</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XNIException</name></expr></argument></throws> <block>{
+            
+            <if>if <condition>(<expr><name>fExternalSubsetResolver</name> != <name>null</name> &amp;&amp; !<name>fSeenDoctypeDecl</name> 
+                &amp;&amp; !<name>fDisallowDoctype</name> &amp;&amp; (<name>fValidation</name> || <name>fLoadExternalDTD</name>)</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>scanStartElementName</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>resolveExternalSubsetAndRead</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>reconfigurePipeline</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name>scanStartElementAfterName</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>setScannerState</name><argument_list>(<argument><expr><name>SCANNER_STATE_TRAILING_MISC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>setDispatcher</name><argument_list>(<argument><expr><name>fTrailingMiscDispatcher</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <return>return <expr>true</expr>;</return>
+                }</block></then></if>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name>reconfigurePipeline</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name>scanStartElement</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>setScannerState</name><argument_list>(<argument><expr><name>SCANNER_STATE_TRAILING_MISC</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>setDispatcher</name><argument_list>(<argument><expr><name>fTrailingMiscDispatcher</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <return>return <expr>true</expr>;</return>
+                }</block></then></if>
+            }</block></else></if>
+            <return>return <expr>false</expr>;</return>
+
+        }</block></function> <comment type="line">// scanRootElementHook():boolean</comment>
+        
+        <comment type="javadoc">/**
+         * Re-configures pipeline by removing the DTD validator 
+         * if no DTD grammar exists. If no validator exists in the
+         * pipeline or there is no DTD grammar, namespace binding
+         * is performed by the scanner in the enclosing class.
+         */</comment>
+        <function><type><specifier>private</specifier> <name>void</name></type> <name>reconfigurePipeline</name><parameter_list>()</parameter_list> <block>{
+            <if>if <condition>(<expr><name>fDTDValidator</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>fBindNamespaces</name> = true</expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr>!<call><name><name>fDTDValidator</name>.<name>hasGrammar</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>fBindNamespaces</name> = true</expr>;</expr_stmt>
+                <expr_stmt><expr><name>fPerformValidation</name> = <call><name><name>fDTDValidator</name>.<name>validate</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">// re-configure pipeline</comment>
+                <decl_stmt><decl><type><name>XMLDocumentSource</name></type> <name>source</name> =<init> <expr><call><name><name>fDTDValidator</name>.<name>getDocumentSource</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>XMLDocumentHandler</name></type> <name>handler</name> =<init> <expr><call><name><name>fDTDValidator</name>.<name>getDocumentHandler</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>source</name>.<name>setDocumentHandler</name></name><argument_list>(<argument><expr><name>handler</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>handler</name> != <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>handler</name>.<name>setDocumentSource</name></name><argument_list>(<argument><expr><name>source</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name><name>fDTDValidator</name>.<name>setDocumentSource</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>fDTDValidator</name>.<name>setDocumentHandler</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if></else></if>
+        }</block></function> <comment type="line">// reconfigurePipeline()</comment>
+    }</block></class>
+}</block></class>
+</unit>

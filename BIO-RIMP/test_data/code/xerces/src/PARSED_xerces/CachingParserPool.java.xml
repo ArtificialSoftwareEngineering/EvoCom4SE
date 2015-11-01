@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\parsers\CachingParserPool.java"><comment type="block">/*
+ * Copyright 1999-2002,2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>parsers</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>grammars</name>.<name>Grammar</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>grammars</name>.<name>XMLGrammarPool</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xni</name>.<name>grammars</name>.<name>XMLGrammarDescription</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>XMLGrammarPoolImpl</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>ShadowedSymbolTable</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>SymbolTable</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>util</name>.<name>SynchronizedSymbolTable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A parser pool that enables caching of grammars. The caching parser
+ * pool is constructed with a specific symbol table and grammar pool
+ * that has already been populated with the grammars used by the
+ * application.
+ * &lt;p&gt;
+ * Once the caching parser pool is constructed, specific parser
+ * instances are created by calling the appropriate factory method
+ * on the parser pool.
+ * &lt;p&gt;
+ * &lt;strong&gt;Note:&lt;/strong&gt; There is a performance penalty for using
+ * a caching parser pool due to thread safety. Access to the symbol 
+ * table and grammar pool must be synchronized to ensure the safe
+ * operation of the symbol table and grammar pool.
+ * &lt;p&gt;
+ * &lt;strong&gt;Note:&lt;/strong&gt; If performance is critical, then another
+ * mechanism needs to be used instead of the caching parser pool.
+ * One approach would be to create parser instances that do not
+ * share these structures. Instead, each instance would get its
+ * own copy to use while parsing. This avoids the synchronization
+ * overhead at the expense of more memory and the time required
+ * to copy the structures for each new parser instance. And even
+ * when a parser instance is re-used, there is a potential for a
+ * memory leak due to new symbols being added to the symbol table
+ * over time. In other words, always take caution to make sure
+ * that your application is thread-safe and avoids leaking memory.
+ *
+ * @author Andy Clark, IBM
+ *
+ * @version $Id: CachingParserPool.java,v 1.12 2004/02/24 23:15:56 mrglavas Exp $
+ */</comment>
+<class><specifier>public</specifier> class <name>CachingParserPool</name> <block>{
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constants</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Default shadow symbol table (false). */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEFAULT_SHADOW_SYMBOL_TABLE</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Default shadow grammar pool (false). */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>DEFAULT_SHADOW_GRAMMAR_POOL</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Data</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** 
+     * Symbol table. The symbol table that the caching parser pool is
+     * constructed with is automatically wrapped in a synchronized
+     * version for thread-safety.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>SymbolTable</name></type> <name>fSynchronizedSymbolTable</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Grammar pool. The grammar pool that the caching parser pool is
+     * constructed with is automatically wrapped in a synchronized
+     * version for thread-safety.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>XMLGrammarPool</name></type> <name>fSynchronizedGrammarPool</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Shadow the symbol table for new parser instances. If true,
+     * new parser instances use shadow copies of the main symbol
+     * table and are not allowed to add new symbols to the main
+     * symbol table. New symbols are added to the shadow symbol
+     * table and are local to the parser instance.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fShadowSymbolTable</name> =<init> <expr><name>DEFAULT_SHADOW_SYMBOL_TABLE</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Shadow the grammar pool for new parser instances. If true,
+     * new parser instances use shadow copies of the main grammar
+     * pool and are not allowed to add new grammars to the main
+     * grammar pool. New grammars are added to the shadow grammar
+     * pool and are local to the parser instance.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>fShadowGrammarPool</name> =<init> <expr><name>DEFAULT_SHADOW_GRAMMAR_POOL</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Constructors</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Default constructor. */</comment>
+    <constructor><specifier>public</specifier> <name>CachingParserPool</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>SymbolTable</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>new <call><name>XMLGrammarPoolImpl</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor> <comment type="line">// &lt;init&gt;()</comment>
+
+    <comment type="javadoc">/**
+     * Constructs a caching parser pool with the specified symbol table
+     * and grammar pool.
+     * 
+     * @param symbolTable The symbol table.
+     * @param grammarPool The grammar pool.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CachingParserPool</name><parameter_list>(<param><decl><type><name>SymbolTable</name></type> <name>symbolTable</name></decl></param>, <param><decl><type><name>XMLGrammarPool</name></type> <name>grammarPool</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>fSynchronizedSymbolTable</name> = new <call><name>SynchronizedSymbolTable</name><argument_list>(<argument><expr><name>symbolTable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>fSynchronizedGrammarPool</name> = new <call><name>SynchronizedGrammarPool</name><argument_list>(<argument><expr><name>grammarPool</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor> <comment type="line">// &lt;init&gt;(SymbolTable,XMLGrammarPool)</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Public methods</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/** Returns the symbol table. */</comment>
+    <function><type><specifier>public</specifier> <name>SymbolTable</name></type> <name>getSymbolTable</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fSynchronizedSymbolTable</name></expr>;</return>
+    }</block></function> <comment type="line">// getSymbolTable():SymbolTable</comment>
+
+    <comment type="javadoc">/** Returns the grammar pool. */</comment>
+    <function><type><specifier>public</specifier> <name>XMLGrammarPool</name></type> <name>getXMLGrammarPool</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fSynchronizedGrammarPool</name></expr>;</return>
+    }</block></function> <comment type="line">// getXMLGrammarPool():XMLGrammarPool</comment>
+
+    <comment type="line">// setters and getters</comment>
+
+    <comment type="javadoc">/** 
+     * Sets whether new parser instance receive shadow copies of the
+     * main symbol table.
+     *
+     * @param shadow If true, new parser instances use shadow copies 
+     *               of the main symbol table and are not allowed to
+     *               add new symbols to the main symbol table. New
+     *               symbols are added to the shadow symbol table and
+     *               are local to the parser instance. If false, new
+     *               parser instances are allowed to add new symbols
+     *               to the main symbol table.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setShadowSymbolTable</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>shadow</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>fShadowSymbolTable</name> = <name>shadow</name></expr>;</expr_stmt>
+    }</block></function> <comment type="line">// setShadowSymbolTable(boolean)</comment>
+
+    <comment type="line">// factory methods</comment>
+
+    <comment type="javadoc">/** Creates a new DOM parser. */</comment>
+    <function><type><specifier>public</specifier> <name>DOMParser</name></type> <name>createDOMParser</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SymbolTable</name></type> <name>symbolTable</name> =<init> <expr><name>fShadowSymbolTable</name>
+                                ? new <call><name>ShadowedSymbolTable</name><argument_list>(<argument><expr><name>fSynchronizedSymbolTable</name></expr></argument>)</argument_list></call>
+                                : <name>fSynchronizedSymbolTable</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>XMLGrammarPool</name></type> <name>grammarPool</name> =<init> <expr><name>fShadowGrammarPool</name>
+                                ? new <call><name>ShadowedGrammarPool</name><argument_list>(<argument><expr><name>fSynchronizedGrammarPool</name></expr></argument>)</argument_list></call>
+                                : <name>fSynchronizedGrammarPool</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>DOMParser</name><argument_list>(<argument><expr><name>symbolTable</name></expr></argument>, <argument><expr><name>grammarPool</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function> <comment type="line">// createDOMParser():DOMParser</comment>
+
+    <comment type="javadoc">/** Creates a new SAX parser. */</comment>
+    <function><type><specifier>public</specifier> <name>SAXParser</name></type> <name>createSAXParser</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SymbolTable</name></type> <name>symbolTable</name> =<init> <expr><name>fShadowSymbolTable</name>
+                                ? new <call><name>ShadowedSymbolTable</name><argument_list>(<argument><expr><name>fSynchronizedSymbolTable</name></expr></argument>)</argument_list></call>
+                                : <name>fSynchronizedSymbolTable</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>XMLGrammarPool</name></type> <name>grammarPool</name> =<init> <expr><name>fShadowGrammarPool</name>
+                                ? new <call><name>ShadowedGrammarPool</name><argument_list>(<argument><expr><name>fSynchronizedGrammarPool</name></expr></argument>)</argument_list></call>
+                                : <name>fSynchronizedGrammarPool</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>SAXParser</name><argument_list>(<argument><expr><name>symbolTable</name></expr></argument>, <argument><expr><name>grammarPool</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function> <comment type="line">// createSAXParser():SAXParser</comment>
+
+    <comment type="line">//</comment>
+    <comment type="line">// Classes</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Synchronized grammar pool.
+     *
+     * @author Andy Clark, IBM
+     */</comment>
+    <class><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>SynchronizedGrammarPool</name>
+        <super><implements>implements <name>XMLGrammarPool</name></implements></super> <block>{
+
+        <comment type="line">//</comment>
+        <comment type="line">// Data</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/** Main grammar pool. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>XMLGrammarPool</name></type> <name>fGrammarPool</name></decl>;</decl_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">// Constructors</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/** Constructs a synchronized grammar pool. */</comment>
+        <constructor><specifier>public</specifier> <name>SynchronizedGrammarPool</name><parameter_list>(<param><decl><type><name>XMLGrammarPool</name></type> <name>grammarPool</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>fGrammarPool</name> = <name>grammarPool</name></expr>;</expr_stmt>
+        }</block></constructor> <comment type="line">// &lt;init&gt;(XMLGrammarPool)</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">// GrammarPool methods</comment>
+        <comment type="line">//</comment>
+
+        <comment type="line">// retrieve the initial set of grammars for the validator</comment>
+        <comment type="line">// to work with.</comment>
+        <comment type="line">// REVISIT:  does this need to be synchronized since it's just reading?</comment>
+        <comment type="line">// @param grammarType type of the grammars to be retrieved.</comment>
+        <comment type="line">// @return the initial grammar set the validator may place in its "bucket"</comment>
+        <function><type><specifier>public</specifier> <name>Grammar</name> <index>[]</index></type> <name>retrieveInitialGrammarSet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>grammarType</name></decl></param> )</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <return>return <expr><call><name><name>fGrammarPool</name>.<name>retrieveInitialGrammarSet</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// retrieveInitialGrammarSet(String):  Grammar[]</comment>
+
+        <comment type="line">// retrieve a particular grammar.</comment>
+        <comment type="line">// REVISIT:  does this need to be synchronized since it's just reading?</comment>
+        <comment type="line">// @param gDesc description of the grammar to be retrieved</comment>
+        <comment type="line">// @return Grammar corresponding to gDesc, or null if none exists.</comment>
+        <function><type><specifier>public</specifier> <name>Grammar</name></type> <name>retrieveGrammar</name><parameter_list>(<param><decl><type><name>XMLGrammarDescription</name></type> <name>gDesc</name></decl></param>)</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <return>return <expr><call><name><name>fGrammarPool</name>.<name>retrieveGrammar</name></name><argument_list>(<argument><expr><name>gDesc</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// retrieveGrammar(XMLGrammarDesc):  Grammar</comment>
+
+        <comment type="line">// give the grammarPool the option of caching these grammars.</comment>
+        <comment type="line">// This certainly must be synchronized.</comment>
+        <comment type="line">// @param grammarType The type of the grammars to be cached.</comment>
+        <comment type="line">// @param grammars the Grammars that may be cached (unordered, Grammars previously</comment>
+        <comment type="line">//  given to the validator may be included).</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>cacheGrammars</name><parameter_list>(<param><decl><type><name>String</name></type> <name>grammarType</name></decl></param>, <param><decl><type><name><name>Grammar</name><index>[]</index></name></type> <name>grammars</name></decl></param>)</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <expr_stmt><expr><call><name><name>fGrammarPool</name>.<name>cacheGrammars</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>, <argument><expr><name>grammars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// cacheGrammars(String, Grammar[]);</comment>
+
+        <comment type="javadoc">/** lock the grammar pool */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>lockPool</name><parameter_list>()</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <expr_stmt><expr><call><name><name>fGrammarPool</name>.<name>lockPool</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// lockPool()</comment>
+
+        <comment type="javadoc">/** clear the grammar pool */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>()</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <expr_stmt><expr><call><name><name>fGrammarPool</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// lockPool()</comment>
+
+        <comment type="javadoc">/** unlock the grammar pool */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>unlockPool</name><parameter_list>()</parameter_list> <block>{
+            <synchronized>synchronized (<expr><name>fGrammarPool</name></expr>) <block>{
+                <expr_stmt><expr><call><name><name>fGrammarPool</name>.<name>unlockPool</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></synchronized>
+        }</block></function> <comment type="line">// unlockPool()</comment>
+
+        <comment type="javadoc">/***
+         * Methods corresponding to original (pre Xerces2.0.0final)
+         * grammarPool have been commented out.
+         */</comment>
+        <comment type="javadoc">/**
+         * Puts the specified grammar into the grammar pool.
+         * 
+         * @param key Key to associate with grammar.
+         * @param grammar Grammar object.
+         */</comment>
+        <comment type="javadoc">/******
+        public void putGrammar(String key, Grammar grammar) {
+            synchronized (fGrammarPool) {
+                fGrammarPool.putGrammar(key, grammar);
+            }
+        } // putGrammar(String,Grammar)
+        *******/</comment>
+
+        <comment type="javadoc">/**
+         * Returns the grammar associated to the specified key.
+         * 
+         * @param key The key of the grammar.
+         */</comment>
+        <comment type="javadoc">/**********
+        public Grammar getGrammar(String key) {
+            synchronized (fGrammarPool) {
+                return fGrammarPool.getGrammar(key);
+            }
+        } // getGrammar(String):Grammar
+        ***********/</comment>
+
+        <comment type="javadoc">/**
+         * Removes the grammar associated to the specified key from the
+         * grammar pool and returns the removed grammar.
+         * 
+         * @param key The key of the grammar.
+         */</comment>
+        <comment type="javadoc">/**********
+        public Grammar removeGrammar(String key) {
+            synchronized (fGrammarPool) {
+                return fGrammarPool.removeGrammar(key);
+            }
+        } // removeGrammar(String):Grammar
+        ******/</comment>
+
+        <comment type="javadoc">/**
+         * Returns true if the grammar pool contains a grammar associated
+         * to the specified key.
+         *
+         * @param key The key of the grammar.
+         */</comment>
+        <comment type="javadoc">/**********
+        public boolean containsGrammar(String key) {
+            synchronized (fGrammarPool) {
+                return fGrammarPool.containsGrammar(key);
+            }
+        } // containsGrammar(String):boolean
+        ********/</comment>
+
+    }</block></class> <comment type="line">// class SynchronizedGrammarPool</comment>
+
+    <comment type="javadoc">/**
+     * Shadowed grammar pool.
+     * This class is predicated on the existence of a concrete implementation;
+     * so using our own doesn't seem to bad an idea.
+     *
+     * @author Andy Clark, IBM
+     * @author Neil Graham, IBM
+     */</comment>
+    <class><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>ShadowedGrammarPool</name>
+        <super><extends>extends <name>XMLGrammarPoolImpl</name></extends></super> <block>{
+
+        <comment type="line">//</comment>
+        <comment type="line">// Data</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/** Main grammar pool. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>XMLGrammarPool</name></type> <name>fGrammarPool</name></decl>;</decl_stmt>
+
+        <comment type="line">//</comment>
+        <comment type="line">// Constructors</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/** Constructs a shadowed grammar pool. */</comment>
+        <constructor><specifier>public</specifier> <name>ShadowedGrammarPool</name><parameter_list>(<param><decl><type><name>XMLGrammarPool</name></type> <name>grammarPool</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>fGrammarPool</name> = <name>grammarPool</name></expr>;</expr_stmt>
+        }</block></constructor> <comment type="line">// &lt;init&gt;(GrammarPool)</comment>
+
+        <comment type="line">//</comment>
+        <comment type="line">// GrammarPool methods</comment>
+        <comment type="line">//</comment>
+
+        <comment type="javadoc">/**
+         * Retrieve the initial set of grammars for the validator to work with.
+         * REVISIT:  does this need to be synchronized since it's just reading?
+         * 
+         * @param grammarType Type of the grammars to be retrieved.
+         * @return            The initial grammar set the validator may place in its "bucket"
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Grammar</name> <index>[]</index></type> <name>retrieveInitialGrammarSet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>grammarType</name></decl></param> )</parameter_list> <block>{
+            <decl_stmt><decl><type><name>Grammar</name> <index>[]</index></type> <name>grammars</name> =<init> <expr><call><name><name>super</name>.<name>retrieveInitialGrammarSet</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>grammars</name> != <name>null</name></expr>)</condition><then> <return>return <expr><name>grammars</name></expr>;</return></then></if>
+            <return>return <expr><call><name><name>fGrammarPool</name>.<name>retrieveInitialGrammarSet</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function> <comment type="line">// retrieveInitialGrammarSet(String):  Grammar[]</comment>
+
+        <comment type="javadoc">/**
+         * Retrieve a particular grammar.
+         * REVISIT:  does this need to be synchronized since it's just reading?
+         *
+         * @param gDesc Description of the grammar to be retrieved
+         * @return      Grammar corresponding to gDesc, or null if none exists.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Grammar</name></type> <name>retrieveGrammar</name><parameter_list>(<param><decl><type><name>XMLGrammarDescription</name></type> <name>gDesc</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>Grammar</name></type> <name>g</name> =<init> <expr><call><name><name>super</name>.<name>retrieveGrammar</name></name><argument_list>(<argument><expr><name>gDesc</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if<condition>(<expr><name>g</name> != <name>null</name></expr>)</condition><then> <return>return <expr><name>g</name></expr>;</return></then></if>
+            <return>return <expr><call><name><name>fGrammarPool</name>.<name>retrieveGrammar</name></name><argument_list>(<argument><expr><name>gDesc</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function> <comment type="line">// retrieveGrammar(XMLGrammarDesc):  Grammar</comment>
+
+        <comment type="javadoc">/** 
+         * Give the grammarPool the option of caching these grammars.
+         * This certainly must be synchronized.
+         * 
+         * @param grammarType The type of the grammars to be cached.
+         * @param grammars    The Grammars that may be cached (unordered, Grammars previously
+         *  		      given to the validator may be included).
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>cacheGrammars</name><parameter_list>(<param><decl><type><name>String</name></type> <name>grammarType</name></decl></param>, <param><decl><type><name><name>Grammar</name><index>[]</index></name></type> <name>grammars</name></decl></param>)</parameter_list> <block>{ 
+           <comment type="line">// better give both grammars a shot...</comment>
+           <expr_stmt><expr><call><name><name>super</name>.<name>cacheGrammars</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>, <argument><expr><name>grammars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+           <expr_stmt><expr><call><name><name>fGrammarPool</name>.<name>cacheGrammars</name></name><argument_list>(<argument><expr><name>grammarType</name></expr></argument>, <argument><expr><name>grammars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function> <comment type="line">// cacheGrammars(grammarType, Grammar[]);</comment>
+
+        <comment type="javadoc">/**
+         * Returns the grammar associated to the specified description.
+         * 
+         * @param desc The description of the grammar.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Grammar</name></type> <name>getGrammar</name><parameter_list>(<param><decl><type><name>XMLGrammarDescription</name></type> <name>desc</name></decl></param>)</parameter_list> <block>{
+
+            <if>if <condition>(<expr><call><name><name>super</name>.<name>containsGrammar</name></name><argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr><call><name><name>super</name>.<name>getGrammar</name></name><argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+            <return>return <expr><name>null</name></expr>;</return>
+
+        }</block></function> <comment type="line">// getGrammar(XMLGrammarDescription):Grammar</comment>
+
+        <comment type="javadoc">/**
+         * Returns true if the grammar pool contains a grammar associated
+         * to the specified description.
+         *
+         * @param desc The description of the grammar.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsGrammar</name><parameter_list>(<param><decl><type><name>XMLGrammarDescription</name></type> <name>desc</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>super</name>.<name>containsGrammar</name></name><argument_list>(<argument><expr><name>desc</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function> <comment type="line">// containsGrammar(XMLGrammarDescription):boolean</comment>
+
+    }</block></class> <comment type="line">// class ShadowedGrammarPool</comment>
+
+}</block></class> <comment type="line">// class CachingParserPool</comment>
+</unit>

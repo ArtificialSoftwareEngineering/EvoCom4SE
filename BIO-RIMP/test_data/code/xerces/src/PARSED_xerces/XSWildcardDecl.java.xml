@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\dnader\git\biorimp\BIO-RIMP\test_data\code\xerces\src\org\apache\xerces\impl\xs\XSWildcardDecl.java"><comment type="block">/*
+ * Copyright 2001-2004 The Apache Software Foundation.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xs</name>.<name>StringList</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xs</name>.<name>XSAnnotation</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xs</name>.<name>XSConstants</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xs</name>.<name>XSNamespaceItem</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>xs</name>.<name>XSWildcard</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>xerces</name>.<name>impl</name>.<name>xs</name>.<name>util</name>.<name>StringListImpl</name></name>;</import>
+
+<comment type="javadoc">/**
+ * The XML representation for a wildcard declaration
+ * schema component is an &lt;any&gt; or &lt;anyAttribute&gt; element information item
+ *
+ * @xerces.internal 
+ *
+ * @author Sandy Gao, IBM
+ * @author Rahul Srivastava, Sun Microsystems Inc.
+ *
+ * @version $Id: XSWildcardDecl.java,v 1.17 2004/10/06 15:14:55 mrglavas Exp $
+ */</comment>
+<class><specifier>public</specifier> class <name>XSWildcardDecl</name> <super><implements>implements <name>XSWildcard</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>ABSENT</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// the type of wildcard: any, other, or list</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>short</name></type> <name>fType</name> =<init> <expr><name>NSCONSTRAINT_ANY</name></expr></init></decl>;</decl_stmt>
+    <comment type="line">// the type of process contents: strict, lax, or skip</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>short</name></type> <name>fProcessContents</name> =<init> <expr><name>PC_STRICT</name></expr></init></decl>;</decl_stmt>
+    <comment type="line">// the namespace list:</comment>
+    <comment type="line">// for NSCONSTRAINT_LIST, it means one of the namespaces in the list</comment>
+    <comment type="line">// for NSCONSTRAINT_NOT, it means not any of the namespaces in the list</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>String</name><index>[]</index></type> <name>fNamespaceList</name></decl>;</decl_stmt>
+
+    <comment type="line">// optional annotation</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>XSAnnotationImpl</name></type> <name>fAnnotation</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// I'm trying to implement the following constraint exactly as what the</comment>
+    <comment type="line">// spec describes. Sometimes it seems redundant, and sometimes there seems</comment>
+    <comment type="line">// to be much easier solutions. But it makes it easy to understand,</comment>
+    <comment type="line">// easy to maintain, and easy to find a bug (either in the code, or in the</comment>
+    <comment type="line">// spec). -SG</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// NOTE: Schema spec only requires that ##other not(tNS,absent).</comment>
+    <comment type="line">//       The way we store ##other is not(NS1,NS2,...,NSN), which covers</comment>
+    <comment type="line">//       what's required by Schema, and allows future enhanced features.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// In the following in-line comments:</comment>
+    <comment type="line">// - Bullet removed from w3c specification.</comment>
+    <comment type="line">// + Bullet added as proposed by Sandy Gao, IBM.</comment>
+    <comment type="line">// / Since we store ##other as not(NS1,NS2,...,NSN), we need to put some</comment>
+    <comment type="line">//   comments on where we didn't follow the spec exactly.</comment>
+    <comment type="line">// * When we really support not(NS1,NS2,...,NSN), we need to revisit these items.</comment>
+
+    <comment type="javadoc">/**
+     * Validation Rule: Wildcard allows Namespace Name
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>allowNamespace</name><parameter_list>(<param><decl><type><name>String</name></type> <name>namespace</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// For a value which is either a namespace name or absent to be valid with respect to a wildcard constraint (the value of a {namespace constraint}) one of the following must be true:</comment>
+
+        <comment type="line">// 1 The constraint must be any.</comment>
+        <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_ANY</name></expr>)</condition><then>
+            <return>return <expr>true</expr>;</return></then></if>
+
+        <comment type="line">// 2 All of the following must be true:</comment>
+        <comment type="line">// 2.1 The constraint is a pair of not and a namespace name or absent ([Definition:]  call this the namespace test).</comment>
+        <comment type="line">// 2.2 The value must not be identical to the namespace test.</comment>
+        <comment type="line">// 2.3 The value must not be absent.</comment>
+        <comment type="line">// / we store ##other as not(list), so our actual rule is</comment>
+        <comment type="line">// / 2 The constraint is a pair of not and a set, and the value is not in such set.</comment>
+        <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>found</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>listNum</name> =<init> <expr><name><name>fNamespaceList</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>listNum</name> &amp;&amp; !<name>found</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name>namespace</name> == <name><name>fNamespaceList</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then>
+                    <expr_stmt><expr><name>found</name> = true</expr>;</expr_stmt></then></if>
+            }</block></for>
+
+            <if>if <condition>(<expr>!<name>found</name></expr>)</condition><then>
+                <return>return <expr>true</expr>;</return></then></if>
+        }</block></then></if>
+
+        <comment type="line">// 3 The constraint is a set, and the value is identical to one of the members of the set.</comment>
+        <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_LIST</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>listNum</name> =<init> <expr><name><name>fNamespaceList</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>listNum</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name>namespace</name> == <name><name>fNamespaceList</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then>
+                    <return>return <expr>true</expr>;</return></then></if>
+            }</block></for>
+        }</block></then></if>
+
+        <comment type="line">// none of the above conditions applied, so return false.</comment>
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *  Schema Component Constraint: Wildcard Subset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isSubsetOf</name><parameter_list>(<param><decl><type><name>XSWildcardDecl</name></type> <name>superWildcard</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// if the super is null (not expressible), return false</comment>
+        <if>if <condition>(<expr><name>superWildcard</name> == <name>null</name></expr>)</condition><then>
+            <return>return <expr>false</expr>;</return></then></if>
+
+        <comment type="line">// For a namespace constraint (call it sub) to be an intensional subset of another</comment>
+        <comment type="line">// namespace constraint (call it super) one of the following must be true:</comment>
+
+        <comment type="line">// 1 super must be any.</comment>
+        <if>if <condition>(<expr><name><name>superWildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_ANY</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+
+        <comment type="line">// 2 All of the following must be true:</comment>
+        <comment type="line">//   2.1 sub must be a pair of not and a namespace name or absent.</comment>
+        <comment type="line">//   2.2 super must be a pair of not and the same value.</comment>
+        <comment type="line">//   * we can't just compare whether the namespace are the same value</comment>
+        <comment type="line">//     since we store other as not(list)</comment>
+        <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name><name>superWildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name> &amp;&amp;
+                <name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> == <name><name>superWildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// 3 All of the following must be true:</comment>
+        <comment type="line">//   3.1 sub must be a set whose members are either namespace names or absent.</comment>
+        <comment type="line">//   3.2 One of the following must be true:</comment>
+        <comment type="line">//       3.2.1 super must be the same set or a superset thereof.</comment>
+        <comment type="line">//       -3.2.2 super must be a pair of not and a namespace name or absent and</comment>
+        <comment type="line">//              that value must not be in sub's set.</comment>
+        <comment type="line">//       +3.2.2 super must be a pair of not and a namespace name or absent and</comment>
+        <comment type="line">//              either that value or absent must not be in sub's set.</comment>
+        <comment type="line">//       * since we store ##other as not(list), we acturally need to make sure</comment>
+        <comment type="line">//         that none of the namespaces in super.list is in sub.list.</comment>
+        <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_LIST</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name><name>superWildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_LIST</name> &amp;&amp;
+                <call><name>subset2sets</name><argument_list>(<argument><expr><name>fNamespaceList</name></expr></argument>, <argument><expr><name><name>superWildcard</name>.<name>fNamespaceList</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><name><name>superWildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name> &amp;&amp;
+                !<call><name>elementInSet</name><argument_list>(<argument><expr><name><name>superWildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name></expr></argument>, <argument><expr><name>fNamespaceList</name></expr></argument>)</argument_list></call> &amp;&amp;
+                !<call><name>elementInSet</name><argument_list>(<argument><expr><name>ABSENT</name></expr></argument>, <argument><expr><name>fNamespaceList</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// none of the above conditions applied, so return false.</comment>
+        <return>return <expr>false</expr>;</return>
+
+    }</block></function> <comment type="line">// isSubsetOf</comment>
+
+    <comment type="javadoc">/**
+     * Check whether this wildcard has a weaker process contents than the super.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>weakerProcessContents</name><parameter_list>(<param><decl><type><name>XSWildcardDecl</name></type> <name>superWildcard</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name>fProcessContents</name> == <name><name>XSWildcardDecl</name>.<name>PC_LAX</name></name> &amp;&amp;
+               <name><name>superWildcard</name>.<name>fProcessContents</name></name> == <name><name>XSWildcardDecl</name>.<name>PC_STRICT</name></name> ||
+               <name>fProcessContents</name> == <name><name>XSWildcardDecl</name>.<name>PC_SKIP</name></name> &amp;&amp;
+               <name><name>superWildcard</name>.<name>fProcessContents</name></name> != <name><name>XSWildcardDecl</name>.<name>PC_SKIP</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Schema Component Constraint: Attribute Wildcard Union
+     */</comment>
+    <function><type><specifier>public</specifier> <name>XSWildcardDecl</name></type> <name>performUnionWith</name><parameter_list>(<param><decl><type><name>XSWildcardDecl</name></type> <name>wildcard</name></decl></param>,
+                                           <param><decl><type><name>short</name></type> <name>processContents</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// if the other wildcard is not expressible, the result is still not expressible</comment>
+        <if>if <condition>(<expr><name>wildcard</name> == <name>null</name></expr>)</condition><then>
+            <return>return <expr><name>null</name></expr>;</return></then></if>
+
+        <comment type="line">// For a wildcard's {namespace constraint} value to be the intensional union of two</comment>
+        <comment type="line">// other such values (call them O1 and O2): the appropriate case among the following</comment>
+        <comment type="line">// must be true:</comment>
+
+        <decl_stmt><decl><type><name>XSWildcardDecl</name></type> <name>unionWildcard</name> =<init> <expr>new <call><name>XSWildcardDecl</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>unionWildcard</name>.<name>fProcessContents</name></name> = <name>processContents</name></expr>;</expr_stmt>
+
+        <comment type="line">// 1 If O1 and O2 are the same value, then that value must be the value.</comment>
+        <if>if <condition>(<expr><call><name>areSame</name><argument_list>(<argument><expr><name>wildcard</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>fType</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// 2 If either O1 or O2 is any, then any must be the value.</comment>
+        <else>else <if>if <condition>( <expr>(<name>fType</name> == <name>NSCONSTRAINT_ANY</name>) || (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_ANY</name>)</expr> )</condition><then> <block>{
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_ANY</name></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// 3 If both O1 and O2 are sets of (namespace names or absent), then the union of</comment>
+        <comment type="line">//   those sets must be the value.</comment>
+        <else>else <if>if <condition>( <expr>(<name>fType</name> == <name>NSCONSTRAINT_LIST</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_LIST</name>)</expr> )</condition><then> <block>{
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_LIST</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = <call><name>union2sets</name><argument_list>(<argument><expr><name>fNamespaceList</name></expr></argument>, <argument><expr><name><name>wildcard</name>.<name>fNamespaceList</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// -4 If the two are negations of different namespace names, then the intersection</comment>
+        <comment type="line">//    is not expressible.</comment>
+        <comment type="line">// +4 If the two are negations of different namespace names or absent, then</comment>
+        <comment type="line">//    a pair of not and absent must be the value.</comment>
+        <comment type="line">// * now we store ##other as not(list), the result should be</comment>
+        <comment type="line">//   not(intersection of two lists).</comment>
+        <else>else <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name> &amp;&amp; <name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_NOT</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = new <name><name>String</name><index>[<expr>2</expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> = <name>ABSENT</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name><index>[<expr>1</expr>]</index></name> = <name>ABSENT</name></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// 5 If either O1 or O2 is a pair of not and a namespace name and the other is a set of</comment>
+        <comment type="line">//   (namespace names or absent), then The appropriate case among the following must be true:</comment>
+        <comment type="line">//      -5.1 If the set includes the negated namespace name, then any must be the value.</comment>
+        <comment type="line">//      -5.2 If the set does not include the negated namespace name, then whichever of O1 or O2</comment>
+        <comment type="line">//           is a pair of not and a namespace name must be the value.</comment>
+        <comment type="line">//    +5.1 If the negated value is a namespace name, then The appropriate case</comment>
+        <comment type="line">//         among the following must be true:</comment>
+        <comment type="line">//        +5.1.1 If the set includes both the namespace name and absent, then any</comment>
+        <comment type="line">//               must be the value.</comment>
+        <comment type="line">//        +5.1.2 If the set includes the namespace name but does not include</comment>
+        <comment type="line">//               absent, then a pair of not and absent must be the value.</comment>
+        <comment type="line">//        +5.1.3 If the set does not include the namespace name but includes</comment>
+        <comment type="line">//               absent, then the union is not expressible.</comment>
+        <comment type="line">//        +5.1.4 If the set does not include either the namespace name or absent,</comment>
+        <comment type="line">//               then whichever of O1 or O2 is a pair of not and a namespace name must be</comment>
+        <comment type="line">//               the value.</comment>
+        <comment type="line">//    +5.2 If the negated value is absent, then The appropriate case among the</comment>
+        <comment type="line">//         following must be true:</comment>
+        <comment type="line">//        +5.2.1 If the set includes absent, then any must be the value.</comment>
+        <comment type="line">//        +5.2.2 If the set does not include absent, then whichever of O1 or O2 is</comment>
+        <comment type="line">//               a pair of not and a namespace name must be the value.</comment>
+        <comment type="line">// * when we have not(list), the operation is just not(otherlist-list)</comment>
+        <else>else <if>if <condition>( <expr>((<name>fType</name> == <name>NSCONSTRAINT_NOT</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_LIST</name>)) ||
+                  ((<name>fType</name> == <name>NSCONSTRAINT_LIST</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name>))</expr> )</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>other</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>list</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>other</name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>list</name> = <name><name>wildcard</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><name>other</name> = <name><name>wildcard</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>list</name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+            }</block></else></if>
+
+            <decl_stmt><decl><type><name>boolean</name></type> <name>foundAbsent</name> =<init> <expr><call><name>elementInSet</name><argument_list>(<argument><expr><name>ABSENT</name></expr></argument>, <argument><expr><name>list</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name><name>other</name><index>[<expr>0</expr>]</index></name> != <name>ABSENT</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>boolean</name></type> <name>foundNS</name> =<init> <expr><call><name>elementInSet</name><argument_list>(<argument><expr><name><name>other</name><index>[<expr>0</expr>]</index></name></expr></argument>, <argument><expr><name>list</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>foundNS</name> &amp;&amp; <name>foundAbsent</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_ANY</name></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>foundNS</name> &amp;&amp; !<name>foundAbsent</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_NOT</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = new <name><name>String</name><index>[<expr>2</expr>]</index></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> = <name>ABSENT</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name><index>[<expr>1</expr>]</index></name> = <name>ABSENT</name></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr>!<name>foundNS</name> &amp;&amp; <name>foundAbsent</name></expr>)</condition><then> <block>{
+                    <return>return <expr><name>null</name></expr>;</return>
+                }</block></then> <else>else <block>{ <comment type="line">// !foundNS &amp;&amp; !foundAbsent</comment>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_NOT</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = <name>other</name></expr>;</expr_stmt>
+                }</block></else></if></else></if></else></if>
+            }</block></then> <else>else <block>{ <comment type="line">// other[0] == ABSENT</comment>
+                <if>if <condition>(<expr><name>foundAbsent</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_ANY</name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{ <comment type="line">// !foundAbsent</comment>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_NOT</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>unionWildcard</name>.<name>fNamespaceList</name></name> = <name>other</name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></then></if></else></if></else></if></else></if></else></if>
+
+        <return>return <expr><name>unionWildcard</name></expr>;</return>
+
+    }</block></function> <comment type="line">// performUnionWith</comment>
+
+    <comment type="javadoc">/**
+     * Schema Component Constraint: Attribute Wildcard Intersection
+     */</comment>
+    <function><type><specifier>public</specifier> <name>XSWildcardDecl</name></type> <name>performIntersectionWith</name><parameter_list>(<param><decl><type><name>XSWildcardDecl</name></type> <name>wildcard</name></decl></param>,
+                                                  <param><decl><type><name>short</name></type> <name>processContents</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// if the other wildcard is not expressible, the result is still not expressible</comment>
+        <if>if <condition>(<expr><name>wildcard</name> == <name>null</name></expr>)</condition><then>
+            <return>return <expr><name>null</name></expr>;</return></then></if>
+
+        <comment type="line">// For a wildcard's {namespace constraint} value to be the intensional intersection of</comment>
+        <comment type="line">// two other such values (call them O1 and O2): the appropriate case among the following</comment>
+        <comment type="line">// must be true:</comment>
+
+        <decl_stmt><decl><type><name>XSWildcardDecl</name></type> <name>intersectWildcard</name> =<init> <expr>new <call><name>XSWildcardDecl</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fProcessContents</name></name> = <name>processContents</name></expr>;</expr_stmt>
+
+        <comment type="line">// 1 If O1 and O2 are the same value, then that value must be the value.</comment>
+        <if>if <condition>(<expr><call><name>areSame</name><argument_list>(<argument><expr><name>wildcard</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fType</name></name> = <name>fType</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// 2 If either O1 or O2 is any, then the other must be the value.</comment>
+        <else>else <if>if <condition>( <expr>(<name>fType</name> == <name>NSCONSTRAINT_ANY</name>) || (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_ANY</name>)</expr> )</condition><then> <block>{
+            <comment type="line">// both cannot be ANY, if we have reached here.</comment>
+            <decl_stmt><decl><type><name>XSWildcardDecl</name></type> <name>other</name> =<init> <expr><name>this</name></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_ANY</name></expr>)</condition><then>
+                <expr_stmt><expr><name>other</name> = <name>wildcard</name></expr>;</expr_stmt></then></if>
+
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fType</name></name> = <name><name>other</name>.<name>fType</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name> = <name><name>other</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// -3 If either O1 or O2 is a pair of not and a namespace name and the other is a set of</comment>
+        <comment type="line">//    (namespace names or absent), then that set, minus the negated namespace name if</comment>
+        <comment type="line">//    it was in the set, must be the value.</comment>
+        <comment type="line">// +3 If either O1 or O2 is a pair of not and a namespace name and the other</comment>
+        <comment type="line">//    is a set of (namespace names or absent), then that set, minus the negated</comment>
+        <comment type="line">//    namespace name if it was in the set, then minus absent if it was in the</comment>
+        <comment type="line">//    set, must be the value.</comment>
+        <comment type="line">// * when we have not(list), the operation is just list-otherlist</comment>
+        <else>else <if>if <condition>( <expr>((<name>fType</name> == <name>NSCONSTRAINT_NOT</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_LIST</name>)) ||
+                  ((<name>fType</name> == <name>NSCONSTRAINT_LIST</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name>))</expr> )</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>list</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>other</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>other</name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>list</name> = <name><name>wildcard</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><name>other</name> = <name><name>wildcard</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>list</name> = <name>fNamespaceList</name></expr>;</expr_stmt>
+            }</block></else></if>
+
+            <decl_stmt><decl><type><name>int</name></type> <name>listSize</name> =<init> <expr><name><name>list</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>intersect</name> =<init> <expr>new <name><name>String</name><index>[<expr><name>listSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>newSize</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>listSize</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name><name>list</name><index>[<expr><name>i</name></expr>]</index></name> != <name><name>other</name><index>[<expr>0</expr>]</index></name> &amp;&amp; <name><name>list</name><index>[<expr><name>i</name></expr>]</index></name> != <name>ABSENT</name></expr>)</condition><then>
+                    <expr_stmt><expr><name><name>intersect</name><index>[<expr><name>newSize</name>++</expr>]</index></name> = <name><name>list</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></then></if>
+            }</block></for>
+
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_LIST</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name> = new <name><name>String</name><index>[<expr><name>newSize</name></expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>intersect</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>newSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// 4 If both O1 and O2 are sets of (namespace names or absent), then the intersection of those</comment>
+        <comment type="line">//   sets must be the value.</comment>
+        <else>else <if>if <condition>( <expr>(<name>fType</name> == <name>NSCONSTRAINT_LIST</name>) &amp;&amp; (<name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_LIST</name>)</expr> )</condition><then> <block>{
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fType</name></name> = <name>NSCONSTRAINT_LIST</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name> = <call><name>intersect2sets</name><argument_list>(<argument><expr><name>fNamespaceList</name></expr></argument>, <argument><expr><name><name>wildcard</name>.<name>fNamespaceList</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+
+        <comment type="line">// -5 If the two are negations of different namespace names, then the intersection is not expressible.</comment>
+        <comment type="line">// +5 If the two are negations of namespace names or absent, then The</comment>
+        <comment type="line">//    appropriate case among the following must be true:</comment>
+        <comment type="line">//    +5.1 If the two are negations of different namespace names, then the</comment>
+        <comment type="line">//         intersection is not expressible.</comment>
+        <comment type="line">//    +5.2 If one of the two is a pair of not and absent, the other must be</comment>
+        <comment type="line">//         the value.</comment>
+        <comment type="line">// * when we have not(list), the operation is just not(onelist+otherlist)</comment>
+        <else>else <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name> &amp;&amp; <name><name>wildcard</name>.<name>fType</name></name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> != <name>ABSENT</name> &amp;&amp; <name><name>wildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> != <name>ABSENT</name></expr>)</condition><then>
+                <return>return <expr><name>null</name></expr>;</return></then></if>
+
+            <decl_stmt><decl><type><name>XSWildcardDecl</name></type> <name>other</name> =<init> <expr><name>this</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> == <name>ABSENT</name></expr>)</condition><then>
+                <expr_stmt><expr><name>other</name> = <name>wildcard</name></expr>;</expr_stmt></then></if>
+
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fType</name></name> = <name><name>other</name>.<name>fType</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>intersectWildcard</name>.<name>fNamespaceList</name></name> = <name><name>other</name>.<name>fNamespaceList</name></name></expr>;</expr_stmt>
+        }</block></then></if></else></if></else></if></else></if></else></if>
+
+        <return>return <expr><name>intersectWildcard</name></expr>;</return>
+
+    }</block></function> <comment type="line">// performIntersectionWith</comment>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>areSame</name><parameter_list>(<param><decl><type><name>XSWildcardDecl</name></type> <name>wildcard</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>fType</name> == <name><name>wildcard</name>.<name>fType</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// ##any, true</comment>
+            <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_ANY</name></expr>)</condition><then>
+                <return>return <expr>true</expr>;</return></then></if>
+
+            <comment type="line">// ##other, only check the negated value</comment>
+            <comment type="line">// * when we support not(list), we need to check in the same way</comment>
+            <comment type="line">//   as for NSCONSTRAINT_LIST.</comment>
+            <if>if <condition>(<expr><name>fType</name> == <name>NSCONSTRAINT_NOT</name></expr>)</condition><then>
+                <return>return <expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> == <name><name>wildcard</name>.<name>fNamespaceList</name><index>[<expr>0</expr>]</index></name></expr>;</return></then></if>
+
+            <comment type="line">// ## list, must have the same length,</comment>
+            <comment type="line">// and each item in one list must appear in the other one</comment>
+            <comment type="line">// (we are assuming that there are no duplicate items in a list)</comment>
+            <if>if <condition>(<expr><name><name>fNamespaceList</name>.<name>length</name></name> == <name><name>wildcard</name>.<name>fNamespaceList</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt;<name><name>fNamespaceList</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr>!<call><name>elementInSet</name><argument_list>(<argument><expr><name><name>fNamespaceList</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>wildcard</name>.<name>fNamespaceList</name></name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                        <return>return <expr>false</expr>;</return></then></if>
+                }</block></for>
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></then></if>
+
+        <return>return <expr>false</expr>;</return>
+    }</block></function> <comment type="line">// areSame</comment>
+
+    <function><type><name>String</name><index>[]</index></type> <name>intersect2sets</name><parameter_list>(<param><decl><type><name><name>String</name><index>[]</index></name></type> <name>one</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>theOther</name></decl></param>)</parameter_list><block>{
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>result</name> =<init> <expr>new <name><name>String</name><index>[<expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name><name>one</name>.<name>length</name></name></expr></argument>,<argument><expr><name><name>theOther</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// simple implemention,</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt;<name><name>one</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><call><name>elementInSet</name><argument_list>(<argument><expr><name><name>one</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>theOther</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><name><name>result</name><index>[<expr><name>count</name>++</expr>]</index></name> = <name><name>one</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></then></if>
+        }</block></for>
+
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>result2</name> =<init> <expr>new <name><name>String</name><index>[<expr><name>count</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>result2</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>result2</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>String</name><index>[]</index></type> <name>union2sets</name><parameter_list>(<param><decl><type><name><name>String</name><index>[]</index></name></type> <name>one</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>theOther</name></decl></param>)</parameter_list><block>{
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>result1</name> =<init> <expr>new <name><name>String</name><index>[<expr><name><name>one</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// simple implemention,</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt;<name><name>one</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr>!<call><name>elementInSet</name><argument_list>(<argument><expr><name><name>one</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>theOther</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                <expr_stmt><expr><name><name>result1</name><index>[<expr><name>count</name>++</expr>]</index></name> = <name><name>one</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></then></if>
+        }</block></for>
+
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>result2</name> =<init> <expr>new <name><name>String</name><index>[<expr><name>count</name>+<name><name>theOther</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>result1</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>result2</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>theOther</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>result2</name></expr></argument>, <argument><expr><name>count</name></expr></argument>, <argument><expr><name><name>theOther</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>result2</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>boolean</name></type> <name>subset2sets</name><parameter_list>(<param><decl><type><name><name>String</name><index>[]</index></name></type> <name>subSet</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>superSet</name></decl></param>)</parameter_list><block>{
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt;<name><name>subSet</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr>!<call><name>elementInSet</name><argument_list>(<argument><expr><name><name>subSet</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>superSet</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                <return>return <expr>false</expr>;</return></then></if>
+        }</block></for>
+
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <function><type><name>boolean</name></type> <name>elementInSet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ele</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>set</name></decl></param>)</parameter_list><block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>found</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt;<name><name>set</name>.<name>length</name></name> &amp;&amp; !<name>found</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><name>ele</name>==<name><name>set</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then>
+                <expr_stmt><expr><name>found</name> = true</expr>;</expr_stmt></then></if>
+        }</block></for>
+
+        <return>return <expr><name>found</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * get the string description of this wildcard
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>fDescription</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>fDescription</name> == <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>StringBuffer</name></type> <name>buffer</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"WC["</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <switch>switch <condition>(<expr><name>fType</name></expr>)</condition> <block>{
+            <case>case <expr><name>NSCONSTRAINT_ANY</name></expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>SchemaSymbols</name>.<name>ATTVAL_TWOPOUNDANY</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>NSCONSTRAINT_NOT</name></expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>SchemaSymbols</name>.<name>ATTVAL_TWOPOUNDOTHER</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>":\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> != <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>NSCONSTRAINT_LIST</name></expr>:
+                <if>if <condition>(<expr><name><name>fNamespaceList</name>.<name>length</name></name> == 0</expr>)</condition><then>
+                    <break>break;</break></then></if>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name> != <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>fNamespaceList</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fNamespaceList</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>",\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name><name>fNamespaceList</name><index>[<expr><name>i</name></expr>]</index></name> != <name>null</name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>fNamespaceList</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+                <break>break;</break>
+            </case>}</block></switch>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"]"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fDescription</name> = <call><name><name>buffer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <return>return <expr><name>fDescription</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Get the type of the object, i.e ELEMENT_DECLARATION.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>short</name></type> <name>getType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>XSConstants</name>.<name>WILDCARD</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The &lt;code&gt;name&lt;/code&gt; of this &lt;code&gt;XSObject&lt;/code&gt; depending on the
+     * &lt;code&gt;XSObject&lt;/code&gt; type.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getName</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The namespace URI of this node, or &lt;code&gt;null&lt;/code&gt; if it is
+     * unspecified.  defines how a namespace URI is attached to schema
+     * components.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getNamespace</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Namespace constraint: A constraint type: any, not, list.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>short</name></type> <name>getConstraintType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fType</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Namespace constraint. For &lt;code&gt;constraintType&lt;/code&gt;
+     * LIST_NSCONSTRAINT, the list contains allowed namespaces. For
+     * &lt;code&gt;constraintType&lt;/code&gt; NOT_NSCONSTRAINT, the list contains
+     * disallowed namespaces.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>StringList</name></type> <name>getNsConstraintList</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>StringListImpl</name><argument_list>(<argument><expr><name>fNamespaceList</name></expr></argument>, <argument><expr><name>fNamespaceList</name> == <name>null</name> ? 0 : <name><name>fNamespaceList</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * {process contents} One of skip, lax or strict. Valid constants values
+     * are: PC_SKIP, PC_LAX, PC_STRICT.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>short</name></type> <name>getProcessContents</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fProcessContents</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * String valid of {process contents}. One of "skip", "lax" or "strict".
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getProcessContentsAsString</name><parameter_list>()</parameter_list> <block>{
+        <switch>switch <condition>(<expr><name>fProcessContents</name></expr>)</condition> <block>{
+            <case>case <expr><name><name>XSWildcardDecl</name>.<name>PC_SKIP</name></name></expr>: <return>return <expr>"skip"</expr>;</return>
+            </case><case>case <expr><name><name>XSWildcardDecl</name>.<name>PC_LAX</name></name></expr>: <return>return <expr>"lax"</expr>;</return>
+            </case><case>case <expr><name><name>XSWildcardDecl</name>.<name>PC_STRICT</name></name></expr>: <return>return <expr>"strict"</expr>;</return>
+            </case><default>default: <return>return <expr>"invalid value"</expr>;</return>
+        </default>}</block></switch>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Optional. Annotation.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>XSAnnotation</name></type> <name>getAnnotation</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fAnnotation</name></expr>;</return>
+    }</block></function>
+
+
+	<comment type="javadoc">/**
+	 * @see org.apache.xerces.xs.XSObject#getNamespaceItem()
+	 */</comment>
+	<function><type><specifier>public</specifier> <name>XSNamespaceItem</name></type> <name>getNamespaceItem</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// REVISIT: implement</comment>
+		<return>return <expr><name>null</name></expr>;</return>
+	}</block></function>
+
+}</block></class> <comment type="line">// class XSWildcardDecl</comment>
+</unit>

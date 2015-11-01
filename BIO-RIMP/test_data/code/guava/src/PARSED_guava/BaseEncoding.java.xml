@@ -1,0 +1,1069 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\io\BaseEncoding.java"><comment type="block">/*
+ * Copyright (C) 2012 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>io</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkPositionIndexes</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>IntMath</name>.<name>divide</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>IntMath</name>.<name>log2</name></name>;</import>
+<import>import static <name><name>java</name>.<name>math</name>.<name>RoundingMode</name>.<name>CEILING</name></name>;</import>
+<import>import static <name><name>java</name>.<name>math</name>.<name>RoundingMode</name>.<name>FLOOR</name></name>;</import>
+<import>import static <name><name>java</name>.<name>math</name>.<name>RoundingMode</name>.<name>UNNECESSARY</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Ascii</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>CharMatcher</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>CheckReturnValue</name></name>;</import>
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A binary encoding scheme for reversibly translating between byte sequences and printable ASCII
+ * strings. This class includes several constants for encoding schemes specified by &lt;a
+ * href="http://tools.ietf.org/html/rfc4648"&gt;RFC 4648&lt;/a&gt;. For example, the expression:
+ *
+ * &lt;pre&gt;   {@code
+ *   BaseEncoding.base32().encode("foo".getBytes(Charsets.US_ASCII))}&lt;/pre&gt;
+ *
+ * &lt;p&gt;returns the string {@code "MZXW6==="}, and &lt;pre&gt;   {@code
+ *  byte[] decoded = BaseEncoding.base32().decode("MZXW6===");}&lt;/pre&gt;
+ *
+ * &lt;p&gt;...returns the ASCII bytes of the string {@code "foo"}.
+ *
+ * &lt;p&gt;By default, {@code BaseEncoding}'s behavior is relatively strict and in accordance with
+ * RFC 4648.  Decoding rejects characters in the wrong case, though padding is optional.
+ * To modify encoding and decoding behavior, use configuration methods to obtain a new encoding
+ * with modified behavior:
+ *
+ * &lt;pre&gt;   {@code
+ *  BaseEncoding.base16().lowerCase().decode("deadbeef");}&lt;/pre&gt;
+ *
+ * &lt;p&gt;Warning: BaseEncoding instances are immutable.  Invoking a configuration method has no effect
+ * on the receiving instance; you must store and use the new encoding instance it returns, instead.
+ *
+ * &lt;pre&gt;   {@code
+ *   // Do NOT do this
+ *   BaseEncoding hex = BaseEncoding.base16();
+ *   hex.lowerCase(); // does nothing!
+ *   return hex.decode("deadbeef"); // throws an IllegalArgumentException}&lt;/pre&gt;
+ *
+ * &lt;p&gt;It is guaranteed that {@code encoding.decode(encoding.encode(x))} is always equal to
+ * {@code x}, but the reverse does not necessarily hold.
+ *
+ * &lt;p&gt;
+ * &lt;table&gt;
+ * &lt;tr&gt;
+ * &lt;th&gt;Encoding
+ * &lt;th&gt;Alphabet
+ * &lt;th&gt;{@code char:byte} ratio
+ * &lt;th&gt;Default padding
+ * &lt;th&gt;Comments
+ * &lt;tr&gt;
+ * &lt;td&gt;{@link #base16()}
+ * &lt;td&gt;0-9 A-F
+ * &lt;td&gt;2.00
+ * &lt;td&gt;N/A
+ * &lt;td&gt;Traditional hexadecimal.  Defaults to upper case.
+ * &lt;tr&gt;
+ * &lt;td&gt;{@link #base32()}
+ * &lt;td&gt;A-Z 2-7
+ * &lt;td&gt;1.60
+ * &lt;td&gt;=
+ * &lt;td&gt;Human-readable; no possibility of mixing up 0/O or 1/I.  Defaults to upper case.
+ * &lt;tr&gt;
+ * &lt;td&gt;{@link #base32Hex()}
+ * &lt;td&gt;0-9 A-V
+ * &lt;td&gt;1.60
+ * &lt;td&gt;=
+ * &lt;td&gt;"Numerical" base 32; extended from the traditional hex alphabet.  Defaults to upper case.
+ * &lt;tr&gt;
+ * &lt;td&gt;{@link #base64()}
+ * &lt;td&gt;A-Z a-z 0-9 + /
+ * &lt;td&gt;1.33
+ * &lt;td&gt;=
+ * &lt;td&gt;
+ * &lt;tr&gt;
+ * &lt;td&gt;{@link #base64Url()}
+ * &lt;td&gt;A-Z a-z 0-9 - _
+ * &lt;td&gt;1.33
+ * &lt;td&gt;=
+ * &lt;td&gt;Safe to use as filenames, or to pass in URLs without escaping
+ * &lt;/table&gt;
+ *
+ * &lt;p&gt;
+ * All instances of this class are immutable, so they may be stored safely as static constants.
+ *
+ * @author Louis Wasserman
+ * @since 14.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name>BaseEncoding</name> <block>{
+  <comment type="line">// TODO(lowasser): consider making encodeTo(Appendable, byte[], int, int) public.</comment>
+
+  <constructor><name>BaseEncoding</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Exception indicating invalid base-encoded input encountered while decoding.
+   *
+   * @author Louis Wasserman
+   * @since 15.0
+   */</comment>
+  <class><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>DecodingException</name> <super><extends>extends <name>IOException</name></extends></super> <block>{
+    <constructor><name>DecodingException</name><parameter_list>(<param><decl><type><name>String</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <constructor><name>DecodingException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>cause</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>cause</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Encodes the specified byte array, and returns the encoded {@code String}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>String</name></type> <name>encode</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>encode</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Encodes the specified range of the specified byte array, and returns the encoded
+   * {@code String}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>String</name></type> <name>encode</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>StringBuilder</name></type> <name>result</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr><call><name>maxEncodedSize</name><argument_list>(<argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <expr_stmt><expr><call><name>encodeTo</name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+    <return>return <expr><call><name><name>result</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an {@code OutputStream} that encodes bytes using this encoding into the specified
+   * {@code Writer}.  When the returned {@code OutputStream} is closed, so is the backing
+   * {@code Writer}.
+   */</comment>
+  <function_decl><type><annotation>@<name>GwtIncompatible</name><argument_list>("Writer,OutputStream")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>OutputStream</name></type> <name>encodingStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns a {@code ByteSink} that writes base-encoded bytes to the specified {@code CharSink}.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("ByteSink,CharSink")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>ByteSink</name></type> <name>encodingSink</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>CharSink</name></type> <name>encodedSink</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>encodedSink</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name>ByteSink</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>OutputStream</name></type> <name>openStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>encodingStream</name><argument_list>(<argument><expr><call><name><name>encodedSink</name>.<name>openStream</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// TODO(lowasser): document the extent of leniency, probably after adding ignore(CharMatcher)</comment>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>extract</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>result</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>length</name> == <name><name>result</name>.<name>length</name></name></expr>)</condition><then> <block>{
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>trunc</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>length</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>trunc</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>trunc</name></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Decodes the specified character sequence, and returns the resulting {@code byte[]}.
+   * This is the inverse operation to {@link #encode(byte[])}.
+   *
+   * @throws IllegalArgumentException if the input is not a valid encoded string according to this
+   *         encoding.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>decode</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <return>return <expr><call><name>decodeChecked</name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>DecodingException</name></type> <name>badInput</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><name>badInput</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Decodes the specified character sequence, and returns the resulting {@code byte[]}.
+   * This is the inverse operation to {@link #encode(byte[])}.
+   *
+   * @throws DecodingException if the input is not a valid encoded string according to this
+   *         encoding.
+   */</comment>
+  <function><type><specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>decodeChecked</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><name>chars</name> = <call><name>padding</name><argument_list>()</argument_list></call>.<call><name>trimTrailingFrom</name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>tmp</name> =<init> <expr>new <name><name>byte</name><index>[<expr><call><name>maxDecodedSize</name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>len</name> =<init> <expr><call><name>decodeTo</name><argument_list>(<argument><expr><name>tmp</name></expr></argument>, <argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>extract</name><argument_list>(<argument><expr><name>tmp</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an {@code InputStream} that decodes base-encoded input from the specified
+   * {@code Reader}.  The returned stream throws a {@link DecodingException} upon decoding-specific
+   * errors.
+   */</comment>
+  <function_decl><type><annotation>@<name>GwtIncompatible</name><argument_list>("Reader,InputStream")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>InputStream</name></type> <name>decodingStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns a {@code ByteSource} that reads base-encoded bytes from the specified
+   * {@code CharSource}.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("ByteSource,CharSource")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>ByteSource</name></type> <name>decodingSource</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>CharSource</name></type> <name>encodedSource</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>encodedSource</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name>ByteSource</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>InputStream</name></type> <name>openStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>decodingStream</name><argument_list>(<argument><expr><call><name><name>encodedSource</name>.<name>openStream</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Implementations for encoding/decoding</comment>
+
+  <function_decl><type><specifier>abstract</specifier> <name>int</name></type> <name>maxEncodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>bytes</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>encodeTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name>int</name></type> <name>maxDecodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>chars</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name>int</name></type> <name>decodeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>target</name></decl></param>, <param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name>CharMatcher</name></type> <name>padding</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="line">// Modified encoding generators</comment>
+
+  <comment type="javadoc">/**
+   * Returns an encoding that behaves equivalently to this encoding, but omits any padding
+   * characters as specified by &lt;a href="http://tools.ietf.org/html/rfc4648#section-3.2"&gt;RFC 4648
+   * section 3.2&lt;/a&gt;, Padding of Encoded Data.
+   */</comment>
+  <function_decl><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>BaseEncoding</name></type> <name>omitPadding</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns an encoding that behaves equivalently to this encoding, but uses an alternate character
+   * for padding.
+   *
+   * @throws IllegalArgumentException if this padding character is already used in the alphabet or a
+   *         separator
+   */</comment>
+  <function_decl><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>BaseEncoding</name></type> <name>withPadChar</name><parameter_list>(<param><decl><type><name>char</name></type> <name>padChar</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns an encoding that behaves equivalently to this encoding, but adds a separator string
+   * after every {@code n} characters. Any occurrences of any characters that occur in the separator
+   * are skipped over in decoding.
+   *
+   * @throws IllegalArgumentException if any alphabet or padding characters appear in the separator
+   *         string, or if {@code n &lt;= 0}
+   * @throws UnsupportedOperationException if this encoding already uses a separator
+   */</comment>
+  <function_decl><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>BaseEncoding</name></type> <name>withSeparator</name><parameter_list>(<param><decl><type><name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><name>int</name></type> <name>n</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns an encoding that behaves equivalently to this encoding, but encodes and decodes with
+   * uppercase letters. Padding and separator characters remain in their original case.
+   *
+   * @throws IllegalStateException if the alphabet used by this encoding contains mixed upper- and
+   *         lower-case characters
+   */</comment>
+  <function_decl><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>BaseEncoding</name></type> <name>upperCase</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns an encoding that behaves equivalently to this encoding, but encodes and decodes with
+   * lowercase letters. Padding and separator characters remain in their original case.
+   *
+   * @throws IllegalStateException if the alphabet used by this encoding contains mixed upper- and
+   *         lower-case characters
+   */</comment>
+  <function_decl><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name>BaseEncoding</name></type> <name>lowerCase</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>BASE64</name> =<init> <expr>new <call><name>Base64Encoding</name><argument_list>(
+      <argument><expr>"base64()"</expr></argument>, <argument><expr>"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"</expr></argument>, <argument><expr>'='</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The "base64" base encoding specified by &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-4"&gt;RFC 4648 section 4&lt;/a&gt;, Base 64 Encoding.
+   * (This is the same as the base 64 encoding from &lt;a
+   * href="http://tools.ietf.org/html/rfc3548#section-3"&gt;RFC 3548&lt;/a&gt;.)
+   *
+   * &lt;p&gt;The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
+   * omitted} or {@linkplain #withPadChar(char) replaced}.
+   *
+   * &lt;p&gt;No line feeds are added by default, as per &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1"&gt; RFC 4648 section 3.1&lt;/a&gt;, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BaseEncoding</name></type> <name>base64</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>BASE64</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>BASE64_URL</name> =<init> <expr>new <call><name>Base64Encoding</name><argument_list>(
+      <argument><expr>"base64Url()"</expr></argument>, <argument><expr>"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"</expr></argument>, <argument><expr>'='</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The "base64url" encoding specified by &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-5"&gt;RFC 4648 section 5&lt;/a&gt;, Base 64 Encoding
+   * with URL and Filename Safe Alphabet, also sometimes referred to as the "web safe Base64."
+   * (This is the same as the base 64 encoding with URL and filename safe alphabet from &lt;a
+   * href="http://tools.ietf.org/html/rfc3548#section-4"&gt;RFC 3548&lt;/a&gt;.)
+   *
+   * &lt;p&gt;The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
+   * omitted} or {@linkplain #withPadChar(char) replaced}.
+   *
+   * &lt;p&gt;No line feeds are added by default, as per &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1"&gt; RFC 4648 section 3.1&lt;/a&gt;, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BaseEncoding</name></type> <name>base64Url</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>BASE64_URL</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>BASE32</name> =<init>
+      <expr>new <call><name>StandardBaseEncoding</name><argument_list>(<argument><expr>"base32()"</expr></argument>, <argument><expr>"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"</expr></argument>, <argument><expr>'='</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The "base32" encoding specified by &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-6"&gt;RFC 4648 section 6&lt;/a&gt;, Base 32 Encoding.
+   * (This is the same as the base 32 encoding from &lt;a
+   * href="http://tools.ietf.org/html/rfc3548#section-5"&gt;RFC 3548&lt;/a&gt;.)
+   *
+   * &lt;p&gt;The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
+   * omitted} or {@linkplain #withPadChar(char) replaced}.
+   *
+   * &lt;p&gt;No line feeds are added by default, as per &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1"&gt; RFC 4648 section 3.1&lt;/a&gt;, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BaseEncoding</name></type> <name>base32</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>BASE32</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>BASE32_HEX</name> =<init>
+      <expr>new <call><name>StandardBaseEncoding</name><argument_list>(<argument><expr>"base32Hex()"</expr></argument>, <argument><expr>"0123456789ABCDEFGHIJKLMNOPQRSTUV"</expr></argument>, <argument><expr>'='</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The "base32hex" encoding specified by &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-7"&gt;RFC 4648 section 7&lt;/a&gt;, Base 32 Encoding
+   * with Extended Hex Alphabet.  There is no corresponding encoding in RFC 3548.
+   *
+   * &lt;p&gt;The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
+   * omitted} or {@linkplain #withPadChar(char) replaced}.
+   *
+   * &lt;p&gt;No line feeds are added by default, as per &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1"&gt; RFC 4648 section 3.1&lt;/a&gt;, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BaseEncoding</name></type> <name>base32Hex</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>BASE32_HEX</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>BASE16</name> =<init> <expr>new <call><name>Base16Encoding</name><argument_list>(<argument><expr>"base16()"</expr></argument>, <argument><expr>"0123456789ABCDEF"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The "base16" encoding specified by &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-8"&gt;RFC 4648 section 8&lt;/a&gt;, Base 16 Encoding.
+   * (This is the same as the base 16 encoding from &lt;a
+   * href="http://tools.ietf.org/html/rfc3548#section-6"&gt;RFC 3548&lt;/a&gt;.) This is commonly known as
+   * "hexadecimal" format.
+   *
+   * &lt;p&gt;No padding is necessary in base 16, so {@link #withPadChar(char)} and
+   * {@link #omitPadding()} have no effect.
+   *
+   * &lt;p&gt;No line feeds are added by default, as per &lt;a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1"&gt; RFC 4648 section 3.1&lt;/a&gt;, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BaseEncoding</name></type> <name>base16</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>BASE16</name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Alphabet</name> <super><extends>extends <name>CharMatcher</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>name</name></decl>;</decl_stmt>
+    <comment type="line">// this is meant to be immutable -- don't modify it!</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>char</name><index>[]</index></type> <name>chars</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>mask</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>bitsPerChar</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>charsPerChunk</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>bytesPerChunk</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>decodabet</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name><index>[]</index></type> <name>validPadding</name></decl>;</decl_stmt>
+
+    <constructor><name>Alphabet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>name</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>chars</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>bitsPerChar</name></name> = <call><name>log2</name><argument_list>(<argument><expr><name><name>chars</name>.<name>length</name></name></expr></argument>, <argument><expr><name>UNNECESSARY</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>ArithmeticException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Illegal alphabet length " + <name><name>chars</name>.<name>length</name></name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+
+      <comment type="block">/*
+       * e.g. for base64, bitsPerChar == 6, charsPerChunk == 4, and bytesPerChunk == 3. This makes
+       * for the smallest chunk size that still has charsPerChunk * bitsPerChar be a multiple of 8.
+       */</comment>
+      <decl_stmt><decl><type><name>int</name></type> <name>gcd</name> =<init> <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr>8</expr></argument>, <argument><expr><call><name><name>Integer</name>.<name>lowestOneBit</name></name><argument_list>(<argument><expr><name>bitsPerChar</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>charsPerChunk</name></name> = 8 / <name>gcd</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>bytesPerChunk</name></name> = <name>bitsPerChar</name> / <name>gcd</name></expr>;</expr_stmt>
+
+      <expr_stmt><expr><name><name>this</name>.<name>mask</name></name> = <name><name>chars</name>.<name>length</name></name> - 1</expr>;</expr_stmt>
+
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>decodabet</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name><name>Ascii</name>.<name>MAX</name></name> + 1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>decodabet</name></expr></argument>, <argument><expr>(<name>byte</name>) -1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>chars</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><name><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>CharMatcher</name>.<name>ASCII</name>.<name>matches</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>"Non-ASCII character: %s"</expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>decodabet</name><index>[<expr><name>c</name></expr>]</index></name> == -1</expr></argument>, <argument><expr>"Duplicate character: %s"</expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>decodabet</name><index>[<expr><name>c</name></expr>]</index></name> = (<name>byte</name>) <name>i</name></expr>;</expr_stmt>
+      }</block></for>
+      <expr_stmt><expr><name><name>this</name>.<name>decodabet</name></name> = <name>decodabet</name></expr>;</expr_stmt>
+
+      <decl_stmt><decl><type><name>boolean</name><index>[]</index></type> <name>validPadding</name> =<init> <expr>new <name><name>boolean</name><index>[<expr><name>charsPerChunk</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>bytesPerChunk</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>validPadding</name><index>[<expr><call><name>divide</name><argument_list>(<argument><expr><name>i</name> * 8</expr></argument>, <argument><expr><name>bitsPerChar</name></expr></argument>, <argument><expr><name>CEILING</name></expr></argument>)</argument_list></call></expr>]</index></name> = true</expr>;</expr_stmt>
+      }</block></for>
+      <expr_stmt><expr><name><name>this</name>.<name>validPadding</name></name> = <name>validPadding</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><name>char</name></type> <name>encode</name><parameter_list>(<param><decl><type><name>int</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name><name>chars</name><index>[<expr><name>bits</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>boolean</name></type> <name>isValidPaddingStartPosition</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name><name>validPadding</name><index>[<expr><name>index</name> % <name>charsPerChunk</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>int</name></type> <name>decode</name><parameter_list>(<param><decl><type><name>char</name></type> <name>ch</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+      <if>if <condition>(<expr><name>ch</name> &gt; <name><name>Ascii</name>.<name>MAX</name></name> || <name><name>decodabet</name><index>[<expr><name>ch</name></expr>]</index></name> == -1</expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Unrecognized character: "
+            + (<call><name><name>CharMatcher</name>.<name>INVISIBLE</name>.<name>matches</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call> ? "0x" + <call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call> : <name>ch</name>)</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <return>return <expr><name><name>decodabet</name><index>[<expr><name>ch</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>hasLowerCase</name><parameter_list>()</parameter_list> <block>{
+      <for>for (<init><decl><type><name>char</name></type> <name>c</name> :<range> <expr><name>chars</name></expr></range></decl></init>) <block>{
+        <if>if <condition>(<expr><call><name><name>Ascii</name>.<name>isLowerCase</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>hasUpperCase</name><parameter_list>()</parameter_list> <block>{
+      <for>for (<init><decl><type><name>char</name></type> <name>c</name> :<range> <expr><name>chars</name></expr></range></decl></init>) <block>{
+        <if>if <condition>(<expr><call><name><name>Ascii</name>.<name>isUpperCase</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><name>Alphabet</name></type> <name>upperCase</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr>!<call><name>hasLowerCase</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><name>this</name></expr>;</return>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr>!<call><name>hasUpperCase</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"Cannot call upperCase() on a mixed-case alphabet"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>upperCased</name> =<init> <expr>new <name><name>char</name><index>[<expr><name><name>chars</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>chars</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><name><name>upperCased</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>Ascii</name>.<name>toUpperCase</name></name><argument_list>(<argument><expr><name><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr>new <call><name>Alphabet</name><argument_list>(<argument><expr><name>name</name> + ".upperCase()"</expr></argument>, <argument><expr><name>upperCased</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><name>Alphabet</name></type> <name>lowerCase</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr>!<call><name>hasUpperCase</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><name>this</name></expr>;</return>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr>!<call><name>hasLowerCase</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"Cannot call lowerCase() on a mixed-case alphabet"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>lowerCased</name> =<init> <expr>new <name><name>char</name><index>[<expr><name><name>chars</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>chars</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><name><name>lowerCased</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>Ascii</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><name><name>chars</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr>new <call><name>Alphabet</name><argument_list>(<argument><expr><name>name</name> + ".lowerCase()"</expr></argument>, <argument><expr><name>lowerCased</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>matches</name><parameter_list>(<param><decl><type><name>char</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>CharMatcher</name>.<name>ASCII</name>.<name>matches</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> &amp;&amp; <name><name>decodabet</name><index>[<expr><name>c</name></expr>]</index></name> != -1</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>name</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>static</specifier> class <name>StandardBaseEncoding</name> <super><extends>extends <name>BaseEncoding</name></extends></super> <block>{
+    <comment type="line">// TODO(lowasser): provide a useful toString</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Alphabet</name></type> <name>alphabet</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><annotation>@<name>Nullable</name></annotation>
+    <specifier>final</specifier> <name>Character</name></type> <name>paddingChar</name></decl>;</decl_stmt>
+
+    <constructor><name>StandardBaseEncoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>String</name></type> <name>alphabetChars</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>Alphabet</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><call><name><name>alphabetChars</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <constructor><name>StandardBaseEncoding</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>alphabet</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>paddingChar</name> == <name>null</name> || !<call><name><name>alphabet</name>.<name>matches</name></name><argument_list>(<argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr></argument>,
+          <argument><expr>"Padding character %s was already in alphabet"</expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>paddingChar</name></name> = <name>paddingChar</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>CharMatcher</name></type> <name>padding</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>(<name>paddingChar</name> == <name>null</name>) ? <name><name>CharMatcher</name>.<name>NONE</name></name> : <call><name><name>CharMatcher</name>.<name>is</name></name><argument_list>(<argument><expr><call><name><name>paddingChar</name>.<name>charValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>maxEncodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name><name>alphabet</name>.<name>charsPerChunk</name></name> * <call><name>divide</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name><name>alphabet</name>.<name>bytesPerChunk</name></name></expr></argument>, <argument><expr><name>CEILING</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Writer,OutputStream")</argument_list></annotation>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>OutputStream</name></type> <name>encodingStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Writer</name></type> <name>out</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <class><super><name>OutputStream</name></super><argument_list>()</argument_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>bitBuffer</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>bitBufferLength</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>writtenChars</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+          <expr_stmt><expr><name>bitBuffer</name> &lt;&lt;= 8</expr>;</expr_stmt>
+          <expr_stmt><expr><name>bitBuffer</name> |= <name>b</name> &amp; 0xFF</expr>;</expr_stmt>
+          <expr_stmt><expr><name>bitBufferLength</name> += 8</expr>;</expr_stmt>
+          <while>while <condition>(<expr><name>bitBufferLength</name> &gt;= <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>charIndex</name> =<init> <expr>(<name>bitBuffer</name> &gt;&gt; (<name>bitBufferLength</name> - <name><name>alphabet</name>.<name>bitsPerChar</name></name>))
+                &amp; <name><name>alphabet</name>.<name>mask</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>charIndex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>writtenChars</name>++</expr>;</expr_stmt>
+            <expr_stmt><expr><name>bitBufferLength</name> -= <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+          }</block></while>
+        }</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+          <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+          <if>if <condition>(<expr><name>bitBufferLength</name> &gt; 0</expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>charIndex</name> =<init> <expr>(<name>bitBuffer</name> &lt;&lt; (<name><name>alphabet</name>.<name>bitsPerChar</name></name> - <name>bitBufferLength</name>))
+                &amp; <name><name>alphabet</name>.<name>mask</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>charIndex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>writtenChars</name>++</expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>paddingChar</name> != <name>null</name></expr>)</condition><then> <block>{
+              <while>while <condition>(<expr><name>writtenChars</name> % <name><name>alphabet</name>.<name>charsPerChunk</name></name> != 0</expr>)</condition> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>paddingChar</name>.<name>charValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>writtenChars</name>++</expr>;</expr_stmt>
+              }</block></while>
+            }</block></then></if>
+          }</block></then></if>
+          <expr_stmt><expr><call><name><name>out</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+      }</block></class></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>encodeTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>len</name></expr>;</condition> <incr><expr><name>i</name> += <name><name>alphabet</name>.<name>bytesPerChunk</name></name></expr></incr>) <block>{
+        <expr_stmt><expr><call><name>encodeChunkTo</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>off</name> + <name>i</name></expr></argument>, <argument><expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name><name>alphabet</name>.<name>bytesPerChunk</name></name></expr></argument>, <argument><expr><name>len</name> - <name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>encodeChunkTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>len</name> &lt;= <name><name>alphabet</name>.<name>bytesPerChunk</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>bitBuffer</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>len</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+        <expr_stmt><expr><name>bitBuffer</name> |= <name><name>bytes</name><index>[<expr><name>off</name> + <name>i</name></expr>]</index></name> &amp; 0xFF</expr>;</expr_stmt>
+        <expr_stmt><expr><name>bitBuffer</name> &lt;&lt;= 8</expr>;</expr_stmt> <comment type="line">// Add additional zero byte in the end.</comment>
+      }</block></for>
+      <comment type="line">// Position of first character is length of bitBuffer minus bitsPerChar.</comment>
+      <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>bitOffset</name> =<init> <expr>(<name>len</name> + 1) * 8 - <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>bitsProcessed</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <while>while <condition>(<expr><name>bitsProcessed</name> &lt; <name>len</name> * 8</expr>)</condition> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>charIndex</name> =<init> <expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>bitBuffer</name> &gt;&gt;&gt; (<name>bitOffset</name> - <name>bitsProcessed</name>)</expr></argument>)</argument_list></call> &amp; <name><name>alphabet</name>.<name>mask</name></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>charIndex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bitsProcessed</name> += <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+      }</block></while>
+      <if>if <condition>(<expr><name>paddingChar</name> != <name>null</name></expr>)</condition><then> <block>{
+        <while>while <condition>(<expr><name>bitsProcessed</name> &lt; <name><name>alphabet</name>.<name>bytesPerChunk</name></name> * 8</expr>)</condition> <block>{
+          <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>paddingChar</name>.<name>charValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>bitsProcessed</name> += <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+        }</block></while>
+      }</block></then></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>maxDecodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>chars</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call>(<name>int</name>) <argument_list>(<argument><expr>(<name><name>alphabet</name>.<name>bitsPerChar</name></name> * (<name>long</name>) <name>chars</name> + 7L) / 8L</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>decodeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>target</name></decl></param>, <param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>chars</name> = <call><name>padding</name><argument_list>()</argument_list></call>.<call><name>trimTrailingFrom</name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr>!<call><name><name>alphabet</name>.<name>isValidPaddingStartPosition</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Invalid input length " + <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>int</name></type> <name>bytesWritten</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>charIdx</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>charIdx</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>charIdx</name> += <name><name>alphabet</name>.<name>charsPerChunk</name></name></expr></incr>) <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>chunk</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>charsProcessed</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>alphabet</name>.<name>charsPerChunk</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><name>chunk</name> &lt;&lt;= <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+          <if>if <condition>(<expr><name>charIdx</name> + <name>i</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>chunk</name> |= <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>charIdx</name> + <name>charsProcessed</name>++</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></for>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>minOffset</name> =<init> <expr><name><name>alphabet</name>.<name>bytesPerChunk</name></name> * 8 - <name>charsProcessed</name> * <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>offset</name> =<init> <expr>(<name><name>alphabet</name>.<name>bytesPerChunk</name></name> - 1) * 8</expr></init></decl>;</init> <condition><expr><name>offset</name> &gt;= <name>minOffset</name></expr>;</condition> <incr><expr><name>offset</name> -= 8</expr></incr>) <block>{
+          <expr_stmt><expr><name><name>target</name><index>[<expr><name>bytesWritten</name>++</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr>(<name>chunk</name> &gt;&gt;&gt; <name>offset</name>) &amp; 0xFF</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></for>
+      <return>return <expr><name>bytesWritten</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Reader,InputStream")</argument_list></annotation>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>InputStream</name></type> <name>decodingStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <class><super><name>InputStream</name></super><argument_list>()</argument_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>bitBuffer</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>bitBufferLength</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>readChars</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>hitPadding</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CharMatcher</name></type> <name>paddingMatcher</name> =<init> <expr><call><name>padding</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+          <while>while <condition>(<expr>true</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>readChar</name> =<init> <expr><call><name><name>reader</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>readChar</name> == -1</expr>)</condition><then> <block>{
+              <if>if <condition>(<expr>!<name>hitPadding</name> &amp;&amp; !<call><name><name>alphabet</name>.<name>isValidPaddingStartPosition</name></name><argument_list>(<argument><expr><name>readChars</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Invalid input length " + <name>readChars</name></expr></argument>)</argument_list></call></expr>;</throw>
+              }</block></then></if>
+              <return>return <expr>-1</expr>;</return>
+            }</block></then></if>
+            <expr_stmt><expr><name>readChars</name>++</expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>char</name></type> <name>ch</name> =<init> <expr>(<name>char</name>) <name>readChar</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>paddingMatcher</name>.<name>matches</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+              <if>if <condition>(<expr>!<name>hitPadding</name>
+                  &amp;&amp; (<name>readChars</name> == 1 || !<call><name><name>alphabet</name>.<name>isValidPaddingStartPosition</name></name><argument_list>(<argument><expr><name>readChars</name> - 1</expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Padding cannot start at index " + <name>readChars</name></expr></argument>)</argument_list></call></expr>;</throw>
+              }</block></then></if>
+              <expr_stmt><expr><name>hitPadding</name> = true</expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>hitPadding</name></expr>)</condition><then> <block>{
+              <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(
+                  <argument><expr>"Expected padding character but found '" + <name>ch</name> + "' at index " + <name>readChars</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then> <else>else <block>{
+              <expr_stmt><expr><name>bitBuffer</name> &lt;&lt;= <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+              <expr_stmt><expr><name>bitBuffer</name> |= <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              <expr_stmt><expr><name>bitBufferLength</name> += <name><name>alphabet</name>.<name>bitsPerChar</name></name></expr>;</expr_stmt>
+
+              <if>if <condition>(<expr><name>bitBufferLength</name> &gt;= 8</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>bitBufferLength</name> -= 8</expr>;</expr_stmt>
+                <return>return <expr>(<name>bitBuffer</name> &gt;&gt; <name>bitBufferLength</name>) &amp; 0xFF</expr>;</return>
+              }</block></then></if>
+            }</block></else></if></else></if>
+          }</block></while>
+        }</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+          <expr_stmt><expr><call><name><name>reader</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+      }</block></class></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>omitPadding</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>(<name>paddingChar</name> == <name>null</name>) ? <name>this</name> : <call><name>newInstance</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>withPadChar</name><parameter_list>(<param><decl><type><name>char</name></type> <name>padChar</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr>8 % <name><name>alphabet</name>.<name>bitsPerChar</name></name> == 0 ||
+          (<name>paddingChar</name> != <name>null</name> &amp;&amp; <call><name><name>paddingChar</name>.<name>charValue</name></name><argument_list>()</argument_list></call> == <name>padChar</name>)</expr>)</condition><then> <block>{
+        <return>return <expr><name>this</name></expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><call><name>newInstance</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>padChar</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>withSeparator</name><parameter_list>(<param><decl><type><name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><name>int</name></type> <name>afterEveryChars</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name>padding</name><argument_list>()</argument_list></call>.<call><name>or</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>)</argument_list></call>.<call><name>matchesNoneOf</name><argument_list>(<argument><expr><name>separator</name></expr></argument>)</argument_list></call></expr></argument>,
+          <argument><expr>"Separator (%s) cannot contain alphabet or padding characters"</expr></argument>, <argument><expr><name>separator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <call><name>SeparatedBaseEncoding</name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>BaseEncoding</name></type> <name>upperCase</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>BaseEncoding</name></type> <name>lowerCase</name></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>upperCase</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name>BaseEncoding</name></type> <name>result</name> =<init> <expr><name>upperCase</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>Alphabet</name></type> <name>upper</name> =<init> <expr><call><name><name>alphabet</name>.<name>upperCase</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>result</name> = <name>upperCase</name> =
+            (<name>upper</name> == <name>alphabet</name>) ? <name>this</name> : <call><name>newInstance</name><argument_list>(<argument><expr><name>upper</name></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>lowerCase</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name>BaseEncoding</name></type> <name>result</name> =<init> <expr><name>lowerCase</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>Alphabet</name></type> <name>lower</name> =<init> <expr><call><name><name>alphabet</name>.<name>lowerCase</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>result</name> = <name>lowerCase</name> =
+            (<name>lower</name> == <name>alphabet</name>) ? <name>this</name> : <call><name>newInstance</name><argument_list>(<argument><expr><name>lower</name></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>BaseEncoding</name></type> <name>newInstance</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>new <call><name>StandardBaseEncoding</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name>StringBuilder</name></type> <name>builder</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>"BaseEncoding."</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr>8 % <name><name>alphabet</name>.<name>bitsPerChar</name></name> != 0</expr>)</condition><then> <block>{
+        <if>if <condition>(<expr><name>paddingChar</name> == <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>".omitPadding()"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+          <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>".withPadChar("</expr></argument>)</argument_list></call>.<call><name>append</name><argument_list>(<argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call>.<call><name>append</name><argument_list>(<argument><expr>')'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+      }</block></then></if>
+      <return>return <expr><call><name><name>builder</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name>Base16Encoding</name> <super><extends>extends <name>StandardBaseEncoding</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>char</name><index>[]</index></type> <name>encoding</name> =<init> <expr>new <name><name>char</name><index>[<expr>512</expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+    <constructor><name>Base16Encoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>String</name></type> <name>alphabetChars</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>Alphabet</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><call><name><name>alphabetChars</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <constructor><specifier>private</specifier> <name>Base16Encoding</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>alphabet</name>.<name>chars</name>.<name>length</name></name> == 16</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 256</expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+        <expr_stmt><expr><name><name>encoding</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>i</name> &gt;&gt;&gt; 4</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>encoding</name><index>[<expr><name>i</name> | 0x100</expr>]</index></name> = <call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>i</name> &amp; 0xF</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>encodeTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>len</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>b</name> =<init> <expr><name><name>bytes</name><index>[<expr><name>off</name> + <name>i</name></expr>]</index></name> &amp; 0xFF</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>encoding</name><index>[<expr><name>b</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>encoding</name><index>[<expr><name>b</name> | 0x100</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>decodeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>target</name></decl></param>, <param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call> % 2 == 1</expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Invalid input length " + <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>int</name></type> <name>bytesWritten</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name> += 2</expr></incr>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>decoded</name> =<init> <expr><call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &lt;&lt; 4 | <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name> + 1</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>target</name><index>[<expr><name>bytesWritten</name>++</expr>]</index></name> = (<name>byte</name>) <name>decoded</name></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><name>bytesWritten</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>BaseEncoding</name></type> <name>newInstance</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>new <call><name>Base16Encoding</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name>Base64Encoding</name> <super><extends>extends <name>StandardBaseEncoding</name></extends></super> <block>{
+    <constructor><name>Base64Encoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>String</name></type> <name>alphabetChars</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>Alphabet</name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><call><name><name>alphabetChars</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <constructor><specifier>private</specifier> <name>Base64Encoding</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>alphabet</name>.<name>chars</name>.<name>length</name></name> == 64</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>encodeTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>off</name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>remaining</name> =<init> <expr><name>len</name></expr></init></decl>;</init> <condition><expr><name>remaining</name> &gt;= 3</expr>;</condition> <incr><expr><name>remaining</name> -= 3</expr></incr>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>chunk</name> =<init> <expr>(<name><name>bytes</name><index>[<expr><name>i</name>++</expr>]</index></name> &amp; 0xFF) &lt;&lt; 16 | (<name><name>bytes</name><index>[<expr><name>i</name>++</expr>]</index></name> &amp; 0xFF) &lt;&lt; 8 | <name><name>bytes</name><index>[<expr><name>i</name>++</expr>]</index></name> &amp; 0xFF</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>chunk</name> &gt;&gt;&gt; 18</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr>(<name>chunk</name> &gt;&gt;&gt; 12) &amp; 0x3F</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr>(<name>chunk</name> &gt;&gt;&gt; 6) &amp; 0x3F</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>target</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>alphabet</name>.<name>encode</name></name><argument_list>(<argument><expr><name>chunk</name> &amp; 0x3F</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <if>if <condition>(<expr><name>i</name> &lt; <name>off</name> + <name>len</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>encodeChunkTo</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>off</name> + <name>len</name> - <name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>decodeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>target</name></decl></param>, <param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>chars</name> = <call><name>padding</name><argument_list>()</argument_list></call>.<call><name>trimTrailingFrom</name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr>!<call><name><name>alphabet</name>.<name>isValidPaddingStartPosition</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>DecodingException</name><argument_list>(<argument><expr>"Invalid input length " + <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>int</name></type> <name>bytesWritten</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>chunk</name> =<init> <expr><call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name>++</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &lt;&lt; 18</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>chunk</name> |= <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name>++</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &lt;&lt; 12</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>target</name><index>[<expr><name>bytesWritten</name>++</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr><name>chunk</name> &gt;&gt;&gt; 16</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>i</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>chunk</name> |= <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name>++</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &lt;&lt; 6</expr>;</expr_stmt>
+          <expr_stmt><expr><name><name>target</name><index>[<expr><name>bytesWritten</name>++</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr>(<name>chunk</name> &gt;&gt;&gt; 8) &amp; 0xFF</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <if>if <condition>(<expr><name>i</name> &lt; <call><name><name>chars</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>chunk</name> |= <call><name><name>alphabet</name>.<name>decode</name></name><argument_list>(<argument><expr><call><name><name>chars</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name>++</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>target</name><index>[<expr><name>bytesWritten</name>++</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr><name>chunk</name> &amp; 0xFF</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr><name>bytesWritten</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>BaseEncoding</name></type> <name>newInstance</name><parameter_list>(<param><decl><type><name>Alphabet</name></type> <name>alphabet</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Character</name></type> <name>paddingChar</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>new <call><name>Base64Encoding</name><argument_list>(<argument><expr><name>alphabet</name></expr></argument>, <argument><expr><name>paddingChar</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Reader")</argument_list></annotation>
+  <specifier>static</specifier> <name>Reader</name></type> <name>ignoringReader</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Reader</name></type> <name>delegate</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>CharMatcher</name></type> <name>toIgnore</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>toIgnore</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name>Reader</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>readChar</name></decl>;</decl_stmt>
+        <do>do <block>{
+          <expr_stmt><expr><name>readChar</name> = <call><name><name>delegate</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> while <condition>(<expr><name>readChar</name> != -1 &amp;&amp; <call><name><name>toIgnore</name>.<name>matches</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>readChar</name></expr></argument>)</argument_list></call></expr>)</condition>;</do>
+        <return>return <expr><name>readChar</name></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>cbuf</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>delegate</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>static</specifier> <name>Appendable</name></type> <name>separatingAppendable</name><parameter_list>(
+      <param><decl><type><specifier>final</specifier> <name>Appendable</name></type> <name>delegate</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>int</name></type> <name>afterEveryChars</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>separator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>afterEveryChars</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name>Appendable</name></super><argument_list>()</argument_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>charsUntilSeparator</name> =<init> <expr><name>afterEveryChars</name></expr></init></decl>;</decl_stmt>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>Appendable</name></type> <name>append</name><parameter_list>(<param><decl><type><name>char</name></type> <name>c</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>charsUntilSeparator</name> == 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>delegate</name>.<name>append</name></name><argument_list>(<argument><expr><name>separator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>charsUntilSeparator</name> = <name>afterEveryChars</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>delegate</name>.<name>append</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>charsUntilSeparator</name>--</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>Appendable</name></type> <name>append</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>Appendable</name></type> <name>append</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Writer")</argument_list></annotation>
+  <specifier>static</specifier> <name>Writer</name></type> <name>separatingWriter</name><parameter_list>(
+      <param><decl><type><specifier>final</specifier> <name>Writer</name></type> <name>delegate</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>int</name></type> <name>afterEveryChars</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Appendable</name></type> <name>seperatingAppendable</name> =<init>
+        <expr><call><name>separatingAppendable</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>, <argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>new <class><super><name>Writer</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>c</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>seperatingAppendable</name>.<name>append</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chars</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>delegate</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>delegate</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name>SeparatedBaseEncoding</name> <super><extends>extends <name>BaseEncoding</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>BaseEncoding</name></type> <name>delegate</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>separator</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>afterEveryChars</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CharMatcher</name></type> <name>separatorChars</name></decl>;</decl_stmt>
+
+    <constructor><name>SeparatedBaseEncoding</name><parameter_list>(<param><decl><type><name>BaseEncoding</name></type> <name>delegate</name></decl></param>, <param><decl><type><name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><name>int</name></type> <name>afterEveryChars</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>delegate</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>separator</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>separator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>afterEveryChars</name></name> = <name>afterEveryChars</name></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+          <argument><expr><name>afterEveryChars</name> &gt; 0</expr></argument>, <argument><expr>"Cannot add a separator after every %s chars"</expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>separatorChars</name></name> = <call><name><name>CharMatcher</name>.<name>anyOf</name></name><argument_list>(<argument><expr><name>separator</name></expr></argument>)</argument_list></call>.<call><name>precomputed</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>CharMatcher</name></type> <name>padding</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>padding</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>maxEncodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>unseparatedSize</name> =<init> <expr><call><name><name>delegate</name>.<name>maxEncodedSize</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><name>unseparatedSize</name> + <call><name><name>separator</name>.<name>length</name></name><argument_list>()</argument_list></call>
+          * <call><name>divide</name><argument_list>(<argument><expr><call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>unseparatedSize</name> - 1</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>, <argument><expr><name>FLOOR</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Writer,OutputStream")</argument_list></annotation>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>OutputStream</name></type> <name>encodingStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>encodingStream</name></name><argument_list>(<argument><expr><call><name>separatingWriter</name><argument_list>(<argument><expr><name>output</name></expr></argument>, <argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>encodeTo</name><parameter_list>(<param><decl><type><name>Appendable</name></type> <name>target</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name><name>delegate</name>.<name>encodeTo</name></name><argument_list>(<argument><expr><call><name>separatingAppendable</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>maxDecodedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>chars</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>maxDecodedSize</name></name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>int</name></type> <name>decodeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>target</name></decl></param>, <param><decl><type><name>CharSequence</name></type> <name>chars</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>DecodingException</name></expr></argument></throws> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>decodeTo</name></name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><call><name><name>separatorChars</name>.<name>removeFrom</name></name><argument_list>(<argument><expr><name>chars</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Reader,InputStream")</argument_list></annotation>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>InputStream</name></type> <name>decodingStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>decodingStream</name></name><argument_list>(<argument><expr><call><name>ignoringReader</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name>separatorChars</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>omitPadding</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>omitPadding</name></name><argument_list>()</argument_list></call>.<call><name>withSeparator</name><argument_list>(<argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>withPadChar</name><parameter_list>(<param><decl><type><name>char</name></type> <name>padChar</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>withPadChar</name></name><argument_list>(<argument><expr><name>padChar</name></expr></argument>)</argument_list></call>.<call><name>withSeparator</name><argument_list>(<argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>withSeparator</name><parameter_list>(<param><decl><type><name>String</name></type> <name>separator</name></decl></param>, <param><decl><type><name>int</name></type> <name>afterEveryChars</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>(<argument><expr>"Already have a separator"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>upperCase</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>upperCase</name></name><argument_list>()</argument_list></call>.<call><name>withSeparator</name><argument_list>(<argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>BaseEncoding</name></type> <name>lowerCase</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>lowerCase</name></name><argument_list>()</argument_list></call>.<call><name>withSeparator</name><argument_list>(<argument><expr><name>separator</name></expr></argument>, <argument><expr><name>afterEveryChars</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>delegate</name>.<name>toString</name></name><argument_list>()</argument_list></call> +
+          ".withSeparator(\"" + <name>separator</name> + "\", " + <name>afterEveryChars</name> + ")"</expr>;</return>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

@@ -1,0 +1,601 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\reflect\FieldUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>reflect</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Modifier</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ClassUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Utilities for working with fields by reflection. Adapted and refactored
+ * from the dormant [reflect] Commons sandbox component.
+ * &lt;p&gt;
+ * The ability is provided to break the scoping restrictions coded by the
+ * programmer. This can allow fields to be changed that shouldn't be. This
+ * facility should be used with care.
+ *
+ * @author Apache Software Foundation
+ * @author Matt Benson
+ * @since 2.5
+ * @version $Id: FieldUtils.java 1057009 2011-01-09 19:48:06Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>FieldUtils</name> <block>{
+
+    <comment type="javadoc">/**
+     * FieldUtils instances should NOT be constructed in standard programming.
+     * &lt;p&gt;
+     * This constructor is public to permit tools that require a JavaBean instance
+     * to operate.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FieldUtils</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Gets an accessible &lt;code&gt;Field&lt;/code&gt; by name respecting scope.
+     * Superclasses/interfaces will be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Field</name></type> <name>getField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>MemberUtils</name>.<name>setAccessibleWorkaround</name></name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>field</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets an accessible &lt;code&gt;Field&lt;/code&gt; by name breaking scope
+     * if requested. Superclasses/interfaces will be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Field</name></type> <name>getField</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>cls</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The class must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>fieldName</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field name must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">// Sun Java 1.3 has a bugged implementation of getField hence we write the</comment>
+        <comment type="line">// code ourselves</comment>
+
+        <comment type="line">// getField() will return the Field object with the declaring class</comment>
+        <comment type="line">// set correctly to the class that declares the field. Thus requesting the</comment>
+        <comment type="line">// field on a subclass will return the field from the superclass.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// priority order for lookup:</comment>
+        <comment type="line">// searchclass private/protected/package/public</comment>
+        <comment type="line">// superclass protected/package/public</comment>
+        <comment type="line">//  private/different package blocks access to further superclasses</comment>
+        <comment type="line">// implementedinterface public</comment>
+
+        <comment type="line">// check up the superclass hierarchy</comment>
+        <for>for (<init><decl><type><name>Class</name></type> <name>acls</name> =<init> <expr><name>cls</name></expr></init></decl>;</init> <condition><expr><name>acls</name> != <name>null</name></expr>;</condition> <incr><expr><name>acls</name> = <call><name><name>acls</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+            <try>try <block>{
+                <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name><name>acls</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr><name>fieldName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <comment type="line">// getDeclaredField checks for non-public scopes as well</comment>
+                <comment type="line">// and it returns accurate results</comment>
+                <if>if <condition>(<expr>!<call><name><name>Modifier</name>.<name>isPublic</name></name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>forceAccess</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>field</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <continue>continue;</continue>
+                    }</block></else></if>
+                }</block></then></if>
+                <return>return <expr><name>field</name></expr>;</return>
+            }</block> <catch>catch (<param><decl><type><name>NoSuchFieldException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// ignore</comment>
+            }</block></catch></try>
+        }</block></for>
+        <comment type="line">// check the public interface case. This must be manually searched for</comment>
+        <comment type="line">// incase there is a public supersuperclass field hidden by a private/package</comment>
+        <comment type="line">// superclass field.</comment>
+        <decl_stmt><decl><type><name>Field</name></type> <name>match</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>intf</name> =<init> <expr><call><name><name>ClassUtils</name>.<name>getAllInterfaces</name></name><argument_list>(<argument><expr><name>cls</name></expr></argument>)</argument_list></call>.<call><name>iterator</name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>intf</name>
+                .<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+            <try>try <block>{
+                <decl_stmt><decl><type><name>Field</name></type> <name>test</name> =<init> <expr>((<name>Class</name>) <call><name><name>intf</name>.<name>next</name></name><argument_list>()</argument_list></call>).<call><name>getField</name><argument_list>(<argument><expr><name>fieldName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>match</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                            <argument><expr>"Reference to field "
+                                    + <name>fieldName</name>
+                                    + " is ambiguous relative to "
+                                    + <name>cls</name>
+                                    + "; a matching field exists on two or more implemented interfaces."</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then></if>
+                <expr_stmt><expr><name>match</name> = <name>test</name></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>NoSuchFieldException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// ignore</comment>
+            }</block></catch></try>
+        }</block></for>
+        <return>return <expr><name>match</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets an accessible &lt;code&gt;Field&lt;/code&gt; by name respecting scope.
+     * Only the specified class will be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Field</name></type> <name>getDeclaredField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDeclaredField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets an accessible &lt;code&gt;Field&lt;/code&gt; by name breaking scope
+     * if requested. Only the specified class will be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. False will only match public fields.
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Field</name></type> <name>getDeclaredField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>cls</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The class must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>fieldName</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field name must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <try>try <block>{
+            <comment type="line">// only consider the specified class by using getDeclaredField()</comment>
+            <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name><name>cls</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr><name>fieldName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>!<call><name><name>MemberUtils</name>.<name>isAccessible</name></name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>forceAccess</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>field</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <return>return <expr><name>null</name></expr>;</return>
+                }</block></else></if>
+            }</block></then></if>
+            <return>return <expr><name>field</name></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchFieldException</name></type> <name>e</name></decl></param>) <block>{
+        }</block></catch></try>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read an accessible static Field.
+     * @param field to read
+     * @return the field value
+     * @throws IllegalArgumentException if the field is null or not static
+     * @throws IllegalAccessException if the field is not accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readStaticField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readStaticField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read a static Field.
+     * @param field to read
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method.
+     * @return the field value
+     * @throws IllegalArgumentException if the field is null or not static
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readStaticField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>Modifier</name>.<name>isStatic</name></name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field '" + <call><name><name>field</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "' is not static"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr><call><name>readField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>(<name>Object</name>) <name>null</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the named public static field. Superclasses will be considered.
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the value of the field
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the field is not accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readStaticField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the named static field. Superclasses will be considered.
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate field " + <name>fieldName</name> + " on " + <name>cls</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <return>return <expr><call><name>readStaticField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets a static Field value by name. The field must be public.
+     * Only the specified class will be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the value of the field
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the field is not accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readDeclaredStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readDeclaredStaticField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets a static Field value by name. Only the specified class will
+     * be considered.
+     *
+     * @param cls  the class to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @return the Field object
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readDeclaredStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getDeclaredField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate declared field " + <call><name><name>cls</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "." + <name>fieldName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <return>return <expr><call><name>readStaticField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read an accessible Field.
+     * @param field  the field to use
+     * @param target  the object to call on, may be null for static fields
+     * @return the field value
+     * @throws IllegalArgumentException if the field is null
+     * @throws IllegalAccessException if the field is not accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>target</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read a Field.
+     * @param field  the field to use
+     * @param target  the object to call on, may be null for static fields
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method.
+     * @return the field value
+     * @throws IllegalArgumentException if the field is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>forceAccess</name> &amp;&amp; !<call><name><name>field</name>.<name>isAccessible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>field</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>MemberUtils</name>.<name>setAccessibleWorkaround</name></name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <return>return <expr><call><name><name>field</name>.<name>get</name></name><argument_list>(<argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the named public field. Superclasses will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the value of the field
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the named field is not public
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readField</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the named field. Superclasses will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @return the field value
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the named field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>target</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"target object must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><call><name><name>target</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate field " + <name>fieldName</name> + " on " + <name>cls</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <return>return <expr><call><name>readField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the named public field. Only the class of the specified object will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @return the value of the field
+     * @throws IllegalArgumentException if the class or field name is null
+     * @throws IllegalAccessException if the named field is not public
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readDeclaredField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>readDeclaredField</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&lt;&gt;Gets a Field value by name. Only the class of the specified
+     * object will be considered.
+     *
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @return the Field object
+     * @throws IllegalArgumentException if &lt;code&gt;target&lt;/code&gt; or &lt;code&gt;fieldName&lt;/code&gt; is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Object</name></type> <name>readDeclaredField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>target</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"target object must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><call><name><name>target</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getDeclaredField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate declared field " + <call><name><name>cls</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "." + <name>fieldName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <return>return <expr><call><name>readField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a public static Field.
+     * @param field to write
+     * @param value to set
+     * @throws IllegalArgumentException if the field is null or not static
+     * @throws IllegalAccessException if the field is not public or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeStaticField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeStaticField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a static Field.
+     * @param field to write
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if the field is null or not static
+     * @throws IllegalAccessException if the field is not made accessible or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeStaticField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>Modifier</name>.<name>isStatic</name></name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field '" + <call><name><name>field</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "' is not static"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>(<name>Object</name>) <name>null</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a named public static Field. Superclasses will be considered.
+     * @param cls Class on which the Field is to be found
+     * @param fieldName to write
+     * @param value to set
+     * @throws IllegalArgumentException if the field cannot be located or is not static
+     * @throws IllegalAccessException if the field is not public or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeStaticField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a named static Field. Superclasses will be considered.
+     * @param cls Class on which the Field is to be found
+     * @param fieldName to write
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if the field cannot be located or is not static
+     * @throws IllegalAccessException if the field is not made accessible or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate field " + <name>fieldName</name> + " on " + <name>cls</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <expr_stmt><expr><call><name>writeStaticField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a named public static Field. Only the specified class will be considered.
+     * @param cls Class on which the Field is to be found
+     * @param fieldName to write
+     * @param value to set
+     * @throws IllegalArgumentException if the field cannot be located or is not static
+     * @throws IllegalAccessException if the field is not public or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeDeclaredStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeDeclaredStaticField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a named static Field. Only the specified class will be considered.
+     * @param cls Class on which the Field is to be found
+     * @param fieldName to write
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if the field cannot be located or is not static
+     * @throws IllegalAccessException if the field is not made accessible or is final
+      */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeDeclaredStaticField</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>cls</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getDeclaredField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate declared field " + <call><name><name>cls</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "." + <name>fieldName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr>(<name>Object</name>) <name>null</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write an accessible field.
+     * @param field to write
+     * @param target  the object to call on, may be null for static fields
+     * @param value to set
+     * @throws IllegalArgumentException if the field is null
+     * @throws IllegalAccessException if the field is not accessible or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a field.
+     * @param field to write
+     * @param target  the object to call on, may be null for static fields
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if the field is null
+     * @throws IllegalAccessException if the field is not made accessible or is final
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeField</name><parameter_list>(<param><decl><type><name>Field</name></type> <name>field</name></decl></param>, <param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The field must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>forceAccess</name> &amp;&amp; !<call><name><name>field</name>.<name>isAccessible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>field</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>MemberUtils</name>.<name>setAccessibleWorkaround</name></name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name><name>field</name>.<name>set</name></name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a public field. Superclasses will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param value to set
+     * @throws IllegalArgumentException if &lt;code&gt;target&lt;/code&gt; or &lt;code&gt;fieldName&lt;/code&gt; is null
+     * @throws IllegalAccessException if the field is not accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a field. Superclasses will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if &lt;code&gt;target&lt;/code&gt; or &lt;code&gt;fieldName&lt;/code&gt; is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>target</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"target object must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><call><name><name>target</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate declared field " + <call><name><name>cls</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "." + <name>fieldName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a public field. Only the specified class will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param value to set
+     * @throws IllegalArgumentException if &lt;code&gt;target&lt;/code&gt; or &lt;code&gt;fieldName&lt;/code&gt; is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeDeclaredField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeDeclaredField</name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a public field. Only the specified class will be considered.
+     * @param target  the object to reflect, must not be null
+     * @param fieldName  the field name to obtain
+     * @param value to set
+     * @param forceAccess  whether to break scope restrictions using the
+     *  &lt;code&gt;setAccessible&lt;/code&gt; method. &lt;code&gt;False&lt;/code&gt; will only
+     *  match public fields.
+     * @throws IllegalArgumentException if &lt;code&gt;target&lt;/code&gt; or &lt;code&gt;fieldName&lt;/code&gt; is null
+     * @throws IllegalAccessException if the field is not made accessible
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeDeclaredField</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>forceAccess</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IllegalAccessException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>target</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"target object must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><call><name><name>target</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name>getDeclaredField</name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>fieldName</name></expr></argument>, <argument><expr><name>forceAccess</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>field</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Cannot locate declared field " + <call><name><name>cls</name>.<name>getName</name></name><argument_list>()</argument_list></call> + "." + <name>fieldName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">//already forced access above, don't repeat it here:</comment>
+        <expr_stmt><expr><call><name>writeField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+}</block></class>
+</unit>

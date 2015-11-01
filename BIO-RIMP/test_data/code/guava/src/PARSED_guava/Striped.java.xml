@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\Striped.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Supplier</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableList</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Iterables</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMaker</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>IntMath</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Ints</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>Reference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>ReferenceQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>math</name>.<name>RoundingMode</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collections</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Semaphore</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceArray</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>Lock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReadWriteLock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantLock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantReadWriteLock</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A striped {@code Lock/Semaphore/ReadWriteLock}. This offers the underlying lock striping
+ * similar to that of {@code ConcurrentHashMap} in a reusable form, and extends it for
+ * semaphores and read-write locks. Conceptually, lock striping is the technique of dividing a lock
+ * into many &lt;i&gt;stripes&lt;/i&gt;, increasing the granularity of a single lock and allowing independent
+ * operations to lock different stripes and proceed concurrently, instead of creating contention
+ * for a single lock.
+ *
+ * &lt;p&gt;The guarantee provided by this class is that equal keys lead to the same lock (or semaphore),
+ * i.e. {@code if (key1.equals(key2))} then {@code striped.get(key1) == striped.get(key2)}
+ * (assuming {@link Object#hashCode()} is correctly implemented for the keys). Note
+ * that if {@code key1} is &lt;strong&gt;not&lt;/strong&gt; equal to {@code key2}, it is &lt;strong&gt;not&lt;/strong&gt;
+ * guaranteed that {@code striped.get(key1) != striped.get(key2)}; the elements might nevertheless
+ * be mapped to the same lock. The lower the number of stripes, the higher the probability of this
+ * happening.
+ *
+ * &lt;p&gt;There are three flavors of this class: {@code Striped&lt;Lock&gt;}, {@code Striped&lt;Semaphore&gt;},
+ * and {@code Striped&lt;ReadWriteLock&gt;}. For each type, two implementations are offered:
+ * {@linkplain #lock(int) strong} and {@linkplain #lazyWeakLock(int) weak}
+ * {@code Striped&lt;Lock&gt;}, {@linkplain #semaphore(int, int) strong} and {@linkplain
+ * #lazyWeakSemaphore(int, int) weak} {@code Striped&lt;Semaphore&gt;}, and {@linkplain
+ * #readWriteLock(int) strong} and {@linkplain #lazyWeakReadWriteLock(int) weak}
+ * {@code Striped&lt;ReadWriteLock&gt;}. &lt;i&gt;Strong&lt;/i&gt; means that all stripes (locks/semaphores) are
+ * initialized eagerly, and are not reclaimed unless {@code Striped} itself is reclaimable.
+ * &lt;i&gt;Weak&lt;/i&gt; means that locks/semaphores are created lazily, and they are allowed to be reclaimed
+ * if nobody is holding on to them. This is useful, for example, if one wants to create a {@code
+ * Striped&lt;Lock&gt;} of many locks, but worries that in most cases only a small portion of these
+ * would be in use.
+ *
+ * &lt;p&gt;Prior to this class, one might be tempted to use {@code Map&lt;K, Lock&gt;}, where {@code K}
+ * represents the task. This maximizes concurrency by having each unique key mapped to a unique
+ * lock, but also maximizes memory footprint. On the other extreme, one could use a single lock
+ * for all tasks, which minimizes memory footprint but also minimizes concurrency. Instead of
+ * choosing either of these extremes, {@code Striped} allows the user to trade between required
+ * concurrency and memory footprint. For example, if a set of tasks are CPU-bound, one could easily
+ * create a very compact {@code Striped&lt;Lock&gt;} of {@code availableProcessors() * 4} stripes,
+ * instead of possibly thousands of locks which could be created in a {@code Map&lt;K, Lock&gt;}
+ * structure.
+ *
+ * @author Dimitris Andreou
+ * @since 13.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name><name>Striped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <block>{
+  <comment type="javadoc">/**
+   * If there are at least this many stripes, we assume the memory usage of a ConcurrentMap will be
+   * smaller than a large array.  (This assumes that in the lazy case, most stripes are unused. As
+   * always, if many stripes are in use, a non-lazy striped makes more sense.)
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LARGE_LAZY_CUTOFF</name> =<init> <expr>1024</expr></init></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>Striped</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Returns the stripe that corresponds to the passed key. It is always guaranteed that if
+   * {@code key1.equals(key2)}, then {@code get(key1) == get(key2)}.
+   *
+   * @param key an arbitrary, non-null key
+   * @return the stripe that the passed key corresponds to
+   */</comment>
+  <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>L</name></type> <name>get</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the stripe at the specified index. Valid indexes are 0, inclusively, to
+   * {@code size()}, exclusively.
+   *
+   * @param index the index of the stripe to return; must be in {@code [0...size())}
+   * @return the stripe at the specified index
+   */</comment>
+  <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>L</name></type> <name>getAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the index to which the given key is mapped, so that getAt(indexFor(key)) == get(key).
+   */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>int</name></type> <name>indexFor</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the total number of stripes in this instance.
+   */</comment>
+  <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the stripes that correspond to the passed objects, in ascending (as per
+   * {@link #getAt(int)}) order. Thus, threads that use the stripes in the order returned
+   * by this method are guaranteed to not deadlock each other.
+   *
+   * &lt;p&gt;It should be noted that using a {@code Striped&lt;L&gt;} with relatively few stripes, and
+   * {@code bulkGet(keys)} with a relative large number of keys can cause an excessive number
+   * of shared stripes (much like the birthday paradox, where much fewer than anticipated birthdays
+   * are needed for a pair of them to match). Please consider carefully the implications of the
+   * number of stripes, the intended concurrency level, and the typical number of keys used in a
+   * {@code bulkGet(keys)} operation. See &lt;a href="http://www.mathpages.com/home/kmath199.htm"&gt;Balls
+   * in Bins model&lt;/a&gt; for mathematical formulas that can be used to estimate the probability of
+   * collisions.
+   *
+   * @param keys arbitrary non-null keys
+   * @return the stripes corresponding to the objects (one per each object, derived by delegating
+   *         to {@link #get(Object)}; may contain duplicates), in an increasing index order.
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Iterable</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>bulkGet</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>keys</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Initially using the array to store the keys, then reusing it to store the respective L's</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name><index>[]</index></type> <name>array</name> =<init> <expr><call><name><name>Iterables</name>.<name>toArray</name></name><argument_list>(<argument><expr><name>keys</name></expr></argument>, <argument><expr><name><name>Object</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>array</name>.<name>length</name></name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>ImmutableList</name>.<name>of</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>stripes</name> =<init> <expr>new <name><name>int</name><index>[<expr><name><name>array</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>stripes</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>indexFor</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <expr_stmt><expr><call><name><name>Arrays</name>.<name>sort</name></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <comment type="line">// optimize for runs of identical stripes</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>previousStripe</name> =<init> <expr><name><name>stripes</name><index>[<expr>0</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>array</name><index>[<expr>0</expr>]</index></name> = <call><name>getAt</name><argument_list>(<argument><expr><name>previousStripe</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>currentStripe</name> =<init> <expr><name><name>stripes</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>currentStripe</name> == <name>previousStripe</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name> = <name><name>array</name><index>[<expr><name>i</name> - 1</expr>]</index></name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>getAt</name><argument_list>(<argument><expr><name>currentStripe</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>previousStripe</name> = <name>currentStripe</name></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></for>
+    <comment type="block">/*
+     * Note that the returned Iterable holds references to the returned stripes, to avoid
+     * error-prone code like:
+     *
+     * Striped&lt;Lock&gt; stripedLock = Striped.lazyWeakXXX(...)'
+     * Iterable&lt;Lock&gt; locks = stripedLock.bulkGet(keys);
+     * for (Lock lock : locks) {
+     *   lock.lock();
+     * }
+     * operation();
+     * for (Lock lock : locks) {
+     *   lock.unlock();
+     * }
+     *
+     * If we only held the int[] stripes, translating it on the fly to L's, the original locks
+     * might be garbage collected after locking them, ending up in a huge mess.
+     */</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// we carefully replaced all keys with their respective L's</comment>
+    <name><name>List</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>asList</name> =<init> <expr>(<name><name>List</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name>) <call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>array</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name><name>Collections</name>.<name>unmodifiableList</name></name><argument_list>(<argument><expr><name>asList</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Static factories</comment>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;Lock&gt;} with eagerly initialized, strongly referenced locks.
+   * Every lock is reentrant.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @return a new {@code Striped&lt;Lock&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>Lock</name></argument>&gt;</argument_list></name></type> <name>lock</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>CompactStriped</name><argument_list>&lt;<argument><name>Lock</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>Lock</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Lock</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>PaddedLock</name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;Lock&gt;} with lazily initialized, weakly referenced locks.
+   * Every lock is reentrant.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @return a new {@code Striped&lt;Lock&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>Lock</name></argument>&gt;</argument_list></name></type> <name>lazyWeakLock</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>lazy</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>Lock</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Lock</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>ReentrantLock</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list> <name><name>Striped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>lazy</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><name>stripes</name> &lt; <name>LARGE_LAZY_CUTOFF</name> 
+        ? new <call><name><name>SmallLazyStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr><name>supplier</name></expr></argument>)</argument_list></call>
+        : new <call><name><name>LargeLazyStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr><name>supplier</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;Semaphore&gt;} with eagerly initialized, strongly referenced semaphores,
+   * with the specified number of permits.
+   *
+   * @param stripes the minimum number of stripes (semaphores) required
+   * @param permits the number of permits in each semaphore
+   * @return a new {@code Striped&lt;Semaphore&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>Semaphore</name></argument>&gt;</argument_list></name></type> <name>semaphore</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>CompactStriped</name><argument_list>&lt;<argument><name>Semaphore</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>Semaphore</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Semaphore</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>PaddedSemaphore</name><argument_list>(<argument><expr><name>permits</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;Semaphore&gt;} with lazily initialized, weakly referenced semaphores,
+   * with the specified number of permits.
+   *
+   * @param stripes the minimum number of stripes (semaphores) required
+   * @param permits the number of permits in each semaphore
+   * @return a new {@code Striped&lt;Semaphore&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>Semaphore</name></argument>&gt;</argument_list></name></type> <name>lazyWeakSemaphore</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>lazy</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>Semaphore</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Semaphore</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>Semaphore</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;ReadWriteLock&gt;} with eagerly initialized, strongly referenced
+   * read-write locks. Every lock is reentrant.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @return a new {@code Striped&lt;ReadWriteLock&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>ReadWriteLock</name></argument>&gt;</argument_list></name></type> <name>readWriteLock</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>CompactStriped</name><argument_list>&lt;<argument><name>ReadWriteLock</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr><name>READ_WRITE_LOCK_SUPPLIER</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code Striped&lt;ReadWriteLock&gt;} with lazily initialized, weakly referenced
+   * read-write locks. Every lock is reentrant.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @return a new {@code Striped&lt;ReadWriteLock&gt;}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Striped</name><argument_list>&lt;<argument><name>ReadWriteLock</name></argument>&gt;</argument_list></name></type> <name>lazyWeakReadWriteLock</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>lazy</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>, <argument><expr><name>READ_WRITE_LOCK_SUPPLIER</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// ReentrantReadWriteLock is large enough to make padding probably unnecessary</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>Supplier</name><argument_list>&lt;<argument><name>ReadWriteLock</name></argument>&gt;</argument_list></name></type> <name>READ_WRITE_LOCK_SUPPLIER</name> =<init>
+      <expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>ReadWriteLock</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>ReadWriteLock</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name>ReentrantReadWriteLock</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <class><specifier>private</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name><name>PowerOfTwoStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Striped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <comment type="javadoc">/** Capacity (power of two) minus one, for fast mod evaluation */</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>mask</name></decl>;</decl_stmt>
+
+    <constructor><name>PowerOfTwoStriped</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name>stripes</name> &gt; 0</expr></argument>, <argument><expr>"Stripes must be positive"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>mask</name></name> = <name>stripes</name> &gt; <name><name>Ints</name>.<name>MAX_POWER_OF_TWO</name></name> ? <name>ALL_SET</name> : <call><name>ceilToPowerOfTwo</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>)</argument_list></call> - 1</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>final</specifier> <name>int</name></type> <name>indexFor</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>hash</name> =<init> <expr><call><name>smear</name><argument_list>(<argument><expr><call><name><name>key</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><name>hash</name> &amp; <name>mask</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>L</name></type> <name>get</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>getAt</name><argument_list>(<argument><expr><call><name>indexFor</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Implementation of Striped where 2^k stripes are represented as an array of the same length,
+   * eagerly initialized.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name><name>CompactStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>PowerOfTwoStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <comment type="javadoc">/** Size is a power of two. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name><index>[]</index></type> <name>array</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>CompactStriped</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name>stripes</name> &lt;= <name><name>Ints</name>.<name>MAX_POWER_OF_TWO</name></name></expr></argument>, <argument><expr>"Stripes must be &lt;= 2^30)"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <expr_stmt><expr><name><name>this</name>.<name>array</name></name> = new <name><name>Object</name><index>[<expr><name>mask</name> + 1</expr>]</index></name></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>supplier</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// we only put L's in the array</comment>
+    <annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>L</name></type> <name>getAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>(<name>L</name>) <name><name>array</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name><name>array</name>.<name>length</name></name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Implementation of Striped where up to 2^k stripes can be represented, using an
+   * AtomicReferenceArray of size 2^k. To map a user key into a stripe, we take a k-bit slice of the
+   * user key's (smeared) hashCode(). The stripes are lazily initialized and are weakly referenced.
+   */</comment>
+  <class><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> class <name><name>SmallLazyStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>PowerOfTwoStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>AtomicReferenceArray</name><argument_list>&lt;<argument><name><name>ArrayReference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>locks</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>queue</name> =<init> <expr>new <call><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <constructor><name>SmallLazyStriped</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>size</name></name> = (<name>mask</name> == <name>ALL_SET</name>) ? <name><name>Integer</name>.<name>MAX_VALUE</name></name> : <name>mask</name> + 1</expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>locks</name></name> = new <call><name><name>AtomicReferenceArray</name><argument_list>&lt;<argument><name><name>ArrayReference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>supplier</name></name> = <name>supplier</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>L</name></type> <name>getAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>size</name> != <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkElementIndex</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><call><name>size</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if> <comment type="line">// else no check necessary, all index values are valid</comment>
+      <decl_stmt><decl><type><name><name>ArrayReference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name></type> <name>existingRef</name> =<init> <expr><call><name><name>locks</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>L</name></type> <name>existing</name> =<init> <expr><name>existingRef</name> == <name>null</name> ? <name>null</name> : <call><name><name>existingRef</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>existing</name></expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>L</name></type> <name>created</name> =<init> <expr><call><name><name>supplier</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>ArrayReference</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>newRef</name> =<init> <expr>new <call><name><name>ArrayReference</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>created</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <while>while <condition>(<expr>!<call><name><name>locks</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>existingRef</name></expr></argument>, <argument><expr><name>newRef</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{
+        <comment type="line">// we raced, we need to re-read and try again</comment>
+        <expr_stmt><expr><name>existingRef</name> = <call><name><name>locks</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>existing</name> = <name>existingRef</name> == <name>null</name> ? <name>null</name> : <call><name><name>existingRef</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+          <return>return <expr><name>existing</name></expr>;</return>
+        }</block></then></if>
+      }</block></while>
+      <expr_stmt><expr><call><name>drainQueue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>created</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="line">// N.B. Draining the queue is only necessary to ensure that we don't accumulate empty references</comment>
+    <comment type="line">// in the array.  We could skip this if we decide we don't care about holding on to Reference</comment>
+    <comment type="line">// objects indefinitely.</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>drainQueue</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>Reference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name></type> <name>ref</name></decl>;</decl_stmt>
+      <while>while <condition>(<expr>(<name>ref</name> = <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition> <block>{
+        <comment type="line">// We only ever register ArrayReferences with the queue so this is always safe.</comment>
+        <decl_stmt><decl><type><name><name>ArrayReference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name></type> <name>arrayRef</name> =<init> <expr>(<name><name>ArrayReference</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>L</name></extends></argument>&gt;</argument_list></name>) <name>ref</name></expr></init></decl>;</decl_stmt>
+        <comment type="line">// Try to clear out the array slot, n.b. if we fail that is fine, in either case the</comment>
+        <comment type="line">// arrayRef will be out of the array after this step.</comment>
+        <expr_stmt><expr><call><name><name>locks</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name><name>arrayRef</name>.<name>index</name></name></expr></argument>, <argument><expr><name>arrayRef</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></while>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>size</name></expr>;</return>
+    }</block></function>
+
+    <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ArrayReference</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>WeakReference</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></extends></super> <block>{
+      <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>index</name></decl>;</decl_stmt>
+
+      <constructor><name>ArrayReference</name><parameter_list>(<param><decl><type><name>L</name></type> <name>referent</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>referent</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>index</name></name> = <name>index</name></expr>;</expr_stmt>
+      }</block></constructor>
+    }</block></class>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Implementation of Striped where up to 2^k stripes can be represented, using a ConcurrentMap
+   * where the key domain is [0..2^k). To map a user key into a stripe, we take a k-bit slice of the
+   * user key's (smeared) hashCode(). The stripes are lazily initialized and are weakly referenced.
+   */</comment>
+  <class><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> class <name><name>LargeLazyStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>PowerOfTwoStriped</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>ConcurrentMap</name><argument_list>&lt;<argument><name>Integer</name></argument>, <argument><name>L</name></argument>&gt;</argument_list></name></type> <name>locks</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name></decl>;</decl_stmt>
+
+    <constructor><name>LargeLazyStriped</name><parameter_list>(<param><decl><type><name>int</name></type> <name>stripes</name></decl></param>, <param><decl><type><name><name>Supplier</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>supplier</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>stripes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>size</name></name> = (<name>mask</name> == <name>ALL_SET</name>) ? <name><name>Integer</name>.<name>MAX_VALUE</name></name> : <name>mask</name> + 1</expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>supplier</name></name> = <name>supplier</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>locks</name></name> = new <call><name>MapMaker</name><argument_list>()</argument_list></call>.<call><name>weakValues</name><argument_list>()</argument_list></call>.<call><name>makeMap</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>L</name></type> <name>getAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>size</name> != <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkElementIndex</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><call><name>size</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if> <comment type="line">// else no check necessary, all index values are valid</comment>
+      <decl_stmt><decl><type><name>L</name></type> <name>existing</name> =<init> <expr><call><name><name>locks</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>existing</name></expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>L</name></type> <name>created</name> =<init> <expr><call><name><name>supplier</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>existing</name> = <call><name><name>locks</name>.<name>putIfAbsent</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>created</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>existing</name></expr></argument>, <argument><expr><name>created</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>size</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * A bit mask were all bits are set.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ALL_SET</name> =<init> <expr>~0</expr></init></decl>;</decl_stmt>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>ceilToPowerOfTwo</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>1 &lt;&lt; <call><name><name>IntMath</name>.<name>log2</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><name><name>RoundingMode</name>.<name>CEILING</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="block">/*
+   * This method was written by Doug Lea with assistance from members of JCP
+   * JSR-166 Expert Group and released to the public domain, as explained at
+   * http://creativecommons.org/licenses/publicdomain
+   *
+   * As of 2010/06/11, this method is identical to the (package private) hash
+   * method in OpenJDK 7's java.util.HashMap class.
+   */</comment>
+  <comment type="line">// Copied from java/com/google/common/collect/Hashing.java</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>smear</name><parameter_list>(<param><decl><type><name>int</name></type> <name>hashCode</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name>hashCode</name> ^= (<name>hashCode</name> &gt;&gt;&gt; 20) ^ (<name>hashCode</name> &gt;&gt;&gt; 12)</expr>;</expr_stmt>
+    <return>return <expr><name>hashCode</name> ^ (<name>hashCode</name> &gt;&gt;&gt; 7) ^ (<name>hashCode</name> &gt;&gt;&gt; 4)</expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>PaddedLock</name> <super><extends>extends <name>ReentrantLock</name></extends></super> <block>{
+    <comment type="block">/*
+     * Padding from 40 into 64 bytes, same size as cache line. Might be beneficial to add
+     * a fourth long here, to minimize chance of interference between consecutive locks,
+     * but I couldn't observe any benefit from that.
+     */</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <name>long</name></type> <name>q1</name>, <name>q2</name>, <name>q3</name></decl>;</decl_stmt>
+
+    <constructor><name>PaddedLock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>PaddedSemaphore</name> <super><extends>extends <name>Semaphore</name></extends></super> <block>{
+    <comment type="line">// See PaddedReentrantLock comment</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <name>long</name></type> <name>q1</name>, <name>q2</name>, <name>q3</name></decl>;</decl_stmt>
+
+    <constructor><name>PaddedSemaphore</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+}</block></class>
+</unit>

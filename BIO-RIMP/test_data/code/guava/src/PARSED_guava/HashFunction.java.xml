@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\hash\HashFunction.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>hash</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Ints</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>Charset</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A hash function is a collision-averse pure function that maps an arbitrary block of
+ * data to a number called a &lt;i&gt;hash code&lt;/i&gt;.
+ *
+ * &lt;h3&gt;Definition&lt;/h3&gt;
+ *
+ * &lt;p&gt;Unpacking this definition:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;b&gt;block of data:&lt;/b&gt; the input for a hash function is always, in concept, an
+ *     ordered byte array. This hashing API accepts an arbitrary sequence of byte and
+ *     multibyte values (via {@link Hasher}), but this is merely a convenience; these are
+ *     always translated into raw byte sequences under the covers.
+ *
+ * &lt;li&gt;&lt;b&gt;hash code:&lt;/b&gt; each hash function always yields hash codes of the same fixed bit
+ *     length (given by {@link #bits}). For example, {@link Hashing#sha1} produces a
+ *     160-bit number, while {@link Hashing#murmur3_32()} yields only 32 bits. Because a
+ *     {@code long} value is clearly insufficient to hold all hash code values, this API
+ *     represents a hash code as an instance of {@link HashCode}.
+ *
+ * &lt;li&gt;&lt;b&gt;pure function:&lt;/b&gt; the value produced must depend only on the input bytes, in
+ *     the order they appear. Input data is never modified. {@link HashFunction} instances
+ *     should always be stateless, and therefore thread-safe.
+ *
+ * &lt;li&gt;&lt;b&gt;collision-averse:&lt;/b&gt; while it can't be helped that a hash function will
+ *     sometimes produce the same hash code for distinct inputs (a "collision"), every
+ *     hash function strives to &lt;i&gt;some&lt;/i&gt; degree to make this unlikely. (Without this
+ *     condition, a function that always returns zero could be called a hash function. It
+ *     is not.)
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;Summarizing the last two points: "equal yield equal &lt;i&gt;always&lt;/i&gt;; unequal yield
+ * unequal &lt;i&gt;often&lt;/i&gt;." This is the most important characteristic of all hash functions.
+ *
+ * &lt;h3&gt;Desirable properties&lt;/h3&gt;
+ *
+ * &lt;p&gt;A high-quality hash function strives for some subset of the following virtues:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;b&gt;collision-resistant:&lt;/b&gt; while the definition above requires making at least
+ *     &lt;i&gt;some&lt;/i&gt; token attempt, one measure of the quality of a hash function is &lt;i&gt;how
+ *     well&lt;/i&gt; it succeeds at this goal. Important note: it may be easy to achieve the
+ *     theoretical minimum collision rate when using completely &lt;i&gt;random&lt;/i&gt; sample
+ *     input. The true test of a hash function is how it performs on representative
+ *     real-world data, which tends to contain many hidden patterns and clumps. The goal
+ *     of a good hash function is to stamp these patterns out as thoroughly as possible.
+ *
+ * &lt;li&gt;&lt;b&gt;bit-dispersing:&lt;/b&gt; masking out any &lt;i&gt;single bit&lt;/i&gt; from a hash code should
+ *     yield only the expected &lt;i&gt;twofold&lt;/i&gt; increase to all collision rates. Informally,
+ *     the "information" in the hash code should be as evenly "spread out" through the
+ *     hash code's bits as possible. The result is that, for example, when choosing a
+ *     bucket in a hash table of size 2^8, &lt;i&gt;any&lt;/i&gt; eight bits could be consistently
+ *     used.
+ *
+ * &lt;li&gt;&lt;b&gt;cryptographic:&lt;/b&gt; certain hash functions such as {@link Hashing#sha512} are
+ *     designed to make it as infeasible as possible to reverse-engineer the input that
+ *     produced a given hash code, or even to discover &lt;i&gt;any&lt;/i&gt; two distinct inputs that
+ *     yield the same result. These are called &lt;i&gt;cryptographic hash functions&lt;/i&gt;. But,
+ *     whenever it is learned that either of these feats has become computationally
+ *     feasible, the function is deemed "broken" and should no longer be used for secure
+ *     purposes. (This is the likely eventual fate of &lt;i&gt;all&lt;/i&gt; cryptographic hashes.)
+ *
+ * &lt;li&gt;&lt;b&gt;fast:&lt;/b&gt; perhaps self-explanatory, but often the most important consideration.
+ *     We have published &lt;a href="#noWeHaventYet"&gt;microbenchmark results&lt;/a&gt; for many
+ *     common hash functions.
+ * &lt;/ul&gt;
+ *
+ * &lt;h3&gt;Providing input to a hash function&lt;/h3&gt;
+ *
+ * &lt;p&gt;The primary way to provide the data that your hash function should act on is via a
+ * {@link Hasher}. Obtain a new hasher from the hash function using {@link #newHasher},
+ * "push" the relevant data into it using methods like {@link Hasher#putBytes(byte[])},
+ * and finally ask for the {@code HashCode} when finished using {@link Hasher#hash}. (See
+ * an {@linkplain #newHasher example} of this.)
+ *
+ * &lt;p&gt;If all you want to hash is a single byte array, string or {@code long} value, there
+ * are convenient shortcut methods defined directly on {@link HashFunction} to make this
+ * easier.
+ *
+ * &lt;p&gt;Hasher accepts primitive data types, but can also accept any Object of type {@code
+ * T} provided that you implement a {@link Funnel Funnel&lt;T&gt;} to specify how to "feed" data
+ * from that object into the function. (See {@linkplain Hasher#putObject an example} of
+ * this.)
+ *
+ * &lt;p&gt;&lt;b&gt;Compatibility note:&lt;/b&gt; Throughout this API, multibyte values are always
+ * interpreted in &lt;i&gt;little-endian&lt;/i&gt; order. That is, hashing the byte array {@code
+ * {0x01, 0x02, 0x03, 0x04}} is equivalent to hashing the {@code int} value {@code
+ * 0x04030201}. If this isn't what you need, methods such as {@link Integer#reverseBytes}
+ * and {@link Ints#toByteArray} will help.
+ *
+ * &lt;h3&gt;Relationship to {@link Object#hashCode}&lt;/h3&gt;
+ *
+ * &lt;p&gt;Java's baked-in concept of hash codes is constrained to 32 bits, and provides no
+ * separation between hash algorithms and the data they act on, so alternate hash
+ * algorithms can't be easily substituted. Also, implementations of {@code hashCode} tend
+ * to be poor-quality, in part because they end up depending on &lt;i&gt;other&lt;/i&gt; existing
+ * poor-quality {@code hashCode} implementations, including those in many JDK classes.
+ *
+ * &lt;p&gt;{@code Object.hashCode} implementations tend to be very fast, but have weak
+ * collision prevention and &lt;i&gt;no&lt;/i&gt; expectation of bit dispersion. This leaves them
+ * perfectly suitable for use in hash tables, because extra collisions cause only a slight
+ * performance hit, while poor bit dispersion is easily corrected using a secondary hash
+ * function (which all reasonable hash table implementations in Java use). For the many
+ * uses of hash functions beyond data structures, however, {@code Object.hashCode} almost
+ * always falls short -- hence this library.
+ *
+ * @author Kevin Bourrillion
+ * @since 11.0
+ */</comment>
+<class type="interface"><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> interface <name>HashFunction</name> <block>{
+  <comment type="javadoc">/**
+   * Begins a new hash code computation by returning an initialized, stateful {@code
+   * Hasher} instance that is ready to receive data. Example: &lt;pre&gt;   {@code
+   *
+   *   HashFunction hf = Hashing.md5();
+   *   HashCode hc = hf.newHasher()
+   *       .putLong(id)
+   *       .putBoolean(isActive)
+   *       .hash();}&lt;/pre&gt;
+   */</comment>
+  <function_decl><type><name>Hasher</name></type> <name>newHasher</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Begins a new hash code computation as {@link #newHasher()}, but provides a hint of the
+   * expected size of the input (in bytes). This is only important for non-streaming hash
+   * functions (hash functions that need to buffer their whole input before processing any
+   * of it).
+   */</comment>
+  <function_decl><type><name>Hasher</name></type> <name>newHasher</name><parameter_list>(<param><decl><type><name>int</name></type> <name>expectedInputSize</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putInt(input).hash()}; returns the hash code for the given
+   * {@code int} value, interpreted in little-endian byte order. The implementation &lt;i&gt;might&lt;/i&gt;
+   * perform better than its longhand equivalent, but should not perform worse.
+   *
+   * @since 12.0
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashInt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>input</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putLong(input).hash()}; returns the hash code for the
+   * given {@code long} value, interpreted in little-endian byte order. The implementation
+   * &lt;i&gt;might&lt;/i&gt; perform better than its longhand equivalent, but should not perform worse.
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashLong</name><parameter_list>(<param><decl><type><name>long</name></type> <name>input</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putBytes(input).hash()}. The implementation
+   * &lt;i&gt;might&lt;/i&gt; perform better than its longhand equivalent, but should not perform
+   * worse.
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashBytes</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putBytes(input, off, len).hash()}. The implementation
+   * &lt;i&gt;might&lt;/i&gt; perform better than its longhand equivalent, but should not perform
+   * worse.
+   *
+   * @throws IndexOutOfBoundsException if {@code off &lt; 0} or {@code off + len &gt; bytes.length}
+   *   or {@code len &lt; 0}
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashBytes</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putUnencodedChars(input).hash()}. The implementation
+   * &lt;i&gt;might&lt;/i&gt; perform better than its longhand equivalent, but should not perform worse.
+   * Note that no character encoding is performed; the low byte and high byte of each {@code char}
+   * are hashed directly (in that order).
+   *
+   * @since 15.0 (since 11.0 as hashString(CharSequence)).
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashUnencodedChars</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>input</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putString(input, charset).hash()}. Characters are encoded
+   * using the given {@link Charset}. The implementation &lt;i&gt;might&lt;/i&gt; perform better than its
+   * longhand equivalent, but should not perform worse.
+   */</comment>
+  <function_decl><type><name>HashCode</name></type> <name>hashString</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>input</name></decl></param>, <param><decl><type><name>Charset</name></type> <name>charset</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Shortcut for {@code newHasher().putObject(instance, funnel).hash()}. The implementation
+   * &lt;i&gt;might&lt;/i&gt; perform better than its longhand equivalent, but should not perform worse.
+   *
+   * @since 14.0
+   */</comment>
+  <function_decl><type><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>HashCode</name></type> <name>hashObject</name><parameter_list>(<param><decl><type><name>T</name></type> <name>instance</name></decl></param>, <param><decl><type><name><name>Funnel</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>funnel</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the number of bits (a multiple of 32) that each hash code produced by this
+   * hash function has.
+   */</comment>
+  <function_decl><type><name>int</name></type> <name>bits</name><parameter_list>()</parameter_list>;</function_decl>
+}</block></class>
+</unit>

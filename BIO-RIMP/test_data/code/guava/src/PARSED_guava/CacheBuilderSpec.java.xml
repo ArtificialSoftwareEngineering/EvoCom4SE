@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\cache\CacheBuilderSpec.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Objects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Splitter</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name>.<name>LocalCache</name>.<name>Strength</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableList</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableMap</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A specification of a {@link CacheBuilder} configuration.
+ *
+ * &lt;p&gt;{@code CacheBuilderSpec} supports parsing configuration off of a string, which
+ * makes it especially useful for command-line configuration of a {@code CacheBuilder}.
+ *
+ * &lt;p&gt;The string syntax is a series of comma-separated keys or key-value pairs,
+ * each corresponding to a {@code CacheBuilder} method.
+ * &lt;ul&gt;
+ * &lt;li&gt;{@code concurrencyLevel=[integer]}: sets {@link CacheBuilder#concurrencyLevel}.
+ * &lt;li&gt;{@code initialCapacity=[integer]}: sets {@link CacheBuilder#initialCapacity}.
+ * &lt;li&gt;{@code maximumSize=[long]}: sets {@link CacheBuilder#maximumSize}.
+ * &lt;li&gt;{@code maximumWeight=[long]}: sets {@link CacheBuilder#maximumWeight}.
+ * &lt;li&gt;{@code expireAfterAccess=[duration]}: sets {@link CacheBuilder#expireAfterAccess}.
+ * &lt;li&gt;{@code expireAfterWrite=[duration]}: sets {@link CacheBuilder#expireAfterWrite}.
+ * &lt;li&gt;{@code refreshAfterWrite=[duration]}: sets {@link CacheBuilder#refreshAfterWrite}.
+ * &lt;li&gt;{@code weakKeys}: sets {@link CacheBuilder#weakKeys}.
+ * &lt;li&gt;{@code softValues}: sets {@link CacheBuilder#softValues}.
+ * &lt;li&gt;{@code weakValues}: sets {@link CacheBuilder#weakValues}.
+ * &lt;li&gt;{@code recordStats}: sets {@link CacheBuilder#recordStats}.
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;The set of supported keys will grow as {@code CacheBuilder} evolves, but existing keys
+ * will never be removed.
+ *
+ * &lt;p&gt;Durations are represented by an integer, followed by one of "d", "h", "m",
+ * or "s", representing days, hours, minutes, or seconds respectively.  (There
+ * is currently no syntax to request expiration in milliseconds, microseconds,
+ * or nanoseconds.)
+ *
+ * &lt;p&gt;Whitespace before and after commas and equal signs is ignored.  Keys may
+ * not be repeated;  it is also illegal to use the following pairs of keys in
+ * a single value:
+ * &lt;ul&gt;
+ * &lt;li&gt;{@code maximumSize} and {@code maximumWeight}
+ * &lt;li&gt;{@code softValues} and {@code weakValues}
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;{@code CacheBuilderSpec} does not support configuring {@code CacheBuilder} methods
+ * with non-value parameters.  These must be configured in code.
+ *
+ * &lt;p&gt;A new {@code CacheBuilder} can be instantiated from a {@code CacheBuilderSpec} using
+ * {@link CacheBuilder#from(CacheBuilderSpec)} or {@link CacheBuilder#from(String)}.
+ *
+ * @author Adam Winer
+ * @since 12.0
+ */</comment>
+<class><specifier>public</specifier> <specifier>final</specifier> class <name>CacheBuilderSpec</name> <block>{
+  <comment type="javadoc">/** Parses a single value. */</comment>
+  <class type="interface"><specifier>private</specifier> interface <name>ValueParser</name> <block>{
+    <function_decl><type><name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>String</name></type> <name>value</name></decl></param>)</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/** Splits each key-value pair. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Splitter</name></type> <name>KEYS_SPLITTER</name> =<init> <expr><call><name><name>Splitter</name>.<name>on</name></name><argument_list>(<argument><expr>','</expr></argument>)</argument_list></call>.<call><name>trimResults</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Splits the key from the value. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Splitter</name></type> <name>KEY_VALUE_SPLITTER</name> =<init> <expr><call><name><name>Splitter</name>.<name>on</name></name><argument_list>(<argument><expr>'='</expr></argument>)</argument_list></call>.<call><name>trimResults</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Map of names to ValueParser. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>ImmutableMap</name><argument_list>&lt;<argument><name>String</name></argument>, <argument><name>ValueParser</name></argument>&gt;</argument_list></name></type> <name>VALUE_PARSERS</name> =<init>
+      <expr><name><name>ImmutableMap</name>.<name><name/></name></name>&lt;<name>String</name></expr></init>, <name>ValueParser</name>&gt;<name>builder</name>()
+          .<name>put</name>("initialCapacity", <type><specifier/>new <name>InitialCapacityParser</name></type>())
+          .put("maximumSize"</decl>, new MaximumSizeParser(</decl_stmt>)</block></class>)
+          <expr_stmt><expr>.<call><name>put</name><argument_list>(<argument><expr>"maximumWeight"</expr></argument>, <argument><expr>new <call><name>MaximumWeightParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"concurrencyLevel"</expr></argument>, <argument><expr>new <call><name>ConcurrencyLevelParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"weakKeys"</expr></argument>, <argument><expr>new <call><name>KeyStrengthParser</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"softValues"</expr></argument>, <argument><expr>new <call><name>ValueStrengthParser</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>SOFT</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"weakValues"</expr></argument>, <argument><expr>new <call><name>ValueStrengthParser</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"recordStats"</expr></argument>, <argument><expr>new <call><name>RecordStatsParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"expireAfterAccess"</expr></argument>, <argument><expr>new <call><name>AccessDurationParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"expireAfterWrite"</expr></argument>, <argument><expr>new <call><name>WriteDurationParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"refreshAfterWrite"</expr></argument>, <argument><expr>new <call><name>RefreshDurationParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>put</name><argument_list>(<argument><expr>"refreshInterval"</expr></argument>, <argument><expr>new <call><name>RefreshDurationParser</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>build</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Integer</name></type> <name>initialCapacity</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Long</name></type> <name>maximumSize</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Long</name></type> <name>maximumWeight</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Integer</name></type> <name>concurrencyLevel</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Strength</name></type> <name>keyStrength</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Strength</name></type> <name>valueStrength</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>Boolean</name></type> <name>recordStats</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>long</name></type> <name>writeExpirationDuration</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>TimeUnit</name></type> <name>writeExpirationTimeUnit</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>long</name></type> <name>accessExpirationDuration</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>TimeUnit</name></type> <name>accessExpirationTimeUnit</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>long</name></type> <name>refreshDuration</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <name>TimeUnit</name></type> <name>refreshTimeUnit</name></decl>;</decl_stmt>
+  <comment type="javadoc">/** Specification;  used for toParseableString(). */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>specification</name></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>CacheBuilderSpec</name><parameter_list>(<param><decl><type><name>String</name></type> <name>specification</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>specification</name></name> = <name>specification</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Creates a CacheBuilderSpec from a string.
+   *
+   * @param cacheBuilderSpecification the string form
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>CacheBuilderSpec</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>String</name></type> <name>cacheBuilderSpecification</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name> =<init> <expr>new <call><name>CacheBuilderSpec</name><argument_list>(<argument><expr><name>cacheBuilderSpecification</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!<call><name><name>cacheBuilderSpecification</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <for>for (<init><decl><type><name>String</name></type> <name>keyValuePair</name> :<range> <expr><call><name><name>KEYS_SPLITTER</name>.<name>split</name></name><argument_list>(<argument><expr><name>cacheBuilderSpecification</name></expr></argument>)</argument_list></call></expr></range></decl></init>) <block>{
+        <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>keyAndValue</name> =<init> <expr><call><name><name>ImmutableList</name>.<name>copyOf</name></name><argument_list>(<argument><expr><call><name><name>KEY_VALUE_SPLITTER</name>.<name>split</name></name><argument_list>(<argument><expr><name>keyValuePair</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr>!<call><name><name>keyAndValue</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"blank key-value pair"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>keyAndValue</name>.<name>size</name></name><argument_list>()</argument_list></call> &lt;= 2</expr></argument>,
+            <argument><expr>"key-value pair %s with more than one equals sign"</expr></argument>, <argument><expr><name>keyValuePair</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Find the ValueParser for the current key.</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>key</name> =<init> <expr><call><name><name>keyAndValue</name>.<name>get</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ValueParser</name></type> <name>valueParser</name> =<init> <expr><call><name><name>VALUE_PARSERS</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>valueParser</name> != <name>null</name></expr></argument>, <argument><expr>"unknown key %s"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr><call><name><name>keyAndValue</name>.<name>size</name></name><argument_list>()</argument_list></call> == 1 ? <name>null</name> : <call><name><name>keyAndValue</name>.<name>get</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>valueParser</name>.<name>parse</name></name><argument_list>(<argument><expr><name>spec</name></expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></then></if>
+
+    <return>return <expr><name>spec</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a CacheBuilderSpec that will prevent caching.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>CacheBuilderSpec</name></type> <name>disableCaching</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// Maximum size of zero is one way to block caching</comment>
+    <return>return <expr><call><name><name>CacheBuilderSpec</name>.<name>parse</name></name><argument_list>(<argument><expr>"maximumSize=0"</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a CacheBuilder configured according to this instance's specification.
+   */</comment>
+  <function><type><name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>toCacheBuilder</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>builder</name> =<init> <expr><call><name><name>CacheBuilder</name>.<name>newBuilder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>initialCapacity</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>initialCapacity</name></name><argument_list>(<argument><expr><name>initialCapacity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>maximumSize</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>maximumSize</name></name><argument_list>(<argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>maximumWeight</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>maximumWeight</name></name><argument_list>(<argument><expr><name>maximumWeight</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>concurrencyLevel</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>concurrencyLevel</name></name><argument_list>(<argument><expr><name>concurrencyLevel</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>keyStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <switch>switch <condition>(<expr><name>keyStrength</name></expr>)</condition> <block>{
+        <case>case <expr><name>WEAK</name></expr>:
+          <expr_stmt><expr><call><name><name>builder</name>.<name>weakKeys</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        </case><default>default:
+          <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+      </default>}</block></switch>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>valueStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <switch>switch <condition>(<expr><name>valueStrength</name></expr>)</condition> <block>{
+        <case>case <expr><name>SOFT</name></expr>:
+          <expr_stmt><expr><call><name><name>builder</name>.<name>softValues</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        </case><case>case <expr><name>WEAK</name></expr>:
+          <expr_stmt><expr><call><name><name>builder</name>.<name>weakValues</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        </case><default>default:
+          <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+      </default>}</block></switch>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>recordStats</name> != <name>null</name> &amp;&amp; <name>recordStats</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>recordStats</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>writeExpirationTimeUnit</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>expireAfterWrite</name></name><argument_list>(<argument><expr><name>writeExpirationDuration</name></expr></argument>, <argument><expr><name>writeExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>accessExpirationTimeUnit</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>expireAfterAccess</name></name><argument_list>(<argument><expr><name>accessExpirationDuration</name></expr></argument>, <argument><expr><name>accessExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>refreshTimeUnit</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>builder</name>.<name>refreshAfterWrite</name></name><argument_list>(<argument><expr><name>refreshDuration</name></expr></argument>, <argument><expr><name>refreshTimeUnit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+
+    <return>return <expr><name>builder</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a string that can be used to parse an equivalent
+   * {@code CacheBuilderSpec}.  The order and form of this representation is
+   * not guaranteed, except that reparsing its output will produce
+   * a {@code CacheBuilderSpec} equal to this instance.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>String</name></type> <name>toParsableString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>specification</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a string representation for this CacheBuilderSpec instance.
+   * The form of this representation is not guaranteed.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>toStringHelper</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call>.<call><name>addValue</name><argument_list>(<argument><expr><call><name>toParsableString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>Objects</name>.<name>hashCode</name></name><argument_list>(
+        <argument><expr><name>initialCapacity</name></expr></argument>,
+        <argument><expr><name>maximumSize</name></expr></argument>,
+        <argument><expr><name>maximumWeight</name></expr></argument>,
+        <argument><expr><name>concurrencyLevel</name></expr></argument>,
+        <argument><expr><name>keyStrength</name></expr></argument>,
+        <argument><expr><name>valueStrength</name></expr></argument>,
+        <argument><expr><name>recordStats</name></expr></argument>,
+        <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>writeExpirationDuration</name></expr></argument>, <argument><expr><name>writeExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>accessExpirationDuration</name></expr></argument>, <argument><expr><name>accessExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>refreshDuration</name></expr></argument>, <argument><expr><name>refreshTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>this</name> == <name>obj</name></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr>!(<name>obj</name> <name>instanceof</name> <name>CacheBuilderSpec</name>)</expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>CacheBuilderSpec</name></type> <name>that</name> =<init> <expr>(<name>CacheBuilderSpec</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>initialCapacity</name></expr></argument>, <argument><expr><name><name>that</name>.<name>initialCapacity</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>maximumSize</name></expr></argument>, <argument><expr><name><name>that</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>maximumWeight</name></expr></argument>, <argument><expr><name><name>that</name>.<name>maximumWeight</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>concurrencyLevel</name></expr></argument>, <argument><expr><name><name>that</name>.<name>concurrencyLevel</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>keyStrength</name></expr></argument>, <argument><expr><name><name>that</name>.<name>keyStrength</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>valueStrength</name></expr></argument>, <argument><expr><name><name>that</name>.<name>valueStrength</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><name>recordStats</name></expr></argument>, <argument><expr><name><name>that</name>.<name>recordStats</name></name></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>writeExpirationDuration</name></expr></argument>, <argument><expr><name>writeExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name><name>that</name>.<name>writeExpirationDuration</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>writeExpirationTimeUnit</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>accessExpirationDuration</name></expr></argument>, <argument><expr><name>accessExpirationTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name><name>that</name>.<name>accessExpirationDuration</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>accessExpirationTimeUnit</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+        &amp;&amp; <call><name><name>Objects</name>.<name>equal</name></name><argument_list>(<argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name>refreshDuration</name></expr></argument>, <argument><expr><name>refreshTimeUnit</name></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr><call><name>durationInNanos</name><argument_list>(<argument><expr><name><name>that</name>.<name>refreshDuration</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>refreshTimeUnit</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Converts an expiration duration/unit pair into a single Long for hashing and equality.
+   * Uses nanos to match CacheBuilder implementation.
+   */</comment>
+  <function><type><annotation>@<name>Nullable</name></annotation> <specifier>private</specifier> <specifier>static</specifier> <name>Long</name></type> <name>durationInNanos</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>(<name>unit</name> == <name>null</name>) ? <name>null</name> : <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Base class for parsing integers. */</comment>
+  <class><specifier>abstract</specifier> <specifier>static</specifier> class <name>IntegerParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+    <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>parseInteger</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list>;</function_decl>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> != <name>null</name> &amp;&amp; !<call><name><name>value</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"value of key %s omitted"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name>parseInteger</name><argument_list>(<argument><expr><name>spec</name></expr></argument>, <argument><expr><call><name><name>Integer</name>.<name>parseInt</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr><call><name>format</name><argument_list>(<argument><expr>"key %s value set to %s, must be integer"</expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Base class for parsing integers. */</comment>
+  <class><specifier>abstract</specifier> <specifier>static</specifier> class <name>LongParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+    <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>parseLong</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>value</name></decl></param>)</parameter_list>;</function_decl>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> != <name>null</name> &amp;&amp; !<call><name><name>value</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"value of key %s omitted"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name>parseLong</name><argument_list>(<argument><expr><name>spec</name></expr></argument>, <argument><expr><call><name><name>Long</name>.<name>parseLong</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr><call><name>format</name><argument_list>(<argument><expr>"key %s value set to %s, must be integer"</expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse initialCapacity */</comment>
+  <class><specifier>static</specifier> class <name>InitialCapacityParser</name> <super><extends>extends <name>IntegerParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>void</name></type> <name>parseInteger</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>initialCapacity</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"initial capacity was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>initialCapacity</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>initialCapacity</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse maximumSize */</comment>
+  <class><specifier>static</specifier> class <name>MaximumSizeParser</name> <super><extends>extends <name>LongParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>void</name></type> <name>parseLong</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>maximumSize</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"maximum size was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>maximumWeight</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"maximum weight was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>maximumWeight</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>maximumSize</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse maximumWeight */</comment>
+  <class><specifier>static</specifier> class <name>MaximumWeightParser</name> <super><extends>extends <name>LongParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>void</name></type> <name>parseLong</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>maximumWeight</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"maximum weight was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>maximumWeight</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>maximumSize</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"maximum size was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>maximumWeight</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse concurrencyLevel */</comment>
+  <class><specifier>static</specifier> class <name>ConcurrencyLevelParser</name> <super><extends>extends <name>IntegerParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>void</name></type> <name>parseInteger</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>concurrencyLevel</name></name> == <name>null</name></expr></argument>,
+          <argument><expr>"concurrency level was already set to "</expr></argument>, <argument><expr><name><name>spec</name>.<name>concurrencyLevel</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>concurrencyLevel</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse weakKeys */</comment>
+  <class><specifier>static</specifier> class <name>KeyStrengthParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Strength</name></type> <name>strength</name></decl>;</decl_stmt>
+
+    <constructor><specifier>public</specifier> <name>KeyStrengthParser</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>strength</name></name> = <name>strength</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> == <name>null</name></expr></argument>, <argument><expr>"key %s does not take values"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>keyStrength</name></name> == <name>null</name></expr></argument>, <argument><expr>"%s was already set to %s"</expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name><name>spec</name>.<name>keyStrength</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>keyStrength</name></name> = <name>strength</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse weakValues and softValues */</comment>
+  <class><specifier>static</specifier> class <name>ValueStrengthParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Strength</name></type> <name>strength</name></decl>;</decl_stmt>
+
+    <constructor><specifier>public</specifier> <name>ValueStrengthParser</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>strength</name></name> = <name>strength</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> == <name>null</name></expr></argument>, <argument><expr>"key %s does not take values"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>valueStrength</name></name> == <name>null</name></expr></argument>,
+        <argument><expr>"%s was already set to %s"</expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name><name>spec</name>.<name>valueStrength</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <expr_stmt><expr><name><name>spec</name>.<name>valueStrength</name></name> = <name>strength</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse recordStats */</comment>
+  <class><specifier>static</specifier> class <name>RecordStatsParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> == <name>null</name></expr></argument>, <argument><expr>"recordStats does not take values"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>recordStats</name></name> == <name>null</name></expr></argument>, <argument><expr>"recordStats already set"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>recordStats</name></name> = true</expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Base class for parsing times with durations */</comment>
+  <class><specifier>abstract</specifier> <specifier>static</specifier> class <name>DurationParser</name> <super><implements>implements <name>ValueParser</name></implements></super> <block>{
+    <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>parseDuration</name><parameter_list>(
+        <param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>,
+        <param><decl><type><name>long</name></type> <name>duration</name></decl></param>,
+        <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>;</function_decl>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>parse</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>value</name> != <name>null</name> &amp;&amp; !<call><name><name>value</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"value of key %s omitted"</expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>lastChar</name> =<init> <expr><call><name><name>value</name>.<name>charAt</name></name><argument_list>(<argument><expr><call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>TimeUnit</name></type> <name>timeUnit</name></decl>;</decl_stmt>
+        <switch>switch <condition>(<expr><name>lastChar</name></expr>)</condition> <block>{
+          <case>case <expr>'d'</expr>:
+            <expr_stmt><expr><name>timeUnit</name> = <name><name>TimeUnit</name>.<name>DAYS</name></name></expr>;</expr_stmt>
+            <break>break;</break>
+          </case><case>case <expr>'h'</expr>:
+            <expr_stmt><expr><name>timeUnit</name> = <name><name>TimeUnit</name>.<name>HOURS</name></name></expr>;</expr_stmt>
+            <break>break;</break>
+          </case><case>case <expr>'m'</expr>:
+            <expr_stmt><expr><name>timeUnit</name> = <name><name>TimeUnit</name>.<name>MINUTES</name></name></expr>;</expr_stmt>
+            <break>break;</break>
+          </case><case>case <expr>'s'</expr>:
+            <expr_stmt><expr><name>timeUnit</name> = <name><name>TimeUnit</name>.<name>SECONDS</name></name></expr>;</expr_stmt>
+            <break>break;</break>
+          </case><default>default:
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                <argument><expr><call><name>format</name><argument_list>(<argument><expr>"key %s invalid format.  was %s, must end with one of [dDhHmMsS]"</expr></argument>,
+                    <argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        </default>}</block></switch>
+
+        <decl_stmt><decl><type><name>long</name></type> <name>duration</name> =<init> <expr><call><name><name>Long</name>.<name>parseLong</name></name><argument_list>(<argument><expr><call><name><name>value</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><call><name><name>value</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>parseDuration</name><argument_list>(<argument><expr><name>spec</name></expr></argument>, <argument><expr><name>duration</name></expr></argument>, <argument><expr><name>timeUnit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr><call><name>format</name><argument_list>(<argument><expr>"key %s value set to %s, must be integer"</expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse expireAfterAccess */</comment>
+  <class><specifier>static</specifier> class <name>AccessDurationParser</name> <super><extends>extends <name>DurationParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name>void</name></type> <name>parseDuration</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>accessExpirationTimeUnit</name></name> == <name>null</name></expr></argument>, <argument><expr>"expireAfterAccess already set"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>accessExpirationDuration</name></name> = <name>duration</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>accessExpirationTimeUnit</name></name> = <name>unit</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse expireAfterWrite */</comment>
+  <class><specifier>static</specifier> class <name>WriteDurationParser</name> <super><extends>extends <name>DurationParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name>void</name></type> <name>parseDuration</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>writeExpirationTimeUnit</name></name> == <name>null</name></expr></argument>, <argument><expr>"expireAfterWrite already set"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>writeExpirationDuration</name></name> = <name>duration</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>writeExpirationTimeUnit</name></name> = <name>unit</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Parse refreshAfterWrite */</comment>
+  <class><specifier>static</specifier> class <name>RefreshDurationParser</name> <super><extends>extends <name>DurationParser</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name>void</name></type> <name>parseDuration</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>, <param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>spec</name>.<name>refreshTimeUnit</name></name> == <name>null</name></expr></argument>, <argument><expr>"refreshAfterWrite already set"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>refreshDuration</name></name> = <name>duration</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>spec</name>.<name>refreshTimeUnit</name></name> = <name>unit</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>format</name><parameter_list>(<param><decl><type><name>String</name></type> <name>format</name></decl></param>, <param><decl><type><name>Object</name>...</type> <name>args</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>String</name>.<name>format</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ROOT</name></name></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+}
+</unit>

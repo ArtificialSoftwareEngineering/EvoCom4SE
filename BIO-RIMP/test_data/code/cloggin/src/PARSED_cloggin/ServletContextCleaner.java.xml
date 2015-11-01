@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cloggin\src\main\java\org\apache\commons\logging\impl\ServletContextCleaner.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>impl</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>InvocationTargetException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>servlet</name>.<name>ServletContextEvent</name></name>;</import>
+<import>import <name><name>javax</name>.<name>servlet</name>.<name>ServletContextListener</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>LogFactory</name></name>;</import>
+
+<comment type="javadoc">/**
+ * This class is capable of receiving notifications about the undeployment of
+ * a webapp, and responds by ensuring that commons-logging releases all
+ * memory associated with the undeployed webapp.
+ * &lt;p&gt;
+ * In general, the WeakHashtable support added in commons-logging release 1.1
+ * ensures that logging classes do not hold references that prevent an
+ * undeployed webapp's memory from being garbage-collected even when multiple
+ * copies of commons-logging are deployed via multiple classloaders (a
+ * situation that earlier versions had problems with). However there are
+ * some rare cases where the WeakHashtable approach does not work; in these
+ * situations specifying this class as a listener for the web application will
+ * ensure that all references held by commons-logging are fully released.
+ * &lt;p&gt;
+ * To use this class, configure the webapp deployment descriptor to call
+ * this class on webapp undeploy; the contextDestroyed method will tell
+ * every accessible LogFactory class that the entry in its map for the
+ * current webapp's context classloader should be cleared.
+ *
+ * @version $Id: ServletContextCleaner.java 1432580 2013-01-13 10:41:05Z tn $
+ * @since 1.1
+ */</comment>
+<class><specifier>public</specifier> class <name>ServletContextCleaner</name> <super><implements>implements <name>ServletContextListener</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Class</name><index>[]</index></type> <name>RELEASE_SIGNATURE</name> =<init> <expr><block>{<expr><name><name>ClassLoader</name>.<name><name/></name></name>class</expr>}</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Invoked when a webapp is undeployed, this tells the LogFactory
+     * class to release any logging information related to the current
+     * contextClassloader.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>contextDestroyed</name><parameter_list>(<param><decl><type><name>ServletContextEvent</name></type> <name>sce</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>tccl</name> =<init> <expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call>.<call><name>getContextClassLoader</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>params</name> =<init> <expr>new <name><name>Object</name><index>[<expr>1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>params</name><index>[<expr>0</expr>]</index></name> = <name>tccl</name></expr>;</expr_stmt>
+
+        <comment type="line">// Walk up the tree of classloaders, finding all the available</comment>
+        <comment type="line">// LogFactory classes and releasing any objects associated with</comment>
+        <comment type="line">// the tccl (ie the webapp).</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// When there is only one LogFactory in the classpath, and it</comment>
+        <comment type="line">// is within the webapp being undeployed then there is no problem;</comment>
+        <comment type="line">// garbage collection works fine.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// When there are multiple LogFactory classes in the classpath but</comment>
+        <comment type="line">// parent-first classloading is used everywhere, this loop is really</comment>
+        <comment type="line">// short. The first instance of LogFactory found will</comment>
+        <comment type="line">// be the highest in the classpath, and then no more will be found.</comment>
+        <comment type="line">// This is ok, as with this setup this will be the only LogFactory</comment>
+        <comment type="line">// holding any data associated with the tccl being released.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// When there are multiple LogFactory classes in the classpath and</comment>
+        <comment type="line">// child-first classloading is used in any classloader, then multiple</comment>
+        <comment type="line">// LogFactory instances may hold info about this TCCL; whenever the</comment>
+        <comment type="line">// webapp makes a call into a class loaded via an ancestor classloader</comment>
+        <comment type="line">// and that class calls LogFactory the tccl gets registered in</comment>
+        <comment type="line">// the LogFactory instance that is visible from the ancestor</comment>
+        <comment type="line">// classloader. However the concrete logging library it points</comment>
+        <comment type="line">// to is expected to have been loaded via the TCCL, so the</comment>
+        <comment type="line">// underlying logging lib is only initialised/configured once.</comment>
+        <comment type="line">// These references from ancestor LogFactory classes down to</comment>
+        <comment type="line">// TCCL classloaders are held via weak references and so should</comment>
+        <comment type="line">// be released but there are circumstances where they may not.</comment>
+        <comment type="line">// Walking up the classloader ancestry ladder releasing</comment>
+        <comment type="line">// the current tccl at each level tree, though, will definitely</comment>
+        <comment type="line">// clear any problem references.</comment>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>loader</name> =<init> <expr><name>tccl</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>loader</name> != <name>null</name></expr>)</condition> <block>{
+            <comment type="line">// Load via the current loader. Note that if the class is not accessible</comment>
+            <comment type="line">// via this loader, but is accessible via some ancestor then that class</comment>
+            <comment type="line">// will be returned.</comment>
+            <try>try <block>{
+                <decl_stmt><decl><type><name>Class</name></type> <name>logFactoryClass</name> =<init> <expr><call><name><name>loader</name>.<name>loadClass</name></name><argument_list>(<argument><expr>"org.apache.commons.logging.LogFactory"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Method</name></type> <name>releaseMethod</name> =<init> <expr><call><name><name>logFactoryClass</name>.<name>getMethod</name></name><argument_list>(<argument><expr>"release"</expr></argument>, <argument><expr><name>RELEASE_SIGNATURE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>releaseMethod</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name>params</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>loader</name> = <call><name><name>logFactoryClass</name>.<name>getClassLoader</name></name><argument_list>()</argument_list></call>.<call><name>getParent</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch(<param><decl><type><name>ClassNotFoundException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// Neither the current classloader nor any of its ancestors could find</comment>
+                <comment type="line">// the LogFactory class, so we can stop now.</comment>
+                <expr_stmt><expr><name>loader</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></catch> <catch>catch(<param><decl><type><name>NoSuchMethodException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// This is not expected; every version of JCL has this method</comment>
+                <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"LogFactory instance found which does not support release method!"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>loader</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></catch> <catch>catch(<param><decl><type><name>IllegalAccessException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// This is not expected; every ancestor class should be accessible</comment>
+                <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"LogFactory instance found which is not accessable!"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>loader</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></catch> <catch>catch(<param><decl><type><name>InvocationTargetException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// This is not expected</comment>
+                <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"LogFactory instance release method failed!"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>loader</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></while>
+
+        <comment type="line">// Just to be sure, invoke release on the LogFactory that is visible from</comment>
+        <comment type="line">// this ServletContextCleaner class too. This should already have been caught</comment>
+        <comment type="line">// by the above loop but just in case...</comment>
+        <expr_stmt><expr><call><name><name>LogFactory</name>.<name>release</name></name><argument_list>(<argument><expr><name>tccl</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invoked when a webapp is deployed. Nothing needs to be done here.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>contextInitialized</name><parameter_list>(<param><decl><type><name>ServletContextEvent</name></type> <name>sce</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// do nothing</comment>
+    }</block></function>
+}</block></class>
+</unit>

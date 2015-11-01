@@ -1,0 +1,651 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clogging\src\main\java\org\apache\commons\logging\impl\SimpleLog.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>impl</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>InvocationTargetException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>AccessController</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>PrivilegedAction</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>DateFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>SimpleDateFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Properties</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>Log</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>LogConfigurationException</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Simple implementation of Log that sends all enabled log messages,
+ * for all defined loggers, to System.err.  The following system properties
+ * are supported to configure the behavior of this logger:
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.defaultlog&lt;/code&gt; -
+ *     Default logging detail level for all instances of SimpleLog.
+ *     Must be one of ("trace", "debug", "info", "warn", "error", or "fatal").
+ *     If not specified, defaults to "info". &lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.log.xxxxx&lt;/code&gt; -
+ *     Logging detail level for a SimpleLog instance named "xxxxx".
+ *     Must be one of ("trace", "debug", "info", "warn", "error", or "fatal").
+ *     If not specified, the default logging detail level is used.&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.showlogname&lt;/code&gt; -
+ *     Set to &lt;code&gt;true&lt;/code&gt; if you want the Log instance name to be
+ *     included in output messages. Defaults to &lt;code&gt;false&lt;/code&gt;.&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.showShortLogname&lt;/code&gt; -
+ *     Set to &lt;code&gt;true&lt;/code&gt; if you want the last component of the name to be
+ *     included in output messages. Defaults to &lt;code&gt;true&lt;/code&gt;.&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.showdatetime&lt;/code&gt; -
+ *     Set to &lt;code&gt;true&lt;/code&gt; if you want the current date and time
+ *     to be included in output messages. Default is &lt;code&gt;false&lt;/code&gt;.&lt;/li&gt;
+ * &lt;li&gt;&lt;code&gt;org.apache.commons.logging.simplelog.dateTimeFormat&lt;/code&gt; -
+ *     The date and time format to be used in the output messages.
+ *     The pattern describing the date and time format is the same that is
+ *     used in &lt;code&gt;java.text.SimpleDateFormat&lt;/code&gt;. If the format is not
+ *     specified or is invalid, the default format is used.
+ *     The default format is &lt;code&gt;yyyy/MM/dd HH:mm:ss:SSS zzz&lt;/code&gt;.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * In addition to looking for system properties with the names specified
+ * above, this implementation also checks for a class loader resource named
+ * &lt;code&gt;"simplelog.properties"&lt;/code&gt;, and includes any matching definitions
+ * from this resource (if it exists).
+ *
+ * @version $Id: SimpleLog.java 1435115 2013-01-18 12:40:19Z tn $
+ */</comment>
+<class><specifier>public</specifier> class <name>SimpleLog</name> <super><implements>implements <name>Log</name>, <name>Serializable</name></implements></super> <block>{
+
+    <comment type="javadoc">/** Serializable version identifier. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>136942970684951178L</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// ------------------------------------------------------- Class Attributes</comment>
+
+    <comment type="javadoc">/** All system properties used by &lt;code&gt;SimpleLog&lt;/code&gt; start with this */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>protected</specifier> <specifier>final</specifier> <name>String</name></type> <name>systemPrefix</name> =<init> <expr>"org.apache.commons.logging.simplelog."</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Properties loaded from simplelog.properties */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>protected</specifier> <specifier>final</specifier> <name>Properties</name></type> <name>simpleLogProps</name> =<init> <expr>new <call><name>Properties</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The default format to use when formating dates */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>protected</specifier> <specifier>final</specifier> <name>String</name></type> <name>DEFAULT_DATE_TIME_FORMAT</name> =<init> <expr>"yyyy/MM/dd HH:mm:ss:SSS zzz"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Include the instance name in the log message? */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <name>volatile</name> <specifier>protected</specifier> <name>boolean</name></type> <name>showLogName</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Include the short name ( last component ) of the logger in the log
+     *  message. Defaults to true - otherwise we'll be lost in a flood of
+     *  messages without knowing who sends them.
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <name>volatile</name> <specifier>protected</specifier> <name>boolean</name></type> <name>showShortName</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Include the current time in the log message */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <name>volatile</name> <specifier>protected</specifier> <name>boolean</name></type> <name>showDateTime</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The date and time format to use in the log message */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <name>volatile</name> <specifier>protected</specifier> <name>String</name></type> <name>dateTimeFormat</name> =<init> <expr><name>DEFAULT_DATE_TIME_FORMAT</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Used to format times.
+     * &lt;p&gt;
+     * Any code that accesses this object should first obtain a lock on it,
+     * ie use synchronized(dateFormatter); this requirement was introduced
+     * in 1.1.1 to fix an existing thread safety bug (SimpleDateFormat.format
+     * is not thread-safe).
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>protected</specifier> <name>DateFormat</name></type> <name>dateFormatter</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// ---------------------------------------------------- Log Level Constants</comment>
+
+    <comment type="javadoc">/** "Trace" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_TRACE</name>  =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** "Debug" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_DEBUG</name>  =<init> <expr>2</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** "Info" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_INFO</name>   =<init> <expr>3</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** "Warn" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_WARN</name>   =<init> <expr>4</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** "Error" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_ERROR</name>  =<init> <expr>5</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** "Fatal" level logging. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_FATAL</name>  =<init> <expr>6</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Enable all logging levels */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_ALL</name>    =<init> <expr><name>LOG_LEVEL_TRACE</name> - 1</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Enable no logging levels */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LOG_LEVEL_OFF</name>    =<init> <expr><name>LOG_LEVEL_FATAL</name> + 1</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// ------------------------------------------------------------ Initializer</comment>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getStringProperty</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>prop</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>prop</name> = <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+            <comment type="line">// Ignore</comment>
+        }</block></catch></try>
+        <return>return <expr><name>prop</name> == <name>null</name> ? <call><name><name>simpleLogProps</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call> : <name>prop</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getStringProperty</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>String</name></type> <name>dephault</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>prop</name> =<init> <expr><call><name>getStringProperty</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>prop</name> == <name>null</name> ? <name>dephault</name> : <name>prop</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>getBooleanProperty</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>dephault</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>prop</name> =<init> <expr><call><name>getStringProperty</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>prop</name> == <name>null</name> ? <name>dephault</name> : "true".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>prop</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Initialize class attributes.</comment>
+    <comment type="line">// Load properties file, if found.</comment>
+    <comment type="line">// Override with system properties.</comment>
+    static <block>{
+        <comment type="line">// Add props from the resource simplelog.properties</comment>
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>in</name> =<init> <expr><call><name>getResourceAsStream</name><argument_list>(<argument><expr>"simplelog.properties"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if<condition>(<expr><name>null</name> != <name>in</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name><name>simpleLogProps</name>.<name>load</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>in</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch(<param><decl><type><name><name>java</name>.<name>io</name>.<name>IOException</name></name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">// ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+
+        <expr_stmt><expr><name>showLogName</name> = <call><name>getBooleanProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "showlogname"</expr></argument>, <argument><expr><name>showLogName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>showShortName</name> = <call><name>getBooleanProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "showShortLogname"</expr></argument>, <argument><expr><name>showShortName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>showDateTime</name> = <call><name>getBooleanProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "showdatetime"</expr></argument>, <argument><expr><name>showDateTime</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if<condition>(<expr><name>showDateTime</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>dateTimeFormat</name> = <call><name>getStringProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "dateTimeFormat"</expr></argument>,
+                                               <argument><expr><name>dateTimeFormat</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <try>try <block>{
+                <expr_stmt><expr><name>dateFormatter</name> = new <call><name>SimpleDateFormat</name><argument_list>(<argument><expr><name>dateTimeFormat</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch(<param><decl><type><name>IllegalArgumentException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">// If the format pattern is invalid - use the default format</comment>
+                <expr_stmt><expr><name>dateTimeFormat</name> = <name>DEFAULT_DATE_TIME_FORMAT</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>dateFormatter</name> = new <call><name>SimpleDateFormat</name><argument_list>(<argument><expr><name>dateTimeFormat</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></then></if>
+    }</block>
+
+    <comment type="line">// ------------------------------------------------------------- Attributes</comment>
+
+    <comment type="javadoc">/** The name of this simple log instance */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>volatile</name> <name>String</name></type> <name>logName</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/** The current log level */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>volatile</name> <name>int</name></type> <name>currentLogLevel</name></decl>;</decl_stmt>
+    <comment type="javadoc">/** The short name of this simple log instance */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>String</name></type> <name>shortLogName</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// ------------------------------------------------------------ Constructor</comment>
+
+    <comment type="javadoc">/**
+     * Construct a simple log with given name.
+     *
+     * @param name log name
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SimpleLog</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>logName</name> = <name>name</name></expr>;</expr_stmt>
+
+        <comment type="line">// Set initial log level</comment>
+        <comment type="line">// Used to be: set default log level to ERROR</comment>
+        <comment type="line">// IMHO it should be lower, but at least info ( costin ).</comment>
+        <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Set log level from properties</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>lvl</name> =<init> <expr><call><name>getStringProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "log." + <name>logName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call>.<call><name>lastIndexOf</name><argument_list>(<argument><expr>"."</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while<condition>(<expr><name>null</name> == <name>lvl</name> &amp;&amp; <name>i</name> &gt; -1</expr>)</condition> <block>{
+            <expr_stmt><expr><name>name</name> = <call><name><name>name</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>,<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>lvl</name> = <call><name>getStringProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "log." + <name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>i</name> = <call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call>.<call><name>lastIndexOf</name><argument_list>(<argument><expr>"."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+
+        <if>if<condition>(<expr><name>null</name> == <name>lvl</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>lvl</name> =  <call><name>getStringProperty</name><argument_list>(<argument><expr><name>systemPrefix</name> + "defaultlog"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if<condition>(<expr>"all".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ALL</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"trace".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"debug".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"info".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"warn".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"error".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"fatal".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr>"off".<call><name>equalsIgnoreCase</name><argument_list>(<argument><expr><name>lvl</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setLevel</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_OFF</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if></else></if></else></if></else></if></else></if></else></if></else></if>
+    }</block></constructor>
+
+    <comment type="line">// -------------------------------------------------------- Properties</comment>
+
+    <comment type="javadoc">/**
+     * Set logging level.
+     *
+     * @param currentLogLevel new logging level
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setLevel</name><parameter_list>(<param><decl><type><name>int</name></type> <name>currentLogLevel</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>currentLogLevel</name></name> = <name>currentLogLevel</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get logging level.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getLevel</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>currentLogLevel</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// -------------------------------------------------------- Logging Methods</comment>
+
+    <comment type="javadoc">/**
+     * Do the actual logging.
+     * &lt;p&gt;
+     * This method assembles the message and then calls &lt;code&gt;write()&lt;/code&gt;
+     * to cause it to be written.
+     *
+     * @param type One of the LOG_LEVEL_XXX constants defining the log level
+     * @param message The message itself (typically a String)
+     * @param t The exception whose stack trace should be logged
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>log</name><parameter_list>(<param><decl><type><name>int</name></type> <name>type</name></decl></param>, <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Use a string buffer for better performance</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>StringBuffer</name></type> <name>buf</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Append date-time if so configured</comment>
+        <if>if<condition>(<expr><name>showDateTime</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Date</name></type> <name>now</name> =<init> <expr>new <call><name>Date</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>dateText</name></decl>;</decl_stmt>
+            <synchronized>synchronized(<expr><name>dateFormatter</name></expr>) <block>{
+                <expr_stmt><expr><name>dateText</name> = <call><name><name>dateFormatter</name>.<name>format</name></name><argument_list>(<argument><expr><name>now</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></synchronized>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>dateText</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>" "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Append a readable representation of the log level</comment>
+        <switch>switch<condition>(<expr><name>type</name></expr>)</condition> <block>{
+            <case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr>: <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[TRACE] "</expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+            </case><case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr>: <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[DEBUG] "</expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+            </case><case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr>:  <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[INFO] "</expr></argument>)</argument_list></call></expr>;</expr_stmt>  <break>break;</break>
+            </case><case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr>:  <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[WARN] "</expr></argument>)</argument_list></call></expr>;</expr_stmt>  <break>break;</break>
+            </case><case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr>: <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[ERROR] "</expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+            </case><case>case <expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr>: <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"[FATAL] "</expr></argument>)</argument_list></call></expr>;</expr_stmt> <break>break;</break>
+        </case>}</block></switch>
+
+        <comment type="line">// Append the name of the log instance if so configured</comment>
+        <if>if<condition>(<expr><name>showShortName</name></expr>)</condition><then> <block>{
+            <if>if<condition>(<expr><name>shortLogName</name> == <name>null</name></expr>)</condition><then> <block>{
+                <comment type="line">// Cut all but the last component of the name for both styles</comment>
+                <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>slName</name> =<init> <expr><call><name><name>logName</name>.<name>substring</name></name><argument_list>(<argument><expr><call><name><name>logName</name>.<name>lastIndexOf</name></name><argument_list>(<argument><expr>"."</expr></argument>)</argument_list></call> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>shortLogName</name> = <call><name><name>slName</name>.<name>substring</name></name><argument_list>(<argument><expr><call><name><name>slName</name>.<name>lastIndexOf</name></name><argument_list>(<argument><expr>"/"</expr></argument>)</argument_list></call> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>shortLogName</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>.<call><name>append</name><argument_list>(<argument><expr>" - "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if<condition>(<expr><name>showLogName</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>logName</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>.<call><name>append</name><argument_list>(<argument><expr>" - "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+
+        <comment type="line">// Append the message</comment>
+        <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Append stack trace if not null</comment>
+        <if>if<condition>(<expr><name>t</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>" &lt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>t</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"&gt;"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><specifier>final</specifier> <name><name>java</name>.<name>io</name>.<name>StringWriter</name></name></type> <name>sw</name> =<init> <expr>new <call><name><name>java</name>.<name>io</name>.<name>StringWriter</name></name><argument_list>(<argument><expr>1024</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name><name>java</name>.<name>io</name>.<name>PrintWriter</name></name></type> <name>pw</name> =<init> <expr>new <call><name><name>java</name>.<name>io</name>.<name>PrintWriter</name></name><argument_list>(<argument><expr><name>sw</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>t</name>.<name>printStackTrace</name></name><argument_list>(<argument><expr><name>pw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>pw</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>sw</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Print to the appropriate destination</comment>
+        <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the content of the message accumulated in the specified
+     * &lt;code&gt;StringBuffer&lt;/code&gt; to the appropriate output destination.  The
+     * default implementation writes to &lt;code&gt;System.err&lt;/code&gt;.
+     *
+     * @param buffer A &lt;code&gt;StringBuffer&lt;/code&gt; containing the accumulated
+     *  text to be logged
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr><call><name><name>buffer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Is the given log level currently enabled?
+     *
+     * @param logLevel is this level enabled?
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>isLevelEnabled</name><parameter_list>(<param><decl><type><name>int</name></type> <name>logLevel</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// log level are numerically ordered so can use simple numeric</comment>
+        <comment type="line">// comparison</comment>
+        <return>return <expr><name>logLevel</name> &gt;= <name>currentLogLevel</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// -------------------------------------------------------- Log Implementation</comment>
+
+    <comment type="javadoc">/**
+     * Logs a message with
+     * &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_DEBUG&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#debug(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>debug</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with
+     * &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_DEBUG&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#debug(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>debug</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_TRACE&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#trace(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>trace</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_TRACE&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#trace(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>trace</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_INFO&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#info(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>info</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>,<argument><expr><name>message</name></expr></argument>,<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_INFO&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#info(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>info</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_WARN&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#warn(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>warn</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_WARN&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#warn(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>warn</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_ERROR&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#error(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>error</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_ERROR&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#error(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>error</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Log a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_FATAL&lt;/code&gt;.
+     *
+     * @param message to log
+     * @see org.apache.commons.logging.Log#fatal(Object)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>fatal</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs a message with &lt;code&gt;org.apache.commons.logging.impl.SimpleLog.LOG_LEVEL_FATAL&lt;/code&gt;.
+     *
+     * @param message to log
+     * @param t log this cause
+     * @see org.apache.commons.logging.Log#fatal(Object, Throwable)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>fatal</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>log</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are debug messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isDebugEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_DEBUG</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are error messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isErrorEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_ERROR</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are fatal messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isFatalEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_FATAL</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are info messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isInfoEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_INFO</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are trace messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isTraceEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_TRACE</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Are warn messages currently enabled?
+     * &lt;p&gt;
+     * This allows expensive operations such as &lt;code&gt;String&lt;/code&gt;
+     * concatenation to be avoided when the message will be ignored by the
+     * logger.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isWarnEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>isLevelEnabled</name><argument_list>(<argument><expr><name><name>SimpleLog</name>.<name>LOG_LEVEL_WARN</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the thread context class loader if available.
+     * Otherwise return null.
+     *
+     * The thread context class loader is available for JDK 1.2
+     * or later, if certain security conditions are met.
+     *
+     * @exception LogConfigurationException if a suitable class loader
+     * cannot be identified.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>ClassLoader</name></type> <name>getContextClassLoader</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>classLoader</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <comment type="line">// Are we running on a JDK 1.2 or later system?</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Method</name></type> <name>method</name> =<init> <expr><name><name>Thread</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"getContextClassLoader"</expr></argument>, <argument><expr>(<name><name>Class</name><index>[]</index></name>) <name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// Get the thread context class loader (if there is one)</comment>
+            <try>try <block>{
+                <expr_stmt><expr><name>classLoader</name> = (<name>ClassLoader</name>)<call><name><name>method</name>.<name>invoke</name></name><argument_list>(<argument><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>(<name><name>Class</name><index>[]</index></name>) <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">// ignore</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>InvocationTargetException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="javadoc">/**
+                 * InvocationTargetException is thrown by 'invoke' when
+                 * the method being invoked (getContextClassLoader) throws
+                 * an exception.
+                 *
+                 * getContextClassLoader() throws SecurityException when
+                 * the context class loader isn't an ancestor of the
+                 * calling class's class loader, or if security
+                 * permissions are restricted.
+                 *
+                 * In the first case (not related), we want to ignore and
+                 * keep going.  We cannot help but also ignore the second
+                 * with the logic below, but other calls elsewhere (to
+                 * obtain a class loader) will trigger this exception where
+                 * we can make a distinction.
+                 */</comment>
+                <if>if <condition>(<expr><call><name><name>e</name>.<name>getTargetException</name></name><argument_list>()</argument_list></call> <name>instanceof</name> <name>SecurityException</name></expr>)</condition><then> <block>{
+                    <comment type="line">// ignore</comment>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// Capture 'e.getTargetException()' exception for details</comment>
+                    <comment type="line">// alternate: log 'e.getTargetException()', and pass back 'e'.</comment>
+                    <throw>throw <expr>new <call><name>LogConfigurationException</name>
+                        <argument_list>(<argument><expr>"Unexpected InvocationTargetException"</expr></argument>, <argument><expr><call><name><name>e</name>.<name>getTargetException</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></else></if>
+            }</block></catch></try>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>e</name></decl></param>) <block>{
+            <comment type="line">// Assume we are running on JDK 1.1</comment>
+            <comment type="line">// ignore</comment>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><name>classLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>classLoader</name> = <name><name>SimpleLog</name>.<name><name/></name></name>class.<call><name>getClassLoader</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Return the selected class loader</comment>
+        <return>return <expr><name>classLoader</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>getResourceAsStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>InputStream</name>)<call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+            <argument><expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <decl_stmt><decl><type><name>ClassLoader</name></type> <name>threadCL</name> =<init> <expr><call><name>getContextClassLoader</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                    <if>if <condition>(<expr><name>threadCL</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <return>return <expr><call><name><name>threadCL</name>.<name>getResourceAsStream</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></then> <else>else <block>{
+                        <return>return <expr><call><name><name>ClassLoader</name>.<name>getSystemResourceAsStream</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></else></if>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+}</block></class>
+
+</unit>

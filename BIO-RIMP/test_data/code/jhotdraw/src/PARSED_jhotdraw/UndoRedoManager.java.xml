@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jhotdraw\src\main\java\org\jhotdraw\undo\UndoRedoManager.java"><comment type="block">/*
+ * @(#)UndoRedoManager.java 1.3.1  2006-04-12
+ *
+ * Copyright (c) 1996-2006 by the original authors of JHotDraw
+ * and all its contributors.
+ * All rights reserved.
+ *
+ * The copyright of this software is owned by the authors and  
+ * contributors of the JHotDraw project ("the copyright holders").  
+ * You may not use, copy or modify this software, except in  
+ * accordance with the license agreement you entered into with  
+ * the copyright holders. For details see accompanying license terms. 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jhotdraw</name>.<name>undo</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>awt</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>beans</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name>.<name>undo</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>util</name></name>.*;</import>
+<import>import <name><name>org</name>.<name>jhotdraw</name>.<name>util</name></name>.*;</import>
+
+<comment type="javadoc">/**
+ * Same as javax.swing.UndoManager but provides actions for undo and
+ * redo operations.
+ *
+ * @author  Werner Randelshofer
+ * @version 1.3.1 2006-04-12 Method setLocale added.
+ * &lt;br&gt;1.3 2006-02-28 Support for PropertyChangeListener added.
+ * &lt;br&gt;1.2.2 2006-02-25 Configure actions from resource bundle.
+ * &lt;br&gt;1.2.1 2003-11-02 Adapted to changes in ResourceBundleUtil.
+ * &lt;br&gt;1.2 2003-03-16 Texts and accelerator keys are now read from a
+ * resource bundle.
+ * &lt;br&gt;1.1.2 2003-03-12 Actions use now KeyStroke objects instead of
+ * String objects as accelerator keys.
+ * &lt;br&gt;1.1.1 2002-05-10 Method addEdit is now smarter when
+ * determining whether an edit is significant.
+ * &lt;br&gt;1.1 2002-04-08 Method hasSignificantEdits/clearChanged added.
+ * &lt;br&gt;1.0 2001-10-09
+ */</comment>
+<class><specifier>public</specifier> class <name>UndoRedoManager</name> <super><extends>extends <name>UndoManager</name></extends></super> <block>{<comment type="line">//javax.swing.undo.UndoManager {</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>PropertyChangeSupport</name></type> <name>propertySupport</name> =<init> <expr>new <call><name>PropertyChangeSupport</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>DEBUG</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The resource bundle used for internationalisation.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>ResourceBundleUtil</name></type> <name>labels</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * This flag is set to true when at
+     * least one significant UndoableEdit
+     * has been added to the manager since the
+     * last call to discardAllEdits.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>hasSignificantEdits</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * This flag is set to true when an undo or redo
+     * operation is in progress. The UndoRedoManager
+     * ignores all incoming UndoableEdit events while
+     * this flag is true.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>undoOrRedoInProgress</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * Sending this UndoableEdit event to the UndoRedoManager
+     * disables the Undo and Redo functions of the manager.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>UndoableEdit</name></type> <name>DISCARD_ALL_EDITS</name> =<init> <expr>new <class><super><name>AbstractUndoableEdit</name></super><argument_list>()</argument_list> <block>{
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>canUndo</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></function>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>canRedo</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></function>
+    }</block></class></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * Undo Action for use in a menu bar.
+     */</comment>
+    <class><specifier>private</specifier> class <name>UndoAction</name>
+            <super><extends>extends <name>AbstractAction</name></extends></super> <block>{
+        <constructor><specifier>public</specifier> <name>UndoAction</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>labels</name>.<name>configureAction</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr>"undo"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>setEnabled</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+        
+        <comment type="javadoc">/**
+         * Invoked when an action occurs.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>actionPerformed</name><parameter_list>(<param><decl><type><name>ActionEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name>undo</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>CannotUndoException</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"Cannot undo: "+<name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>e</name>.<name>printStackTrace</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></function>
+        
+    }</block></class>
+    
+    <comment type="javadoc">/**
+     * Redo Action for use in a menu bar.
+     */</comment>
+    <class><specifier>private</specifier> class <name>RedoAction</name>
+            <super><extends>extends <name>AbstractAction</name></extends></super> <block>{
+        <constructor><specifier>public</specifier> <name>RedoAction</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>labels</name>.<name>configureAction</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr>"redo"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>setEnabled</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+        
+        <comment type="javadoc">/**
+         * Invoked when an action occurs.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>actionPerformed</name><parameter_list>(<param><decl><type><name>ActionEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name>redo</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>CannotRedoException</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"Cannot redo: "+<name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></function>
+        
+    }</block></class>
+    
+    <comment type="javadoc">/** The undo action instance. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>UndoAction</name></type> <name>undoAction</name></decl>;</decl_stmt>
+    <comment type="javadoc">/** The redo action instance. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>RedoAction</name></type> <name>redoAction</name></decl>;</decl_stmt>
+    
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ResourceBundleUtil</name></type> <name>getLabels</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>labels</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>labels</name> = <call><name><name>ResourceBundleUtil</name>.<name>getLAFBundle</name></name><argument_list>(<argument><expr>"org.jhotdraw.undo.Labels"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>labels</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/** Creates new UndoRedoManager */</comment>
+    <constructor><specifier>public</specifier> <name>UndoRedoManager</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>getLabels</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>undoAction</name> = new <call><name>UndoAction</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>redoAction</name> = new <call><name>RedoAction</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setLocale</name><parameter_list>(<param><decl><type><name>Locale</name></type> <name>l</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>labels</name> = <call><name><name>ResourceBundleUtil</name>.<name>getLAFBundle</name></name><argument_list>(<argument><expr>"org.jhotdraw.undo.Labels"</expr></argument>, <argument><expr><name>l</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Discards all edits.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>discardAllEdits</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>discardAllEdits</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>updateActions</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setHasSignificantEdits</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setHasSignificantEdits</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>oldValue</name> =<init> <expr><name>hasSignificantEdits</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>hasSignificantEdits</name> = <name>newValue</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>firePropertyChange</name><argument_list>(<argument><expr>"hasSignificantEdits"</expr></argument>, <argument><expr><name>oldValue</name></expr></argument>, <argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns true if at least one significant UndoableEdit
+     * has been added since the last call to discardAllEdits.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasSignificantEdits</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>hasSignificantEdits</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * If inProgress, inserts anEdit at indexOfNextAdd, and removes
+     * any old edits that were at indexOfNextAdd or later. The die
+     * method is called on each edit that is removed is sent, in the
+     * reverse of the order the edits were added. Updates
+     * indexOfNextAdd.
+     *
+     * &lt;p&gt;If not inProgress, acts as a CompoundEdit&lt;/p&gt;
+     *
+     * &lt;p&gt;Regardless of inProgress, if undoOrRedoInProgress,
+     * calls die on each edit that is sent.&lt;/p&gt;
+     *
+     *
+     * @see CompoundEdit#end
+     * @see CompoundEdit#addEdit
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>addEdit</name><parameter_list>(<param><decl><type><name>UndoableEdit</name></type> <name>anEdit</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"UndoRedoManager.add "+<name>anEdit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><name>undoOrRedoInProgress</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>anEdit</name>.<name>die</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>success</name> =<init> <expr><call><name><name>super</name>.<name>addEdit</name></name><argument_list>(<argument><expr><name>anEdit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>updateActions</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>success</name> &amp;&amp; <call><name><name>anEdit</name>.<name>isSignificant</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name>editToBeUndone</name><argument_list>()</argument_list></call> == <name>anEdit</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setHasSignificantEdits</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>success</name></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Gets the undo action for use as an Undo menu item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Action</name></type> <name>getUndoAction</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>undoAction</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Gets the redo action for use as a Redo menu item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Action</name></type> <name>getRedoAction</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>redoAction</name></expr>;</return>
+    }</block></function>
+    
+   
+    <comment type="javadoc">/**
+     * Updates the properties of the UndoAction
+     * and of the RedoAction.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>updateActions</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>label</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>DEBUG</name></expr>)</condition><then> <expr_stmt><expr><call><name><name>System</name>.<name>out</name>.<name>println</name></name><argument_list>(<argument><expr>"UndoManager.updateActions "+
+                <call><name>editToBeUndone</name><argument_list>()</argument_list></call>
+                +" canUndo="+<call><name>canUndo</name><argument_list>()</argument_list></call>+" canRedo="+<call><name>canRedo</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><call><name>canUndo</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>undoAction</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>label</name> = <call><name>getUndoPresentationName</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>undoAction</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>label</name> = <call><name><name>labels</name>.<name>getString</name></name><argument_list>(<argument><expr>"undo"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name><name>undoAction</name>.<name>putValue</name></name><argument_list>(<argument><expr><name><name>Action</name>.<name>NAME</name></name></expr></argument>, <argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>undoAction</name>.<name>putValue</name></name><argument_list>(<argument><expr><name><name>Action</name>.<name>SHORT_DESCRIPTION</name></name></expr></argument>, <argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <if>if <condition>(<expr><call><name>canRedo</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>redoAction</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>label</name> = <call><name>getRedoPresentationName</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>redoAction</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>label</name> = <call><name><name>labels</name>.<name>getString</name></name><argument_list>(<argument><expr>"redo"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name><name>redoAction</name>.<name>putValue</name></name><argument_list>(<argument><expr><name><name>Action</name>.<name>NAME</name></name></expr></argument>, <argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>redoAction</name>.<name>putValue</name></name><argument_list>(<argument><expr><name><name>Action</name>.<name>SHORT_DESCRIPTION</name></name></expr></argument>, <argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Undoes the last edit event.
+     * The UndoRedoManager ignores all incoming UndoableEdit events,
+     * while undo is in progress.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>undo</name><parameter_list>()</parameter_list>
+    <throws>throws <argument><expr><name>CannotUndoException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>undoOrRedoInProgress</name> = true</expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>super</name>.<name>undo</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><name>undoOrRedoInProgress</name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>updateActions</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Redoes the last undone edit event.
+     * The UndoRedoManager ignores all incoming UndoableEdit events,
+     * while redo is in progress.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>redo</name><parameter_list>()</parameter_list>
+    <throws>throws <argument><expr><name>CannotUndoException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>undoOrRedoInProgress</name> = true</expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>super</name>.<name>redo</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><name>undoOrRedoInProgress</name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>updateActions</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Undoes or redoes the last edit event.
+     * The UndoRedoManager ignores all incoming UndoableEdit events,
+     * while undo or redo is in progress.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>undoOrRedo</name><parameter_list>()</parameter_list>
+    <throws>throws <argument><expr><name>CannotUndoException</name></expr></argument>, <argument><expr><name>CannotRedoException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>undoOrRedoInProgress</name> = true</expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>super</name>.<name>undoOrRedo</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><name>undoOrRedoInProgress</name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>updateActions</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addPropertyChangeListener</name><parameter_list>(<param><decl><type><name>PropertyChangeListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>addPropertyChangeListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addPropertyChangeListener</name><parameter_list>(<param><decl><type><name>String</name></type> <name>propertyName</name></decl></param>, <param><decl><type><name>PropertyChangeListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>addPropertyChangeListener</name></name><argument_list>( <argument><expr><name>propertyName</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removePropertyChangeListener</name><parameter_list>(<param><decl><type><name>PropertyChangeListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>removePropertyChangeListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removePropertyChangeListener</name><parameter_list>(<param><decl><type><name>String</name></type> <name>propertyName</name></decl></param>, <param><decl><type><name>PropertyChangeListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>removePropertyChangeListener</name></name><argument_list>(<argument><expr><name>propertyName</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>firePropertyChange</name><parameter_list>(<param><decl><type><name>String</name></type> <name>propertyName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>oldValue</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>firePropertyChange</name></name><argument_list>(<argument><expr><name>propertyName</name></expr></argument>, <argument><expr><name>oldValue</name></expr></argument>, <argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>firePropertyChange</name><parameter_list>(<param><decl><type><name>String</name></type> <name>propertyName</name></decl></param>, <param><decl><type><name>int</name></type> <name>oldValue</name></decl></param>, <param><decl><type><name>int</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>firePropertyChange</name></name><argument_list>(<argument><expr><name>propertyName</name></expr></argument>, <argument><expr><name>oldValue</name></expr></argument>, <argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>firePropertyChange</name><parameter_list>(<param><decl><type><name>String</name></type> <name>propertyName</name></decl></param>, <param><decl><type><name>Object</name></type> <name>oldValue</name></decl></param>, <param><decl><type><name>Object</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>propertySupport</name>.<name>firePropertyChange</name></name><argument_list>(<argument><expr><name>propertyName</name></expr></argument>, <argument><expr><name>oldValue</name></expr></argument>, <argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+}</block></class>
+</unit>

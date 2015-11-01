@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\ComputingConcurrentHashMap.java"><comment type="block">/*
+ * Copyright (C) 2010 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Equivalence</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Function</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMaker</name>.<name>RemovalCause</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMaker</name>.<name>RemovalListener</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>ReferenceQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ExecutionException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceArray</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Adds computing functionality to {@link MapMakerInternalMap}.
+ *
+ * @author Bob Lee
+ * @author Charles Fry
+ */</comment>
+<class>class <name><name>ComputingConcurrentHashMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>MapMakerInternalMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+  <decl_stmt><decl><type><specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Creates a new, empty map with the specified strategy, initial capacity, load factor and
+   * concurrency level.
+   */</comment>
+  <constructor><name>ComputingConcurrentHashMap</name><parameter_list>(<param><decl><type><name>MapMaker</name></type> <name>builder</name></decl></param>, <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>builder</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>computingFunction</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>Segment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>createSegment</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>, <param><decl><type><name>int</name></type> <name>maxSegmentSize</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>ComputingSegment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>initialCapacity</name></expr></argument>, <argument><expr><name>maxSegmentSize</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>ComputingSegment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>segmentFor</name><parameter_list>(<param><decl><type><name>int</name></type> <name>hash</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>(<name><name>ComputingSegment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name>) <call><name><name>super</name>.<name>segmentFor</name></name><argument_list>(<argument><expr><name>hash</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><name>V</name></type> <name>getOrCompute</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>hash</name> =<init> <expr><call><name>hash</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>segmentFor</name><argument_list>(<argument><expr><name>hash</name></expr></argument>)</argument_list></call>.<call><name>getOrCompute</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><annotation>@<name>SuppressWarnings</name><argument_list>("serial")</argument_list></annotation> <comment type="line">// This class is never serialized.</comment>
+  <specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputingSegment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Segment</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <constructor><name>ComputingSegment</name><parameter_list>(<param><decl><type><name><name>MapMakerInternalMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>map</name></decl></param>, <param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>, <param><decl><type><name>int</name></type> <name>maxSegmentSize</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>map</name></expr></argument>, <argument><expr><name>initialCapacity</name></expr></argument>, <argument><expr><name>maxSegmentSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><name>V</name></type> <name>getOrCompute</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>int</name></type> <name>hash</name></decl></param>, <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <try>try <block>{
+        <label><name>outer</name>:</label>
+        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+          <comment type="line">// don't call getLiveEntry, which would ignore computing values</comment>
+          <decl_stmt><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>e</name> =<init> <expr><call><name>getEntry</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <if>if <condition>(<expr><name>e</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>V</name></type> <name>value</name> =<init> <expr><call><name>getLiveValue</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+              <expr_stmt><expr><call><name>recordRead</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              <return>return <expr><name>value</name></expr>;</return>
+            }</block></then></if>
+          }</block></then></if>
+
+          <comment type="line">// at this point e is either null, computing, or expired;</comment>
+          <comment type="line">// avoid locking if it's already computing</comment>
+          <if>if <condition>(<expr><name>e</name> == <name>null</name> || !<call><name><name>e</name>.<name>getValueReference</name></name><argument_list>()</argument_list></call>.<call><name>isComputingReference</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>createNewEntry</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name><name>ComputingValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>computingValueReference</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>lock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <try>try <block>{
+              <expr_stmt><expr><call><name>preWriteCleanup</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+              <decl_stmt><decl><type><name>int</name></type> <name>newCount</name> =<init> <expr><name><name>this</name>.<name>count</name></name> - 1</expr></init></decl>;</decl_stmt>
+              <decl_stmt><decl><type><name><name>AtomicReferenceArray</name><argument_list>&lt;<argument><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>table</name> =<init> <expr><name><name>this</name>.<name>table</name></name></expr></init></decl>;</decl_stmt>
+              <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><name>hash</name> &amp; (<call><name><name>table</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1)</expr></init></decl>;</decl_stmt>
+              <decl_stmt><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>first</name> =<init> <expr><call><name><name>table</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+              <for>for (<init><expr><name>e</name> = <name>first</name></expr>;</init> <condition><expr><name>e</name> != <name>null</name></expr>;</condition> <incr><expr><name>e</name> = <call><name><name>e</name>.<name>getNext</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+                <decl_stmt><decl><type><name>K</name></type> <name>entryKey</name> =<init> <expr><call><name><name>e</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name><name>e</name>.<name>getHash</name></name><argument_list>()</argument_list></call> == <name>hash</name>
+                    &amp;&amp; <name>entryKey</name> != <name>null</name>
+                    &amp;&amp; <call><name><name>map</name>.<name>keyEquivalence</name>.<name>equivalent</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>entryKey</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                  <decl_stmt><decl><type><name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>valueReference</name> =<init> <expr><call><name><name>e</name>.<name>getValueReference</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                  <if>if <condition>(<expr><call><name><name>valueReference</name>.<name>isComputingReference</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>createNewEntry</name> = false</expr>;</expr_stmt>
+                  }</block></then> <else>else <block>{
+                    <decl_stmt><decl><type><name>V</name></type> <name>value</name> =<init> <expr><call><name><name>e</name>.<name>getValueReference</name></name><argument_list>()</argument_list></call>.<call><name>get</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+                      <expr_stmt><expr><call><name>enqueueNotification</name><argument_list>(<argument><expr><name>entryKey</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name><name>RemovalCause</name>.<name>COLLECTED</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <if>if <condition>(<expr><call><name><name>map</name>.<name>expires</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>map</name>.<name>isExpired</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                      <comment type="line">// This is a duplicate check, as preWriteCleanup already purged expired</comment>
+                      <comment type="line">// entries, but let's accomodate an incorrect expiration queue.</comment>
+                      <expr_stmt><expr><call><name>enqueueNotification</name><argument_list>(<argument><expr><name>entryKey</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name><name>RemovalCause</name>.<name>EXPIRED</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                      <expr_stmt><expr><call><name>recordLockedRead</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                      <return>return <expr><name>value</name></expr>;</return>
+                    }</block></else></if></else></if>
+
+                    <comment type="line">// immediately reuse invalid entries</comment>
+                    <expr_stmt><expr><call><name><name>evictionQueue</name>.<name>remove</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>expirationQueue</name>.<name>remove</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>this</name>.<name>count</name></name> = <name>newCount</name></expr>;</expr_stmt> <comment type="line">// write-volatile</comment>
+                  }</block></else></if>
+                  <break>break;</break>
+                }</block></then></if>
+              }</block></for>
+
+              <if>if <condition>(<expr><name>createNewEntry</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>computingValueReference</name> = new <call><name><name>ComputingValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name>e</name> == <name>null</name></expr>)</condition><then> <block>{
+                  <expr_stmt><expr><name>e</name> = <call><name>newEntry</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>first</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                  <expr_stmt><expr><call><name><name>e</name>.<name>setValueReference</name></name><argument_list>(<argument><expr><name>computingValueReference</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                  <expr_stmt><expr><call><name><name>table</name>.<name>set</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                  <expr_stmt><expr><call><name><name>e</name>.<name>setValueReference</name></name><argument_list>(<argument><expr><name>computingValueReference</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+              }</block></then></if>
+            }</block> <finally>finally <block>{
+              <expr_stmt><expr><call><name>unlock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+              <expr_stmt><expr><call><name>postWriteCleanup</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></finally></try>
+
+            <if>if <condition>(<expr><name>createNewEntry</name></expr>)</condition><then> <block>{
+              <comment type="line">// This thread solely created the entry.</comment>
+              <return>return <expr><call><name>compute</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>e</name></expr></argument>, <argument><expr><name>computingValueReference</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+          }</block></then></if>
+
+          <comment type="line">// The entry already exists. Wait for the computation.</comment>
+          <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr>!<call><name><name>Thread</name>.<name>holdsLock</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>"Recursive computation"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <comment type="line">// don't consider expiration as we're concurrent with computation</comment>
+          <decl_stmt><decl><type><name>V</name></type> <name>value</name> =<init> <expr><call><name><name>e</name>.<name>getValueReference</name></name><argument_list>()</argument_list></call>.<call><name>waitForValue</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+          <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>recordRead</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name>value</name></expr>;</return>
+          }</block></then></if>
+          <comment type="line">// else computing thread will clearValue</comment>
+          <continue>continue outer;</continue>
+        }</block></while>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>postReadCleanup</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><name>V</name></type> <name>compute</name><parameter_list>(
+        <param><decl><type><name>K</name></type> <name>key</name></decl></param>,
+        <param><decl><type><name>int</name></type> <name>hash</name></decl></param>,
+        <param><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>e</name></decl></param>,
+        <param><decl><type><name><name>ComputingValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>computingValueReference</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <decl_stmt><decl><type><name>V</name></type> <name>value</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>start</name> =<init> <expr><call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>end</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <try>try <block>{
+        <comment type="line">// Synchronizes on the entry to allow failing fast when a recursive computation is</comment>
+        <comment type="line">// detected. This is not fool-proof since the entry may be copied when the segment</comment>
+        <comment type="line">// is written to.</comment>
+        <synchronized>synchronized (<expr><name>e</name></expr>) <block>{
+          <expr_stmt><expr><name>value</name> = <call><name><name>computingValueReference</name>.<name>compute</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>end</name> = <call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></synchronized>
+        <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+          <comment type="line">// putIfAbsent</comment>
+          <decl_stmt><decl><type><name>V</name></type> <name>oldValue</name> =<init> <expr><call><name>put</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <if>if <condition>(<expr><name>oldValue</name> != <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// the computed value was already clobbered</comment>
+            <expr_stmt><expr><call><name>enqueueNotification</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name><name>RemovalCause</name>.<name>REPLACED</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></then></if>
+        <return>return <expr><name>value</name></expr>;</return>
+      }</block> <finally>finally <block>{
+        <if>if <condition>(<expr><name>end</name> == 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>end</name> = <call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name>clearValue</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>hash</name></expr></argument>, <argument><expr><name>computingValueReference</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></finally></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Used to provide computation exceptions to other threads.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputationExceptionReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><implements>implements <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Throwable</name></type> <name>t</name></decl>;</decl_stmt>
+
+    <constructor><name>ComputationExceptionReference</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>t</name></name> = <name>t</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>getEntry</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>copyFor</name><parameter_list>(
+        <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>, <param><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isComputingReference</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>waitForValue</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <throw>throw <expr>new <call><name>ExecutionException</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>(<param><decl><type><name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{}</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Used to provide computation result to other threads.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputedReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><implements>implements <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>V</name></type> <name>value</name></decl>;</decl_stmt>
+
+    <constructor><name>ComputedReference</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>value</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>getEntry</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>copyFor</name><parameter_list>(
+        <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>, <param><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isComputingReference</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>waitForValue</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>get</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>(<param><decl><type><name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{}</block></function>
+  }</block></class>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputingValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><implements>implements <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("this")</argument_list></annotation> <comment type="line">// writes</comment>
+    <name>volatile</name> <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>computedReference</name> =<init> <expr><call><name>unset</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <constructor><specifier>public</specifier> <name>ComputingValueReference</name><parameter_list>(<param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>computingFunction</name></name> = <name>computingFunction</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// All computation lookups go through waitForValue. This method thus is</comment>
+      <comment type="line">// only used by put, to whom we always want to appear absent.</comment>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>getEntry</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>copyFor</name><parameter_list>(
+        <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>, <param><decl><type><name><name>ReferenceEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isComputingReference</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Waits for a computation to complete. Returns the result of the computation.
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>waitForValue</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <if>if <condition>(<expr><name>computedReference</name> == <name>UNSET</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>interrupted</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+          <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+            <while>while <condition>(<expr><name>computedReference</name> == <name>UNSET</name></expr>)</condition> <block>{
+              <try>try <block>{
+                <expr_stmt><expr><call><name>wait</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+              }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>ie</name></decl></param>) <block>{
+                <expr_stmt><expr><name>interrupted</name> = true</expr>;</expr_stmt>
+              }</block></catch></try>
+            }</block></while>
+          }</block></synchronized>
+        }</block> <finally>finally <block>{
+          <if>if <condition>(<expr><name>interrupted</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call>.<call><name>interrupt</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></finally></try>
+      }</block></then></if>
+      <return>return <expr><call><name><name>computedReference</name>.<name>waitForValue</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>(<param><decl><type><name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// The pending computation was clobbered by a manual write. Unblock all</comment>
+      <comment type="line">// pending gets, and have them return the new value.</comment>
+      <expr_stmt><expr><call><name>setValueReference</name><argument_list>(<argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <comment type="line">// TODO(fry): could also cancel computation if we had a thread handle</comment>
+    }</block></function>
+
+    <function><type><name>V</name></type> <name>compute</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>int</name></type> <name>hash</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <decl_stmt><decl><type><name>V</name></type> <name>value</name></decl>;</decl_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><name>value</name> = <call><name><name>computingFunction</name>.<name>apply</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name>setValueReference</name><argument_list>(<argument><expr>new <call><name><name>ComputationExceptionReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <throw>throw <expr>new <call><name>ExecutionException</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+
+      <expr_stmt><expr><call><name>setValueReference</name><argument_list>(<argument><expr>new <call><name><name>ComputedReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>setValueReference</name><parameter_list>(<param><decl><type><name><name>ValueReference</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>valueReference</name></decl></param>)</parameter_list> <block>{
+      <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+        <if>if <condition>(<expr><name>computedReference</name> == <name>UNSET</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>computedReference</name> = <name>valueReference</name></expr>;</expr_stmt>
+          <expr_stmt><expr><call><name>notifyAll</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></synchronized>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">// Serialization Support</comment>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name>Object</name></type> <name>writeReplace</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>ComputingSerializationProxy</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(
+        <argument><expr><name>keyStrength</name></expr></argument>,
+        <argument><expr><name>valueStrength</name></expr></argument>,
+        <argument><expr><name>keyEquivalence</name></expr></argument>,
+        <argument><expr><name>valueEquivalence</name></expr></argument>,
+        <argument><expr><name>expireAfterWriteNanos</name></expr></argument>,
+        <argument><expr><name>expireAfterAccessNanos</name></expr></argument>,
+        <argument><expr><name>maximumSize</name></expr></argument>,
+        <argument><expr><name>concurrencyLevel</name></expr></argument>,
+        <argument><expr><name>removalListener</name></expr></argument>,
+        <argument><expr><name>this</name></expr></argument>,
+        <argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputingSerializationProxy</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractSerializationProxy</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl>;</decl_stmt>
+
+    <constructor><name>ComputingSerializationProxy</name><parameter_list>(
+        <param><decl><type><name>Strength</name></type> <name>keyStrength</name></decl></param>,
+        <param><decl><type><name>Strength</name></type> <name>valueStrength</name></decl></param>,
+        <param><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>keyEquivalence</name></decl></param>,
+        <param><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>valueEquivalence</name></decl></param>,
+        <param><decl><type><name>long</name></type> <name>expireAfterWriteNanos</name></decl></param>,
+        <param><decl><type><name>long</name></type> <name>expireAfterAccessNanos</name></decl></param>,
+        <param><decl><type><name>int</name></type> <name>maximumSize</name></decl></param>,
+        <param><decl><type><name>int</name></type> <name>concurrencyLevel</name></decl></param>,
+        <param><decl><type><name><name>RemovalListener</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <super>super <name>V</name></super></argument>&gt;</argument_list></name></type> <name>removalListener</name></decl></param>,
+        <param><decl><type><name><name>ConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>delegate</name></decl></param>,
+        <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(
+          <argument><expr><name>keyStrength</name></expr></argument>,
+          <argument><expr><name>valueStrength</name></expr></argument>,
+          <argument><expr><name>keyEquivalence</name></expr></argument>,
+          <argument><expr><name>valueEquivalence</name></expr></argument>,
+          <argument><expr><name>expireAfterWriteNanos</name></expr></argument>,
+          <argument><expr><name>expireAfterAccessNanos</name></expr></argument>,
+          <argument><expr><name>maximumSize</name></expr></argument>,
+          <argument><expr><name>concurrencyLevel</name></expr></argument>,
+          <argument><expr><name>removalListener</name></expr></argument>,
+          <argument><expr><name>delegate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>computingFunction</name></name> = <name>computingFunction</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><name>ObjectOutputStream</name></type> <name>out</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name><name>out</name>.<name>defaultWriteObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>writeMapTo</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation> <comment type="line">// self-use</comment>
+    <specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>in</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name><name>in</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>MapMaker</name></type> <name>mapMaker</name> =<init> <expr><call><name>readMapMaker</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>delegate</name> = <call><name><name>mapMaker</name>.<name>makeComputingMap</name></name><argument_list>(<argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>readEntries</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>delegate</name></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+  }</block></class>
+}</block></class>
+</unit>

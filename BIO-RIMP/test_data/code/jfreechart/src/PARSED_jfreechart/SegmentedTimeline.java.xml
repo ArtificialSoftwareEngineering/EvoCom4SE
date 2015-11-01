@@ -1,0 +1,1765 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\chart\axis\SegmentedTimeline.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2007, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * -----------------------
+ * SegmentedTimeline.java
+ * -----------------------
+ * (C) Copyright 2003-2007, by Bill Kelemen and Contributors.
+ *
+ * Original Author:  Bill Kelemen;
+ * Contributor(s):   David Gilbert (for Object Refinery Limited);
+ *
+ * Changes
+ * -------
+ * 23-May-2003 : Version 1 (BK);
+ * 15-Aug-2003 : Implemented Cloneable (DG);
+ * 01-Jun-2004 : Modified to compile with JDK 1.2.2 (DG);
+ * 30-Sep-2004 : Replaced getTime().getTime() with getTimeInMillis() (DG);
+ * 04-Nov-2004 : Reverted change of 30-Sep-2004, won't work with JDK 1.3 (DG);
+ * 11-Jan-2005 : Removed deprecated code in preparation for 1.0.0 release (DG);
+ * ------------- JFREECHART 1.0.x ---------------------------------------------
+ * 14-Nov-2006 : Fix in toTimelineValue(long) to avoid stack overflow (DG);
+ * 02-Feb-2007 : Removed author tags all over JFreeChart sources (DG);
+ * 11-Jul-2007 : Fixed time zone bugs (DG);
+ * 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>axis</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Calendar</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collections</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>GregorianCalendar</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>SimpleTimeZone</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>TimeZone</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A {@link Timeline} that implements a "segmented" timeline with included, 
+ * excluded and exception segments.
+ * &lt;P&gt;
+ * A Timeline will present a series of values to be used for an axis. Each
+ * Timeline must provide transformation methods between domain values and
+ * timeline values.
+ * &lt;P&gt;
+ * A timeline can be used as parameter to a 
+ * {@link org.jfree.chart.axis.DateAxis} to define the values that this axis 
+ * supports. This class implements a timeline formed by segments of equal 
+ * length (ex. days, hours, minutes) where some segments can be included in the
+ * timeline and others excluded. Therefore timelines like "working days" or
+ * "working hours" can be created where non-working days or non-working hours 
+ * respectively can be removed from the timeline, and therefore from the axis.
+ * This creates a smooth plot with equal separation between all included 
+ * segments.
+ * &lt;P&gt;
+ * Because Timelines were created mainly for Date related axis, values are
+ * represented as longs instead of doubles. In this case, the domain value is
+ * just the number of milliseconds since January 1, 1970, 00:00:00 GMT as 
+ * defined by the getTime() method of {@link java.util.Date}.
+ * &lt;P&gt;
+ * In this class, a segment is defined as a unit of time of fixed length. 
+ * Examples of segments are: days, hours, minutes, etc. The size of a segment 
+ * is defined as the number of milliseconds in the segment. Some useful segment
+ * sizes are defined as constants in this class: DAY_SEGMENT_SIZE, 
+ * HOUR_SEGMENT_SIZE, FIFTEEN_MINUTE_SEGMENT_SIZE and MINUTE_SEGMENT_SIZE.
+ * &lt;P&gt;
+ * Segments are group together to form a Segment Group. Each Segment Group will
+ * contain a number of Segments included and a number of Segments excluded. This
+ * Segment Group structure will repeat for the whole timeline.
+ * &lt;P&gt;
+ * For example, a working days SegmentedTimeline would be formed by a group of
+ * 7 daily segments, where there are 5 included (Monday through Friday) and 2
+ * excluded (Saturday and Sunday) segments.
+ * &lt;P&gt;
+ * Following is a diagram that explains the major attributes that define a 
+ * segment.  Each box is one segment and must be of fixed length (ms, second, 
+ * hour, day, etc).
+ * &lt;p&gt;
+ * &lt;pre&gt;
+ * start time
+ *   |
+ *   v
+ *   0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 ...
+ * +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+...
+ * |  |  |  |  |  |EE|EE|  |  |  |  |  |EE|EE|  |  |  |  |  |EE|EE|
+ * +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+...
+ *  \____________/ \___/            \_/
+ *        \/         |               |
+ *     included   excluded        segment
+ *     segments   segments         size
+ *  \_________  _______/
+ *            \/
+ *       segment group
+ * &lt;/pre&gt;
+ * Legend:&lt;br&gt;
+ * &amp;lt;space&amp;gt; = Included segment&lt;br&gt;
+ * EE      = Excluded segments in the base timeline&lt;br&gt;
+ * &lt;p&gt;
+ * In the example, the following segment attributes are presented:
+ * &lt;ul&gt;
+ * &lt;li&gt;segment size: the size of each segment in ms.
+ * &lt;li&gt;start time: the start of the first segment of the first segment group to
+ *     consider.
+ * &lt;li&gt;included segments: the number of segments to include in the group.
+ * &lt;li&gt;excluded segments: the number of segments to exclude in the group.
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * Exception Segments are allowed. These exception segments are defined as
+ * segments that would have been in the included segments of the Segment Group,
+ * but should be excluded for special reasons. In the previous working days
+ * SegmentedTimeline example, holidays would be considered exceptions.
+ * &lt;P&gt;
+ * Additionally the &lt;code&gt;startTime&lt;/code&gt;, or start of the first Segment of 
+ * the smallest segment group needs to be defined. This startTime could be 
+ * relative to January 1, 1970, 00:00:00 GMT or any other date. This creates a 
+ * point of reference to start counting Segment Groups. For example, for the 
+ * working days SegmentedTimeline, the &lt;code&gt;startTime&lt;/code&gt; could be 
+ * 00:00:00 GMT of the first Monday after January 1, 1970. In this class, the 
+ * constant FIRST_MONDAY_AFTER_1900 refers to a reference point of the first 
+ * Monday of the last century.
+ * &lt;p&gt;
+ * A SegmentedTimeline can include a baseTimeline. This combination of 
+ * timelines allows the creation of more complex timelines. For example, in 
+ * order to implement a SegmentedTimeline for an intraday stock trading 
+ * application, where the trading period is defined as 9:00 AM through 4:00 PM 
+ * Monday through Friday, two SegmentedTimelines are used. The first one (the 
+ * baseTimeline) would be a working day SegmentedTimeline (daily timeline 
+ * Monday through Friday). On top of this baseTimeline, a second one is defined
+ * that maps the 9:00 AM to 4:00 PM period. Because the baseTimeline defines a 
+ * timeline of Monday through Friday, the resulting (combined) timeline will 
+ * expose the period 9:00 AM through 4:00 PM only on Monday through Friday, 
+ * and will remove all other intermediate intervals.
+ * &lt;P&gt;
+ * Two factory methods newMondayThroughFridayTimeline() and
+ * newFifteenMinuteTimeline() are provided as examples to create special
+ * SegmentedTimelines.
+ *
+ * @see org.jfree.chart.axis.DateAxis
+ */</comment>
+<class><specifier>public</specifier> class <name>SegmentedTimeline</name> <super><implements>implements <name>Timeline</name>, <name>Cloneable</name>, <name>Serializable</name></implements></super> <block>{
+
+    <comment type="javadoc">/** For serialization. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>1093779862539903110L</expr></init></decl>;</decl_stmt>
+    
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// predetermined segments sizes</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    <comment type="javadoc">/** Defines a day segment size in ms. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>DAY_SEGMENT_SIZE</name> =<init> <expr>24 * 60 * 60 * 1000</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Defines a one hour segment size in ms. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>HOUR_SEGMENT_SIZE</name> =<init> <expr>60 * 60 * 1000</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Defines a 15-minute segment size in ms. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>FIFTEEN_MINUTE_SEGMENT_SIZE</name> =<init> <expr>15 * 60 * 1000</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Defines a one-minute segment size in ms. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>MINUTE_SEGMENT_SIZE</name> =<init> <expr>60 * 1000</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// other constants</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    <comment type="javadoc">/**
+     * Utility constant that defines the startTime as the first monday after 
+     * 1/1/1970.  This should be used when creating a SegmentedTimeline for 
+     * Monday through Friday. See static block below for calculation of this 
+     * constant.
+     * 
+     * @deprecated As of 1.0.7.  This field doesn't take into account changes
+     *         to the default time zone.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>FIRST_MONDAY_AFTER_1900</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Utility TimeZone object that has no DST and an offset equal to the 
+     * default TimeZone. This allows easy arithmetic between days as each one 
+     * will have equal size.
+     * 
+     * @deprecated As of 1.0.7.  This field is initialised based on the 
+     *         default time zone, and doesn't take into account subsequent 
+     *         changes to the default.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <name>TimeZone</name></type> <name>NO_DST_TIME_ZONE</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is the default time zone where the application is running. See 
+     * getTime() below where we make use of certain transformations between 
+     * times in the default time zone and the no-dst time zone used for our 
+     * calculations.
+     * 
+     * @deprecated As of 1.0.7.  When the default time zone is required,
+     *         just call &lt;code&gt;TimeZone.getDefault()&lt;/code&gt;.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <name>TimeZone</name></type> <name>DEFAULT_TIME_ZONE</name> =<init> <expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This will be a utility calendar that has no DST but is shifted relative 
+     * to the default time zone's offset.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Calendar</name></type> <name>workingCalendarNoDST</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This will be a utility calendar that used the default time zone.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Calendar</name></type> <name>workingCalendar</name> =<init> <expr><call><name><name>Calendar</name>.<name>getInstance</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// private attributes</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    <comment type="javadoc">/** Segment size in ms. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>segmentSize</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Number of consecutive segments to include in a segment group. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>segmentsIncluded</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Number of consecutive segments to exclude in a segment group. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>segmentsExcluded</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Number of segments in a group (segmentsIncluded + segmentsExcluded). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>groupSegmentCount</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Start of time reference from time zero (1/1/1970). 
+     * This is the start of segment #0. 
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>startTime</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Consecutive ms in segmentsIncluded (segmentsIncluded * segmentSize). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>segmentsIncludedSize</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Consecutive ms in segmentsExcluded (segmentsExcluded * segmentSize). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>segmentsExcludedSize</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** ms in a segment group (segmentsIncludedSize + segmentsExcludedSize). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>segmentsGroupSize</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * List of exception segments (exceptions segments that would otherwise be
+     * included based on the periodic (included, excluded) grouping).
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>List</name></type> <name>exceptionSegments</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This base timeline is used to specify exceptions at a higher level. For 
+     * example, if we are a intraday timeline and want to exclude holidays, 
+     * instead of having to exclude all intraday segments for the holiday, 
+     * segments from this base timeline can be excluded. This baseTimeline is 
+     * always optional and is only a convenience method.
+     * &lt;p&gt;
+     * Additionally, all excluded segments from this baseTimeline will be 
+     * considered exceptions at this level.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>SegmentedTimeline</name></type> <name>baseTimeline</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** A flag that controls whether or not to adjust for daylight saving. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>adjustForDaylightSaving</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// static block</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    static <block>{
+        <comment type="line">// make a time zone with no DST for our Calendar calculations</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call>.<call><name>getRawOffset</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>NO_DST_TIME_ZONE</name> = new <call><name>SimpleTimeZone</name><argument_list>(<argument><expr><name>offset</name></expr></argument>, <argument><expr>"UTC-" + <name>offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <comment type="line">// calculate midnight of first monday after 1/1/1900 relative to </comment>
+        <comment type="line">// current locale</comment>
+        <decl_stmt><decl><type><name>Calendar</name></type> <name>cal</name> =<init> <expr>new <call><name>GregorianCalendar</name><argument_list>(<argument><expr><name>NO_DST_TIME_ZONE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>cal</name>.<name>set</name></name><argument_list>(<argument><expr>1900</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>1</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>cal</name>.<name>set</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>cal</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_WEEK</name></name></expr></argument>)</argument_list></call> != <name><name>Calendar</name>.<name>MONDAY</name></name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>cal</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DATE</name></name></expr></argument>, <argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <comment type="line">// FIRST_MONDAY_AFTER_1900 = cal.getTime().getTime();  </comment>
+        <comment type="line">// preceding code won't work with JDK 1.3</comment>
+        <expr_stmt><expr><name>FIRST_MONDAY_AFTER_1900</name> = <call><name><name>cal</name>.<name>getTime</name></name><argument_list>()</argument_list></call>.<call><name>getTime</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block>
+
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// constructors and factory methods</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    <comment type="javadoc">/**
+     * Constructs a new segmented timeline, optionaly using another segmented
+     * timeline as its base. This chaining of SegmentedTimelines allows further
+     * segmentation into smaller timelines.
+     *
+     * If a base
+     *
+     * @param segmentSize the size of a segment in ms. This time unit will be
+     *        used to compute the included and excluded segments of the 
+     *        timeline.
+     * @param segmentsIncluded Number of consecutive segments to include.
+     * @param segmentsExcluded Number of consecutive segments to exclude.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SegmentedTimeline</name><parameter_list>(<param><decl><type><name>long</name></type> <name>segmentSize</name></decl></param>,
+                             <param><decl><type><name>int</name></type> <name>segmentsIncluded</name></decl></param>,
+                             <param><decl><type><name>int</name></type> <name>segmentsExcluded</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><name><name>this</name>.<name>segmentSize</name></name> = <name>segmentSize</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>segmentsIncluded</name></name> = <name>segmentsIncluded</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>segmentsExcluded</name></name> = <name>segmentsExcluded</name></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name><name>this</name>.<name>groupSegmentCount</name></name> = <name><name>this</name>.<name>segmentsIncluded</name></name> + <name><name>this</name>.<name>segmentsExcluded</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>segmentsIncludedSize</name></name> = <name><name>this</name>.<name>segmentsIncluded</name></name> * <name><name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>segmentsExcludedSize</name></name> = <name><name>this</name>.<name>segmentsExcluded</name></name> * <name><name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>segmentsGroupSize</name></name> = <name><name>this</name>.<name>segmentsIncludedSize</name></name> 
+                                 + <name><name>this</name>.<name>segmentsExcludedSize</name></name></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call>.<call><name>getRawOffset</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>TimeZone</name></type> <name>z</name> =<init> <expr>new <call><name>SimpleTimeZone</name><argument_list>(<argument><expr><name>offset</name></expr></argument>, <argument><expr>"UTC-" + <name>offset</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>        
+        <expr_stmt><expr><name><name>this</name>.<name>workingCalendarNoDST</name></name> = new <call><name>GregorianCalendar</name><argument_list>(<argument><expr><name>z</name></expr></argument>, 
+                <argument><expr><call><name><name>Locale</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Returns the milliseconds for midnight of the first Monday after 
+     * 1-Jan-1900, ignoring daylight savings.
+     * 
+     * @return The milliseconds.
+     * 
+     * @since 1.0.7
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>firstMondayAfter1900</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call>.<call><name>getRawOffset</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>TimeZone</name></type> <name>z</name> =<init> <expr>new <call><name>SimpleTimeZone</name><argument_list>(<argument><expr><name>offset</name></expr></argument>, <argument><expr>"UTC-" + <name>offset</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>        
+        
+        <comment type="line">// calculate midnight of first monday after 1/1/1900 relative to </comment>
+        <comment type="line">// current locale</comment>
+        <decl_stmt><decl><type><name>Calendar</name></type> <name>cal</name> =<init> <expr>new <call><name>GregorianCalendar</name><argument_list>(<argument><expr><name>z</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>cal</name>.<name>set</name></name><argument_list>(<argument><expr>1900</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>1</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>cal</name>.<name>set</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>cal</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_WEEK</name></name></expr></argument>)</argument_list></call> != <name><name>Calendar</name>.<name>MONDAY</name></name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>cal</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DATE</name></name></expr></argument>, <argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <comment type="line">//return cal.getTimeInMillis();</comment>
+        <comment type="line">// preceding code won't work with JDK 1.3</comment>
+        <return>return <expr><call><name><name>cal</name>.<name>getTime</name></name><argument_list>()</argument_list></call>.<call><name>getTime</name><argument_list>()</argument_list></call></expr>;</return>  
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Factory method to create a Monday through Friday SegmentedTimeline.
+     * &lt;P&gt;
+     * The &lt;code&gt;startTime&lt;/code&gt; of the resulting timeline will be midnight 
+     * of the first Monday after 1/1/1900.
+     *
+     * @return A fully initialized SegmentedTimeline.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>SegmentedTimeline</name></type> <name>newMondayThroughFridayTimeline</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SegmentedTimeline</name></type> <name>timeline</name> 
+            =<init> <expr>new <call><name>SegmentedTimeline</name><argument_list>(<argument><expr><name>DAY_SEGMENT_SIZE</name></expr></argument>, <argument><expr>5</expr></argument>, <argument><expr>2</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>timeline</name>.<name>setStartTime</name></name><argument_list>(<argument><expr><call><name>firstMondayAfter1900</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>timeline</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Factory method to create a 15-min, 9:00 AM thought 4:00 PM, Monday 
+     * through Friday SegmentedTimeline.
+     * &lt;P&gt;
+     * This timeline uses a segmentSize of FIFTEEN_MIN_SEGMENT_SIZE. The 
+     * segment group is defined as 28 included segments (9:00 AM through 
+     * 4:00 PM) and 68 excluded segments (4:00 PM through 9:00 AM the next day).
+     * &lt;P&gt;
+     * In order to exclude Saturdays and Sundays it uses a baseTimeline that 
+     * only includes Monday through Friday days.
+     * &lt;P&gt;
+     * The &lt;code&gt;startTime&lt;/code&gt; of the resulting timeline will be 9:00 AM 
+     * after the startTime of the baseTimeline. This will correspond to 9:00 AM
+     * of the first Monday after 1/1/1900.
+     *
+     * @return A fully initialized SegmentedTimeline.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>SegmentedTimeline</name></type> <name>newFifteenMinuteTimeline</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SegmentedTimeline</name></type> <name>timeline</name> =<init> <expr>new <call><name>SegmentedTimeline</name><argument_list>(
+                <argument><expr><name>FIFTEEN_MINUTE_SEGMENT_SIZE</name></expr></argument>, <argument><expr>28</expr></argument>, <argument><expr>68</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>timeline</name>.<name>setStartTime</name></name><argument_list>(<argument><expr><call><name>firstMondayAfter1900</name><argument_list>()</argument_list></call> + 36 
+                * <call><name><name>timeline</name>.<name>getSegmentSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>timeline</name>.<name>setBaseTimeline</name></name><argument_list>(<argument><expr><call><name>newMondayThroughFridayTimeline</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>timeline</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the flag that controls whether or not the daylight saving 
+     * adjustment is applied.
+     * 
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>getAdjustForDaylightSaving</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>adjustForDaylightSaving</name></name></expr>;</return>   
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Sets the flag that controls whether or not the daylight saving adjustment
+     * is applied.
+     * 
+     * @param adjust  the flag.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAdjustForDaylightSaving</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>adjust</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>adjustForDaylightSaving</name></name> = <name>adjust</name></expr>;</expr_stmt>   
+    }</block></function>
+
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+    <comment type="line">// operations</comment>
+    <comment type="line">////////////////////////////////////////////////////////////////////////////</comment>
+
+    <comment type="javadoc">/**
+     * Sets the start time for the timeline. This is the beginning of segment 
+     * zero.
+     *
+     * @param millisecond  the start time (encoded as in java.util.Date).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setStartTime</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>startTime</name></name> = <name>millisecond</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the start time for the timeline. This is the beginning of 
+     * segment zero.
+     * 
+     * @return The start time.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getStartTime</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>startTime</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of segments excluded per segment group.
+     * 
+     * @return The number of segments excluded.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getSegmentsExcluded</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentsExcluded</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the size in milliseconds of the segments excluded per segment 
+     * group.
+     * 
+     * @return The size in milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentsExcludedSize</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentsExcludedSize</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of segments in a segment group. This will be equal to
+     * segments included plus segments excluded.
+     * 
+     * @return The number of segments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getGroupSegmentCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>groupSegmentCount</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the size in milliseconds of a segment group. This will be equal 
+     * to size of the segments included plus the size of the segments excluded.
+     * 
+     * @return The segment group size in milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentsGroupSize</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentsGroupSize</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of segments included per segment group.
+     * 
+     * @return The number of segments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getSegmentsIncluded</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentsIncluded</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the size in ms of the segments included per segment group.
+     * 
+     * @return The segment size in milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentsIncludedSize</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentsIncludedSize</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the size of one segment in ms.
+     * 
+     * @return The segment size in milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentSize</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>segmentSize</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a list of all the exception segments. This list is not 
+     * modifiable.
+     * 
+     * @return The exception segments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>List</name></type> <name>getExceptionSegments</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>Collections</name>.<name>unmodifiableList</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>exceptionSegments</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the exception segments list.
+     * 
+     * @param exceptionSegments  the exception segments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setExceptionSegments</name><parameter_list>(<param><decl><type><name>List</name></type> <name>exceptionSegments</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>exceptionSegments</name></name> = <name>exceptionSegments</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns our baseTimeline, or &lt;code&gt;null&lt;/code&gt; if none.
+     * 
+     * @return The base timeline.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>SegmentedTimeline</name></type> <name>getBaseTimeline</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>baseTimeline</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the base timeline.
+     * 
+     * @param baseTimeline  the timeline.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setBaseTimeline</name><parameter_list>(<param><decl><type><name>SegmentedTimeline</name></type> <name>baseTimeline</name></decl></param>)</parameter_list> <block>{
+
+        <comment type="line">// verify that baseTimeline is compatible with us</comment>
+        <if>if <condition>(<expr><name>baseTimeline</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>baseTimeline</name>.<name>getSegmentSize</name></name><argument_list>()</argument_list></call> &lt; <name><name>this</name>.<name>segmentSize</name></name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                    <argument><expr>"baseTimeline.getSegmentSize() is smaller than segmentSize"</expr></argument>
+                )</argument_list></call></expr>;</throw>
+            }</block></then> 
+            <else>else <if>if <condition>(<expr><call><name><name>baseTimeline</name>.<name>getStartTime</name></name><argument_list>()</argument_list></call> &gt; <name><name>this</name>.<name>startTime</name></name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                    <argument><expr>"baseTimeline.getStartTime() is after startTime"</expr></argument>
+                )</argument_list></call></expr>;</throw>
+            }</block></then> 
+            <else>else <if>if <condition>(<expr>(<call><name><name>baseTimeline</name>.<name>getSegmentSize</name></name><argument_list>()</argument_list></call> % <name><name>this</name>.<name>segmentSize</name></name>) != 0</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                    <argument><expr>"baseTimeline.getSegmentSize() is not multiple of "
+                    + "segmentSize"</expr></argument>
+                )</argument_list></call></expr>;</throw>
+            }</block></then> 
+            <else>else <if>if <condition>(<expr>((<name><name>this</name>.<name>startTime</name></name> 
+                    - <call><name><name>baseTimeline</name>.<name>getStartTime</name></name><argument_list>()</argument_list></call>) % <name><name>this</name>.<name>segmentSize</name></name>) != 0</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                    <argument><expr>"baseTimeline is not aligned"</expr></argument>
+                )</argument_list></call></expr>;</throw>
+            }</block></then></if></else></if></else></if></else></if>
+        }</block></then></if>
+
+        <expr_stmt><expr><name><name>this</name>.<name>baseTimeline</name></name> = <name>baseTimeline</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Translates a value relative to the domain value (all Dates) into a value
+     * relative to the segmented timeline. The values relative to the segmented
+     * timeline are all consecutives starting at zero at the startTime.
+     *
+     * @param millisecond  the millisecond (as encoded by java.util.Date).
+     * 
+     * @return The timeline value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>toTimelineValue</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+  
+        <decl_stmt><decl><type><name>long</name></type> <name>result</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>rawMilliseconds</name> =<init> <expr><name>millisecond</name> - <name><name>this</name>.<name>startTime</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>groupMilliseconds</name> =<init> <expr><name>rawMilliseconds</name> % <name><name>this</name>.<name>segmentsGroupSize</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>groupIndex</name> =<init> <expr><name>rawMilliseconds</name> / <name><name>this</name>.<name>segmentsGroupSize</name></name></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><name>groupMilliseconds</name> &gt;= <name><name>this</name>.<name>segmentsIncludedSize</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name>toTimelineValue</name><argument_list>(
+                <argument><expr><name><name>this</name>.<name>startTime</name></name> + <name><name>this</name>.<name>segmentsGroupSize</name></name> * (<name>groupIndex</name> + 1)</expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+        }</block></then> 
+        <else>else <block>{       
+            <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>segment</name>.<name>inExceptionSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <do>do <block>{
+                    <expr_stmt><expr><name>segment</name> = <call><name>getSegment</name><argument_list>(<argument><expr><name>millisecond</name> = <call><name><name>segment</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call> 
+                            + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block> while <condition>(<expr><call><name><name>segment</name>.<name>inExceptionSegments</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+                <expr_stmt><expr><name>result</name> = <call><name>toTimelineValue</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> 
+            <else>else <block>{
+                <decl_stmt><decl><type><name>long</name></type> <name>shiftedSegmentedValue</name> =<init> <expr><name>millisecond</name> - <name><name>this</name>.<name>startTime</name></name></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>long</name></type> <name>x</name> =<init> <expr><name>shiftedSegmentedValue</name> % <name><name>this</name>.<name>segmentsGroupSize</name></name></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>long</name></type> <name>y</name> =<init> <expr><name>shiftedSegmentedValue</name> / <name><name>this</name>.<name>segmentsGroupSize</name></name></expr></init></decl>;</decl_stmt>
+
+                <decl_stmt><decl><type><name>long</name></type> <name>wholeExceptionsBeforeDomainValue</name> =<init>
+                    <expr><call><name>getExceptionSegmentCount</name><argument_list>(<argument><expr><name><name>this</name>.<name>startTime</name></name></expr></argument>, <argument><expr><name>millisecond</name> - 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+<comment type="line">//                long partialTimeInException = 0;</comment>
+<comment type="line">//                Segment ss = getSegment(millisecond);</comment>
+<comment type="line">//                if (ss.inExceptionSegments()) {</comment>
+<comment type="line">//                    partialTimeInException = millisecond </comment>
+                <comment type="line">//     - ss.getSegmentStart();</comment>
+<comment type="line">//                }</comment>
+
+                <if>if <condition>(<expr><name>x</name> &lt; <name><name>this</name>.<name>segmentsIncludedSize</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>result</name> = <name><name>this</name>.<name>segmentsIncludedSize</name></name> * <name>y</name> 
+                             + <name>x</name> - <name>wholeExceptionsBeforeDomainValue</name> 
+                             * <name><name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+                             <comment type="line">// - partialTimeInException;; </comment>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>result</name> = <name><name>this</name>.<name>segmentsIncludedSize</name></name> * (<name>y</name> + 1) 
+                             - <name>wholeExceptionsBeforeDomainValue</name> 
+                             * <name><name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+                             <comment type="line">// - partialTimeInException;</comment>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></else></if>
+
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Translates a date into a value relative to the segmented timeline. The 
+     * values relative to the segmented timeline are all consecutives starting 
+     * at zero at the startTime.
+     *
+     * @param date  date relative to the domain.
+     * 
+     * @return The timeline value (in milliseconds).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>toTimelineValue</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>toTimelineValue</name><argument_list>(<argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        <comment type="line">//return toTimelineValue(dateDomainValue.getTime());</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Translates a value relative to the timeline into a millisecond.
+     *
+     * @param timelineValue  the timeline value (in milliseconds).
+     * 
+     * @return The domain value (in milliseconds).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>toMillisecond</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timelineValue</name></decl></param>)</parameter_list> <block>{
+        
+        <comment type="line">// calculate the result as if no exceptions</comment>
+        <decl_stmt><decl><type><name>Segment</name></type> <name>result</name> =<init> <expr>new <call><name>Segment</name><argument_list>(<argument><expr><name><name>this</name>.<name>startTime</name></name> + <name>timelineValue</name> 
+            + (<name>timelineValue</name> / <name><name>this</name>.<name>segmentsIncludedSize</name></name>) 
+            * <name><name>this</name>.<name>segmentsExcludedSize</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><name>long</name></type> <name>lastIndex</name> =<init> <expr><name><name>this</name>.<name>startTime</name></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// adjust result for any exceptions in the result calculated</comment>
+        <while>while <condition>(<expr><name>lastIndex</name> &lt;= <name><name>result</name>.<name>segmentStart</name></name></expr>)</condition> <block>{
+
+            <comment type="line">// skip all whole exception segments in the range</comment>
+            <decl_stmt><decl><type><name>long</name></type> <name>exceptionSegmentCount</name></decl>;</decl_stmt>
+            <while>while <condition>(<expr>(<name>exceptionSegmentCount</name> = <call><name>getExceptionSegmentCount</name><argument_list>(
+                 <argument><expr><name>lastIndex</name></expr></argument>, <argument><expr>(<name><name>result</name>.<name>millisecond</name></name> / <name><name>this</name>.<name>segmentSize</name></name>) 
+                 * <name><name>this</name>.<name>segmentSize</name></name> - 1</expr></argument>)</argument_list></call>) &gt; 0</expr>
+            )</condition> <block>{ 
+                <expr_stmt><expr><name>lastIndex</name> = <name><name>result</name>.<name>segmentStart</name></name></expr>;</expr_stmt>
+                <comment type="line">// move forward exceptionSegmentCount segments skipping </comment>
+                <comment type="line">// excluded segments</comment>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>exceptionSegmentCount</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <do>do <block>{
+                        <expr_stmt><expr><call><name><name>result</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block>
+                    while <condition>(<expr><call><name><name>result</name>.<name>inExcludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+                }</block></for>
+            }</block></while>
+            <expr_stmt><expr><name>lastIndex</name> = <name><name>result</name>.<name>segmentStart</name></name></expr>;</expr_stmt>
+
+            <comment type="line">// skip exception or excluded segments we may fall on</comment>
+            <while>while <condition>(<expr><call><name><name>result</name>.<name>inExceptionSegments</name></name><argument_list>()</argument_list></call> || <call><name><name>result</name>.<name>inExcludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name><name>result</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>lastIndex</name> += <name><name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+            }</block></while>
+
+            <expr_stmt><expr><name>lastIndex</name>++</expr>;</expr_stmt>
+        }</block></while>
+
+        <return>return <expr><call><name>getTimeFromLong</name><argument_list>(<argument><expr><name><name>result</name>.<name>millisecond</name></name></expr></argument>)</argument_list></call></expr>;</return> 
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Converts a date/time value to take account of daylight savings time.
+     * 
+     * @param date  the milliseconds.
+     * 
+     * @return The milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getTimeFromLong</name><parameter_list>(<param><decl><type><name>long</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr><name>date</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>adjustForDaylightSaving</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>setTime</name></name><argument_list>(<argument><expr>new <call><name>Date</name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>set</name></name><argument_list>(
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>YEAR</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DATE</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MINUTE</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>SECOND</name></name></expr></argument>)</argument_list></call></expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>set</name></name><argument_list>(
+                <argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>, 
+                <argument><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>)</argument_list></call></expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// result = this.workingCalendar.getTimeInMillis();  </comment>
+            <comment type="line">// preceding code won't work with JDK 1.3</comment>
+            <expr_stmt><expr><name>result</name> = <call><name><name>this</name>.<name>workingCalendar</name>.<name>getTime</name></name><argument_list>()</argument_list></call>.<call><name>getTime</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function> 
+    
+    <comment type="javadoc">/**
+     * Returns &lt;code&gt;true&lt;/code&gt; if a value is contained in the timeline.
+     * 
+     * @param millisecond  the value to verify.
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if value is contained in the timeline.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsDomainValue</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns &lt;code&gt;true&lt;/code&gt; if a value is contained in the timeline.
+     * 
+     * @param date  date to verify
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if value is contained in the timeline
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsDomainValue</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>containsDomainValue</name><argument_list>(<argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns &lt;code&gt;true&lt;/code&gt; if a range of values are contained in the 
+     * timeline. This is implemented verifying that all segments are in the 
+     * range.
+     *
+     * @param domainValueStart start of the range to verify
+     * @param domainValueEnd end of the range to verify
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if the range is contained in the timeline
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsDomainRange</name><parameter_list>(<param><decl><type><name>long</name></type> <name>domainValueStart</name></decl></param>, 
+                                       <param><decl><type><name>long</name></type> <name>domainValueEnd</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>domainValueEnd</name> &lt; <name>domainValueStart</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                <argument><expr>"domainValueEnd (" + <name>domainValueEnd</name>
+                + ") &lt; domainValueStart (" + <name>domainValueStart</name> + ")"</expr></argument>
+            )</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name>domainValueStart</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>contains</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+        <do>do <block>{
+            <expr_stmt><expr><name>contains</name> = (<call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call>)</expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name><name>segment</name>.<name>contains</name></name><argument_list>(<argument><expr><name>domainValueEnd</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then> 
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block> 
+        while <condition>(<expr><name>contains</name></expr>)</condition>;</do>
+        <return>return <expr>(<name>contains</name>)</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns &lt;code&gt;true&lt;/code&gt; if a range of values are contained in the 
+     * timeline. This is implemented verifying that all segments are in the 
+     * range.
+     *
+     * @param dateDomainValueStart start of the range to verify
+     * @param dateDomainValueEnd end of the range to verify
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if the range is contained in the timeline
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsDomainRange</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>dateDomainValueStart</name></decl></param>, 
+                                       <param><decl><type><name>Date</name></type> <name>dateDomainValueEnd</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>containsDomainRange</name><argument_list>(
+            <argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>dateDomainValueStart</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>dateDomainValueEnd</name></expr></argument>)</argument_list></call></expr></argument>
+        )</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment as an exception. An exception segment is defined as a 
+     * segment to exclude from what would otherwise be considered a valid 
+     * segment of the timeline.  An exception segment can not be contained 
+     * inside an already excluded segment.  If so, no action will occur (the 
+     * proposed exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment is identified by a domainValue into any part of the segment.
+     * Therefore the segmentStart &lt;= domainValue &lt;= segmentEnd.
+     *
+     * @param millisecond  domain value to treat as an exception
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addException</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr>new <call><name>Segment</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment range as an exception. An exception segment is defined as
+     * a segment to exclude from what would otherwise be considered a valid 
+     * segment of the timeline.  An exception segment can not be contained 
+     * inside an already excluded segment.  If so, no action will occur (the 
+     * proposed exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment range is identified by a domainValue that begins a valid 
+     * segment and ends with a domainValue that ends a valid segment. 
+     * Therefore the range will contain all segments whose segmentStart 
+     * &lt;= domainValue and segmentEnd &lt;= toDomainValue.
+     *
+     * @param fromDomainValue  start of domain range to treat as an exception
+     * @param toDomainValue  end of domain range to treat as an exception
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addException</name><parameter_list>(<param><decl><type><name>long</name></type> <name>fromDomainValue</name></decl></param>, <param><decl><type><name>long</name></type> <name>toDomainValue</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr>new <call><name>SegmentRange</name><argument_list>(<argument><expr><name>fromDomainValue</name></expr></argument>, <argument><expr><name>toDomainValue</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment as an exception. An exception segment is defined as a 
+     * segment to exclude from what would otherwise be considered a valid 
+     * segment of the timeline.  An exception segment can not be contained 
+     * inside an already excluded segment.  If so, no action will occur (the 
+     * proposed exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment is identified by a Date into any part of the segment.
+     *
+     * @param exceptionDate  Date into the segment to exclude.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addException</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>exceptionDate</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>exceptionDate</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">//addException(exceptionDate.getTime());</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a list of dates as segment exceptions. Each exception segment is 
+     * defined as a segment to exclude from what would otherwise be considered 
+     * a valid segment of the timeline.  An exception segment can not be 
+     * contained inside an already excluded segment.  If so, no action will 
+     * occur (the proposed exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment is identified by a Date into any part of the segment.
+     *
+     * @param exceptionList  List of Date objects that identify the segments to
+     *                       exclude.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addExceptions</name><parameter_list>(<param><decl><type><name>List</name></type> <name>exceptionList</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>iter</name> =<init> <expr><call><name><name>exceptionList</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>iter</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+            <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr>(<name>Date</name>) <call><name><name>iter</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment as an exception. An exception segment is defined as a 
+     * segment to exclude from what would otherwise be considered a valid 
+     * segment of the timeline.  An exception segment can not be contained 
+     * inside an already excluded segment.  This is verified inside this 
+     * method, and if so, no action will occur (the proposed exception segment 
+     * will be discarded).
+     *
+     * @param segment  the segment to exclude.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>addException</name><parameter_list>(<param><decl><type><name>Segment</name></type> <name>segment</name></decl></param>)</parameter_list> <block>{
+         <if>if <condition>(<expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+             <decl_stmt><decl><type><name>int</name></type> <name>p</name> =<init> <expr><call><name>binarySearchExceptionSegments</name><argument_list>(<argument><expr><name>segment</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+             <expr_stmt><expr><call><name><name>this</name>.<name>exceptionSegments</name>.<name>add</name></name><argument_list>(<argument><expr>-(<name>p</name> + 1)</expr></argument>, <argument><expr><name>segment</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+         }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment relative to the baseTimeline as an exception. Because a 
+     * base segment is normally larger than our segments, this may add one or 
+     * more segment ranges to the exception list.
+     * &lt;p&gt;
+     * An exception segment is defined as a segment
+     * to exclude from what would otherwise be considered a valid segment of 
+     * the timeline.  An exception segment can not be contained inside an 
+     * already excluded segment.  If so, no action will occur (the proposed 
+     * exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment is identified by a domainValue into any part of the 
+     * baseTimeline segment.
+     *
+     * @param domainValue  domain value to teat as a baseTimeline exception.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addBaseTimelineException</name><parameter_list>(<param><decl><type><name>long</name></type> <name>domainValue</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>Segment</name></type> <name>baseSegment</name> =<init> <expr><call><name><name>this</name>.<name>baseTimeline</name>.<name>getSegment</name></name><argument_list>(<argument><expr><name>domainValue</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>baseSegment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+
+            <comment type="line">// cycle through all the segments contained in the BaseTimeline </comment>
+            <comment type="line">// exception segment</comment>
+            <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><call><name><name>baseSegment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt;= <call><name><name>baseSegment</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <if>if <condition>(<expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+
+                    <comment type="line">// find all consecutive included segments</comment>
+                    <decl_stmt><decl><type><name>long</name></type> <name>fromDomainValue</name> =<init> <expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <decl_stmt><decl><type><name>long</name></type> <name>toDomainValue</name></decl>;</decl_stmt>
+                    <do>do <block>{
+                        <expr_stmt><expr><name>toDomainValue</name> = <call><name><name>segment</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block>
+                    while <condition>(<expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+
+                    <comment type="line">// add the interval as an exception</comment>
+                    <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr><name>fromDomainValue</name></expr></argument>, <argument><expr><name>toDomainValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                }</block></then>
+                <else>else <block>{
+                    <comment type="line">// this is not one of our included segment, skip it</comment>
+                    <expr_stmt><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></while>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a segment relative to the baseTimeline as an exception. An 
+     * exception segment is defined as a segment to exclude from what would 
+     * otherwise be considered a valid segment of the timeline.  An exception 
+     * segment can not be contained inside an already excluded segment. If so, 
+     * no action will occure (the proposed exception segment will be discarded).
+     * &lt;p&gt;
+     * The segment is identified by a domainValue into any part of the segment.
+     * Therefore the segmentStart &lt;= domainValue &lt;= segmentEnd.
+     *
+     * @param date  date domain value to treat as a baseTimeline exception
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addBaseTimelineException</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>addBaseTimelineException</name><argument_list>(<argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds all excluded segments from the BaseTimeline as exceptions to our 
+     * timeline. This allows us to combine two timelines for more complex 
+     * calculations.
+     *
+     * @param fromBaseDomainValue Start of the range where exclusions will be 
+     *                            extracted.
+     * @param toBaseDomainValue End of the range to process.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addBaseTimelineExclusions</name><parameter_list>(<param><decl><type><name>long</name></type> <name>fromBaseDomainValue</name></decl></param>, 
+                                          <param><decl><type><name>long</name></type> <name>toBaseDomainValue</name></decl></param>)</parameter_list> <block>{
+
+        <comment type="line">// find first excluded base segment starting fromDomainValue</comment>
+        <decl_stmt><decl><type><name>Segment</name></type> <name>baseSegment</name> =<init> <expr><call><name><name>this</name>.<name>baseTimeline</name>.<name>getSegment</name></name><argument_list>(<argument><expr><name>fromBaseDomainValue</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><call><name><name>baseSegment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt;= <name>toBaseDomainValue</name> 
+               &amp;&amp; !<call><name><name>baseSegment</name>.<name>inExcludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                   
+            <expr_stmt><expr><call><name><name>baseSegment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            
+        }</block></while>
+
+        <comment type="line">// cycle over all the base segments groups in the range</comment>
+        <while>while <condition>(<expr><call><name><name>baseSegment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt;= <name>toBaseDomainValue</name></expr>)</condition> <block>{
+
+            <decl_stmt><decl><type><name>long</name></type> <name>baseExclusionRangeEnd</name> =<init> <expr><call><name><name>baseSegment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> 
+                 + <call><name><name>this</name>.<name>baseTimeline</name>.<name>getSegmentsExcluded</name></name><argument_list>()</argument_list></call> 
+                 * <call><name><name>this</name>.<name>baseTimeline</name>.<name>getSegmentSize</name></name><argument_list>()</argument_list></call> - 1</expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// cycle through all the segments contained in the base exclusion </comment>
+            <comment type="line">// area</comment>
+            <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><call><name><name>baseSegment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt;= <name>baseExclusionRangeEnd</name></expr>)</condition> <block>{
+                <if>if <condition>(<expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+
+                    <comment type="line">// find all consecutive included segments</comment>
+                    <decl_stmt><decl><type><name>long</name></type> <name>fromDomainValue</name> =<init> <expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <decl_stmt><decl><type><name>long</name></type> <name>toDomainValue</name></decl>;</decl_stmt>
+                    <do>do <block>{
+                        <expr_stmt><expr><name>toDomainValue</name> = <call><name><name>segment</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block>
+                    while <condition>(<expr><call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+
+                    <comment type="line">// add the interval as an exception</comment>
+                    <expr_stmt><expr><call><name>addException</name><argument_list>(<argument><expr>new <call><name>BaseTimelineSegmentRange</name><argument_list>(
+                        <argument><expr><name>fromDomainValue</name></expr></argument>, <argument><expr><name>toDomainValue</name></expr></argument>
+                    )</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <comment type="line">// this is not one of our included segment, skip it</comment>
+                    <expr_stmt><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></while>
+
+            <comment type="line">// go to next base segment group</comment>
+            <expr_stmt><expr><call><name><name>baseSegment</name>.<name>inc</name></name><argument_list>(<argument><expr><call><name><name>this</name>.<name>baseTimeline</name>.<name>getGroupSegmentCount</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of exception segments wholly contained in the
+     * (fromDomainValue, toDomainValue) interval.
+     *
+     * @param fromMillisecond  the beginning of the interval.
+     * @param toMillisecond  the end of the interval.
+     * 
+     * @return Number of exception segments contained in the interval.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getExceptionSegmentCount</name><parameter_list>(<param><decl><type><name>long</name></type> <name>fromMillisecond</name></decl></param>, 
+                                         <param><decl><type><name>long</name></type> <name>toMillisecond</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>toMillisecond</name> &lt; <name>fromMillisecond</name></expr>)</condition><then> <block>{
+            <return>return <expr>(0)</expr>;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>iter</name> =<init> <expr><call><name><name>this</name>.<name>exceptionSegments</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> 
+             <condition><expr><call><name><name>iter</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+            <decl_stmt><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr>(<name>Segment</name>) <call><name><name>iter</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Segment</name></type> <name>intersection</name> 
+                =<init> <expr><call><name><name>segment</name>.<name>intersect</name></name><argument_list>(<argument><expr><name>fromMillisecond</name></expr></argument>, <argument><expr><name>toMillisecond</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>intersection</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>n</name> += <call><name><name>intersection</name>.<name>getSegmentCount</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+
+        <return>return <expr>(<name>n</name>)</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a segment that contains a domainValue. If the domainValue is 
+     * not contained in the timeline (because it is not contained in the 
+     * baseTimeline), a Segment that contains 
+     * &lt;code&gt;index + segmentSize*m&lt;/code&gt; will be returned for the smallest
+     * &lt;code&gt;m&lt;/code&gt; possible.
+     *
+     * @param millisecond  index into the segment
+     * 
+     * @return A Segment that contains index, or the next possible Segment.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Segment</name></type> <name>getSegment</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>Segment</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a segment that contains a date. For accurate calculations,
+     * the calendar should use TIME_ZONE for its calculation (or any other 
+     * similar time zone).
+     *
+     * If the date is not contained in the timeline (because it is not 
+     * contained in the baseTimeline), a Segment that contains 
+     * &lt;code&gt;date + segmentSize*m&lt;/code&gt; will be returned for the smallest 
+     * &lt;code&gt;m&lt;/code&gt; possible.
+     *
+     * @param date date into the segment
+     * 
+     * @return A Segment that contains date, or the next possible Segment.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Segment</name></type> <name>getSegment</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<call><name>getSegment</name><argument_list>(<argument><expr><call><name>getTime</name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convenient method to test equality in two objects, taking into account 
+     * nulls.
+     * 
+     * @param o first object to compare
+     * @param p second object to compare
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if both objects are equal or both 
+     *         &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>, <param><decl><type><name>Object</name></type> <name>p</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>o</name> == <name>p</name> || ((<name>o</name> != <name>null</name>) &amp;&amp; <call><name><name>o</name>.<name>equals</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call>))</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns true if we are equal to the parameter
+     * 
+     * @param o Object to verify with us
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; or &lt;code&gt;false&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>o</name> <name>instanceof</name> <name>SegmentedTimeline</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>SegmentedTimeline</name></type> <name>other</name> =<init> <expr>(<name>SegmentedTimeline</name>) <name>o</name></expr></init></decl>;</decl_stmt>
+            
+            <decl_stmt><decl><type><name>boolean</name></type> <name>b0</name> =<init> <expr>(<name><name>this</name>.<name>segmentSize</name></name> == <call><name><name>other</name>.<name>getSegmentSize</name></name><argument_list>()</argument_list></call>)</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>b1</name> =<init> <expr>(<name><name>this</name>.<name>segmentsIncluded</name></name> == <call><name><name>other</name>.<name>getSegmentsIncluded</name></name><argument_list>()</argument_list></call>)</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>b2</name> =<init> <expr>(<name><name>this</name>.<name>segmentsExcluded</name></name> == <call><name><name>other</name>.<name>getSegmentsExcluded</name></name><argument_list>()</argument_list></call>)</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>b3</name> =<init> <expr>(<name><name>this</name>.<name>startTime</name></name> == <call><name><name>other</name>.<name>getStartTime</name></name><argument_list>()</argument_list></call>)</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>b4</name> =<init> <expr><call><name>equals</name><argument_list>(
+                <argument><expr><name><name>this</name>.<name>exceptionSegments</name></name></expr></argument>, <argument><expr><call><name><name>other</name>.<name>getExceptionSegments</name></name><argument_list>()</argument_list></call></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <return>return <expr><name>b0</name> &amp;&amp; <name>b1</name> &amp;&amp; <name>b2</name> &amp;&amp; <name>b3</name> &amp;&amp; <name>b4</name></expr>;</return>
+        }</block></then> 
+        <else>else <block>{
+            <return>return <expr>(false)</expr>;</return>
+        }</block></else></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns a hash code for this object.
+     * 
+     * @return A hash code.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr>19</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> 
+                 + <call>(<name>int</name>) <argument_list>(<argument><expr><name><name>this</name>.<name>segmentSize</name></name> ^ (<name><name>this</name>.<name>segmentSize</name></name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call>(<name>int</name>) <argument_list>(<argument><expr><name><name>this</name>.<name>startTime</name></name> ^ (<name><name>this</name>.<name>startTime</name></name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Preforms a binary serach in the exceptionSegments sorted array. This 
+     * array can contain Segments or SegmentRange objects.
+     *
+     * @param  segment the key to be searched for.
+     * 
+     * @return index of the search segment, if it is contained in the list;
+     *         otherwise, &lt;tt&gt;(-(&lt;i&gt;insertion point&lt;/i&gt;) - 1)&lt;/tt&gt;.  The
+     *         &lt;i&gt;insertion point&lt;/i&gt; is defined as the point at which the
+     *         segment would be inserted into the list: the index of the first
+     *         element greater than the key, or &lt;tt&gt;list.size()&lt;/tt&gt;, if all
+     *         elements in the list are less than the specified segment.  Note
+     *         that this guarantees that the return value will be &amp;gt;= 0 if
+     *         and only if the key is found.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>binarySearchExceptionSegments</name><parameter_list>(<param><decl><type><name>Segment</name></type> <name>segment</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>low</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>high</name> =<init> <expr><call><name><name>this</name>.<name>exceptionSegments</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></init></decl>;</decl_stmt>
+
+        <while>while <condition>(<expr><name>low</name> &lt;= <name>high</name></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>mid</name> =<init> <expr>(<name>low</name> + <name>high</name>) / 2</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Segment</name></type> <name>midSegment</name> =<init> <expr>(<name>Segment</name>) <call><name><name>this</name>.<name>exceptionSegments</name>.<name>get</name></name><argument_list>(<argument><expr><name>mid</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// first test for equality (contains or contained)</comment>
+            <if>if <condition>(<expr><call><name><name>segment</name>.<name>contains</name></name><argument_list>(<argument><expr><name>midSegment</name></expr></argument>)</argument_list></call> || <call><name><name>midSegment</name>.<name>contains</name></name><argument_list>(<argument><expr><name>segment</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr><name>mid</name></expr>;</return>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><call><name><name>midSegment</name>.<name>before</name></name><argument_list>(<argument><expr><name>segment</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>low</name> = <name>mid</name> + 1</expr>;</expr_stmt>
+            }</block></then> 
+            <else>else <if>if <condition>(<expr><call><name><name>midSegment</name>.<name>after</name></name><argument_list>(<argument><expr><name>segment</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>high</name> = <name>mid</name> - 1</expr>;</expr_stmt>
+            }</block></then> 
+            <else>else <block>{
+                <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr>"Invalid condition."</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></else></if></else></if>
+        }</block></while>
+        <return>return <expr>-(<name>low</name> + 1)</expr>;</return>  <comment type="line">// key not found</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Special method that handles conversion between the Default Time Zone and
+     * a UTC time zone with no DST. This is needed so all days have the same 
+     * size. This method is the prefered way of converting a Data into 
+     * milliseconds for usage in this class.
+     *
+     * @param date Date to convert to long.
+     * 
+     * @return The milliseconds.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getTime</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr><call><name><name>date</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>adjustForDaylightSaving</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>setTime</name></name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>set</name></name><argument_list>(
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>YEAR</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DATE</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MINUTE</name></name></expr></argument>)</argument_list></call></expr></argument>,
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>SECOND</name></name></expr></argument>)</argument_list></call></expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>set</name></name><argument_list>(
+                <argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>, 
+                <argument><expr><call><name><name>this</name>.<name>workingCalendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>)</argument_list></call></expr></argument>
+            )</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>Date</name></type> <name>revisedDate</name> =<init> <expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>result</name> = <call><name><name>revisedDate</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** 
+     * Converts a millisecond value into a {@link Date} object.
+     * 
+     * @param value  the millisecond value.
+     * 
+     * @return The date.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Date</name></type> <name>getDate</name><parameter_list>(<param><decl><type><name>long</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>setTime</name></name><argument_list>(<argument><expr>new <call><name>Date</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr>(<call><name><name>this</name>.<name>workingCalendarNoDST</name>.<name>getTime</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a clone of the timeline.
+     * 
+     * @return A clone.
+     * 
+     * @throws CloneNotSupportedException ??.
+     */</comment>    
+    <function><type><specifier>public</specifier> <name>Object</name></type> <name>clone</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>CloneNotSupportedException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>SegmentedTimeline</name></type> <name>clone</name> =<init> <expr>(<name>SegmentedTimeline</name>) <call><name><name>super</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>clone</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Internal class to represent a valid segment for this timeline. A segment
+     * is valid on a timeline if it is part of its included, excluded or 
+     * exception segments.
+     * &lt;p&gt;
+     * Each segment will know its segment number, segmentStart, segmentEnd and
+     * index inside the segment.
+     */</comment>
+    <class><specifier>public</specifier> class <name>Segment</name> <super><implements>implements <name>Comparable</name>, <name>Cloneable</name>, <name>Serializable</name></implements></super> <block>{
+
+        <comment type="javadoc">/** The segment number. */</comment>
+        <decl_stmt><decl><type><specifier>protected</specifier> <name>long</name></type> <name>segmentNumber</name></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/** The segment start. */</comment>
+        <decl_stmt><decl><type><specifier>protected</specifier> <name>long</name></type> <name>segmentStart</name></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/** The segment end. */</comment>
+        <decl_stmt><decl><type><specifier>protected</specifier> <name>long</name></type> <name>segmentEnd</name></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/** A reference point within the segment. */</comment>
+        <decl_stmt><decl><type><specifier>protected</specifier> <name>long</name></type> <name>millisecond</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Protected constructor only used by sub-classes.
+         */</comment>
+        <constructor><specifier>protected</specifier> <name>Segment</name><parameter_list>()</parameter_list> <block>{
+            <comment type="line">// empty</comment>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Creates a segment for a given point in time.
+         * 
+         * @param millisecond  the millisecond (as encoded by java.util.Date).
+         */</comment>
+        <constructor><specifier>protected</specifier> <name>Segment</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millisecond</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>segmentNumber</name></name> = <call><name>calculateSegmentNumber</name><argument_list>(<argument><expr><name>millisecond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentStart</name></name> = <name><name>SegmentedTimeline</name>.<name>this</name>.<name>startTime</name></name> 
+                + <name><name>this</name>.<name>segmentNumber</name></name> * <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentEnd</name></name> 
+                = <name><name>this</name>.<name>segmentStart</name></name> + <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name> - 1</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> = <name>millisecond</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Calculates the segment number for a given millisecond.
+         * 
+         * @param millis  the millisecond (as encoded by java.util.Date).
+         *  
+         * @return The segment number.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>calculateSegmentNumber</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millis</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>millis</name> &gt;= <name><name>SegmentedTimeline</name>.<name>this</name>.<name>startTime</name></name></expr>)</condition><then> <block>{
+                <return>return <expr>(<name>millis</name> - <name><name>SegmentedTimeline</name>.<name>this</name>.<name>startTime</name></name>) 
+                    / <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name></expr>;</return>
+            }</block></then>
+            <else>else <block>{
+                <return>return <expr>((<name>millis</name> - <name><name>SegmentedTimeline</name>.<name>this</name>.<name>startTime</name></name>) 
+                    / <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name>) - 1</expr>;</return>
+            }</block></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns the segment number of this segment. Segments start at 0.
+         * 
+         * @return The segment number.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentNumber</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>segmentNumber</name></name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns always one (the number of segments contained in this 
+         * segment).
+         * 
+         * @return The segment count (always 1 for this class).
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentCount</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>1</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Gets the start of this segment in ms.
+         * 
+         * @return The segment start.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentStart</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>segmentStart</name></name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Gets the end of this segment in ms.
+         * 
+         * @return The segment end.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentEnd</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>segmentEnd</name></name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns the millisecond used to reference this segment (always 
+         * between the segmentStart and segmentEnd).
+         * 
+         * @return The millisecond.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getMillisecond</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>millisecond</name></name></expr>;</return>
+        }</block></function>
+        
+        <comment type="javadoc">/**
+         * Returns a {@link java.util.Date} that represents the reference point
+         * for this segment.
+         * 
+         * @return The date.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Date</name></type> <name>getDate</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>SegmentedTimeline</name>.<name>this</name>.<name>getDate</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>millisecond</name></name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if a particular millisecond is contained in this 
+         * segment.
+         * 
+         * @param millis  the millisecond to verify.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; if the millisecond is contained in the 
+         *         segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>contains</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millis</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr>(<name><name>this</name>.<name>segmentStart</name></name> &lt;= <name>millis</name> &amp;&amp; <name>millis</name> &lt;= <name><name>this</name>.<name>segmentEnd</name></name>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns &lt;code&gt;true&lt;/code&gt; if an interval is contained in this 
+         * segment.
+         * 
+         * @param from  the start of the interval.
+         * @param to  the end of the interval.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; if the interval is contained in the 
+         *         segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>contains</name><parameter_list>(<param><decl><type><name>long</name></type> <name>from</name></decl></param>, <param><decl><type><name>long</name></type> <name>to</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr>(<name><name>this</name>.<name>segmentStart</name></name> &lt;= <name>from</name> &amp;&amp; <name>to</name> &lt;= <name><name>this</name>.<name>segmentEnd</name></name>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns &lt;code&gt;true&lt;/code&gt; if a segment is contained in this segment.
+         * 
+         * @param segment  the segment to test for inclusion
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; if the segment is contained in this 
+         *         segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>contains</name><parameter_list>(<param><decl><type><name>Segment</name></type> <name>segment</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name>contains</name><argument_list>(<argument><expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>segment</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns &lt;code&gt;true&lt;/code&gt; if this segment is contained in an 
+         * interval.
+         * 
+         * @param from  the start of the interval.
+         * @param to  the end of the interval.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; if this segment is contained in the 
+         *         interval.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>contained</name><parameter_list>(<param><decl><type><name>long</name></type> <name>from</name></decl></param>, <param><decl><type><name>long</name></type> <name>to</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr>(<name>from</name> &lt;= <name><name>this</name>.<name>segmentStart</name></name> &amp;&amp; <name><name>this</name>.<name>segmentEnd</name></name> &lt;= <name>to</name>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns a segment that is the intersection of this segment and the 
+         * interval.
+         * 
+         * @param from  the start of the interval.
+         * @param to  the end of the interval.
+         * 
+         * @return A segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Segment</name></type> <name>intersect</name><parameter_list>(<param><decl><type><name>long</name></type> <name>from</name></decl></param>, <param><decl><type><name>long</name></type> <name>to</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>from</name> &lt;= <name><name>this</name>.<name>segmentStart</name></name> &amp;&amp; <name><name>this</name>.<name>segmentEnd</name></name> &lt;= <name>to</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>this</name></expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns &lt;code&gt;true&lt;/code&gt; if this segment is wholly before another 
+         * segment.
+         * 
+         * @param other  the other segment.
+         * 
+         * @return A boolean.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>before</name><parameter_list>(<param><decl><type><name>Segment</name></type> <name>other</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr>(<name><name>this</name>.<name>segmentEnd</name></name> &lt; <call><name><name>other</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns &lt;code&gt;true&lt;/code&gt; if this segment is wholly after another 
+         * segment.
+         * 
+         * @param other  the other segment.
+         * 
+         * @return A boolean.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>after</name><parameter_list>(<param><decl><type><name>Segment</name></type> <name>other</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr>(<name><name>this</name>.<name>segmentStart</name></name> &gt; <call><name><name>other</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Tests an object (usually another &lt;code&gt;Segment&lt;/code&gt;) for equality
+         * with this segment.
+         * 
+         * @param object The other segment to compare with us
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; if we are the same segment
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>Segment</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Segment</name></type> <name>other</name> =<init> <expr>(<name>Segment</name>) <name>object</name></expr></init></decl>;</decl_stmt>
+                <return>return <expr>(<name><name>this</name>.<name>segmentNumber</name></name> == <call><name><name>other</name>.<name>getSegmentNumber</name></name><argument_list>()</argument_list></call> 
+                        &amp;&amp; <name><name>this</name>.<name>segmentStart</name></name> == <call><name><name>other</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> 
+                        &amp;&amp; <name><name>this</name>.<name>segmentEnd</name></name> == <call><name><name>other</name>.<name>getSegmentEnd</name></name><argument_list>()</argument_list></call> 
+                        &amp;&amp; <name><name>this</name>.<name>millisecond</name></name> == <call><name><name>other</name>.<name>getMillisecond</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+            }</block></then>
+            <else>else <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns a copy of ourselves or &lt;code&gt;null&lt;/code&gt; if there was an 
+         * exception during cloning.
+         * 
+         * @return A copy of this segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Segment</name></type> <name>copy</name><parameter_list>()</parameter_list> <block>{
+            <try>try <block>{
+                <return>return <expr>(<name>Segment</name>) <call><name><name>this</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr>;</return>
+            }</block> 
+            <catch>catch (<param><decl><type><name>CloneNotSupportedException</name></type> <name>e</name></decl></param>) <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></catch></try>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Will compare this Segment with another Segment (from Comparable 
+         * interface).
+         *
+         * @param object The other Segment to compare with
+         * 
+         * @return -1: this &lt; object, 0: this.equal(object) and 
+         *         +1: this &gt; object 
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>compareTo</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>Segment</name></type> <name>other</name> =<init> <expr>(<name>Segment</name>) <name>object</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>this</name>.<name>before</name></name><argument_list>(<argument><expr><name>other</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>-1</expr>;</return>
+            }</block></then> 
+            <else>else <if>if <condition>(<expr><call><name><name>this</name>.<name>after</name></name><argument_list>(<argument><expr><name>other</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>+1</expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr>0</expr>;</return>
+            }</block></else></if></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if we are an included segment and we are not an 
+         * exception.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; or &lt;code&gt;false&lt;/code&gt;.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>inIncludeSegments</name><parameter_list>()</parameter_list> <block>{
+            <if>if <condition>(<expr><call><name>getSegmentNumberRelativeToGroup</name><argument_list>()</argument_list></call> 
+                    &lt; <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentsIncluded</name></name></expr>)</condition><then> <block>{
+                <return>return <expr>!<call><name>inExceptionSegments</name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if we are an excluded segment.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; or &lt;code&gt;false&lt;/code&gt;.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>inExcludeSegments</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name>getSegmentNumberRelativeToGroup</name><argument_list>()</argument_list></call> 
+                &gt;= <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentsIncluded</name></name></expr>;</return>
+        }</block></function> 
+
+        <comment type="javadoc">/**
+         * Calculate the segment number relative to the segment group. This 
+         * will be a number between 0 and segmentsGroup-1. This value is 
+         * calculated from the segmentNumber. Special care is taken for 
+         * negative segmentNumbers.
+         * 
+         * @return The segment number.
+         */</comment>
+        <function><type><specifier>private</specifier> <name>long</name></type> <name>getSegmentNumberRelativeToGroup</name><parameter_list>()</parameter_list> <block>{
+            <decl_stmt><decl><type><name>long</name></type> <name>p</name> =<init> <expr>(<name><name>this</name>.<name>segmentNumber</name></name> 
+                    % <name><name>SegmentedTimeline</name>.<name>this</name>.<name>groupSegmentCount</name></name>)</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>p</name> &lt; 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>p</name> += <name><name>SegmentedTimeline</name>.<name>this</name>.<name>groupSegmentCount</name></name></expr>;</expr_stmt>
+            }</block></then></if>
+            <return>return <expr><name>p</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if we are an exception segment. This is implemented via
+         * a binary search on the exceptionSegments sorted list.
+         *
+         * If the segment is not listed as an exception in our list and we have
+         * a baseTimeline, a check is performed to see if the segment is inside
+         * an excluded segment from our base. If so, it is also considered an
+         * exception.
+         *
+         * @return &lt;code&gt;true&lt;/code&gt; if we are an exception segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>inExceptionSegments</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name>binarySearchExceptionSegments</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call> &gt;= 0</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Increments the internal attributes of this segment by a number of
+         * segments.
+         *
+         * @param n Number of segments to increment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>inc</name><parameter_list>(<param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>segmentNumber</name></name> += <name>n</name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>long</name></type> <name>m</name> =<init> <expr><name>n</name> * <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentStart</name></name> += <name>m</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentEnd</name></name> += <name>m</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> += <name>m</name></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Increments the internal attributes of this segment by one segment.
+         * The exact time incremented is segmentSize.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>inc</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>inc</name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function> 
+
+        <comment type="javadoc">/**
+         * Decrements the internal attributes of this segment by a number of
+         * segments.
+         *
+         * @param n Number of segments to decrement.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>dec</name><parameter_list>(<param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>segmentNumber</name></name> -= <name>n</name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>long</name></type> <name>m</name> =<init> <expr><name>n</name> * <name><name>SegmentedTimeline</name>.<name>this</name>.<name>segmentSize</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentStart</name></name> -= <name>m</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentEnd</name></name> -= <name>m</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> -= <name>m</name></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Decrements the internal attributes of this segment by one segment.
+         * The exact time decremented is segmentSize.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>dec</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>dec</name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function> 
+
+        <comment type="javadoc">/**
+         * Moves the index of this segment to the beginning if the segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>moveIndexToStart</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> = <name><name>this</name>.<name>segmentStart</name></name></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Moves the index of this segment to the end of the segment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>moveIndexToEnd</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> = <name><name>this</name>.<name>segmentEnd</name></name></expr>;</expr_stmt>
+        }</block></function>
+
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * Private internal class to represent a range of segments. This class is 
+     * mainly used to store in one object a range of exception segments. This 
+     * optimizes certain timelines that use a small segment size (like an 
+     * intraday timeline) allowing them to express a day exception as one 
+     * SegmentRange instead of multi Segments.
+     */</comment>
+    <class><specifier>protected</specifier> class <name>SegmentRange</name> <super><extends>extends <name>Segment</name></extends></super> <block>{ 
+
+        <comment type="javadoc">/** The number of segments in the range. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>segmentCount</name></decl>;</decl_stmt> 
+
+        <comment type="javadoc">/**
+         * Creates a SegmentRange between a start and end domain values.
+         * 
+         * @param fromMillisecond  start of the range
+         * @param toMillisecond  end of the range
+         */</comment>
+        <constructor><specifier>public</specifier> <name>SegmentRange</name><parameter_list>(<param><decl><type><name>long</name></type> <name>fromMillisecond</name></decl></param>, <param><decl><type><name>long</name></type> <name>toMillisecond</name></decl></param>)</parameter_list> <block>{
+
+            <decl_stmt><decl><type><name>Segment</name></type> <name>start</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name>fromMillisecond</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Segment</name></type> <name>end</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name>toMillisecond</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+<comment type="line">//            if (start.getSegmentStart() != fromMillisecond </comment>
+<comment type="line">//                || end.getSegmentEnd() != toMillisecond) {</comment>
+<comment type="line">//                throw new IllegalArgumentException("Invalid Segment Range ["</comment>
+<comment type="line">//                    + fromMillisecond + "," + toMillisecond + "]");</comment>
+<comment type="line">//            }</comment>
+
+            <expr_stmt><expr><name><name>this</name>.<name>millisecond</name></name> = <name>fromMillisecond</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentNumber</name></name> = <call><name>calculateSegmentNumber</name><argument_list>(<argument><expr><name>fromMillisecond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentStart</name></name> = <name><name>start</name>.<name>segmentStart</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentEnd</name></name> = <name><name>end</name>.<name>segmentEnd</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>segmentCount</name></name> 
+                = (<call><name><name>end</name>.<name>getSegmentNumber</name></name><argument_list>()</argument_list></call> - <call><name><name>start</name>.<name>getSegmentNumber</name></name><argument_list>()</argument_list></call> + 1)</expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Returns the number of segments contained in this range.
+         * 
+         * @return The segment count.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getSegmentCount</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>segmentCount</name></name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns a segment that is the intersection of this segment and the 
+         * interval.
+         * 
+         * @param from  the start of the interval.
+         * @param to  the end of the interval.
+         * 
+         * @return The intersection.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>Segment</name></type> <name>intersect</name><parameter_list>(<param><decl><type><name>long</name></type> <name>from</name></decl></param>, <param><decl><type><name>long</name></type> <name>to</name></decl></param>)</parameter_list> <block>{
+            
+            <comment type="line">// Segment fromSegment = getSegment(from);</comment>
+            <comment type="line">// fromSegment.inc();</comment>
+            <comment type="line">// Segment toSegment = getSegment(to);</comment>
+            <comment type="line">// toSegment.dec();</comment>
+            <decl_stmt><decl><type><name>long</name></type> <name>start</name> =<init> <expr><call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>from</name></expr></argument>, <argument><expr><name><name>this</name>.<name>segmentStart</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>long</name></type> <name>end</name> =<init> <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>to</name></expr></argument>, <argument><expr><name><name>this</name>.<name>segmentEnd</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <comment type="line">// long start = Math.max(</comment>
+            <comment type="line">//     fromSegment.getSegmentStart(), this.segmentStart</comment>
+            <comment type="line">// );</comment>
+            <comment type="line">// long end = Math.min(toSegment.getSegmentEnd(), this.segmentEnd);</comment>
+            <if>if <condition>(<expr><name>start</name> &lt;= <name>end</name></expr>)</condition><then> <block>{
+                <return>return <expr>new <call><name>SegmentRange</name><argument_list>(<argument><expr><name>start</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if all Segments of this SegmentRenge are an included 
+         * segment and are not an exception.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; or &lt;/code&gt;false&lt;/code&gt;.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>inIncludeSegments</name><parameter_list>()</parameter_list> <block>{
+            <for>for (<init><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name><name>this</name>.<name>segmentStart</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</init>
+                <condition><expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt; <name><name>this</name>.<name>segmentEnd</name></name></expr>;</condition>
+                <incr><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+                <if>if <condition>(<expr>!<call><name><name>segment</name>.<name>inIncludeSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <return>return <expr>(false)</expr>;</return>
+                }</block></then></if>
+            }</block></for>
+            <return>return <expr>true</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns true if we are an excluded segment.
+         * 
+         * @return &lt;code&gt;true&lt;/code&gt; or &lt;/code&gt;false&lt;/code&gt;.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>inExcludeSegments</name><parameter_list>()</parameter_list> <block>{
+            <for>for (<init><decl><type><name>Segment</name></type> <name>segment</name> =<init> <expr><call><name>getSegment</name><argument_list>(<argument><expr><name><name>this</name>.<name>segmentStart</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</init>
+                <condition><expr><call><name><name>segment</name>.<name>getSegmentStart</name></name><argument_list>()</argument_list></call> &lt; <name><name>this</name>.<name>segmentEnd</name></name></expr>;</condition>
+                <incr><expr><call><name><name>segment</name>.<name>inc</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+                <if>if <condition>(<expr>!<call><name><name>segment</name>.<name>inExceptionSegments</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <return>return <expr>(false)</expr>;</return>
+                }</block></then></if>
+            }</block></for>
+            <return>return <expr>true</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Not implemented for SegmentRange. Always throws 
+         * IllegalArgumentException.
+         *
+         * @param n Number of segments to increment.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>inc</name><parameter_list>(<param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                <argument><expr>"Not implemented in SegmentRange"</expr></argument>
+            )</argument_list></call></expr>;</throw>
+        }</block></function>
+
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * Special &lt;code&gt;SegmentRange&lt;/code&gt; that came from the BaseTimeline.
+     */</comment>
+    <class><specifier>protected</specifier> class <name>BaseTimelineSegmentRange</name> <super><extends>extends <name>SegmentRange</name></extends></super> <block>{
+
+        <comment type="javadoc">/**
+         * Constructor.
+         * 
+         * @param fromDomainValue  the start value.
+         * @param toDomainValue  the end value.
+         */</comment>
+        <constructor><specifier>public</specifier> <name>BaseTimelineSegmentRange</name><parameter_list>(<param><decl><type><name>long</name></type> <name>fromDomainValue</name></decl></param>, 
+                                        <param><decl><type><name>long</name></type> <name>toDomainValue</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>fromDomainValue</name></expr></argument>, <argument><expr><name>toDomainValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+       
+    }</block></class>
+
+}</block></class>
+</unit>

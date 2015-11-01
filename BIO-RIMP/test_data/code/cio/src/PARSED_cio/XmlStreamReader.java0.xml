@@ -1,0 +1,708 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\test\java\org\apache\commons\io\input\compatibility\XmlStreamReader.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>input</name>.<name>compatibility</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>StringReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>HttpURLConnection</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URL</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URLConnection</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>MessageFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>regex</name>.<name>Matcher</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>regex</name>.<name>Pattern</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>output</name>.<name>XmlStreamWriter</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Character stream that handles all the necessary Voodo to figure out the
+ * charset encoding of the XML document within the stream.
+ * &lt;p&gt;
+ * IMPORTANT: This class is not related in any way to the org.xml.sax.XMLReader.
+ * This one IS a character stream.
+ * &lt;p&gt;
+ * All this has to be done without consuming characters from the stream, if not
+ * the XML parser will not recognized the document as a valid XML. This is not
+ * 100% true, but it's close enough (UTF-8 BOM is not handled by all parsers
+ * right now, XmlStreamReader handles it and things work in all parsers).
+ * &lt;p&gt;
+ * The XmlStreamReader class handles the charset encoding of XML documents in
+ * Files, raw streams and HTTP streams by offering a wide set of constructors.
+ * &lt;p&gt;
+ * By default the charset encoding detection is lenient, the constructor with
+ * the lenient flag can be used for an script (following HTTP MIME and XML
+ * specifications). All this is nicely explained by Mark Pilgrim in his blog, &lt;a
+ * href="http://diveintomark.org/archives/2004/02/13/xml-media-types"&gt;
+ * Determining the character encoding of a feed&lt;/a&gt;.
+ * &lt;p&gt;
+ * Originally developed for &lt;a href="http://rome.dev.java.net"&gt;ROME&lt;/a&gt; under
+ * Apache License 2.0.
+ *
+ * @version $Id: XmlStreamReader.java 1302748 2012-03-20 01:35:32Z ggregory $
+ * @see XmlStreamWriter
+ */</comment>
+<class><specifier>public</specifier> class <name>XmlStreamReader</name> <super><extends>extends <name>Reader</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>BUFFER_SIZE</name> =<init> <expr>4096</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>UTF_8</name> =<init> <expr>"UTF-8"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>US_ASCII</name> =<init> <expr>"US-ASCII"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>UTF_16BE</name> =<init> <expr>"UTF-16BE"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>UTF_16LE</name> =<init> <expr>"UTF-16LE"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>UTF_16</name> =<init> <expr>"UTF-16"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>EBCDIC</name> =<init> <expr>"CP1047"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>staticDefaultEncoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Reader</name></type> <name>reader</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>encoding</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>defaultEncoding</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Sets the default encoding to use if none is set in HTTP content-type, XML
+     * prolog and the rules based on content-type are not adequate.
+     * &lt;p&gt;
+     * If it is set to NULL the content-type based rules are used.
+     * &lt;p&gt;
+     * By default it is NULL.
+     *
+     * @param encoding charset encoding to default to.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>setDefaultEncoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>staticDefaultEncoding</name> = <name>encoding</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the default encoding to use if none is set in HTTP content-type,
+     * XML prolog and the rules based on content-type are not adequate.
+     * &lt;p&gt;
+     * If it is NULL the content-type based rules are used.
+     *
+     * @return the default encoding to use.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>getDefaultEncoding</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>staticDefaultEncoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates a Reader for a File.
+     * &lt;p&gt;
+     * It looks for the UTF-8 BOM first, if none sniffs the XML prolog charset,
+     * if this is also missing defaults to UTF-8.
+     * &lt;p&gt;
+     * It does a lenient charset encoding detection, check the constructor with
+     * the lenient parameter for details.
+     *
+     * @param file File to create a Reader from.
+     * @throws IOException thrown if there is a problem reading the file.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader for a raw InputStream.
+     * &lt;p&gt;
+     * It follows the same logic used for files.
+     * &lt;p&gt;
+     * It does a lenient charset encoding detection, check the constructor with
+     * the lenient parameter for details.
+     *
+     * @param is InputStream to create a Reader from.
+     * @throws IOException thrown if there is a problem reading the stream.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader for a raw InputStream.
+     * &lt;p&gt;
+     * It follows the same logic used for files.
+     * &lt;p&gt;
+     * If lenient detection is indicated and the detection above fails as per
+     * specifications it then attempts the following:
+     * &lt;p&gt;
+     * If the content type was 'text/html' it replaces it with 'text/xml' and
+     * tries the detection again.
+     * &lt;p&gt;
+     * Else if the XML prolog had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else if the content type had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else 'UTF-8' is used.
+     * &lt;p&gt;
+     * If lenient detection is indicated an XmlStreamReaderException is never
+     * thrown.
+     *
+     * @param is InputStream to create a Reader from.
+     * @param lenient indicates if the charset encoding detection should be
+     *        relaxed.
+     * @throws IOException thrown if there is a problem reading the stream.
+     * @throws XmlStreamReaderException thrown if the charset encoding could not
+     *         be determined according to the specs.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>,
+            <argument><expr><name>XmlStreamReaderException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>defaultEncoding</name> = <name>staticDefaultEncoding</name></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>doRawStream</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>) <block>{
+            <if>if <condition>(<expr>!<name>lenient</name></expr>)</condition><then> <block>{
+                <throw>throw <expr><name>ex</name></expr>;</throw>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>doLenientDetection</name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></catch></try>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader using the InputStream of a URL.
+     * &lt;p&gt;
+     * If the URL is not of type HTTP and there is not 'content-type' header in
+     * the fetched data it uses the same logic used for Files.
+     * &lt;p&gt;
+     * If the URL is a HTTP Url or there is a 'content-type' header in the
+     * fetched data it uses the same logic used for an InputStream with
+     * content-type.
+     * &lt;p&gt;
+     * It does a lenient charset encoding detection, check the constructor with
+     * the lenient parameter for details.
+     *
+     * @param url URL to create a Reader from.
+     * @throws IOException thrown if there is a problem reading the stream of
+     *         the URL.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>URL</name></type> <name>url</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><call><name><name>url</name>.<name>openConnection</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader using the InputStream of a URLConnection.
+     * &lt;p&gt;
+     * If the URLConnection is not of type HttpURLConnection and there is not
+     * 'content-type' header in the fetched data it uses the same logic used for
+     * files.
+     * &lt;p&gt;
+     * If the URLConnection is a HTTP Url or there is a 'content-type' header in
+     * the fetched data it uses the same logic used for an InputStream with
+     * content-type.
+     * &lt;p&gt;
+     * It does a lenient charset encoding detection, check the constructor with
+     * the lenient parameter for details.
+     *
+     * @param conn URLConnection to create a Reader from.
+     * @throws IOException thrown if there is a problem reading the stream of
+     *         the URLConnection.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>URLConnection</name></type> <name>conn</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>defaultEncoding</name> = <name>staticDefaultEncoding</name></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>lenient</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>conn</name> <name>instanceof</name> <name>HttpURLConnection</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name>doHttpStream</name><argument_list>(<argument><expr><call><name><name>conn</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>conn</name>.<name>getContentType</name></name><argument_list>()</argument_list></call></expr></argument>,
+                        <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name>doLenientDetection</name><argument_list>(<argument><expr><call><name><name>conn</name>.<name>getContentType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>conn</name>.<name>getContentType</name></name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name>doHttpStream</name><argument_list>(<argument><expr><call><name><name>conn</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>conn</name>.<name>getContentType</name></name><argument_list>()</argument_list></call></expr></argument>,
+                        <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name>doLenientDetection</name><argument_list>(<argument><expr><call><name><name>conn</name>.<name>getContentType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></then> <else>else <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name>doRawStream</name><argument_list>(<argument><expr><call><name><name>conn</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name>doLenientDetection</name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></else></if></else></if>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader using an InputStream an the associated content-type
+     * header.
+     * &lt;p&gt;
+     * First it checks if the stream has BOM. If there is not BOM checks the
+     * content-type encoding. If there is not content-type encoding checks the
+     * XML prolog encoding. If there is not XML prolog encoding uses the default
+     * encoding mandated by the content-type MIME type.
+     * &lt;p&gt;
+     * It does a lenient charset encoding detection, check the constructor with
+     * the lenient parameter for details.
+     *
+     * @param is InputStream to create the reader from.
+     * @param httpContentType content-type header to use for the resolution of
+     *        the charset encoding.
+     * @throws IOException thrown if there is a problem reading the file.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>httpContentType</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader using an InputStream an the associated content-type
+     * header. This constructor is lenient regarding the encoding detection.
+     * &lt;p&gt;
+     * First it checks if the stream has BOM. If there is not BOM checks the
+     * content-type encoding. If there is not content-type encoding checks the
+     * XML prolog encoding. If there is not XML prolog encoding uses the default
+     * encoding mandated by the content-type MIME type.
+     * &lt;p&gt;
+     * If lenient detection is indicated and the detection above fails as per
+     * specifications it then attempts the following:
+     * &lt;p&gt;
+     * If the content type was 'text/html' it replaces it with 'text/xml' and
+     * tries the detection again.
+     * &lt;p&gt;
+     * Else if the XML prolog had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else if the content type had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else 'UTF-8' is used.
+     * &lt;p&gt;
+     * If lenient detection is indicated an XmlStreamReaderException is never
+     * thrown.
+     *
+     * @param is InputStream to create the reader from.
+     * @param httpContentType content-type header to use for the resolution of
+     *        the charset encoding.
+     * @param lenient indicates if the charset encoding detection should be
+     *        relaxed.
+     * @throws IOException thrown if there is a problem reading the file.
+     * @throws XmlStreamReaderException thrown if the charset encoding could not
+     *         be determined according to the specs.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>, <param><decl><type><name>String</name></type> <name>defaultEncoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>,
+            <argument><expr><name>XmlStreamReaderException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>defaultEncoding</name></name> = <name>defaultEncoding</name> == <name>null</name> ? <name>staticDefaultEncoding</name>
+                : <name>defaultEncoding</name></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>doHttpStream</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>httpContentType</name></expr></argument>, <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>) <block>{
+            <if>if <condition>(<expr>!<name>lenient</name></expr>)</condition><then> <block>{
+                <throw>throw <expr><name>ex</name></expr>;</throw>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>doLenientDetection</name><argument_list>(<argument><expr><name>httpContentType</name></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></catch></try>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Reader using an InputStream an the associated content-type
+     * header. This constructor is lenient regarding the encoding detection.
+     * &lt;p&gt;
+     * First it checks if the stream has BOM. If there is not BOM checks the
+     * content-type encoding. If there is not content-type encoding checks the
+     * XML prolog encoding. If there is not XML prolog encoding uses the default
+     * encoding mandated by the content-type MIME type.
+     * &lt;p&gt;
+     * If lenient detection is indicated and the detection above fails as per
+     * specifications it then attempts the following:
+     * &lt;p&gt;
+     * If the content type was 'text/html' it replaces it with 'text/xml' and
+     * tries the detection again.
+     * &lt;p&gt;
+     * Else if the XML prolog had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else if the content type had a charset encoding that encoding is used.
+     * &lt;p&gt;
+     * Else 'UTF-8' is used.
+     * &lt;p&gt;
+     * If lenient detection is indicated an XmlStreamReaderException is never
+     * thrown.
+     *
+     * @param is InputStream to create the reader from.
+     * @param httpContentType content-type header to use for the resolution of
+     *        the charset encoding.
+     * @param lenient indicates if the charset encoding detection should be
+     *        relaxed.
+     * @throws IOException thrown if there is a problem reading the file.
+     * @throws XmlStreamReaderException thrown if the charset encoding could not
+     *         be determined according to the specs.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>XmlStreamReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>XmlStreamReaderException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>httpContentType</name></expr></argument>, <argument><expr><name>lenient</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doLenientDetection</name><parameter_list>(<param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>,
+            <param><decl><type><name>XmlStreamReaderException</name></type> <name>ex</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>httpContentType</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>httpContentType</name>.<name>startsWith</name></name><argument_list>(<argument><expr>"text/html"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>httpContentType</name> = <call><name><name>httpContentType</name>.<name>substring</name></name><argument_list>(<argument><expr>"text/html"
+                        .<call><name>length</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>httpContentType</name> = "text/xml" + <name>httpContentType</name></expr>;</expr_stmt>
+                <try>try <block>{
+                    <expr_stmt><expr><call><name>doHttpStream</name><argument_list>(<argument><expr><call><name><name>ex</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>httpContentType</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>ex</name> = <name>null</name></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>XmlStreamReaderException</name></type> <name>ex2</name></decl></param>) <block>{
+                    <expr_stmt><expr><name>ex</name> = <name>ex2</name></expr>;</expr_stmt>
+                }</block></catch></try>
+            }</block></then></if>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>ex</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><call><name><name>ex</name>.<name>getXmlEncoding</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>encoding</name> = <call><name><name>ex</name>.<name>getContentTypeEncoding</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>encoding</name> = <name>defaultEncoding</name> == <name>null</name> ? <name>UTF_8</name> : <name>defaultEncoding</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>prepareReader</name><argument_list>(<argument><expr><call><name><name>ex</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the charset encoding of the XmlStreamReader.
+     *
+     * @return charset encoding.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getEncoding</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buf</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name><name>reader</name>.<name>read</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Closes the XmlStreamReader stream.
+     *
+     * @throws IOException thrown if there was a problem closing the stream.
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>reader</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doRawStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>BufferedInputStream</name></type> <name>pis</name> =<init> <expr>new <call><name>BufferedInputStream</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>bomEnc</name> =<init> <expr><call><name>getBOMEncoding</name><argument_list>(<argument><expr><name>pis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>xmlGuessEnc</name> =<init> <expr><call><name>getXMLGuessEncoding</name><argument_list>(<argument><expr><name>pis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>xmlEnc</name> =<init> <expr><call><name>getXmlProlog</name><argument_list>(<argument><expr><name>pis</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><call><name>calculateRawEncoding</name><argument_list>(<argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>pis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>prepareReader</name><argument_list>(<argument><expr><name>pis</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doHttpStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>BufferedInputStream</name></type> <name>pis</name> =<init> <expr>new <call><name>BufferedInputStream</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>cTMime</name> =<init> <expr><call><name>getContentTypeMime</name><argument_list>(<argument><expr><name>httpContentType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>cTEnc</name> =<init> <expr><call><name>getContentTypeEncoding</name><argument_list>(<argument><expr><name>httpContentType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>bomEnc</name> =<init> <expr><call><name>getBOMEncoding</name><argument_list>(<argument><expr><name>pis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>xmlGuessEnc</name> =<init> <expr><call><name>getXMLGuessEncoding</name><argument_list>(<argument><expr><name>pis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>xmlEnc</name> =<init> <expr><call><name>getXmlProlog</name><argument_list>(<argument><expr><name>pis</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><call><name>calculateHttpEncoding</name><argument_list>(<argument><expr><name>cTMime</name></expr></argument>, <argument><expr><name>cTEnc</name></expr></argument>, <argument><expr><name>bomEnc</name></expr></argument>,
+                <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>pis</name></expr></argument>, <argument><expr><name>lenient</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>prepareReader</name><argument_list>(<argument><expr><name>pis</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>prepareReader</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>reader</name> = new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>encoding</name></name> = <name>encoding</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// InputStream is passed for XmlStreamReaderException creation only</comment>
+    <function><type><name>String</name></type> <name>calculateRawEncoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>bomEnc</name></decl></param>, <param><decl><type><name>String</name></type> <name>xmlGuessEnc</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>xmlEnc</name></decl></param>, <param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>bomEnc</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>xmlGuessEnc</name> == <name>null</name> || <name>xmlEnc</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>encoding</name> = <name>defaultEncoding</name> == <name>null</name> ? <name>UTF_8</name> : <name>defaultEncoding</name></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><call><name><name>xmlEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16</name></expr></argument>)</argument_list></call>
+                    &amp;&amp; (<call><name><name>xmlGuessEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16BE</name></expr></argument>)</argument_list></call> || <call><name><name>xmlGuessEnc</name>
+                            .<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16LE</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>encoding</name> = <name>xmlGuessEnc</name></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>encoding</name> = <name>xmlEnc</name></expr>;</expr_stmt>
+            }</block></else></if></else></if>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>bomEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_8</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>xmlGuessEnc</name> != <name>null</name> &amp;&amp; !<call><name><name>xmlGuessEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_8</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>RAW_EX_1</name>
+                        .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>bomEnc</name></expr>, <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>,
+                        <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>xmlEnc</name> != <name>null</name> &amp;&amp; !<call><name><name>xmlEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_8</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>RAW_EX_1</name>
+                        .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>bomEnc</name></expr>, <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>,
+                        <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_8</name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>bomEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16BE</name></expr></argument>)</argument_list></call> || <call><name><name>bomEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16LE</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>xmlGuessEnc</name> != <name>null</name> &amp;&amp; !<call><name><name>xmlGuessEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>bomEnc</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>RAW_EX_1</name>.<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>bomEnc</name></expr>,
+                        <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>xmlEnc</name> != <name>null</name> &amp;&amp; !<call><name><name>xmlEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16</name></expr></argument>)</argument_list></call>
+                    &amp;&amp; !<call><name><name>xmlEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>bomEnc</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>RAW_EX_1</name>
+                        .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>bomEnc</name></expr>, <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>,
+                        <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><name>encoding</name> = <name>bomEnc</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>RAW_EX_2</name>.<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{
+                    <expr><name>bomEnc</name></expr>, <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>,
+                    <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></else></if></else></if></else></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// InputStream is passed for XmlStreamReaderException creation only</comment>
+    <function><type><name>String</name></type> <name>calculateHttpEncoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>cTMime</name></decl></param>, <param><decl><type><name>String</name></type> <name>cTEnc</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>bomEnc</name></decl></param>, <param><decl><type><name>String</name></type> <name>xmlGuessEnc</name></decl></param>, <param><decl><type><name>String</name></type> <name>xmlEnc</name></decl></param>, <param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>lenient</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>lenient</name> &amp; <name>xmlEnc</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>xmlEnc</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>appXml</name> =<init> <expr><call><name>isAppXml</name><argument_list>(<argument><expr><name>cTMime</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>textXml</name> =<init> <expr><call><name>isTextXml</name><argument_list>(<argument><expr><name>cTMime</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>appXml</name> || <name>textXml</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>cTEnc</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>appXml</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>encoding</name> = <call><name>calculateRawEncoding</name><argument_list>(<argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>,
+                                <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>encoding</name> = <name>defaultEncoding</name> == <name>null</name> ? <name>US_ASCII</name>
+                                : <name>defaultEncoding</name></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then> <else>else <if>if <condition>(<expr><name>bomEnc</name> != <name>null</name>
+                        &amp;&amp; (<call><name><name>cTEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16BE</name></expr></argument>)</argument_list></call> || <call><name><name>cTEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16LE</name></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                    <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>HTTP_EX_1</name>
+                            .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>cTMime</name></expr>, <expr><name>cTEnc</name></expr>, <expr><name>bomEnc</name></expr>,
+                                    <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>cTMime</name></expr></argument>, <argument><expr><name>cTEnc</name></expr></argument>,
+                            <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then> <else>else <if>if <condition>(<expr><call><name><name>cTEnc</name>.<name>equals</name></name><argument_list>(<argument><expr><name>UTF_16</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>bomEnc</name> != <name>null</name> &amp;&amp; <call><name><name>bomEnc</name>.<name>startsWith</name></name><argument_list>(<argument><expr><name>UTF_16</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>encoding</name> = <name>bomEnc</name></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>HTTP_EX_2</name>
+                                .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>cTMime</name></expr>, <expr><name>cTEnc</name></expr>, <expr><name>bomEnc</name></expr>,
+                                        <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>cTMime</name></expr></argument>, <argument><expr><name>cTEnc</name></expr></argument>,
+                                <argument><expr><name>bomEnc</name></expr></argument>, <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+                    }</block></else></if>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>encoding</name> = <name>cTEnc</name></expr>;</expr_stmt>
+                }</block></else></if></else></if></else></if>
+            }</block></then> <else>else <block>{
+                <throw>throw <expr>new <call><name>XmlStreamReaderException</name><argument_list>(<argument><expr><call><name><name>HTTP_EX_3</name>
+                        .<name>format</name></name><argument_list>(<argument><expr>new <name><name>Object</name><index>[]</index></name> <block>{ <expr><name>cTMime</name></expr>, <expr><name>cTEnc</name></expr>, <expr><name>bomEnc</name></expr>,
+                                <expr><name>xmlGuessEnc</name></expr>, <expr><name>xmlEnc</name></expr> }</block></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>cTMime</name></expr></argument>, <argument><expr><name>cTEnc</name></expr></argument>, <argument><expr><name>bomEnc</name></expr></argument>,
+                        <argument><expr><name>xmlGuessEnc</name></expr></argument>, <argument><expr><name>xmlEnc</name></expr></argument>, <argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></else></if>
+        }</block></else></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// returns MIME type or NULL if httpContentType is NULL</comment>
+    <function><type><specifier>static</specifier> <name>String</name></type> <name>getContentTypeMime</name><parameter_list>(<param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>mime</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>httpContentType</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><call><name><name>httpContentType</name>.<name>indexOf</name></name><argument_list>(<argument><expr>";"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>mime</name> = (<name>i</name> == -1 ? <name>httpContentType</name> : <call><name><name>httpContentType</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>,
+                    <argument><expr><name>i</name></expr></argument>)</argument_list></call>).<call><name>trim</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>mime</name></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Pattern</name></type> <name>CHARSET_PATTERN</name> =<init> <expr><call><name><name>Pattern</name>
+            .<name>compile</name></name><argument_list>(<argument><expr>"charset=[\"']?([.[^; \"']]*)[\"']?"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// returns charset parameter value, NULL if not present, NULL if</comment>
+    <comment type="line">// httpContentType is NULL</comment>
+    <function><type><specifier>static</specifier> <name>String</name></type> <name>getContentTypeEncoding</name><parameter_list>(<param><decl><type><name>String</name></type> <name>httpContentType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>httpContentType</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><call><name><name>httpContentType</name>.<name>indexOf</name></name><argument_list>(<argument><expr>";"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>i</name> &gt; -1</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>postMime</name> =<init> <expr><call><name><name>httpContentType</name>.<name>substring</name></name><argument_list>(<argument><expr><name>i</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Matcher</name></type> <name>m</name> =<init> <expr><call><name><name>CHARSET_PATTERN</name>.<name>matcher</name></name><argument_list>(<argument><expr><name>postMime</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>encoding</name> = <call><name><name>m</name>.<name>find</name></name><argument_list>()</argument_list></call> ? <call><name><name>m</name>.<name>group</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call> : <name>null</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>encoding</name> = <name>encoding</name> != <name>null</name> ? <call><name><name>encoding</name>.<name>toUpperCase</name></name><argument_list>()</argument_list></call> : <name>null</name></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// returns the BOM in the stream, NULL if not present,</comment>
+    <comment type="line">// if there was BOM the in the stream it is consumed</comment>
+    <function><type><specifier>static</specifier> <name>String</name></type> <name>getBOMEncoding</name><parameter_list>(<param><decl><type><name>BufferedInputStream</name></type> <name>is</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>int</name><index>[<expr>3</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>is</name>.<name>mark</name></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>1</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>2</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0xFE &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0xFF</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_16BE</name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0xFF &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0xFE</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_16LE</name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0xEF &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0xBB &amp;&amp; <name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0xBF</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_8</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>is</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if></else></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// returns the best guess for the encoding by looking the first bytes of the</comment>
+    <comment type="line">// stream, '&lt;?'</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getXMLGuessEncoding</name><parameter_list>(<param><decl><type><name>BufferedInputStream</name></type> <name>is</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>int</name><index>[<expr>4</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>is</name>.<name>mark</name></name><argument_list>(<argument><expr>4</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>1</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>2</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr>3</expr>]</index></name> = <call><name><name>is</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>is</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0x00 &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0x3C &amp;&amp; <name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0x00
+                &amp;&amp; <name><name>bytes</name><index>[<expr>3</expr>]</index></name> == 0x3F</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_16BE</name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0x3C &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0x00 &amp;&amp; <name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0x3F
+                &amp;&amp; <name><name>bytes</name><index>[<expr>3</expr>]</index></name> == 0x00</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_16LE</name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0x3C &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0x3F &amp;&amp; <name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0x78
+                &amp;&amp; <name><name>bytes</name><index>[<expr>3</expr>]</index></name> == 0x6D</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>UTF_8</name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name> == 0x4C &amp;&amp; <name><name>bytes</name><index>[<expr>1</expr>]</index></name> == 0x6F &amp;&amp; <name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0xA7
+                &amp;&amp; <name><name>bytes</name><index>[<expr>3</expr>]</index></name> == 0x94</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>encoding</name> = <name>EBCDIC</name></expr>;</expr_stmt>
+        }</block></then></if></else></if></else></if></else></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Pattern</name></type> <name>ENCODING_PATTERN</name> =<init> <expr><call><name><name>Pattern</name>.<name>compile</name></name><argument_list>(
+            <argument><expr>"&lt;\\?xml.*encoding[\\s]*=[\\s]*((?:\".[^\"]*\")|(?:'.[^']*'))"</expr></argument>,
+            <argument><expr><name><name>Pattern</name>.<name>MULTILINE</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// returns the encoding declared in the &lt;?xml encoding=...?&gt;, NULL if none</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getXmlProlog</name><parameter_list>(<param><decl><type><name>BufferedInputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>guessedEnc</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>encoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>guessedEnc</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>BUFFER_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>is</name>.<name>mark</name></name><argument_list>(<argument><expr><name>BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>max</name> =<init> <expr><name>BUFFER_SIZE</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>is</name>.<name>read</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>max</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>firstGT</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>xmlProlog</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><name>c</name> != -1 &amp;&amp; <name>firstGT</name> == -1 &amp;&amp; <name>offset</name> &lt; <name>BUFFER_SIZE</name></expr>)</condition> <block>{
+                <expr_stmt><expr><name>offset</name> += <name>c</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>max</name> -= <name>c</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>c</name> = <call><name><name>is</name>.<name>read</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>max</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>xmlProlog</name> = new <call><name>String</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>guessedEnc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>firstGT</name> = <call><name><name>xmlProlog</name>.<name>indexOf</name></name><argument_list>(<argument><expr>'&gt;'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <if>if <condition>(<expr><name>firstGT</name> == -1</expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>c</name> == -1</expr>)</condition><then> <block>{
+                    <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Unexpected end of XML stream"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then> <else>else <block>{
+                    <throw>throw <expr>new <call><name>IOException</name><argument_list>(
+                            <argument><expr>"XML prolog or ROOT element not found on first "
+                                    + <name>offset</name> + " bytes"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></else></if>
+            }</block></then></if>
+            <decl_stmt><decl><type><name>int</name></type> <name>bytesRead</name> =<init> <expr><name>offset</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>bytesRead</name> &gt; 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>is</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>BufferedReader</name></type> <name>bReader</name> =<init> <expr>new <call><name>BufferedReader</name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(
+                        <argument><expr><call><name><name>xmlProlog</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>firstGT</name> + 1</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>StringBuffer</name></type> <name>prolog</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>line</name> =<init> <expr><call><name><name>bReader</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <while>while <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition> <block>{
+                    <expr_stmt><expr><call><name><name>prolog</name>.<name>append</name></name><argument_list>(<argument><expr><name>line</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>line</name> = <call><name><name>bReader</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></while>
+                <decl_stmt><decl><type><name>Matcher</name></type> <name>m</name> =<init> <expr><call><name><name>ENCODING_PATTERN</name>.<name>matcher</name></name><argument_list>(<argument><expr><name>prolog</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name><name>m</name>.<name>find</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>encoding</name> = <call><name><name>m</name>.<name>group</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call>.<call><name>toUpperCase</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>encoding</name> = <call><name><name>encoding</name>.<name>substring</name></name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr><call><name><name>encoding</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// indicates if the MIME type belongs to the APPLICATION XML family</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isAppXml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>mime</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name>mime</name> != <name>null</name>
+                &amp;&amp; (<call><name><name>mime</name>.<name>equals</name></name><argument_list>(<argument><expr>"application/xml"</expr></argument>)</argument_list></call>
+                        || <call><name><name>mime</name>.<name>equals</name></name><argument_list>(<argument><expr>"application/xml-dtd"</expr></argument>)</argument_list></call>
+                        || <call><name><name>mime</name>
+                                .<name>equals</name></name><argument_list>(<argument><expr>"application/xml-external-parsed-entity"</expr></argument>)</argument_list></call> || <call><name><name>mime</name>
+                        .<name>startsWith</name></name><argument_list>(<argument><expr>"application/"</expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>mime</name>.<name>endsWith</name></name><argument_list>(<argument><expr>"+xml"</expr></argument>)</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <comment type="line">// indicates if the MIME type belongs to the TEXT XML family</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isTextXml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>mime</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name>mime</name> != <name>null</name>
+                &amp;&amp; (<call><name><name>mime</name>.<name>equals</name></name><argument_list>(<argument><expr>"text/xml"</expr></argument>)</argument_list></call>
+                        || <call><name><name>mime</name>.<name>equals</name></name><argument_list>(<argument><expr>"text/xml-external-parsed-entity"</expr></argument>)</argument_list></call> || <call><name><name>mime</name>
+                        .<name>startsWith</name></name><argument_list>(<argument><expr>"text/"</expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>mime</name>.<name>endsWith</name></name><argument_list>(<argument><expr>"+xml"</expr></argument>)</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>MessageFormat</name></type> <name>RAW_EX_1</name> =<init> <expr>new <call><name>MessageFormat</name><argument_list>(
+            <argument><expr>"Invalid encoding, BOM [{0}] XML guess [{1}] XML prolog [{2}] encoding mismatch"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>MessageFormat</name></type> <name>RAW_EX_2</name> =<init> <expr>new <call><name>MessageFormat</name><argument_list>(
+            <argument><expr>"Invalid encoding, BOM [{0}] XML guess [{1}] XML prolog [{2}] unknown BOM"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>MessageFormat</name></type> <name>HTTP_EX_1</name> =<init> <expr>new <call><name>MessageFormat</name><argument_list>(
+            <argument><expr>"Invalid encoding, CT-MIME [{0}] CT-Enc [{1}] BOM [{2}] XML guess [{3}] XML prolog [{4}], BOM must be NULL"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>MessageFormat</name></type> <name>HTTP_EX_2</name> =<init> <expr>new <call><name>MessageFormat</name><argument_list>(
+            <argument><expr>"Invalid encoding, CT-MIME [{0}] CT-Enc [{1}] BOM [{2}] XML guess [{3}] XML prolog [{4}], encoding mismatch"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>MessageFormat</name></type> <name>HTTP_EX_3</name> =<init> <expr>new <call><name>MessageFormat</name><argument_list>(
+            <argument><expr>"Invalid encoding, CT-MIME [{0}] CT-Enc [{1}] BOM [{2}] XML guess [{3}] XML prolog [{4}], Invalid MIME"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+}</block></class>
+</unit>

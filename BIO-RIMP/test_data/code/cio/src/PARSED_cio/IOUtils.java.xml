@@ -1,0 +1,2220 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\IOUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>CharArrayWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Closeable</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>EOFException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStreamWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>PrintWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>ServerSocket</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>Socket</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URI</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URL</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>channels</name>.<name>Selector</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>output</name>.<name>ByteArrayOutputStream</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>output</name>.<name>StringBuilderWriter</name></name>;</import>
+
+<comment type="javadoc">/**
+ * General IO stream manipulation utilities.
+ * &lt;p&gt;
+ * This class provides static utility methods for input/output operations.
+ * &lt;ul&gt;
+ * &lt;li&gt;closeQuietly - these methods close a stream ignoring nulls and exceptions
+ * &lt;li&gt;toXxx/read - these methods read data from a stream
+ * &lt;li&gt;write - these methods write data to a stream
+ * &lt;li&gt;copy - these methods copy all the data from one stream to another
+ * &lt;li&gt;contentEquals - these methods compare the content of two streams
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * The byte-to-char methods and char-to-byte methods involve a conversion step.
+ * Two methods are provided in each case, one that uses the platform default
+ * encoding and the other which allows you to specify an encoding. You are
+ * encouraged to always specify an encoding because relying on the platform
+ * default can lead to unexpected results, for example when moving from
+ * development to production.
+ * &lt;p&gt;
+ * All the methods in this class that read a stream are buffered internally.
+ * This means that there is no cause to use a &lt;code&gt;BufferedInputStream&lt;/code&gt;
+ * or &lt;code&gt;BufferedReader&lt;/code&gt;. The default buffer size of 4K has been shown
+ * to be efficient in tests.
+ * &lt;p&gt;
+ * Wherever possible, the methods in this class do &lt;em&gt;not&lt;/em&gt; flush or close
+ * the stream. This is to avoid making non-portable assumptions about the
+ * streams' origin and further use. Thus the caller is still responsible for
+ * closing streams after use.
+ * &lt;p&gt;
+ * Origin of code: Excalibur.
+ *
+ * @version $Id: IOUtils.java 1304177 2012-03-23 03:36:44Z ggregory $
+ */</comment>
+<class><specifier>public</specifier> class <name>IOUtils</name> <block>{
+    <comment type="line">// NOTE: This class is focussed on InputStream, OutputStream, Reader and</comment>
+    <comment type="line">// Writer. Each method should take at least one of these as a parameter,</comment>
+    <comment type="line">// or return one of them.</comment>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>EOF</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The Unix directory separator character.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name></type> <name>DIR_SEPARATOR_UNIX</name> =<init> <expr>'/'</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The Windows directory separator character.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name></type> <name>DIR_SEPARATOR_WINDOWS</name> =<init> <expr>'\\'</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The system directory separator character.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name></type> <name>DIR_SEPARATOR</name> =<init> <expr><name><name>File</name>.<name>separatorChar</name></name></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The Unix line separator string.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LINE_SEPARATOR_UNIX</name> =<init> <expr>"\n"</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The Windows line separator string.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LINE_SEPARATOR_WINDOWS</name> =<init> <expr>"\r\n"</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The system line separator string.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LINE_SEPARATOR</name></decl>;</decl_stmt>
+    
+    static <block>{
+        <comment type="line">// avoid security issues</comment>
+        <decl_stmt><decl><type><name>StringBuilderWriter</name></type> <name>buf</name> =<init> <expr>new <call><name>StringBuilderWriter</name><argument_list>(<argument><expr>4</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>PrintWriter</name></type> <name>out</name> =<init> <expr>new <call><name>PrintWriter</name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <constructor_decl><name><name>out</name>.<name>println</name></name><parameter_list>()</parameter_list>;</constructor_decl>
+        <expr_stmt><expr><name>LINE_SEPARATOR</name> = <call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <constructor_decl><name><name>out</name>.<name>close</name></name><parameter_list>()</parameter_list>;</constructor_decl>
+    }</block>
+
+    <comment type="javadoc">/**
+     * The default buffer size ({@value}) to use for 
+     * {@link #copyLarge(InputStream, OutputStream)}
+     * and
+     * {@link #copyLarge(Reader, Writer)}
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_BUFFER_SIZE</name> =<init> <expr>1024 * 4</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The default buffer size to use for the skip() methods.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SKIP_BUFFER_SIZE</name> =<init> <expr>2048</expr></init></decl>;</decl_stmt>
+    
+    <comment type="line">// Allocated in the relevant skip method if necessary.</comment>
+    <comment type="block">/*
+     * N.B. no need to synchronize these because:
+     * - we don't care if the buffer is created multiple times (the data is ignored)
+     * - we always use the same size buffer, so if it it is recreated it will still be OK
+     * (if the buffer size were variable, we would need to synch. to ensure some other thread
+     * did not create a smaller one)
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>char</name><index>[]</index></type> <name>SKIP_CHAR_BUFFER</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>SKIP_BYTE_BUFFER</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Instances should NOT be constructed in standard programming.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>IOUtils</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Unconditionally close an &lt;code&gt;Reader&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link Reader#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   char[] data = new char[1024];
+     *   Reader in = null;
+     *   try {
+     *       in = new FileReader("foo.txt");
+     *       in.read(data);
+     *       in.close(); //close errors are handled
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(in);
+     *   }
+     * &lt;/pre&gt;
+     * 
+     * @param input  the Reader to close, may be null or already closed
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>closeQuietly</name><argument_list>(<argument><expr>(<name>Closeable</name>)<name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Unconditionally close a &lt;code&gt;Writer&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link Writer#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   Writer out = null;
+     *   try {
+     *       out = new StringWriter();
+     *       out.write("Hello World");
+     *       out.close(); //close errors are handled
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(out);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param output  the Writer to close, may be null or already closed
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>closeQuietly</name><argument_list>(<argument><expr>(<name>Closeable</name>)<name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Unconditionally close an &lt;code&gt;InputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link InputStream#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   byte[] data = new byte[1024];
+     *   InputStream in = null;
+     *   try {
+     *       in = new FileInputStream("foo.txt");
+     *       in.read(data);
+     *       in.close(); //close errors are handled
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(in);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param input  the InputStream to close, may be null or already closed
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>closeQuietly</name><argument_list>(<argument><expr>(<name>Closeable</name>)<name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Unconditionally close an &lt;code&gt;OutputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link OutputStream#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     * byte[] data = "Hello, World".getBytes();
+     *
+     * OutputStream out = null;
+     * try {
+     *     out = new FileOutputStream("foo.txt");
+     *     out.write(data);
+     *     out.close(); //close errors are handled
+     * } catch (IOException e) {
+     *     // error handling
+     * } finally {
+     *     IOUtils.closeQuietly(out);
+     * }
+     * &lt;/pre&gt;
+     *
+     * @param output  the OutputStream to close, may be null or already closed
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>closeQuietly</name><argument_list>(<argument><expr>(<name>Closeable</name>)<name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Unconditionally close a &lt;code&gt;Closeable&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link Closeable#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   Closeable closeable = null;
+     *   try {
+     *       closeable = new FileReader("foo.txt");
+     *       // process closeable
+     *       closeable.close();
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(closeable);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param closeable the object to close, may be null or already closed
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>Closeable</name></type> <name>closeable</name></decl></param>)</parameter_list> <block>{
+        <try>try <block>{
+            <if>if <condition>(<expr><name>closeable</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>closeable</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">// ignore</comment>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Unconditionally close a &lt;code&gt;Socket&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link Socket#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   Socket socket = null;
+     *   try {
+     *       socket = new Socket("http://www.foo.com/", 80);
+     *       // process socket
+     *       socket.close();
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(socket);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param sock the Socket to close, may be null or already closed
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>Socket</name></type> <name>sock</name></decl></param>)</parameter_list><block>{
+        <if>if <condition>(<expr><name>sock</name> != <name>null</name></expr>)</condition><then><block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name><name>sock</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+                <comment type="line">// ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Unconditionally close a &lt;code&gt;Selector&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link Selector#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   Selector selector = null;
+     *   try {
+     *       selector = Selector.open();
+     *       // process socket
+     *       
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(selector);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param selector the Selector to close, may be null or already closed
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>Selector</name></type> <name>selector</name></decl></param>)</parameter_list><block>{
+        <if>if <condition>(<expr><name>selector</name> != <name>null</name></expr>)</condition><then><block>{
+            <try>try <block>{
+              <expr_stmt><expr><call><name><name>selector</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+                <comment type="line">// ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Unconditionally close a &lt;code&gt;ServerSocket&lt;/code&gt;.
+     * &lt;p&gt;
+     * Equivalent to {@link ServerSocket#close()}, except any exceptions will be ignored.
+     * This is typically used in finally blocks.
+     * &lt;p&gt;
+     * Example code:
+     * &lt;pre&gt;
+     *   ServerSocket socket = null;
+     *   try {
+     *       socket = new ServerSocket();
+     *       // process socket
+     *       socket.close();
+     *   } catch (Exception e) {
+     *       // error handling
+     *   } finally {
+     *       IOUtils.closeQuietly(socket);
+     *   }
+     * &lt;/pre&gt;
+     *
+     * @param sock the ServerSocket to close, may be null or already closed
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>closeQuietly</name><parameter_list>(<param><decl><type><name>ServerSocket</name></type> <name>sock</name></decl></param>)</parameter_list><block>{
+        <if>if <condition>(<expr><name>sock</name> != <name>null</name></expr>)</condition><then><block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name><name>sock</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+                <comment type="line">// ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fetches entire contents of an &lt;code&gt;InputStream&lt;/code&gt; and represent
+     * same data as result InputStream.
+     * &lt;p&gt;
+     * This method is useful where,
+     * &lt;ul&gt;
+     * &lt;li&gt;Source InputStream is slow.&lt;/li&gt;
+     * &lt;li&gt;It has network resources associated, so we cannot keep it open for
+     * long time.&lt;/li&gt;
+     * &lt;li&gt;It has network timeout associated.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * It can be used in favor of {@link #toByteArray(InputStream)}, since it
+     * avoids unnecessary allocation and copy of byte[].&lt;br&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param input Stream to be fully buffered.
+     * @return A fully buffered stream.
+     * @throws IOException if an I/O error occurs
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>toBufferedInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name><name>ByteArrayOutputStream</name>.<name>toBufferedInputStream</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the given reader if it is a {@link BufferedReader}, otherwise creates a toBufferedReader for the given
+     * reader.
+     * 
+     * @param reader
+     *            the reader to wrap or return
+     * @return the given reader or a new {@link BufferedReader} for the given reader
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>BufferedReader</name></type> <name>toBufferedReader</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name>reader</name> <name>instanceof</name> <name>BufferedReader</name> ? (<name>BufferedReader</name>) <name>reader</name> : new <call><name>BufferedReader</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="line">// read toByteArray</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @return the requested byte array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>output</name> =<init> <expr>new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>output</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get contents of an &lt;code&gt;InputStream&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;.
+     * Use this method instead of &lt;code&gt;toByteArray(InputStream)&lt;/code&gt;
+     * when &lt;code&gt;InputStream&lt;/code&gt; size is known.
+     * &lt;b&gt;NOTE:&lt;/b&gt; the method checks that the length can safely be cast to an int without truncation
+     * before using {@link IOUtils#toByteArray(java.io.InputStream, int)} to read into the byte array.
+     * (Arrays can have no more than Integer.MAX_VALUE entries anyway)
+     * 
+     * @param input the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param size the size of &lt;code&gt;InputStream&lt;/code&gt;
+     * @return the requested byte array
+     * @throws IOException if an I/O error occurs or &lt;code&gt;InputStream&lt;/code&gt; size differ from parameter size
+     * @throws IllegalArgumentException if size is less than zero or size is greater than Integer.MAX_VALUE
+     * @see IOUtils#toByteArray(java.io.InputStream, int)
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>long</name></type> <name>size</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+      <if>if<condition>(<expr><name>size</name> &gt; <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>)</condition><then> <block>{
+          <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Size cannot be greater than Integer max value: " + <name>size</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+
+      <return>return <expr><call><name>toByteArray</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>(<name>int</name>) <name>size</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** 
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;.
+     * Use this method instead of &lt;code&gt;toByteArray(InputStream)&lt;/code&gt;
+     * when &lt;code&gt;InputStream&lt;/code&gt; size is known
+     * @param input the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param size the size of &lt;code&gt;InputStream&lt;/code&gt;
+     * @return the requested byte array
+     * @throws IOException if an I/O error occurs or &lt;code&gt;InputStream&lt;/code&gt; size differ from parameter size
+     * @throws IllegalArgumentException if size is less than zero
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>int</name></type> <name>size</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <if>if <condition>(<expr><name>size</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Size must be equal or greater than zero: " + <name>size</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>size</name> == 0</expr>)</condition><then> <block>{
+            <return>return <expr>new <name><name>byte</name><index>[<expr>0</expr>]</index></name></expr>;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>data</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>size</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>readed</name></decl>;</decl_stmt>
+
+        <while>while <condition>(<expr><name>offset</name> &lt; <name>size</name> &amp;&amp; (<name>readed</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>size</name> - <name>offset</name></expr></argument>)</argument_list></call>) != <name>EOF</name></expr>)</condition> <block>{
+            <expr_stmt><expr><name>offset</name> += <name>readed</name></expr>;</expr_stmt>
+        }</block></while>
+
+        <if>if <condition>(<expr><name>offset</name> != <name>size</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Unexpected readed size. current: " + <name>offset</name> + ", excepted: " + <name>size</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <return>return <expr><name>data</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;Reader&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;
+     * using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @return the requested byte array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>output</name> =<init> <expr>new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>output</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;Reader&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param encoding  the encoding to use, null means platform default
+     * @return the requested byte array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>output</name> =<init> <expr>new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>output</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;String&lt;/code&gt; as a &lt;code&gt;byte[]&lt;/code&gt;
+     * using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This is the same as {@link String#getBytes()}.
+     * 
+     * @param input  the &lt;code&gt;String&lt;/code&gt; to convert
+     * @return the requested byte array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs (never occurs)
+     * @deprecated Use {@link String#getBytes()}
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>String</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name><name>input</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// read char[]</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a character array
+     * using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param is  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @return the requested character array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>char</name><index>[]</index></type> <name>toCharArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>output</name> =<init> <expr>new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>output</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a character array
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param is  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param encoding  the encoding to use, null means platform default
+     * @return the requested character array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>char</name><index>[]</index></type> <name>toCharArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>is</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>output</name> =<init> <expr>new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>output</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;Reader&lt;/code&gt; as a character array.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @return the requested character array
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>char</name><index>[]</index></type> <name>toCharArray</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>sw</name> =<init> <expr>new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>sw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>sw</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// read toString</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a String
+     * using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @return the requested String
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a String
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param encoding  the encoding to use, null means platform default
+     * @return the requested String
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>StringBuilderWriter</name></type> <name>sw</name> =<init> <expr>new <call><name>StringBuilderWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>sw</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>sw</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;Reader&lt;/code&gt; as a String.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @return the requested String
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>StringBuilderWriter</name></type> <name>sw</name> =<init> <expr>new <call><name>StringBuilderWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>sw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>sw</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the contents at the given URI.
+     * 
+     * @param uri
+     *            The URI source.
+     * @return The contents of the URL as a String.
+     * @throws IOException if an I/O exception occurs.
+     * @since 2.1.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>URI</name></type> <name>uri</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><name>uri</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the contents at the given URI.
+     * 
+     * @param uri
+     *            The URI source.
+     * @param encoding
+     *            The encoding name for the URL contents.
+     * @return The contents of the URL as a String.
+     * @throws IOException if an I/O exception occurs.
+     * @since 2.1.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>URI</name></type> <name>uri</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><call><name><name>uri</name>.<name>toURL</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the contents at the given URL.
+     * 
+     * @param url
+     *            The URL source.
+     * @return The contents of the URL as a String.
+     * @throws IOException if an I/O exception occurs.
+     * @since 2.1.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>URL</name></type> <name>url</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><name>url</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the contents at the given URL.
+     * 
+     * @param url
+     *            The URL source.
+     * @param encoding
+     *            The encoding name for the URL contents.
+     * @return The contents of the URL as a String.
+     * @throws IOException if an I/O exception occurs.
+     * @since 2.1.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name>URL</name></type> <name>url</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>inputStream</name> =<init> <expr><call><name><name>url</name>.<name>openStream</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><name>inputStream</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>inputStream</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;byte[]&lt;/code&gt; as a String
+     * using the default character encoding of the platform.
+     * 
+     * @param input the byte array to read from
+     * @return the requested String
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs (never occurs)
+     * @deprecated Use {@link String#String(byte[])}
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr>new <call><name>String</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;byte[]&lt;/code&gt; as a String
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * 
+     * @param input the byte array to read from
+     * @param encoding  the encoding to use, null means platform default
+     * @return the requested String
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs (never occurs)
+     * @deprecated Use {@link String#String(byte[],String)}
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>new <call><name>String</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+            <return>return <expr>new <call><name>String</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// readLines</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a list of Strings,
+     * one entry per line, using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     *
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from, not null
+     * @return the list of Strings, never null
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>readLines</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>reader</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name>readLines</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of an &lt;code&gt;InputStream&lt;/code&gt; as a list of Strings,
+     * one entry per line, using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     *
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from, not null
+     * @param encoding  the encoding to use, null means platform default
+     * @return the list of Strings, never null
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>readLines</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>readLines</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>reader</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <return>return <expr><call><name>readLines</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the contents of a &lt;code&gt;Reader&lt;/code&gt; as a list of Strings,
+     * one entry per line.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from, not null
+     * @return the list of Strings, never null
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>readLines</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>BufferedReader</name></type> <name>reader</name> =<init> <expr><call><name>toBufferedReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>list</name> =<init> <expr>new <call><name><name>ArrayList</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>line</name> =<init> <expr><call><name><name>reader</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>line</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>line</name> = <call><name><name>reader</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>list</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// lineIterator</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Return an Iterator for the lines in a &lt;code&gt;Reader&lt;/code&gt;.
+     * &lt;p&gt;
+     * &lt;code&gt;LineIterator&lt;/code&gt; holds a reference to the open
+     * &lt;code&gt;Reader&lt;/code&gt; specified here. When you have finished with the
+     * iterator you should close the reader to free internal resources.
+     * This can be done by closing the reader directly, or by calling
+     * {@link LineIterator#close()} or {@link LineIterator#closeQuietly(LineIterator)}.
+     * &lt;p&gt;
+     * The recommended usage pattern is:
+     * &lt;pre&gt;
+     * try {
+     *   LineIterator it = IOUtils.lineIterator(reader);
+     *   while (it.hasNext()) {
+     *     String line = it.nextLine();
+     *     /// do something with line
+     *   }
+     * } finally {
+     *   IOUtils.closeQuietly(reader);
+     * }
+     * &lt;/pre&gt;
+     *
+     * @param reader  the &lt;code&gt;Reader&lt;/code&gt; to read from, not null
+     * @return an Iterator of the lines in the reader, never null
+     * @throws IllegalArgumentException if the reader is null
+     * @since 1.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>LineIterator</name></type> <name>lineIterator</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>LineIterator</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return an Iterator for the lines in an &lt;code&gt;InputStream&lt;/code&gt;, using
+     * the character encoding specified (or default encoding if null).
+     * &lt;p&gt;
+     * &lt;code&gt;LineIterator&lt;/code&gt; holds a reference to the open
+     * &lt;code&gt;InputStream&lt;/code&gt; specified here. When you have finished with
+     * the iterator you should close the stream to free internal resources.
+     * This can be done by closing the stream directly, or by calling
+     * {@link LineIterator#close()} or {@link LineIterator#closeQuietly(LineIterator)}.
+     * &lt;p&gt;
+     * The recommended usage pattern is:
+     * &lt;pre&gt;
+     * try {
+     *   LineIterator it = IOUtils.lineIterator(stream, "UTF-8");
+     *   while (it.hasNext()) {
+     *     String line = it.nextLine();
+     *     /// do something with line
+     *   }
+     * } finally {
+     *   IOUtils.closeQuietly(stream);
+     * }
+     * &lt;/pre&gt;
+     *
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from, not null
+     * @param encoding  the encoding to use, null means platform default
+     * @return an Iterator of the lines in the reader, never null
+     * @throws IllegalArgumentException if the input is null
+     * @throws IOException if an I/O error occurs, such as if the encoding is invalid
+     * @since 1.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>LineIterator</name></type> <name>lineIterator</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> 
+                     <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Reader</name></type> <name>reader</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>reader</name> = new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>reader</name> = new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <return>return <expr>new <call><name>LineIterator</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Convert the specified CharSequence to an input stream, encoded as bytes
+     * using the default character encoding of the platform.
+     *
+     * @param input the CharSequence to convert
+     * @return an input stream
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>toInputStream</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>toInputStream</name><argument_list>(<argument><expr><call><name><name>input</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convert the specified CharSequence to an input stream, encoded as bytes
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     *
+     * @param input the CharSequence to convert
+     * @param encoding the encoding to use, null means platform default
+     * @throws IOException if the encoding is invalid
+     * @return an input stream
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>toInputStream</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>toInputStream</name><argument_list>(<argument><expr><call><name><name>input</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Convert the specified string to an input stream, encoded as bytes
+     * using the default character encoding of the platform.
+     *
+     * @param input the string to convert
+     * @return an input stream
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>toInputStream</name><parameter_list>(<param><decl><type><name>String</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>input</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convert the specified string to an input stream, encoded as bytes
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     *
+     * @param input the string to convert
+     * @param encoding the encoding to use, null means platform default
+     * @throws IOException if the encoding is invalid
+     * @return an input stream
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>toInputStream</name><parameter_list>(<param><decl><type><name>String</name></type> <name>input</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><name>encoding</name> != <name>null</name> ? <call><name><name>input</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call> : <call><name><name>input</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// write byte[]</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes bytes from a &lt;code&gt;byte[]&lt;/code&gt; to an &lt;code&gt;OutputStream&lt;/code&gt;.
+     * 
+     * @param data  the byte array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes bytes from a &lt;code&gt;byte[]&lt;/code&gt; to chars on a &lt;code&gt;Writer&lt;/code&gt;
+     * using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method uses {@link String#String(byte[])}.
+     * 
+     * @param data  the byte array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes bytes from a &lt;code&gt;byte[]&lt;/code&gt; to chars on a &lt;code&gt;Writer&lt;/code&gt;
+     * using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#String(byte[], String)}.
+     * 
+     * @param data  the byte array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// write char[]</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;char[]&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;
+     * using the default character encoding of the platform.
+     * 
+     * @param data  the char array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;char[]&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#String(char[])} and
+     * {@link String#getBytes()}.
+     * 
+     * @param data  the char array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call>.<call><name>getBytes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;char[]&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#String(char[])} and
+     * {@link String#getBytes(String)}.
+     * 
+     * @param data  the char array to write, do not modify during output,
+     * null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call>.<call><name>getBytes</name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// write CharSequence</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;CharSequence&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * 
+     * @param data  the &lt;code&gt;CharSequence&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;CharSequence&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the default character encoding of the
+     * platform.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes()}.
+     * 
+     * @param data  the &lt;code&gt;CharSequence&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;CharSequence&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes(String)}.
+     * 
+     * @param data  the &lt;code&gt;CharSequence&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// write String</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;String&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * 
+     * @param data  the &lt;code&gt;String&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>String</name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;String&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the default character encoding of the
+     * platform.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes()}.
+     * 
+     * @param data  the &lt;code&gt;String&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>String</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;String&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes(String)}.
+     * 
+     * @param data  the &lt;code&gt;String&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>String</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// write StringBuffer</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;StringBuffer&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * 
+     * @param data  the &lt;code&gt;StringBuffer&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     * @deprecated replaced by write(CharSequence, Writer)
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>data</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;StringBuffer&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the default character encoding of the
+     * platform.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes()}.
+     * 
+     * @param data  the &lt;code&gt;StringBuffer&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     * @deprecated replaced by write(CharSequence, OutputStream)
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes chars from a &lt;code&gt;StringBuffer&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the specified character encoding.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link String#getBytes(String)}.
+     * 
+     * @param data  the &lt;code&gt;StringBuffer&lt;/code&gt; to write, null ignored
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     * @deprecated replaced by write(CharSequence, OutputStream, String)
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>data</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>data</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// writeLines</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes the &lt;code&gt;toString()&lt;/code&gt; value of each item in a collection to
+     * an &lt;code&gt;OutputStream&lt;/code&gt; line by line, using the default character
+     * encoding of the platform and the specified line ending.
+     *
+     * @param lines  the lines to write, null entries produce blank lines
+     * @param lineEnding  the line separator to use, null is system default
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to, not null, not closed
+     * @throws NullPointerException if the output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeLines</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>lines</name></decl></param>, <param><decl><type><name>String</name></type> <name>lineEnding</name></decl></param>,
+            <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>lines</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lineEnding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>lineEnding</name> = <name>LINE_SEPARATOR</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>Object</name></type> <name>line</name> :<range> <expr><name>lines</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>line</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>lineEnding</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the &lt;code&gt;toString()&lt;/code&gt; value of each item in a collection to
+     * an &lt;code&gt;OutputStream&lt;/code&gt; line by line, using the specified character
+     * encoding and the specified line ending.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     *
+     * @param lines  the lines to write, null entries produce blank lines
+     * @param lineEnding  the line separator to use, null is system default
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to, not null, not closed
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if the output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeLines</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>lines</name></decl></param>, <param><decl><type><name>String</name></type> <name>lineEnding</name></decl></param>,
+            <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeLines</name><argument_list>(<argument><expr><name>lines</name></expr></argument>, <argument><expr><name>lineEnding</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <if>if <condition>(<expr><name>lines</name> == <name>null</name></expr>)</condition><then> <block>{
+                <return>return;</return>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>lineEnding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>lineEnding</name> = <name>LINE_SEPARATOR</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <for>for (<init><decl><type><name>Object</name></type> <name>line</name> :<range> <expr><name>lines</name></expr></range></decl></init>) <block>{
+                <if>if <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>line</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>lineEnding</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the &lt;code&gt;toString()&lt;/code&gt; value of each item in a collection to
+     * a &lt;code&gt;Writer&lt;/code&gt; line by line, using the specified line ending.
+     *
+     * @param lines  the lines to write, null entries produce blank lines
+     * @param lineEnding  the line separator to use, null is system default
+     * @param writer  the &lt;code&gt;Writer&lt;/code&gt; to write to, not null, not closed
+     * @throws NullPointerException if the input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>writeLines</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>lines</name></decl></param>, <param><decl><type><name>String</name></type> <name>lineEnding</name></decl></param>,
+            <param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>lines</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lineEnding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>lineEnding</name> = <name>LINE_SEPARATOR</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>Object</name></type> <name>line</name> :<range> <expr><name>lines</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>writer</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>line</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>writer</name>.<name>write</name></name><argument_list>(<argument><expr><name>lineEnding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="line">// copy from InputStream</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Copy bytes from an &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * Large streams (over 2GB) will return a bytes copied value of
+     * &lt;code&gt;-1&lt;/code&gt; after the copy has completed since the correct
+     * number of bytes cannot be returned as an int. For large streams
+     * use the &lt;code&gt;copyLarge(InputStream, OutputStream)&lt;/code&gt; method.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @return the number of bytes copied, or -1 if &amp;gt; Integer.MAX_VALUE
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>count</name> =<init> <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>count</name> &gt; <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>-1</expr>;</return>
+        }</block></then></if>
+        <return>return <expr>(<name>int</name>) <name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy bytes from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * The buffer size is given by {@link #DEFAULT_BUFFER_SIZE}.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @return the number of bytes copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.3
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr>new <name><name>byte</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy bytes from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method uses the provided buffer, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param buffer the buffer to use for the copy
+     * @return the number of bytes copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>EOF</name> != (<name>n</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>count</name> += <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy some or all bytes from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, optionally skipping input bytes.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * The buffer size is given by {@link #DEFAULT_BUFFER_SIZE}.
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param inputOffset : number of bytes to skip from input before copying
+     *         -ve values are ignored
+     * @param length : number of bytes to copy. -ve means all
+     * @return the number of bytes copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>long</name></type> <name>inputOffset</name></decl></param>, <param><decl><type><name>long</name></type> <name>length</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>inputOffset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr>new <name><name>byte</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy some or all bytes from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, optionally skipping input bytes.
+     * &lt;p&gt;
+     * This method uses the provided buffer, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * 
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param inputOffset : number of bytes to skip from input before copying
+     *         -ve values are ignored
+     * @param length : number of bytes to copy. -ve means all
+     * @param buffer the buffer to use for the copy
+     *
+     * @return the number of bytes copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, 
+            <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>inputOffset</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>length</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list>  <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>inputOffset</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>skipFully</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>inputOffset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>length</name> == 0</expr>)</condition><then> <block>{
+            <return>return <expr>0</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>bufferLength</name> =<init> <expr><name><name>buffer</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>bytesToRead</name> =<init> <expr><name>bufferLength</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>length</name> &gt; 0 &amp;&amp; <name>length</name> &lt; <name>bufferLength</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>bytesToRead</name> = (<name>int</name>) <name>length</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>read</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>totalRead</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>bytesToRead</name> &gt; 0 &amp;&amp; <name>EOF</name> != (<name>read</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>bytesToRead</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>read</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>totalRead</name> += <name>read</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>length</name> &gt; 0</expr>)</condition><then> <block>{ <comment type="line">// only adjust length if not reading to the end</comment>
+                <comment type="line">// Note the cast must work because buffer.length is an integer</comment>
+                <expr_stmt><expr><name>bytesToRead</name> = (<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>length</name> - <name>totalRead</name></expr></argument>, <argument><expr><name>bufferLength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></while>
+        <return>return <expr><name>totalRead</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy bytes from an &lt;code&gt;InputStream&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt; using the default character encoding of the platform.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method uses {@link InputStreamReader}.
+     *
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>in</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy bytes from an &lt;code&gt;InputStream&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt; using the specified character encoding.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt;.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * This method uses {@link InputStreamReader}.
+     *
+     * @param input  the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>in</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// copy from Reader</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Copy chars from a &lt;code&gt;Reader&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * Large streams (over 2GB) will return a chars copied value of
+     * &lt;code&gt;-1&lt;/code&gt; after the copy has completed since the correct
+     * number of chars cannot be returned as an int. For large streams
+     * use the &lt;code&gt;copyLarge(Reader, Writer)&lt;/code&gt; method.
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @return the number of characters copied, or -1 if &amp;gt; Integer.MAX_VALUE
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>count</name> =<init> <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>count</name> &gt; <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>-1</expr>;</return>
+        }</block></then></if>
+        <return>return <expr>(<name>int</name>) <name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy chars from a large (over 2GB) &lt;code&gt;Reader&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * The buffer size is given by {@link #DEFAULT_BUFFER_SIZE}.
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @return the number of characters copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.3
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr>new <name><name>char</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy chars from a large (over 2GB) &lt;code&gt;Reader&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * &lt;p&gt;
+     * This method uses the provided buffer, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param buffer the buffer to be used for the copy
+     * @return the number of characters copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>, <param><decl><type><name><name>char</name> <index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>EOF</name> != (<name>n</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>count</name> += <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy some or all chars from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, optionally skipping input chars.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * The buffer size is given by {@link #DEFAULT_BUFFER_SIZE}.
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param inputOffset : number of chars to skip from input before copying
+     *         -ve values are ignored
+     * @param length : number of chars to copy. -ve means all
+     * @return the number of chars copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>inputOffset</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>length</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return  <expr><call><name>copyLarge</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>inputOffset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>, <argument><expr>new <name><name>char</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy some or all chars from a large (over 2GB) &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, optionally skipping input chars.
+     * &lt;p&gt;
+     * This method uses the provided buffer, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * 
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param inputOffset : number of chars to skip from input before copying
+     *         -ve values are ignored
+     * @param length : number of chars to copy. -ve means all
+     * @param buffer the buffer to be used for the copy
+     * @return the number of chars copied
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copyLarge</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>inputOffset</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>length</name></decl></param>, <param><decl><type><name><name>char</name> <index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>inputOffset</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>skipFully</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>inputOffset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>length</name> == 0</expr>)</condition><then> <block>{
+            <return>return <expr>0</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>bytesToRead</name> =<init> <expr><name><name>buffer</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>length</name> &gt; 0 &amp;&amp; <name>length</name> &lt; <name><name>buffer</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>bytesToRead</name> = (<name>int</name>) <name>length</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>read</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>totalRead</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>bytesToRead</name> &gt; 0 &amp;&amp; <name>EOF</name> != (<name>read</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>bytesToRead</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>read</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>totalRead</name> += <name>read</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>length</name> &gt; 0</expr>)</condition><then> <block>{ <comment type="line">// only adjust length if not reading to the end</comment>
+                <comment type="line">// Note the cast must work because buffer.length is an integer</comment>
+                <expr_stmt><expr><name>bytesToRead</name> = (<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>length</name> - <name>totalRead</name></expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></while>
+        <return>return <expr><name>totalRead</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy chars from a &lt;code&gt;Reader&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the default character encoding of the
+     * platform, and calling flush.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * Due to the implementation of OutputStreamWriter, this method performs a
+     * flush.
+     * &lt;p&gt;
+     * This method uses {@link OutputStreamWriter}.
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>OutputStreamWriter</name></type> <name>out</name> =<init> <expr>new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// XXX Unless anyone is planning on rewriting OutputStreamWriter, we</comment>
+        <comment type="line">// have to flush here.</comment>
+        <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy chars from a &lt;code&gt;Reader&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt; using the specified character encoding, and
+     * calling flush.
+     * &lt;p&gt;
+     * This method buffers the input internally, so there is no need to use a
+     * &lt;code&gt;BufferedReader&lt;/code&gt;.
+     * &lt;p&gt;
+     * Character encoding names can be found at
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA&lt;/a&gt;.
+     * &lt;p&gt;
+     * Due to the implementation of OutputStreamWriter, this method performs a
+     * flush.
+     * &lt;p&gt;
+     * This method uses {@link OutputStreamWriter}.
+     *
+     * @param input  the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output  the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if the input or output is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>OutputStreamWriter</name></type> <name>out</name> =<init> <expr>new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>output</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// XXX Unless anyone is planning on rewriting OutputStreamWriter,</comment>
+            <comment type="line">// we have to flush here.</comment>
+            <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// content equals</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Compare the contents of two Streams to determine if they are equal or
+     * not.
+     * &lt;p&gt;
+     * This method buffers the input internally using
+     * &lt;code&gt;BufferedInputStream&lt;/code&gt; if they are not already buffered.
+     *
+     * @param input1  the first stream
+     * @param input2  the second stream
+     * @return true if the content of the streams are equal or they both don't
+     * exist, false otherwise
+     * @throws NullPointerException if either input is null
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>contentEquals</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input1</name></decl></param>, <param><decl><type><name>InputStream</name></type> <name>input2</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr>!(<name>input1</name> <name>instanceof</name> <name>BufferedInputStream</name>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>input1</name> = new <call><name>BufferedInputStream</name><argument_list>(<argument><expr><name>input1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr>!(<name>input2</name> <name>instanceof</name> <name>BufferedInputStream</name>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>input2</name> = new <call><name>BufferedInputStream</name><argument_list>(<argument><expr><name>input2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>ch</name> =<init> <expr><call><name><name>input1</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>EOF</name> != <name>ch</name></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>ch2</name> =<init> <expr><call><name><name>input2</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>ch</name> != <name>ch2</name></expr>)</condition><then> <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+            <expr_stmt><expr><name>ch</name> = <call><name><name>input1</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>ch2</name> =<init> <expr><call><name><name>input2</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>ch2</name> == <name>EOF</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Compare the contents of two Readers to determine if they are equal or
+     * not.
+     * &lt;p&gt;
+     * This method buffers the input internally using
+     * &lt;code&gt;BufferedReader&lt;/code&gt; if they are not already buffered.
+     *
+     * @param input1  the first reader
+     * @param input2  the second reader
+     * @return true if the content of the readers are equal or they both don't
+     * exist, false otherwise
+     * @throws NullPointerException if either input is null
+     * @throws IOException if an I/O error occurs
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>contentEquals</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input1</name></decl></param>, <param><decl><type><name>Reader</name></type> <name>input2</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        
+        <expr_stmt><expr><name>input1</name> = <call><name>toBufferedReader</name><argument_list>(<argument><expr><name>input1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>input2</name> = <call><name>toBufferedReader</name><argument_list>(<argument><expr><name>input2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>ch</name> =<init> <expr><call><name><name>input1</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>EOF</name> != <name>ch</name></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>ch2</name> =<init> <expr><call><name><name>input2</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>ch</name> != <name>ch2</name></expr>)</condition><then> <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+            <expr_stmt><expr><name>ch</name> = <call><name><name>input1</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>ch2</name> =<init> <expr><call><name><name>input2</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>ch2</name> == <name>EOF</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Compare the contents of two Readers to determine if they are equal or
+     * not, ignoring EOL characters.
+     * &lt;p&gt;
+     * This method buffers the input internally using
+     * &lt;code&gt;BufferedReader&lt;/code&gt; if they are not already buffered.
+     *
+     * @param input1  the first reader
+     * @param input2  the second reader
+     * @return true if the content of the readers are equal (ignoring EOL differences),  false otherwise
+     * @throws NullPointerException if either input is null
+     * @throws IOException if an I/O error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>contentEqualsIgnoreEOL</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input1</name></decl></param>, <param><decl><type><name>Reader</name></type> <name>input2</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>BufferedReader</name></type> <name>br1</name> =<init> <expr><call><name>toBufferedReader</name><argument_list>(<argument><expr><name>input1</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BufferedReader</name></type> <name>br2</name> =<init> <expr><call><name>toBufferedReader</name><argument_list>(<argument><expr><name>input2</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>line1</name> =<init> <expr><call><name><name>br1</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>line2</name> =<init> <expr><call><name><name>br2</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>line1</name> != <name>null</name> &amp;&amp; <name>line2</name> != <name>null</name> &amp;&amp; <call><name><name>line1</name>.<name>equals</name></name><argument_list>(<argument><expr><name>line2</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><name>line1</name> = <call><name><name>br1</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>line2</name> = <call><name><name>br2</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>line1</name> == <name>null</name> ? <name>line2</name> == <name>null</name> ? true : false : <call><name><name>line1</name>.<name>equals</name></name><argument_list>(<argument><expr><name>line2</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Skip bytes from an input byte stream.
+     * This implementation guarantees that it will read as many bytes
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link Reader}.
+     *   
+     * @param input byte stream to skip
+     * @param toSkip number of bytes to skip.
+     * @return number of bytes actually skipped.
+     * 
+     * @see InputStream#skip(long)
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if toSkip is negative
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>skip</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>long</name></type> <name>toSkip</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>toSkip</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Skip count must be non-negative, actual: " + <name>toSkip</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="block">/*
+         * N.B. no need to synchronize this because: - we don't care if the buffer is created multiple times (the data
+         * is ignored) - we always use the same size buffer, so if it it is recreated it will still be OK (if the buffer
+         * size were variable, we would need to synch. to ensure some other thread did not create a smaller one)
+         */</comment>
+        <if>if <condition>(<expr><name>SKIP_BYTE_BUFFER</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>SKIP_BYTE_BUFFER</name> = new <name><name>byte</name><index>[<expr><name>SKIP_BUFFER_SIZE</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>long</name></type> <name>remain</name> =<init> <expr><name>toSkip</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>remain</name> &gt; 0</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>long</name></type> <name>n</name> =<init> <expr><call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>SKIP_BYTE_BUFFER</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>(<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>remain</name></expr></argument>, <argument><expr><name>SKIP_BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>n</name> &lt; 0</expr>)</condition><then> <block>{ <comment type="line">// EOF</comment>
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>remain</name> -= <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>toSkip</name> - <name>remain</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Skip characters from an input character stream.
+     * This implementation guarantees that it will read as many characters
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link Reader}.
+     *   
+     * @param input character stream to skip
+     * @param toSkip number of characters to skip.
+     * @return number of characters actually skipped.
+     * 
+     * @see Reader#skip(long)
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if toSkip is negative
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>skip</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>long</name></type> <name>toSkip</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>toSkip</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Skip count must be non-negative, actual: " + <name>toSkip</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <comment type="block">/*
+         * N.B. no need to synchronize this because: - we don't care if the buffer is created multiple times (the data
+         * is ignored) - we always use the same size buffer, so if it it is recreated it will still be OK (if the buffer
+         * size were variable, we would need to synch. to ensure some other thread did not create a smaller one)
+         */</comment>
+        <if>if <condition>(<expr><name>SKIP_CHAR_BUFFER</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>SKIP_CHAR_BUFFER</name> = new <name><name>char</name><index>[<expr><name>SKIP_BUFFER_SIZE</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>long</name></type> <name>remain</name> =<init> <expr><name>toSkip</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>remain</name> &gt; 0</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>long</name></type> <name>n</name> =<init> <expr><call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>SKIP_CHAR_BUFFER</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>(<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>remain</name></expr></argument>, <argument><expr><name>SKIP_BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>n</name> &lt; 0</expr>)</condition><then> <block>{ <comment type="line">// EOF</comment>
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>remain</name> -= <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>toSkip</name> - <name>remain</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Skip the requested number of bytes or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link InputStream#skip(long)} may
+     * not skip as many bytes as requested (most likely because of reaching EOF).
+     * 
+     * @param input stream to skip
+     * @param toSkip the number of bytes to skip
+     * @see InputStream#skip(long)
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if toSkip is negative
+     * @throws EOFException if the number of bytes skipped was incorrect 
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>skipFully</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name>long</name></type> <name>toSkip</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>toSkip</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Bytes to skip must not be negative: " + <name>toSkip</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>long</name></type> <name>skipped</name> =<init> <expr><call><name>skip</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>toSkip</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>skipped</name> != <name>toSkip</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"Bytes to skip: " + <name>toSkip</name> + " actual: " + <name>skipped</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Skip the requested number of characters or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link Reader#skip(long)} may
+     * not skip as many characters as requested (most likely because of reaching EOF).
+     * 
+     * @param input stream to skip
+     * @param toSkip the number of characters to skip
+     * @see Reader#skip(long)
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if toSkip is negative
+     * @throws EOFException if the number of characters skipped was incorrect
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>skipFully</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name>long</name></type> <name>toSkip</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>skipped</name> =<init> <expr><call><name>skip</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>toSkip</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>skipped</name> != <name>toSkip</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"Chars to skip: " + <name>toSkip</name> + " actual: " + <name>skipped</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+    
+
+    <comment type="javadoc">/**
+     * Read characters from an input character stream.
+     * This implementation guarantees that it will read as many characters
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link Reader}.
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @param offset inital offset into buffer
+     * @param length length to read, must be &gt;= 0
+     * @return actual length read; may be less than requested if EOF was reached
+     * @throws IOException if a read error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>length</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Length must not be negative: " + <name>length</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>remaining</name> =<init> <expr><name>length</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>remaining</name> &gt; 0</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>location</name> =<init> <expr><name>length</name> - <name>remaining</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr><call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name> + <name>location</name></expr></argument>, <argument><expr><name>remaining</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>EOF</name> == <name>count</name></expr>)</condition><then> <block>{ <comment type="line">// EOF</comment>
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>remaining</name> -= <name>count</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>length</name> - <name>remaining</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read characters from an input character stream.
+     * This implementation guarantees that it will read as many characters
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link Reader}.
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @return actual length read; may be less than requested if EOF was reached
+     * @throws IOException if a read error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>read</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read bytes from an input stream.
+     * This implementation guarantees that it will read as many bytes
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link InputStream}.
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @param offset inital offset into buffer
+     * @param length length to read, must be &gt;= 0
+     * @return actual length read; may be less than requested if EOF was reached
+     * @throws IOException if a read error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>length</name> &lt; 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Length must not be negative: " + <name>length</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>remaining</name> =<init> <expr><name>length</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>remaining</name> &gt; 0</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>location</name> =<init> <expr><name>length</name> - <name>remaining</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr><call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name> + <name>location</name></expr></argument>, <argument><expr><name>remaining</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>EOF</name> == <name>count</name></expr>)</condition><then> <block>{ <comment type="line">// EOF</comment>
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>remaining</name> -= <name>count</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>length</name> - <name>remaining</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Read bytes from an input stream.
+     * This implementation guarantees that it will read as many bytes
+     * as possible before giving up; this may not always be the case for
+     * subclasses of {@link InputStream}.
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @return actual length read; may be less than requested if EOF was reached
+     * @throws IOException if a read error occurs
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>read</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the requested number of characters or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link Reader#read(char[], int, int)} may
+     * not read as many characters as requested (most likely because of reaching EOF).
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @param offset inital offset into buffer
+     * @param length length to read, must be &gt;= 0
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if length is negative
+     * @throws EOFException if the number of characters read was incorrect
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>actual</name> =<init> <expr><call><name>read</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>actual</name> != <name>length</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"Length to read: " + <name>length</name> + " actual: " + <name>actual</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the requested number of characters or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link Reader#read(char[], int, int)} may
+     * not read as many characters as requested (most likely because of reaching EOF).
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if length is negative
+     * @throws EOFException if the number of characters read was incorrect
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>readFully</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the requested number of bytes or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link InputStream#read(byte[], int, int)} may
+     * not read as many bytes as requested (most likely because of reaching EOF).
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * @param offset inital offset into buffer
+     * @param length length to read, must be &gt;= 0
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if length is negative
+     * @throws EOFException if the number of bytes read was incorrect
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>actual</name> =<init> <expr><call><name>read</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>actual</name> != <name>length</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"Length to read: " + <name>length</name> + " actual: " + <name>actual</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the requested number of bytes or fail if there are not enough left.
+     * &lt;p&gt;
+     * This allows for the possibility that {@link InputStream#read(byte[], int, int)} may
+     * not read as many bytes as requested (most likely because of reaching EOF).
+     * 
+     * @param input where to read input from
+     * @param buffer destination
+     * 
+     * @throws IOException if there is a problem reading the file
+     * @throws IllegalArgumentException if length is negative
+     * @throws EOFException if the number of bytes read was incorrect
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buffer</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>readFully</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+}</block></class>
+</unit>

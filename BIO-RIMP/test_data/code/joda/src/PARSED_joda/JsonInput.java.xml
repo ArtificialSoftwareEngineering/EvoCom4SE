@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\joda\src\main\java\org\joda\beans\ser\json\JsonInput.java"><comment type="block">/*
+ *  Copyright 2001-2014 Stephen Colebourne
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>json</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Reader of JSON data.
+ */</comment>
+<class><specifier>final</specifier> class <name>JsonInput</name> <block>{
+
+    <comment type="javadoc">/** encoding JSON */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name><index>[]</index></type> <name>REPLACE</name> =<init> <expr>new <name><name>String</name><index>[<expr>128</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    static <block>{
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 32</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>REPLACE</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>String</name>.<name>format</name></name><argument_list>(<argument><expr>"\\u%04x"</expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\b'</expr>]</index></name> = "\\b"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\t'</expr>]</index></name> = "\\t"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\n'</expr>]</index></name> = "\\n"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\f'</expr>]</index></name> = "\\f"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\r'</expr>]</index></name> = "\\r"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'"'</expr>]</index></name> = "\\\""</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>'\\'</expr>]</index></name> = "\\\\"</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>REPLACE</name><index>[<expr>127</expr>]</index></name> = "\\u007f"</expr>;</expr_stmt>
+    }</block>
+
+    <comment type="javadoc">/**
+     * The reader.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Reader</name></type> <name>input</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The reused string buffer.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>StringBuilder</name></type> <name>buf</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>32</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The last parsed integral number.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>integral</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The last parsed floating number.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>floating</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The previously read character.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Character</name></type> <name>cachedNext</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The previously read object key.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>cachedObjectKey</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates an instance that parses JSON.
+     * 
+     * @param input  the input to read from, not null
+     */</comment>
+    <constructor><name>JsonInput</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>input</name></name> = <name>input</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes a JSON null.
+     * 
+     * @throws IOException if an error occurs
+     */</comment>
+    <function><type><name>JsonEvent</name></type> <name>readEvent</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="line">// whitespace</comment>
+        <while>while <condition>(<expr><name>next</name> == ' ' || <name>next</name> == '\t' || <name>next</name> == '\n' || <name>next</name> == '\r'</expr>)</condition> <block>{
+            <expr_stmt><expr><name>next</name> = <call><name>readNext</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <comment type="line">// identify token</comment>
+        <switch>switch <condition>(<expr><name>next</name></expr>)</condition> <block>{
+            <case>case <expr>'{'</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>OBJECT</name></name></expr>;</return>
+            </case><case>case <expr>'}'</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>OBJECT_END</name></name></expr>;</return>
+            </case><case>case <expr>'['</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>ARRAY</name></name></expr>;</return>
+            </case><case>case <expr>']'</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>ARRAY_END</name></name></expr>;</return>
+            </case><case>case <expr>'"'</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>STRING</name></name></expr>;</return>
+            </case><case>case <expr>'-'</expr>:
+            </case><case>case <expr>'0'</expr>:
+            </case><case>case <expr>'1'</expr>:
+            </case><case>case <expr>'2'</expr>:
+            </case><case>case <expr>'3'</expr>:
+            </case><case>case <expr>'4'</expr>:
+            </case><case>case <expr>'5'</expr>:
+            </case><case>case <expr>'6'</expr>:
+            </case><case>case <expr>'7'</expr>:
+            </case><case>case <expr>'8'</expr>:
+            </case><case>case <expr>'9'</expr>:
+                <return>return <expr><call><name>acceptNumber</name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</return>
+            </case><case>case <expr>'n'</expr>:
+                <return>return <expr><call><name>acceptNull</name><argument_list>()</argument_list></call></expr>;</return>
+            </case><case>case <expr>'t'</expr>:
+                <return>return <expr><call><name>acceptTrue</name><argument_list>()</argument_list></call></expr>;</return>
+            </case><case>case <expr>'f'</expr>:
+                <return>return <expr><call><name>acceptFalse</name><argument_list>()</argument_list></call></expr>;</return>
+            </case><case>case <expr>','</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>COMMA</name></name></expr>;</return>
+            </case><case>case <expr>':'</expr>:
+                <return>return <expr><name><name>JsonEvent</name>.<name>COLON</name></name></expr>;</return>
+            </case><default>default:
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected JSON character but found '" + <name>next</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+        </default>}</block></switch>
+    }</block></function>
+
+    <comment type="line">// store peeked value for later use</comment>
+    <function><type><name>void</name></type> <name>pushBack</name><parameter_list>(<param><decl><type><name>char</name></type> <name>ch</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>cachedNext</name> = <name>ch</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// store peeked value for later use</comment>
+    <function><type><name>void</name></type> <name>pushBackObjectKey</name><parameter_list>(<param><decl><type><name>String</name></type> <name>objectKey</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>cachedObjectKey</name> = <name>objectKey</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><name>JsonEvent</name></type> <name>ensureEvent</name><parameter_list>(<param><decl><type><name>JsonEvent</name></type> <name>event</name></decl></param>, <param><decl><type><name>JsonEvent</name></type> <name>expected</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>event</name> != <name>expected</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected " + <name>expected</name> + " but found " + <name>event</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr><name>event</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>JsonEvent</name></type> <name>acceptEvent</name><parameter_list>(<param><decl><type><name>JsonEvent</name></type> <name>expected</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>ensureEvent</name><argument_list>(<argument><expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>expected</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="line">// expect object key and parse it</comment>
+    <function><type><name>String</name></type> <name>acceptObjectKey</name><parameter_list>(<param><decl><type><name>JsonEvent</name></type> <name>event</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>ensureEvent</name><argument_list>(<argument><expr><name>event</name></expr></argument>, <argument><expr><name><name>JsonEvent</name>.<name>STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name>parseObjectKey</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// opening quite already consumed</comment>
+    <function><type><name>String</name></type> <name>parseObjectKey</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>cachedObjectKey</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>key</name> =<init> <expr><name>cachedObjectKey</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>cachedObjectKey</name> = <name>null</name></expr>;</expr_stmt>
+            <return>return <expr><name>key</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>String</name></type> <name>str</name> =<init> <expr><call><name>parseString</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>acceptEvent</name><argument_list>(<argument><expr><name><name>JsonEvent</name>.<name>COLON</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>str</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="line">// expect string and parse it</comment>
+    <function><type><name>String</name></type> <name>acceptString</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>acceptEvent</name><argument_list>(<argument><expr><name><name>JsonEvent</name>.<name>STRING</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name>parseString</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// opening quite already consumed</comment>
+    <function><type><name>String</name></type> <name>parseString</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>buf</name>.<name>setLength</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>next</name> != '"'</expr>)</condition> <block>{
+            <if>if <condition>(<expr><name>next</name> == '\\'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>parseEscape</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <expr_stmt><expr><name>next</name> = <call><name>readNext</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>parseEscape</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <switch>switch <condition>(<expr><name>next</name></expr>)</condition> <block>{
+            <case>case <expr>'"'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'"'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'/'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'/'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'\\'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'b'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\b'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'f'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\f'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'n'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\n'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'r'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\r'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'t'</expr>:
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\t'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><case>case <expr>'u'</expr>:
+                <decl_stmt><decl><type><name>int</name></type> <name>total</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 4</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <expr_stmt><expr><name>total</name> = <name>total</name> * 16 + <call><name>acceptHex</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>total</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <return>return;</return>
+            </case><default>default:
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected valid escape sequence but found '\\" + <name>next</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+        </default>}</block></switch>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>acceptHex</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>next</name> &gt;= '0' &amp;&amp; <name>next</name> &lt;= '9'</expr>)</condition><then> <block>{
+            <return>return <expr><name>next</name> - 48</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>next</name> &gt;= 'a' &amp;&amp; <name>next</name> &lt;= 'f'</expr>)</condition><then> <block>{
+            <return>return <expr><name>next</name> - 97 + 10</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>next</name> &gt;= 'A' &amp;&amp; <name>next</name> &lt;= 'F'</expr>)</condition><then> <block>{
+            <return>return <expr><name>next</name> - 65 + 10</expr>;</return>
+        }</block></then></if>
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected hex but found '" + <name>next</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="line">// number already parsed</comment>
+    <function><type><name>long</name></type> <name>parseNumberIntegral</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>integral</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// number already parsed</comment>
+    <function><type><name>double</name></type> <name>parseNumberFloating</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>floating</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>JsonEvent</name></type> <name>acceptNumber</name><parameter_list>(<param><decl><type><name>char</name></type> <name>first</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>buf</name>.<name>setLength</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>first</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>last</name> =<init> <expr><name>first</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr>(<name>next</name> &gt;= '0' &amp;&amp; <name>next</name> &lt;= '9') || <name>next</name> == '.' || <name>next</name> == '-' || <name>next</name> == '+' || <name>next</name> == 'e' || <name>next</name> == 'E'</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>last</name> = <name>next</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>next</name> = <call><name>readNext</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <expr_stmt><expr><call><name>pushBack</name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>last</name> &lt; '0' || <name>last</name> &gt; '9'</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected number but found invalid last char '" + <name>last</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>String</name></type> <name>str</name> =<init> <expr><call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>str</name>.<name>equals</name></name><argument_list>(<argument><expr>"0"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>integral</name> = 0</expr>;</expr_stmt>
+            <return>return <expr><name><name>JsonEvent</name>.<name>NUMBER_INTEGRAL</name></name></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>str</name>.<name>startsWith</name></name><argument_list>(<argument><expr>"0"</expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call> != '.'</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected number but found zero at start"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>str</name>.<name>contains</name></name><argument_list>(<argument><expr>"."</expr></argument>)</argument_list></call> || <call><name><name>str</name>.<name>contains</name></name><argument_list>(<argument><expr>"e"</expr></argument>)</argument_list></call> || <call><name><name>str</name>.<name>contains</name></name><argument_list>(<argument><expr>"E"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>floating</name> = <call><name><name>Double</name>.<name>parseDouble</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name><name>JsonEvent</name>.<name>NUMBER_FLOATING</name></name></expr>;</return>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>integral</name> = <call><name><name>Long</name>.<name>parseLong</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name><name>JsonEvent</name>.<name>NUMBER_INTEGRAL</name></name></expr>;</return>
+        }</block></else></if></else></if></else></if>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <function><type><specifier>private</specifier> <name>JsonEvent</name></type> <name>acceptNull</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'u'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'l'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'l'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name><name>JsonEvent</name>.<name>NULL</name></name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>JsonEvent</name></type> <name>acceptTrue</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'r'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'u'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'e'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name><name>JsonEvent</name>.<name>TRUE</name></name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>JsonEvent</name></type> <name>acceptFalse</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'a'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'l'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'s'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>acceptChar</name><argument_list>(<argument><expr>'e'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name><name>JsonEvent</name>.<name>FALSE</name></name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>acceptChar</name><parameter_list>(<param><decl><type><name>char</name></type> <name>ch</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name>readNext</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>next</name> != <name>ch</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected '" + <name>ch</name> + "' but found '" + <name>next</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <function><type><specifier>private</specifier> <name>char</name></type> <name>readNext</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>cachedNext</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>char</name></type> <name>next</name> =<init> <expr><call><name><name>cachedNext</name>.<name>charValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>cachedNext</name> = <name>null</name></expr>;</expr_stmt>
+            <return>return <expr><name>next</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>next</name> =<init> <expr><call><name><name>input</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>next</name> == -1</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: End of file"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr>(<name>char</name>) <name>next</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>skipData</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>skipData</name><argument_list>(<argument><expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>skipData</name><parameter_list>(<param><decl><type><name>JsonEvent</name></type> <name>event</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <switch>switch <condition>(<expr><name>event</name></expr>)</condition> <block>{
+            <case>case <expr><name>OBJECT</name></expr>:
+                <expr_stmt><expr><name>event</name> = <call><name>readEvent</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <while>while <condition>(<expr><name>event</name> != <name><name>JsonEvent</name>.<name>OBJECT_END</name></name></expr>)</condition> <block>{
+                    <expr_stmt><expr><call><name>acceptObjectKey</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>skipData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>event</name> = <call><name>acceptObjectSeparator</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></while>
+                <break>break;</break>
+            </case><case>case <expr><name>ARRAY</name></expr>:
+                <expr_stmt><expr><name>event</name> = <call><name>readEvent</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <while>while <condition>(<expr><name>event</name> != <name><name>JsonEvent</name>.<name>ARRAY_END</name></name></expr>)</condition> <block>{
+                    <expr_stmt><expr><call><name>skipData</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>event</name> = <call><name>acceptArraySeparator</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></while>
+                <break>break;</break>
+            </case><case>case <expr><name>STRING</name></expr>:
+                <expr_stmt><expr><call><name>parseString</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>NULL</name></expr>:
+            </case><case>case <expr><name>TRUE</name></expr>:
+            </case><case>case <expr><name>FALSE</name></expr>:
+            </case><case>case <expr><name>NUMBER_FLOATING</name></expr>:
+            </case><case>case <expr><name>NUMBER_INTEGRAL</name></expr>:
+                <break>break;</break>
+            </case><default>default:
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid JSON data: Expected data item but found " + <name>event</name></expr></argument>)</argument_list></call></expr>;</throw>
+        </default>}</block></switch>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="line">// accepts a comma or object end</comment>
+    <function><type><name>JsonEvent</name></type> <name>acceptObjectSeparator</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>JsonEvent</name></type> <name>event</name> =<init> <expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>event</name> == <name><name>JsonEvent</name>.<name>COMMA</name></name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr>;</return>  <comment type="line">// leniently allow comma before objectEnd</comment>
+        }</block></then> <else>else <block>{
+            <return>return <expr><call><name>ensureEvent</name><argument_list>(<argument><expr><name>event</name></expr></argument>, <argument><expr><name><name>JsonEvent</name>.<name>OBJECT_END</name></name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// accepts a comma or array end</comment>
+    <function><type><name>JsonEvent</name></type> <name>acceptArraySeparator</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>JsonEvent</name></type> <name>event</name> =<init> <expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>event</name> == <name><name>JsonEvent</name>.<name>COMMA</name></name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>readEvent</name><argument_list>()</argument_list></call></expr>;</return>  <comment type="line">// leniently allow comma before arrayEnd</comment>
+        }</block></then> <else>else <block>{
+            <return>return <expr><call><name>ensureEvent</name><argument_list>(<argument><expr><name>event</name></expr></argument>, <argument><expr><name><name>JsonEvent</name>.<name>ARRAY_END</name></name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+}</block></class>
+</unit>

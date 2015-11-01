@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\escape\UnicodeEscaper.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>escape</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+
+<comment type="javadoc">/**
+ * An {@link Escaper} that converts literal text into a format safe for
+ * inclusion in a particular context (such as an XML document). Typically (but
+ * not always), the inverse process of "unescaping" the text is performed
+ * automatically by the relevant parser.
+ *
+ * &lt;p&gt;For example, an XML escaper would convert the literal string {@code
+ * "Foo&lt;Bar&gt;"} into {@code "Foo&amp;lt;Bar&amp;gt;"} to prevent {@code "&lt;Bar&gt;"} from
+ * being confused with an XML tag. When the resulting XML document is parsed,
+ * the parser API will return this text as the original literal string {@code
+ * "Foo&lt;Bar&gt;"}.
+ *
+ * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This class is similar to {@link CharEscaper} but with one
+ * very important difference. A CharEscaper can only process Java
+ * &lt;a href="http://en.wikipedia.org/wiki/UTF-16"&gt;UTF16&lt;/a&gt; characters in
+ * isolation and may not cope when it encounters surrogate pairs. This class
+ * facilitates the correct escaping of all Unicode characters.
+ *
+ * &lt;p&gt;As there are important reasons, including potential security issues, to
+ * handle Unicode correctly if you are considering implementing a new escaper
+ * you should favor using UnicodeEscaper wherever possible.
+ *
+ * &lt;p&gt;A {@code UnicodeEscaper} instance is required to be stateless, and safe
+ * when used concurrently by multiple threads.
+ *
+ * &lt;p&gt;Popular escapers are defined as constants in classes like {@link
+ * com.google.common.html.HtmlEscapers} and {@link com.google.common.xml.XmlEscapers}.
+ * To create your own escapers extend this class and implement the {@link #escape(int)}
+ * method.
+ *
+ * @author David Beaumont
+ * @since 15.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>GwtCompatible</name></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name>UnicodeEscaper</name> <super><extends>extends <name>Escaper</name></extends></super> <block>{
+  <comment type="javadoc">/** The amount of padding (chars) to use when growing the escape buffer. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEST_PAD</name> =<init> <expr>32</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Constructor for use by subclasses. */</comment>
+  <constructor><specifier>protected</specifier> <name>UnicodeEscaper</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Returns the escaped form of the given Unicode code point, or {@code null}
+   * if this code point does not need to be escaped. When called as part of an
+   * escaping operation, the given code point is guaranteed to be in the range
+   * {@code 0 &lt;= cp &lt;= Character#MAX_CODE_POINT}.
+   *
+   * &lt;p&gt;If an empty array is returned, this effectively strips the input
+   * character from the resulting text.
+   *
+   * &lt;p&gt;If the character does not need to be escaped, this method should return
+   * {@code null}, rather than an array containing the character representation
+   * of the code point. This enables the escaping algorithm to perform more
+   * efficiently.
+   *
+   * &lt;p&gt;If the implementation of this method cannot correctly handle a
+   * particular code point then it should either throw an appropriate runtime
+   * exception or return a suitable replacement character. It must never
+   * silently discard invalid input as this may constitute a security risk.
+   *
+   * @param cp the Unicode code point to escape if necessary
+   * @return the replacement characters, or {@code null} if no escaping was
+   *     needed
+   */</comment>
+  <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>char</name><index>[]</index></type> <name>escape</name><parameter_list>(<param><decl><type><name>int</name></type> <name>cp</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Scans a sub-sequence of characters from a given {@link CharSequence},
+   * returning the index of the next character that requires escaping.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; When implementing an escaper, it is a good idea to override
+   * this method for efficiency. The base class implementation determines
+   * successive Unicode code points and invokes {@link #escape(int)} for each of
+   * them. If the semantics of your escaper are such that code points in the
+   * supplementary range are either all escaped or all unescaped, this method
+   * can be implemented more efficiently using {@link CharSequence#charAt(int)}.
+   *
+   * &lt;p&gt;Note however that if your escaper does not escape characters in the
+   * supplementary range, you should either continue to validate the correctness
+   * of any surrogate characters encountered or provide a clear warning to users
+   * that your escaper does not validate its input.
+   *
+   * &lt;p&gt;See {@link com.google.common.net.PercentEscaper} for an example.
+   *
+   * @param csq a sequence of characters
+   * @param start the index of the first character to be scanned
+   * @param end the index immediately after the last character to be scanned
+   * @throws IllegalArgumentException if the scanned sub-sequence of {@code csq}
+   *     contains invalid surrogate pairs
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>int</name></type> <name>nextEscapeIndex</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>csq</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>, <param><decl><type><name>int</name></type> <name>end</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><name>start</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>index</name> &lt; <name>end</name></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>cp</name> =<init> <expr><call><name>codePointAt</name><argument_list>(<argument><expr><name>csq</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>cp</name> &lt; 0 || <call><name>escape</name><argument_list>(<argument><expr><name>cp</name></expr></argument>)</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+        <break>break;</break>
+      }</block></then></if>
+      <expr_stmt><expr><name>index</name> += <call><name><name>Character</name>.<name>isSupplementaryCodePoint</name></name><argument_list>(<argument><expr><name>cp</name></expr></argument>)</argument_list></call> ? 2 : 1</expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><name>index</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the escaped form of a given literal string.
+   *
+   * &lt;p&gt;If you are escaping input in arbitrary successive chunks, then it is not
+   * generally safe to use this method. If an input string ends with an
+   * unmatched high surrogate character, then this method will throw
+   * {@link IllegalArgumentException}. You should ensure your input is valid &lt;a
+   * href="http://en.wikipedia.org/wiki/UTF-16"&gt;UTF-16&lt;/a&gt; before calling this
+   * method.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; When implementing an escaper it is a good idea to override
+   * this method for efficiency by inlining the implementation of
+   * {@link #nextEscapeIndex(CharSequence, int, int)} directly. Doing this for
+   * {@link com.google.common.net.PercentEscaper} more than doubled the
+   * performance for unescaped strings (as measured by {@link
+   * CharEscapersBenchmark}).
+   *
+   * @param string the literal string to be escaped
+   * @return the escaped form of {@code string}
+   * @throws NullPointerException if {@code string} is null
+   * @throws IllegalArgumentException if invalid surrogate characters are
+   *         encountered
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>String</name></type> <name>escape</name><parameter_list>(<param><decl><type><name>String</name></type> <name>string</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>string</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>end</name> =<init> <expr><call><name><name>string</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><call><name>nextEscapeIndex</name><argument_list>(<argument><expr><name>string</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>index</name> == <name>end</name> ? <name>string</name> : <call><name>escapeSlow</name><argument_list>(<argument><expr><name>string</name></expr></argument>, <argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the escaped form of a given literal string, starting at the given
+   * index.  This method is called by the {@link #escape(String)} method when it
+   * discovers that escaping is required.  It is protected to allow subclasses
+   * to override the fastpath escaping function to inline their escaping test.
+   * See {@link CharEscaperBuilder} for an example usage.
+   *
+   * &lt;p&gt;This method is not reentrant and may only be invoked by the top level
+   * {@link #escape(String)} method.
+   *
+   * @param s the literal string to be escaped
+   * @param index the index to start escaping from
+   * @return the escaped form of {@code string}
+   * @throws NullPointerException if {@code string} is null
+   * @throws IllegalArgumentException if invalid surrogate characters are
+   *         encountered
+   */</comment>
+  <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>String</name></type> <name>escapeSlow</name><parameter_list>(<param><decl><type><name>String</name></type> <name>s</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>end</name> =<init> <expr><call><name><name>s</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Get a destination buffer and setup some loop variables.</comment>
+    <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>dest</name> =<init> <expr><call><name><name>Platform</name>.<name>charBufferFromThreadLocal</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>destIndex</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>unescapedChunkStart</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <while>while <condition>(<expr><name>index</name> &lt; <name>end</name></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>cp</name> =<init> <expr><call><name>codePointAt</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>cp</name> &lt; 0</expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr>"Trailing high surrogate at end of input"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <comment type="line">// It is possible for this to return null because nextEscapeIndex() may</comment>
+      <comment type="line">// (for performance reasons) yield some false positives but it must never</comment>
+      <comment type="line">// give false negatives.</comment>
+      <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>escaped</name> =<init> <expr><call><name>escape</name><argument_list>(<argument><expr><name>cp</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>nextIndex</name> =<init> <expr><name>index</name> + (<call><name><name>Character</name>.<name>isSupplementaryCodePoint</name></name><argument_list>(<argument><expr><name>cp</name></expr></argument>)</argument_list></call> ? 2 : 1)</expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>escaped</name> != <name>null</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>charsSkipped</name> =<init> <expr><name>index</name> - <name>unescapedChunkStart</name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// This is the size needed to add the replacement, not the full</comment>
+        <comment type="line">// size needed by the string.  We only regrow when we absolutely must.</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>sizeNeeded</name> =<init> <expr><name>destIndex</name> + <name>charsSkipped</name> + <name><name>escaped</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>dest</name>.<name>length</name></name> &lt; <name>sizeNeeded</name></expr>)</condition><then> <block>{
+          <decl_stmt><decl><type><name>int</name></type> <name>destLength</name> =<init> <expr><name>sizeNeeded</name> + (<name>end</name> - <name>index</name>) + <name>DEST_PAD</name></expr></init></decl>;</decl_stmt>
+          <expr_stmt><expr><name>dest</name> = <call><name>growBuffer</name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr><name>destIndex</name></expr></argument>, <argument><expr><name>destLength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// If we have skipped any characters, we need to copy them now.</comment>
+        <if>if <condition>(<expr><name>charsSkipped</name> &gt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>s</name>.<name>getChars</name></name><argument_list>(<argument><expr><name>unescapedChunkStart</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><name>dest</name></expr></argument>, <argument><expr><name>destIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>destIndex</name> += <name>charsSkipped</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>escaped</name>.<name>length</name></name> &gt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>escaped</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>dest</name></expr></argument>, <argument><expr><name>destIndex</name></expr></argument>, <argument><expr><name><name>escaped</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>destIndex</name> += <name><name>escaped</name>.<name>length</name></name></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// If we dealt with an escaped character, reset the unescaped range.</comment>
+        <expr_stmt><expr><name>unescapedChunkStart</name> = <name>nextIndex</name></expr>;</expr_stmt>
+      }</block></then></if>
+      <expr_stmt><expr><name>index</name> = <call><name>nextEscapeIndex</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>nextIndex</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+
+    <comment type="line">// Process trailing unescaped characters - no need to account for escaped</comment>
+    <comment type="line">// length or padding the allocation.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>charsSkipped</name> =<init> <expr><name>end</name> - <name>unescapedChunkStart</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>charsSkipped</name> &gt; 0</expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>endIndex</name> =<init> <expr><name>destIndex</name> + <name>charsSkipped</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name><name>dest</name>.<name>length</name></name> &lt; <name>endIndex</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>dest</name> = <call><name>growBuffer</name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr><name>destIndex</name></expr></argument>, <argument><expr><name>endIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <expr_stmt><expr><call><name><name>s</name>.<name>getChars</name></name><argument_list>(<argument><expr><name>unescapedChunkStart</name></expr></argument>, <argument><expr><name>end</name></expr></argument>, <argument><expr><name>dest</name></expr></argument>, <argument><expr><name>destIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>destIndex</name> = <name>endIndex</name></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr>new <call><name>String</name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>destIndex</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the Unicode code point of the character at the given index.
+   *
+   * &lt;p&gt;Unlike {@link Character#codePointAt(CharSequence, int)} or
+   * {@link String#codePointAt(int)} this method will never fail silently when
+   * encountering an invalid surrogate pair.
+   *
+   * &lt;p&gt;The behaviour of this method is as follows:
+   * &lt;ol&gt;
+   * &lt;li&gt;If {@code index &gt;= end}, {@link IndexOutOfBoundsException} is thrown.
+   * &lt;li&gt;&lt;b&gt;If the character at the specified index is not a surrogate, it is
+   *     returned.&lt;/b&gt;
+   * &lt;li&gt;If the first character was a high surrogate value, then an attempt is
+   *     made to read the next character.
+   *     &lt;ol&gt;
+   *     &lt;li&gt;&lt;b&gt;If the end of the sequence was reached, the negated value of
+   *         the trailing high surrogate is returned.&lt;/b&gt;
+   *     &lt;li&gt;&lt;b&gt;If the next character was a valid low surrogate, the code point
+   *         value of the high/low surrogate pair is returned.&lt;/b&gt;
+   *     &lt;li&gt;If the next character was not a low surrogate value, then
+   *         {@link IllegalArgumentException} is thrown.
+   *     &lt;/ol&gt;
+   * &lt;li&gt;If the first character was a low surrogate value,
+   *     {@link IllegalArgumentException} is thrown.
+   * &lt;/ol&gt;
+   *
+   * @param seq the sequence of characters from which to decode the code point
+   * @param index the index of the first character to decode
+   * @param end the index beyond the last valid character to decode
+   * @return the Unicode code point for the given index or the negated value of
+   *         the trailing high surrogate character at the end of the sequence
+   */</comment>
+  <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>int</name></type> <name>codePointAt</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>seq</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>int</name></type> <name>end</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>seq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>index</name> &lt; <name>end</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>char</name></type> <name>c1</name> =<init> <expr><call><name><name>seq</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name>++</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>c1</name> &lt; <name><name>Character</name>.<name>MIN_HIGH_SURROGATE</name></name> ||
+          <name>c1</name> &gt; <name><name>Character</name>.<name>MAX_LOW_SURROGATE</name></name></expr>)</condition><then> <block>{
+        <comment type="line">// Fast path (first test is probably all we need to do)</comment>
+        <return>return <expr><name>c1</name></expr>;</return>
+      }</block></then> <else>else <if>if <condition>(<expr><name>c1</name> &lt;= <name><name>Character</name>.<name>MAX_HIGH_SURROGATE</name></name></expr>)</condition><then> <block>{
+        <comment type="line">// If the high surrogate was the last character, return its inverse</comment>
+        <if>if <condition>(<expr><name>index</name> == <name>end</name></expr>)</condition><then> <block>{
+          <return>return <expr>-<name>c1</name></expr>;</return>
+        }</block></then></if>
+        <comment type="line">// Otherwise look for the low surrogate following it</comment>
+        <decl_stmt><decl><type><name>char</name></type> <name>c2</name> =<init> <expr><call><name><name>seq</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>Character</name>.<name>isLowSurrogate</name></name><argument_list>(<argument><expr><name>c2</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr><call><name><name>Character</name>.<name>toCodePoint</name></name><argument_list>(<argument><expr><name>c1</name></expr></argument>, <argument><expr><name>c2</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then></if>
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr>"Expected low surrogate but got char '" + <name>c2</name> +
+            "' with value " + (<name>int</name>) <name>c2</name> + " at index " + <name>index</name> +
+            " in '" + <name>seq</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then> <else>else <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr>"Unexpected low surrogate character '" + <name>c1</name> +
+            "' with value " + (<name>int</name>) <name>c1</name> + " at index " + (<name>index</name> - 1) +
+            " in '" + <name>seq</name> + "'"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></else></if></else></if>
+    }</block></then></if>
+    <throw>throw <expr>new <call><name>IndexOutOfBoundsException</name><argument_list>(<argument><expr>"Index exceeds specified range"</expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Helper method to grow the character buffer as needed, this only happens
+   * once in a while so it's ok if it's in a method call.  If the index passed
+   * in is 0 then no copying will be done.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>char</name><index>[]</index></type> <name>growBuffer</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>dest</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>int</name></type> <name>size</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>copy</name> =<init> <expr>new <name><name>char</name><index>[<expr><name>size</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>index</name> &gt; 0</expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>copy</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>copy</name></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

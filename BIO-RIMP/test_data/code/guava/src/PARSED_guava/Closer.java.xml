@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\io\Closer.java"><comment type="block">/*
+ * Copyright (C) 2012 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>io</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Throwables</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Closeable</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayDeque</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Deque</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A {@link Closeable} that collects {@code Closeable} resources and closes them all when it is
+ * {@linkplain #close closed}. This is intended to approximately emulate the behavior of Java 7's
+ * &lt;a href="http://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html"&gt;
+ * try-with-resources&lt;/a&gt; statement in JDK6-compatible code. Running on Java 7, code using this
+ * should be approximately equivalent in behavior to the same code written with try-with-resources.
+ * Running on Java 6, exceptions that cannot be thrown must be logged rather than being added to the
+ * thrown exception as a suppressed exception.
+ *
+ * &lt;p&gt;This class is intended to be used in the following pattern:
+ *
+ * &lt;pre&gt;   {@code
+ *   Closer closer = Closer.create();
+ *   try {
+ *     InputStream in = closer.register(openInputStream());
+ *     OutputStream out = closer.register(openOutputStream());
+ *     // do stuff
+ *   } catch (Throwable e) {
+ *     // ensure that any checked exception types other than IOException that could be thrown are
+ *     // provided here, e.g. throw closer.rethrow(e, CheckedException.class);
+ *     throw closer.rethrow(e);
+ *   } finally {
+ *     closer.close();
+ *   }}&lt;/pre&gt;
+ *
+ * &lt;p&gt;Note that this try-catch-finally block is not equivalent to a try-catch-finally block using
+ * try-with-resources. To get the equivalent of that, you must wrap the above code in &lt;i&gt;another&lt;/i&gt;
+ * try block in order to catch any exception that may be thrown (including from the call to
+ * {@code close()}).
+ *
+ * &lt;p&gt;This pattern ensures the following:
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;Each {@code Closeable} resource that is successfully registered will be closed later.&lt;/li&gt;
+ *   &lt;li&gt;If a {@code Throwable} is thrown in the try block, no exceptions that occur when attempting
+ *   to close resources will be thrown from the finally block. The throwable from the try block will
+ *   be thrown.&lt;/li&gt;
+ *   &lt;li&gt;If no exceptions or errors were thrown in the try block, the &lt;i&gt;first&lt;/i&gt; exception thrown
+ *   by an attempt to close a resource will be thrown.&lt;/li&gt;
+ *   &lt;li&gt;Any exception caught when attempting to close a resource that is &lt;i&gt;not&lt;/i&gt; thrown
+ *   (because another exception is already being thrown) is &lt;i&gt;suppressed&lt;/i&gt;.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;An exception that is suppressed is not thrown. The method of suppression used depends on the
+ * version of Java the code is running on:
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;Java 7+:&lt;/b&gt; Exceptions are suppressed by adding them to the exception that &lt;i&gt;will&lt;/i&gt;
+ *   be thrown using {@code Throwable.addSuppressed(Throwable)}.&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;Java 6:&lt;/b&gt; Exceptions are suppressed by logging them instead.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * @author Colin Decker
+ * @since 14.0
+ */</comment>
+<comment type="line">// Coffee's for {@link Closer closers} only.</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>Closer</name> <super><implements>implements <name>Closeable</name></implements></super> <block>{
+
+  <comment type="javadoc">/**
+   * The suppressor implementation to use for the current Java version.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Suppressor</name></type> <name>SUPPRESSOR</name> =<init> <expr><call><name><name>SuppressingSuppressor</name>.<name>isAvailable</name></name><argument_list>()</argument_list></call>
+      ? <name><name>SuppressingSuppressor</name>.<name>INSTANCE</name></name>
+      : <name><name>LoggingSuppressor</name>.<name>INSTANCE</name></name></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Creates a new {@link Closer}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Closer</name></type> <name>create</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>Closer</name><argument_list>(<argument><expr><name>SUPPRESSOR</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>final</specifier> <name>Suppressor</name></type> <name>suppressor</name></decl>;</decl_stmt>
+
+  <comment type="line">// only need space for 2 elements in most cases, so try to use the smallest array possible</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Deque</name><argument_list>&lt;<argument><name>Closeable</name></argument>&gt;</argument_list></name></type> <name>stack</name> =<init> <expr>new <call><name><name>ArrayDeque</name><argument_list>&lt;<argument><name>Closeable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr>4</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>Throwable</name></type> <name>thrown</name></decl>;</decl_stmt>
+
+  <constructor><annotation>@<name>VisibleForTesting</name></annotation> <name>Closer</name><parameter_list>(<param><decl><type><name>Suppressor</name></type> <name>suppressor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>suppressor</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>suppressor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// checkNotNull to satisfy null tests</comment>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Registers the given {@code closeable} to be closed when this {@code Closer} is
+   * {@linkplain #close closed}.
+   *
+   * @return the given {@code closeable}
+   */</comment>
+  <comment type="line">// close. this word no longer has any meaning to me.</comment>
+  <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name>Closeable</name></extends></argument>&gt;</argument_list> <name>C</name></type> <name>register</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>C</name></type> <name>closeable</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>closeable</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>stack</name>.<name>addFirst</name></name><argument_list>(<argument><expr><name>closeable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+
+    <return>return <expr><name>closeable</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Stores the given throwable and rethrows it. It will be rethrown as is if it is an
+   * {@code IOException}, {@code RuntimeException} or {@code Error}. Otherwise, it will be rethrown
+   * wrapped in a {@code RuntimeException}. &lt;b&gt;Note:&lt;/b&gt; Be sure to declare all of the checked
+   * exception types your try block can throw when calling an overload of this method so as to avoid
+   * losing the original exception type.
+   *
+   * &lt;p&gt;This method always throws, and as such should be called as
+   * {@code throw closer.rethrow(e);} to ensure the compiler knows that it will throw.
+   *
+   * @return this method does not return; it always throws
+   * @throws IOException when the given throwable is an IOException
+   */</comment>
+  <function><type><specifier>public</specifier> <name>RuntimeException</name></type> <name>rethrow</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>thrown</name> = <name>e</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>IOException</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Stores the given throwable and rethrows it. It will be rethrown as is if it is an
+   * {@code IOException}, {@code RuntimeException}, {@code Error} or a checked exception of the
+   * given type. Otherwise, it will be rethrown wrapped in a {@code RuntimeException}. &lt;b&gt;Note:&lt;/b&gt;
+   * Be sure to declare all of the checked exception types your try block can throw when calling an
+   * overload of this method so as to avoid losing the original exception type.
+   *
+   * &lt;p&gt;This method always throws, and as such should be called as
+   * {@code throw closer.rethrow(e, ...);} to ensure the compiler knows that it will throw.
+   *
+   * @return this method does not return; it always throws
+   * @throws IOException when the given throwable is an IOException
+   * @throws X when the given throwable is of the declared type X
+   */</comment>
+  <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>X</name> <extends>extends <name>Exception</name></extends></argument>&gt;</argument_list> <name>RuntimeException</name></type> <name>rethrow</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>,
+      <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list></name></type> <name>declaredType</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>X</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>thrown</name> = <name>e</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>IOException</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>declaredType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Stores the given throwable and rethrows it. It will be rethrown as is if it is an
+   * {@code IOException}, {@code RuntimeException}, {@code Error} or a checked exception of either
+   * of the given types. Otherwise, it will be rethrown wrapped in a {@code RuntimeException}.
+   * &lt;b&gt;Note:&lt;/b&gt; Be sure to declare all of the checked exception types your try block can throw
+   * when calling an overload of this method so as to avoid losing the original exception type.
+   *
+   * &lt;p&gt;This method always throws, and as such should be called as
+   * {@code throw closer.rethrow(e, ...);} to ensure the compiler knows that it will throw.
+   *
+   * @return this method does not return; it always throws
+   * @throws IOException when the given throwable is an IOException
+   * @throws X1 when the given throwable is of the declared type X1
+   * @throws X2 when the given throwable is of the declared type X2
+   */</comment>
+  <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>X1</name> <extends>extends <name>Exception</name></extends></argument>, <argument><name>X2</name> <extends>extends <name>Exception</name></extends></argument>&gt;</argument_list> <name>RuntimeException</name></type> <name>rethrow</name><parameter_list>(
+      <param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>, <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>X1</name></argument>&gt;</argument_list></name></type> <name>declaredType1</name></decl></param>, <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>X2</name></argument>&gt;</argument_list></name></type> <name>declaredType2</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>X1</name></expr></argument>, <argument><expr><name>X2</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>thrown</name> = <name>e</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name><name>IOException</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>declaredType1</name></expr></argument>, <argument><expr><name>declaredType2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Closes all {@code Closeable} instances that have been added to this {@code Closer}. If an
+   * exception was thrown in the try block and passed to one of the {@code exceptionThrown} methods,
+   * any exceptions thrown when attempting to close a closeable will be suppressed. Otherwise, the
+   * &lt;i&gt;first&lt;/i&gt; exception to be thrown from an attempt to close a closeable will be thrown and any
+   * additional exceptions that are thrown after that will be suppressed.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>Throwable</name></type> <name>throwable</name> =<init> <expr><name>thrown</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// close closeables in LIFO order</comment>
+    <while>while <condition>(<expr>!<call><name><name>stack</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>Closeable</name></type> <name>closeable</name> =<init> <expr><call><name><name>stack</name>.<name>removeFirst</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>closeable</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>) <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>throwable</name> = <name>e</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+          <expr_stmt><expr><call><name><name>suppressor</name>.<name>suppress</name></name><argument_list>(<argument><expr><name>closeable</name></expr></argument>, <argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+      }</block></catch></try>
+    }</block></while>
+
+    <if>if <condition>(<expr><name>thrown</name> == <name>null</name> &amp;&amp; <name>throwable</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfPossible</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name><name>IOException</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</throw> <comment type="line">// not possible</comment>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Suppression strategy interface.
+   */</comment>
+  <class type="interface"><annotation>@<name>VisibleForTesting</name></annotation> interface <name>Suppressor</name> <block>{
+    <comment type="javadoc">/**
+     * Suppresses the given exception ({@code suppressed}) which was thrown when attempting to close
+     * the given closeable. {@code thrown} is the exception that is actually being thrown from the
+     * method. Implementations of this method should not throw under any circumstances.
+     */</comment>
+    <function_decl><type><name>void</name></type> <name>suppress</name><parameter_list>(<param><decl><type><name>Closeable</name></type> <name>closeable</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>thrown</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>suppressed</name></decl></param>)</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Suppresses exceptions by logging them.
+   */</comment>
+  <class><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> class <name>LoggingSuppressor</name> <super><implements>implements <name>Suppressor</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>LoggingSuppressor</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>LoggingSuppressor</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>suppress</name><parameter_list>(<param><decl><type><name>Closeable</name></type> <name>closeable</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>thrown</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>suppressed</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// log to the same place as Closeables</comment>
+      <expr_stmt><expr><call><name><name>Closeables</name>.<name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>WARNING</name></name></expr></argument>,
+          <argument><expr>"Suppressing exception thrown when closing " + <name>closeable</name></expr></argument>, <argument><expr><name>suppressed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Suppresses exceptions by adding them to the exception that will be thrown using JDK7's
+   * addSuppressed(Throwable) mechanism.
+   */</comment>
+  <class><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> class <name>SuppressingSuppressor</name> <super><implements>implements <name>Suppressor</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>SuppressingSuppressor</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>SuppressingSuppressor</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isAvailable</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>addSuppressed</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Method</name></type> <name>addSuppressed</name> =<init> <expr><call><name>getAddSuppressed</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Method</name></type> <name>getAddSuppressed</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><name><name>Throwable</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"addSuppressed"</expr></argument>, <argument><expr><name><name>Throwable</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>) <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>suppress</name><parameter_list>(<param><decl><type><name>Closeable</name></type> <name>closeable</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>thrown</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>suppressed</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// ensure no exceptions from addSuppressed</comment>
+      <if>if <condition>(<expr><name>thrown</name> == <name>suppressed</name></expr>)</condition><then> <block>{
+        <return>return;</return>
+      }</block></then></if>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>addSuppressed</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>thrown</name></expr></argument>, <argument><expr><name>suppressed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>) <block>{
+        <comment type="line">// if, somehow, IllegalAccessException or another exception is thrown, fall back to logging</comment>
+        <expr_stmt><expr><call><name><name>LoggingSuppressor</name>.<name>INSTANCE</name>.<name>suppress</name></name><argument_list>(<argument><expr><name>closeable</name></expr></argument>, <argument><expr><name>thrown</name></expr></argument>, <argument><expr><name>suppressed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

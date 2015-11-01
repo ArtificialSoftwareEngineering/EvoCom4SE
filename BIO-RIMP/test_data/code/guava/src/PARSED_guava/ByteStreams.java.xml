@@ -1,0 +1,789 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\io\ByteStreams.java"><comment type="block">/*
+ * Copyright (C) 2007 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>io</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkPositionIndex</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>DataInput</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>DataInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>DataOutput</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>DataOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>EOFException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FilterInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>ByteBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>channels</name>.<name>FileChannel</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>channels</name>.<name>ReadableByteChannel</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>channels</name>.<name>WritableByteChannel</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Provides utility methods for working with byte arrays and I/O streams.
+ *
+ * @author Chris Nokleberg
+ * @author Colin Decker
+ * @since 1.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>ByteStreams</name> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>BUF_SIZE</name> =<init> <expr>8192</expr></init></decl>;</decl_stmt>
+  <comment type="javadoc">/**
+   * There are three methods to implement {@link FileChannel#transferTo(long, long,
+   *  WritableByteChannel)}:
+   *
+   * &lt;ol&gt;
+   * &lt;li&gt; Use sendfile(2) or equivalent. Requires that both the input channel and the output channel
+   *    have their own file descriptors. Generally this only happens when both channels are files or
+   *    sockets. This performs zero copies - the bytes never enter userspace.&lt;/li&gt;
+   * &lt;li&gt; Use mmap(2) or equivalent. Requires that either the input channel or the output channel
+   *    have file descriptors. Bytes are copied from the file into a kernel buffer, then directly
+   *    into the other buffer (userspace). Note that if the file is very large, a naive
+   *    implementation will effectively put the whole file in memory. On many systems with paging
+   *    and virtual memory, this is not a problem - because it is mapped read-only, the kernel can
+   *    always page it to disk "for free". However, on systems where killing processes happens all
+   *    the time in normal conditions (i.e., android) the OS must make a tradeoff between paging
+   *    memory and killing other processes - so allocating a gigantic buffer and then sequentially
+   *    accessing it could result in other processes dying. This is solvable via madvise(2), but
+   *    that obviously doesn't exist in java.&lt;/li&gt;
+   * &lt;li&gt; Ordinary copy. Kernel copies bytes into a kernel buffer, from a kernel buffer into a
+   *    userspace buffer (byte[] or ByteBuffer), then copies them from that buffer into the
+   *    destination channel.&lt;/li&gt;
+   * &lt;/ol&gt;
+   *
+   * This value is intended to be large enough to make the overhead of system calls negligible,
+   * without being so large that it causes problems for systems with atypical memory management if
+   * approaches 2 or 3 are used.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ZERO_COPY_CHUNK_SIZE</name> =<init> <expr>512 * 1024</expr></init></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>ByteStreams</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Copies all bytes from the input stream to the output stream.
+   * Does not close or flush either stream.
+   *
+   * @param from the input stream to read from
+   * @param to the output stream to write to
+   * @return the number of bytes copied
+   * @throws IOException if an I/O error occurs
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>from</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>to</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>from</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buf</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>BUF_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>total</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>r</name> =<init> <expr><call><name><name>from</name>.<name>read</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>r</name> == -1</expr>)</condition><then> <block>{
+        <break>break;</break>
+      }</block></then></if>
+      <expr_stmt><expr><call><name><name>to</name>.<name>write</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>r</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>total</name> += <name>r</name></expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><name>total</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Copies all bytes from the readable channel to the writable channel.
+   * Does not close or flush either channel.
+   *
+   * @param from the readable channel to read from
+   * @param to the writable channel to write to
+   * @return the number of bytes copied
+   * @throws IOException if an I/O error occurs
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>long</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>ReadableByteChannel</name></type> <name>from</name></decl></param>,
+      <param><decl><type><name>WritableByteChannel</name></type> <name>to</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>from</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>from</name> <name>instanceof</name> <name>FileChannel</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>FileChannel</name></type> <name>sourceChannel</name> =<init> <expr>(<name>FileChannel</name>) <name>from</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>oldPosition</name> =<init> <expr><call><name><name>sourceChannel</name>.<name>position</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>position</name> =<init> <expr><name>oldPosition</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>copied</name></decl>;</decl_stmt>
+      <do>do <block>{
+        <expr_stmt><expr><name>copied</name> = <call><name><name>sourceChannel</name>.<name>transferTo</name></name><argument_list>(<argument><expr><name>position</name></expr></argument>, <argument><expr><name>ZERO_COPY_CHUNK_SIZE</name></expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>position</name> += <name>copied</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sourceChannel</name>.<name>position</name></name><argument_list>(<argument><expr><name>position</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> while <condition>(<expr><name>copied</name> &gt; 0 || <name>position</name> &lt; <call><name><name>sourceChannel</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+      <return>return <expr><name>position</name> - <name>oldPosition</name></expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>buf</name> =<init> <expr><call><name><name>ByteBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr><name>BUF_SIZE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>total</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><call><name><name>from</name>.<name>read</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call> != -1</expr>)</condition> <block>{
+      <expr_stmt><expr><call><name><name>buf</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <while>while <condition>(<expr><call><name><name>buf</name>.<name>hasRemaining</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+        <expr_stmt><expr><name>total</name> += <call><name><name>to</name>.<name>write</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></while>
+      <expr_stmt><expr><call><name><name>buf</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><name>total</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Reads all bytes from an input stream into a byte array.
+   * Does not close the stream.
+   *
+   * @param in the input stream to read from
+   * @return a byte array containing all the bytes from the stream
+   * @throws IOException if an I/O error occurs
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>out</name> =<init> <expr>new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name><name>out</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Reads all bytes from an input stream into a byte array. The given
+   * expected size is used to create an initial byte array, but if the actual
+   * number of bytes read from the stream differs, the correct result will be
+   * returned anyway.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>(
+      <param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name>int</name></type> <name>expectedSize</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>expectedSize</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>remaining</name> =<init> <expr><name>expectedSize</name></expr></init></decl>;</decl_stmt>
+
+    <while>while <condition>(<expr><name>remaining</name> &gt; 0</expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>off</name> =<init> <expr><name>expectedSize</name> - <name>remaining</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>read</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>remaining</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>read</name> == -1</expr>)</condition><then> <block>{
+        <comment type="line">// end of stream before reading expectedSize bytes</comment>
+        <comment type="line">// just return the bytes read so far</comment>
+        <return>return <expr><call><name><name>Arrays</name>.<name>copyOf</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>off</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <expr_stmt><expr><name>remaining</name> -= <name>read</name></expr>;</expr_stmt>
+    }</block></while>
+
+    <comment type="line">// bytes is now full</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>b</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>b</name> == -1</expr>)</condition><then> <block>{
+      <return>return <expr><name>bytes</name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// the stream was longer, so read the rest normally</comment>
+    <decl_stmt><decl><type><name>FastByteArrayOutputStream</name></type> <name>out</name> =<init> <expr>new <call><name>FastByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// write the byte we read when testing for end of stream</comment>
+    <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>result</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name><name>bytes</name>.<name>length</name></name> + <call><name><name>out</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>result</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>out</name>.<name>writeTo</name></name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * BAOS that provides limited access to its internal byte array.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>FastByteArrayOutputStream</name>
+      <super><extends>extends <name>ByteArrayOutputStream</name></extends></super> <block>{
+    <comment type="javadoc">/**
+     * Writes the contents of the internal buffer to the given array starting
+     * at the given offset. Assumes the array has space to hold count bytes.
+     */</comment>
+    <function><type><name>void</name></type> <name>writeTo</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>count</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataInput} instance to read from the {@code
+   * bytes} array from the beginning.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataInput</name></type> <name>newDataInput</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>newDataInput</name><argument_list>(<argument><expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataInput} instance to read from the {@code
+   * bytes} array, starting at the given position.
+   *
+   * @throws IndexOutOfBoundsException if {@code start} is negative or greater
+   *     than the length of the array
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataInput</name></type> <name>newDataInput</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPositionIndex</name><argument_list>(<argument><expr><name>start</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>newDataInput</name><argument_list>(
+        <argument><expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>start</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name> - <name>start</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataInput} instance to read from the given
+   * {@code ByteArrayInputStream}. The given input stream is not reset before
+   * being read from by the returned {@code ByteArrayDataInput}.
+   *
+   * @since 17.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataInput</name></type> <name>newDataInput</name><parameter_list>(
+      <param><decl><type><name>ByteArrayInputStream</name></type> <name>byteArrayInputStream</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>ByteArrayDataInputStream</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>byteArrayInputStream</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>ByteArrayDataInputStream</name> <super><implements>implements <name>ByteArrayDataInput</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>DataInput</name></type> <name>input</name></decl>;</decl_stmt>
+
+    <constructor><name>ByteArrayDataInputStream</name><parameter_list>(<param><decl><type><name>ByteArrayInputStream</name></type> <name>byteArrayInputStream</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>input</name></name> = new <call><name>DataInputStream</name><argument_list>(<argument><expr><name>byteArrayInputStream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>byte</name></type> <name><name>b</name><index>[]</index></name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>input</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>byte</name></type> <name><name>b</name><index>[]</index></name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>input</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>skipBytes</name><parameter_list>(<param><decl><type><name>int</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>skipBytes</name></name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>readBoolean</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readBoolean</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>byte</name></type> <name>readByte</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readByte</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>EOFException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>readUnsignedByte</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readUnsignedByte</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>short</name></type> <name>readShort</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readShort</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>readUnsignedShort</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readUnsignedShort</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>char</name></type> <name>readChar</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readChar</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>readInt</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readInt</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>long</name></type> <name>readLong</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readLong</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>float</name></type> <name>readFloat</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readFloat</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>double</name></type> <name>readDouble</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readDouble</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>readLine</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>readUTF</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>input</name>.<name>readUTF</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataOutput} instance with a default size.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataOutput</name></type> <name>newDataOutput</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>newDataOutput</name><argument_list>(<argument><expr>new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataOutput} instance sized to hold
+   * {@code size} bytes before resizing.
+   *
+   * @throws IllegalArgumentException if {@code size} is negative
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataOutput</name></type> <name>newDataOutput</name><parameter_list>(<param><decl><type><name>int</name></type> <name>size</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// When called at high frequency, boxing size generates too much garbage,</comment>
+    <comment type="line">// so avoid doing that if we can.</comment>
+    <if>if <condition>(<expr><name>size</name> &lt; 0</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><call><name><name>String</name>.<name>format</name></name><argument_list>(<argument><expr>"Invalid size: %s"</expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr><call><name>newDataOutput</name><argument_list>(<argument><expr>new <call><name>ByteArrayOutputStream</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new {@link ByteArrayDataOutput} instance which writes to the
+   * given {@code ByteArrayOutputStream}. The given output stream is not reset
+   * before being written to by the returned {@code ByteArrayDataOutput} and
+   * new data will be appended to any existing content.
+   *
+   * &lt;p&gt;Note that if the given output stream was not empty or is modified after
+   * the {@code ByteArrayDataOutput} is created, the contract for
+   * {@link ByteArrayDataOutput#toByteArray} will not be honored (the bytes
+   * returned in the byte array may not be exactly what was written via calls to
+   * {@code ByteArrayDataOutput}).
+   *
+   * @since 17.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>ByteArrayDataOutput</name></type> <name>newDataOutput</name><parameter_list>(
+      <param><decl><type><name>ByteArrayOutputStream</name></type> <name>byteArrayOutputSteam</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>ByteArrayDataOutputStream</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>byteArrayOutputSteam</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation> <comment type="line">// for writeBytes</comment>
+  <specifier>private</specifier> <specifier>static</specifier> class <name>ByteArrayDataOutputStream</name>
+      <super><implements>implements <name>ByteArrayDataOutput</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name>DataOutput</name></type> <name>output</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ByteArrayOutputStream</name></type> <name>byteArrayOutputSteam</name></decl>;</decl_stmt>
+
+    <constructor><name>ByteArrayDataOutputStream</name><parameter_list>(<param><decl><type><name>ByteArrayOutputStream</name></type> <name>byteArrayOutputSteam</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>byteArrayOutputSteam</name></name> = <name>byteArrayOutputSteam</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>output</name> = new <call><name>DataOutputStream</name><argument_list>(<argument><expr><name>byteArrayOutputSteam</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeBoolean</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeBoolean</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeByte</name><parameter_list>(<param><decl><type><name>int</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeByte</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeBytes</name><parameter_list>(<param><decl><type><name>String</name></type> <name>s</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeBytes</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeChar</name><parameter_list>(<param><decl><type><name>int</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeChar</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeChars</name><parameter_list>(<param><decl><type><name>String</name></type> <name>s</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeChars</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeDouble</name><parameter_list>(<param><decl><type><name>double</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeDouble</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeFloat</name><parameter_list>(<param><decl><type><name>float</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeFloat</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeInt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeLong</name><parameter_list>(<param><decl><type><name>long</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeLong</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeShort</name><parameter_list>(<param><decl><type><name>int</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeShort</name></name><argument_list>(<argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>writeUTF</name><parameter_list>(<param><decl><type><name>String</name></type> <name>s</name></decl></param>)</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeUTF</name></name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>impossible</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>byte</name><index>[]</index></type> <name>toByteArray</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>byteArrayOutputSteam</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>OutputStream</name></type> <name>NULL_OUTPUT_STREAM</name> =<init>
+      <expr>new <class><super><name>OutputStream</name></super><argument_list>()</argument_list> <block>{
+        <comment type="javadoc">/** Discards the specified byte. */</comment>
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+        }</block></function>
+        <comment type="javadoc">/** Discards the specified byte array. */</comment>
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+          <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+        <comment type="javadoc">/** Discards the specified byte array. */</comment>
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+          <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+          <return>return <expr>"ByteStreams.nullOutputStream()"</expr>;</return>
+        }</block></function>
+      }</block></class></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns an {@link OutputStream} that simply discards written bytes.
+   *
+   * @since 14.0 (since 1.0 as com.google.common.io.NullOutputStream)
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>OutputStream</name></type> <name>nullOutputStream</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>NULL_OUTPUT_STREAM</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Wraps a {@link InputStream}, limiting the number of bytes which can be
+   * read.
+   *
+   * @param in the input stream to be wrapped
+   * @param limit the maximum number of bytes to be read
+   * @return a length-limited {@link InputStream}
+   * @since 14.0 (since 1.0 as com.google.common.io.LimitInputStream)
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>limit</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name>long</name></type> <name>limit</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>LimitedInputStream</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>limit</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>LimitedInputStream</name> <super><extends>extends <name>FilterInputStream</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>left</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>mark</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+
+    <constructor><name>LimitedInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name>long</name></type> <name>limit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>limit</name> &gt;= 0</expr></argument>, <argument><expr>"limit must be non-negative"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>left</name> = <name>limit</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>available</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <return>return <expr>(<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><call><name><name>in</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>left</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// it's okay to mark even if mark isn't supported, as reset won't work</comment>
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>synchronized</specifier> <name>void</name></type> <name>mark</name><parameter_list>(<param><decl><type><name>int</name></type> <name>readLimit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>in</name>.<name>mark</name></name><argument_list>(<argument><expr><name>readLimit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>mark</name> = <name>left</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <if>if <condition>(<expr><name>left</name> == 0</expr>)</condition><then> <block>{
+        <return>return <expr>-1</expr>;</return>
+      }</block></then></if>
+
+      <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> != -1</expr>)</condition><then> <block>{
+        <expr_stmt><expr>--<name>left</name></expr>;</expr_stmt>
+      }</block></then></if>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <if>if <condition>(<expr><name>left</name> == 0</expr>)</condition><then> <block>{
+        <return>return <expr>-1</expr>;</return>
+      }</block></then></if>
+
+      <expr_stmt><expr><name>len</name> = (<name>int</name>) <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>len</name></expr></argument>, <argument><expr><name>left</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> != -1</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>left</name> -= <name>result</name></expr>;</expr_stmt>
+      }</block></then></if>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>synchronized</specifier> <name>void</name></type> <name>reset</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <if>if <condition>(<expr>!<call><name><name>in</name>.<name>markSupported</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Mark not supported"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>mark</name> == -1</expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Mark not set"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+
+      <expr_stmt><expr><call><name><name>in</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>left</name> = <name>mark</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>long</name></type> <name>skip</name><parameter_list>(<param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><name>n</name> = <call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>n</name></expr></argument>, <argument><expr><name>left</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>skipped</name> =<init> <expr><call><name><name>in</name>.<name>skip</name></name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>left</name> -= <name>skipped</name></expr>;</expr_stmt>
+      <return>return <expr><name>skipped</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Attempts to read enough bytes from the stream to fill the given byte array,
+   * with the same behavior as {@link DataInput#readFully(byte[])}.
+   * Does not close the stream.
+   *
+   * @param in the input stream to read from.
+   * @param b the buffer into which the data is read.
+   * @throws EOFException if this stream reaches the end before reading all
+   *     the bytes.
+   * @throws IOException if an I/O error occurs.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>readFully</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>b</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Attempts to read {@code len} bytes from the stream into the given array
+   * starting at {@code off}, with the same behavior as
+   * {@link DataInput#readFully(byte[], int, int)}. Does not close the
+   * stream.
+   *
+   * @param in the input stream to read from.
+   * @param b the buffer into which the data is read.
+   * @param off an int specifying the offset into the data.
+   * @param len an int specifying the number of bytes to read.
+   * @throws EOFException if this stream reaches the end before reading all
+   *     the bytes.
+   * @throws IOException if an I/O error occurs.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>readFully</name><parameter_list>(
+      <param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>read</name> =<init> <expr><call><name>read</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>read</name> != <name>len</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"reached end of stream after reading "
+          + <name>read</name> + " bytes; " + <name>len</name> + " bytes expected"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Discards {@code n} bytes of data from the input stream. This method
+   * will block until the full amount has been skipped. Does not close the
+   * stream.
+   *
+   * @param in the input stream to read from
+   * @param n the number of bytes to skip
+   * @throws EOFException if this stream reaches the end before skipping all
+   *     the bytes
+   * @throws IOException if an I/O error occurs, or the stream does not
+   *     support skipping
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>skipFully</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>toSkip</name> =<init> <expr><name>n</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>n</name> &gt; 0</expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>amt</name> =<init> <expr><call><name><name>in</name>.<name>skip</name></name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>amt</name> == 0</expr>)</condition><then> <block>{
+        <comment type="line">// Force a blocking read to avoid infinite loop</comment>
+        <if>if <condition>(<expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call> == -1</expr>)</condition><then> <block>{
+          <decl_stmt><decl><type><name>long</name></type> <name>skipped</name> =<init> <expr><name>toSkip</name> - <name>n</name></expr></init></decl>;</decl_stmt>
+          <throw>throw <expr>new <call><name>EOFException</name><argument_list>(<argument><expr>"reached end of stream after skipping "
+              + <name>skipped</name> + " bytes; " + <name>toSkip</name> + " bytes expected"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name>n</name>--</expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>n</name> -= <name>amt</name></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Process the bytes of the given input stream using the given processor.
+   *
+   * @param input the input stream to process
+   * @param processor the object to which to pass the bytes of the stream
+   * @return the result of the byte processor
+   * @throws IOException if an I/O error occurs
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>T</name></type> <name>readBytes</name><parameter_list>(
+      <param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>, <param><decl><type><name><name>ByteProcessor</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>processor</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>processor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buf</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>BUF_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>read</name></decl>;</decl_stmt>
+    <do>do <block>{
+      <expr_stmt><expr><name>read</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block> while <condition>(<expr><name>read</name> != -1 &amp;&amp; <call><name><name>processor</name>.<name>processBytes</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>read</name></expr></argument>)</argument_list></call></expr>)</condition>;</do>
+    <return>return <expr><call><name><name>processor</name>.<name>getResult</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Reads some bytes from an input stream and stores them into the buffer array
+   * {@code b}. This method blocks until {@code len} bytes of input data have
+   * been read into the array, or end of file is detected. The number of bytes
+   * read is returned, possibly zero. Does not close the stream.
+   *
+   * &lt;p&gt;A caller can detect EOF if the number of bytes read is less than
+   * {@code len}. All subsequent calls on the same stream will return zero.
+   *
+   * &lt;p&gt;If {@code b} is null, a {@code NullPointerException} is thrown. If
+   * {@code off} is negative, or {@code len} is negative, or {@code off+len} is
+   * greater than the length of the array {@code b}, then an
+   * {@code IndexOutOfBoundsException} is thrown. If {@code len} is zero, then
+   * no bytes are read. Otherwise, the first byte read is stored into element
+   * {@code b[off]}, the next one into {@code b[off+1]}, and so on. The number
+   * of bytes read is, at most, equal to {@code len}.
+   *
+   * @param in the input stream to read from
+   * @param b the buffer into which the data is read
+   * @param off an int specifying the offset into the data
+   * @param len an int specifying the number of bytes to read
+   * @return the number of bytes read
+   * @throws IOException if an I/O error occurs
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>in</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>len</name> &lt; 0</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IndexOutOfBoundsException</name><argument_list>(<argument><expr>"len is negative"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>int</name></type> <name>total</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>total</name> &lt; <name>len</name></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name> + <name>total</name></expr></argument>, <argument><expr><name>len</name> - <name>total</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> == -1</expr>)</condition><then> <block>{
+        <break>break;</break>
+      }</block></then></if>
+      <expr_stmt><expr><name>total</name> += <name>result</name></expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><name>total</name></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

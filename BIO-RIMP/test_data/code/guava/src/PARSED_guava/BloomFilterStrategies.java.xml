@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\hash\BloomFilterStrategies.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>hash</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>LongMath</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Ints</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Longs</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>math</name>.<name>RoundingMode</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Collections of strategies of generating the k * log(M) bits required for an element to
+ * be mapped to a BloomFilter of M bits and k hash functions. These
+ * strategies are part of the serialized form of the Bloom filters that use them, thus they must be
+ * preserved as is (no updates allowed, only introduction of new versions).
+ *
+ * Important: the order of the constants cannot change, and they cannot be deleted - we depend
+ * on their ordinal for BloomFilter serialization.
+ *
+ * @author Dimitris Andreou
+ * @author Kurt Alfred Kluever
+ */</comment>
+<enum>enum <name>BloomFilterStrategies</name> <super><implements>implements <name>BloomFilter</name>.<name>Strategy</name></implements></super> <block>{
+  <comment type="javadoc">/**
+   * See "Less Hashing, Same Performance: Building a Better Bloom Filter" by Adam Kirsch and
+   * Michael Mitzenmacher. The paper argues that this trick doesn't significantly deteriorate the
+   * performance of a Bloom filter (yet only needs two 32bit hash functions).
+   */</comment>
+  <constructor><name>MURMUR128_MITZ_32</name><parameter_list>()</parameter_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>boolean</name></type> <name>put</name><parameter_list>(
+        <param><decl><type><name>T</name></type> <name>object</name></decl></param>, <param><decl><type><name><name>Funnel</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>funnel</name></decl></param>, <param><decl><type><name>int</name></type> <name>numHashFunctions</name></decl></param>, <param><decl><type><name>BitArray</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>bitSize</name> =<init> <expr><call><name><name>bits</name>.<name>bitSize</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash64</name> =<init> <expr><call><name><name>Hashing</name>.<name>murmur3_128</name></name><argument_list>()</argument_list></call>.<call><name>hashObject</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>funnel</name></expr></argument>)</argument_list></call>.<call><name>asLong</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>hash1</name> =<init> <expr>(<name>int</name>) <name>hash64</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>hash2</name> =<init> <expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>hash64</name> &gt;&gt;&gt; 32</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <decl_stmt><decl><type><name>boolean</name></type> <name>bitsChanged</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= <name>numHashFunctions</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>combinedHash</name> =<init> <expr><name>hash1</name> + (<name>i</name> * <name>hash2</name>)</expr></init></decl>;</decl_stmt>
+        <comment type="line">// Flip all the bits if it's negative (guaranteed positive number)</comment>
+        <if>if <condition>(<expr><name>combinedHash</name> &lt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>combinedHash</name> = ~<name>combinedHash</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>bitsChanged</name> |= <call><name><name>bits</name>.<name>set</name></name><argument_list>(<argument><expr><name>combinedHash</name> % <name>bitSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><name>bitsChanged</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>boolean</name></type> <name>mightContain</name><parameter_list>(
+        <param><decl><type><name>T</name></type> <name>object</name></decl></param>, <param><decl><type><name><name>Funnel</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>funnel</name></decl></param>, <param><decl><type><name>int</name></type> <name>numHashFunctions</name></decl></param>, <param><decl><type><name>BitArray</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>bitSize</name> =<init> <expr><call><name><name>bits</name>.<name>bitSize</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash64</name> =<init> <expr><call><name><name>Hashing</name>.<name>murmur3_128</name></name><argument_list>()</argument_list></call>.<call><name>hashObject</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>funnel</name></expr></argument>)</argument_list></call>.<call><name>asLong</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>hash1</name> =<init> <expr>(<name>int</name>) <name>hash64</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>hash2</name> =<init> <expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>hash64</name> &gt;&gt;&gt; 32</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= <name>numHashFunctions</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>combinedHash</name> =<init> <expr><name>hash1</name> + (<name>i</name> * <name>hash2</name>)</expr></init></decl>;</decl_stmt>
+        <comment type="line">// Flip all the bits if it's negative (guaranteed positive number)</comment>
+        <if>if <condition>(<expr><name>combinedHash</name> &lt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>combinedHash</name> = ~<name>combinedHash</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>bits</name>.<name>get</name></name><argument_list>(<argument><expr><name>combinedHash</name> % <name>bitSize</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>true</expr>;</return>
+    }</block></function>
+  }</block></constructor>,
+  <comment type="javadoc">/**
+   * This strategy uses all 128 bits of {@link Hashing#murmur3_128} when hashing. It looks
+   * different than the implementation in MURMUR128_MITZ_32 because we're avoiding the
+   * multiplication in the loop and doing a (much simpler) += hash2. We're also changing the
+   * index to a positive number by AND'ing with Long.MAX_VALUE instead of flipping the bits.
+   */</comment>
+  <constructor><name>MURMUR128_MITZ_64</name><parameter_list>()</parameter_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>boolean</name></type> <name>put</name><parameter_list>(
+        <param><decl><type><name>T</name></type> <name>object</name></decl></param>, <param><decl><type><name><name>Funnel</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>funnel</name></decl></param>, <param><decl><type><name>int</name></type> <name>numHashFunctions</name></decl></param>, <param><decl><type><name>BitArray</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>bitSize</name> =<init> <expr><call><name><name>bits</name>.<name>bitSize</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>Hashing</name>.<name>murmur3_128</name></name><argument_list>()</argument_list></call>.<call><name>hashObject</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>funnel</name></expr></argument>)</argument_list></call>.<call><name>getBytesInternal</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash1</name> =<init> <expr><call><name>lowerEight</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash2</name> =<init> <expr><call><name>upperEight</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <decl_stmt><decl><type><name>boolean</name></type> <name>bitsChanged</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>combinedHash</name> =<init> <expr><name>hash1</name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>numHashFunctions</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <comment type="line">// Make the combined hash positive and indexable</comment>
+        <expr_stmt><expr><name>bitsChanged</name> |= <call><name><name>bits</name>.<name>set</name></name><argument_list>(<argument><expr>(<name>combinedHash</name> &amp; <name><name>Long</name>.<name>MAX_VALUE</name></name>) % <name>bitSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>combinedHash</name> += <name>hash2</name></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><name>bitsChanged</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>boolean</name></type> <name>mightContain</name><parameter_list>(
+        <param><decl><type><name>T</name></type> <name>object</name></decl></param>, <param><decl><type><name><name>Funnel</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>funnel</name></decl></param>, <param><decl><type><name>int</name></type> <name>numHashFunctions</name></decl></param>, <param><decl><type><name>BitArray</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>bitSize</name> =<init> <expr><call><name><name>bits</name>.<name>bitSize</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>Hashing</name>.<name>murmur3_128</name></name><argument_list>()</argument_list></call>.<call><name>hashObject</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>funnel</name></expr></argument>)</argument_list></call>.<call><name>getBytesInternal</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash1</name> =<init> <expr><call><name>lowerEight</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>hash2</name> =<init> <expr><call><name>upperEight</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <decl_stmt><decl><type><name>long</name></type> <name>combinedHash</name> =<init> <expr><name>hash1</name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>numHashFunctions</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <comment type="line">// Make the combined hash positive and indexable</comment>
+        <if>if <condition>(<expr>!<call><name><name>bits</name>.<name>get</name></name><argument_list>(<argument><expr>(<name>combinedHash</name> &amp; <name><name>Long</name>.<name>MAX_VALUE</name></name>) % <name>bitSize</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>combinedHash</name> += <name>hash2</name></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <comment type="block">/* static */</comment> <name>long</name></type> <name>lowerEight</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>Longs</name>.<name>fromBytes</name></name><argument_list>(
+          <argument><expr><name><name>bytes</name><index>[<expr>7</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>6</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>5</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>4</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>3</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>2</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>1</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <comment type="block">/* static */</comment> <name>long</name></type> <name>upperEight</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>Longs</name>.<name>fromBytes</name></name><argument_list>(
+          <argument><expr><name><name>bytes</name><index>[<expr>15</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>14</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>13</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>12</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>11</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>10</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>9</expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>8</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></constructor><empty_stmt>;</empty_stmt>
+
+  <comment type="line">// Note: We use this instead of java.util.BitSet because we need access to the long[] data field</comment>
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name>BitArray</name> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name><index>[]</index></type> <name>data</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>bitCount</name></decl>;</decl_stmt>
+
+    <constructor><name>BitArray</name><parameter_list>(<param><decl><type><name>long</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <name><name>long</name><index>[<expr><call><name><name>Ints</name>.<name>checkedCast</name></name><argument_list>(<argument><expr><call><name><name>LongMath</name>.<name>divide</name></name><argument_list>(<argument><expr><name>bits</name></expr></argument>, <argument><expr>64</expr></argument>, <argument><expr><name><name>RoundingMode</name>.<name>CEILING</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">// Used by serialization</comment>
+    <constructor><name>BitArray</name><parameter_list>(<param><decl><type><name><name>long</name><index>[]</index></name></type> <name>data</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>data</name>.<name>length</name></name> &gt; 0</expr></argument>, <argument><expr>"data length is zero!"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>data</name></name> = <name>data</name></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>long</name></type> <name>bitCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>long</name></type> <name>value</name> :<range> <expr><name>data</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><name>bitCount</name> += <call><name><name>Long</name>.<name>bitCount</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <expr_stmt><expr><name><name>this</name>.<name>bitCount</name></name> = <name>bitCount</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/** Returns true if the bit changed value. */</comment>
+    <function><type><name>boolean</name></type> <name>set</name><parameter_list>(<param><decl><type><name>long</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr>!<call><name>get</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>data</name><index>[<expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>index</name> &gt;&gt;&gt; 6</expr></argument>)</argument_list></call></expr>]</index></name> |= (1L &lt;&lt; <name>index</name>)</expr>;</expr_stmt>
+        <expr_stmt><expr><name>bitCount</name>++</expr>;</expr_stmt>
+        <return>return <expr>true</expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><name>boolean</name></type> <name>get</name><parameter_list>(<param><decl><type><name>long</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>(<name><name>data</name><index>[<expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>index</name> &gt;&gt;&gt; 6</expr></argument>)</argument_list></call></expr>]</index></name> &amp; (1L &lt;&lt; <name>index</name>)) != 0</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Number of bits */</comment>
+    <function><type><name>long</name></type> <name>bitSize</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>(<name>long</name>) <name><name>data</name>.<name>length</name></name> * <name><name>Long</name>.<name>SIZE</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Number of set bits (1s) */</comment>
+    <function><type><name>long</name></type> <name>bitCount</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>bitCount</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>BitArray</name></type> <name>copy</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name>BitArray</name><argument_list>(<argument><expr><call><name><name>data</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Combines the two BitArrays using bitwise OR. */</comment>
+    <function><type><name>void</name></type> <name>putAll</name><parameter_list>(<param><decl><type><name>BitArray</name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+          <argument><expr><name><name>data</name>.<name>length</name></name> == <name><name>array</name>.<name>data</name>.<name>length</name></name></expr></argument>,
+          <argument><expr>"BitArrays must be of equal length (%s != %s)"</expr></argument>,
+          <argument><expr><name><name>data</name>.<name>length</name></name></expr></argument>,
+          <argument><expr><name><name>array</name>.<name>data</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>bitCount</name> = 0</expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>data</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>data</name><index>[<expr><name>i</name></expr>]</index></name> |= <name><name>array</name>.<name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bitCount</name> += <call><name><name>Long</name>.<name>bitCount</name></name><argument_list>(<argument><expr><name><name>data</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>o</name> <name>instanceof</name> <name>BitArray</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>BitArray</name></type> <name>bitArray</name> =<init> <expr>(<name>BitArray</name>) <name>o</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>Arrays</name>.<name>equals</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name><name>bitArray</name>.<name>data</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>Arrays</name>.<name>hashCode</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+}</block></enum>
+</unit>

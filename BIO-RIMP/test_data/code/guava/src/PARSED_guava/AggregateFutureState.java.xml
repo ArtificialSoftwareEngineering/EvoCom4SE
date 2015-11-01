@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\AggregateFutureState.java"><comment type="block">/*
+ * Copyright (C) 2015 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Sets</name>.<name>newConcurrentHashSet</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicIntegerFieldUpdater</name>.<name>newUpdater</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceFieldUpdater</name>.<name>newUpdater</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicIntegerFieldUpdater</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceFieldUpdater</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A helper which does some thread-safe operations for aggregate futures, which must be implemented
+ * differently in GWT.  Namely:
+ * &lt;p&gt;Lazily initializes a set of seen exceptions
+ * &lt;p&gt;Decrements a counter atomically
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>abstract</specifier> class <name>AggregateFutureState</name> <block>{
+  <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"rawtypes", "unchecked"})</argument_list></annotation>
+  <specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>AggregateFutureState</name></argument>, <argument><name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type>
+      <name>SEEN_EXCEPTIONS_UDPATER</name> =<init> <expr><call><name>newUpdater</name><argument_list>(
+          <argument><expr><name><name>AggregateFutureState</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>(<name>Class</name>) <name><name>Set</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"seenExceptions"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicIntegerFieldUpdater</name><argument_list>&lt;<argument><name>AggregateFutureState</name></argument>&gt;</argument_list></name></type>
+      <name>REMAINING_COUNT_UPDATER</name> =<init> <expr><call><name>newUpdater</name><argument_list>(<argument><expr><name><name>AggregateFutureState</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"remaining"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="line">// Lazily initialized the first time we see an exception; not released until all the input futures</comment>
+  <comment type="line">// &amp; this future completes. Released when the future releases the reference to the running state</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>seenExceptions</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation> <specifier>private</specifier> <name>volatile</name> <name>int</name></type> <name>remaining</name></decl>;</decl_stmt>
+
+  <constructor><name>AggregateFutureState</name><parameter_list>(<param><decl><type><name>int</name></type> <name>remainingFutures</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>remaining</name></name> = <name>remainingFutures</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <function><type><specifier>final</specifier> <name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>getOrInitSeenExceptions</name><parameter_list>()</parameter_list> <block>{
+    <comment type="block">/*
+     * The initialization of seenExceptions has to be more complicated than we'd like. The simple
+     * approach would be for each caller CAS it from null to a Set populated with its exception. But
+     * there's another race: If the first thread fails with an exception and a second thread
+     * immediately fails with the same exception:
+     *
+     * Thread1: calls setException(), which returns true, context switch before it can CAS
+     * seenExceptions to its exception
+     *
+     * Thread2: calls setException(), which returns false, CASes seenExceptions to its exception,
+     * and wrongly believes that its exception is new (leading it to logging it when it shouldn't)
+     *
+     * Our solution is for threads to CAS seenExceptions from null to a Set population with _the
+     * initial exception_, no matter which thread does the work. This ensures that seenExceptions
+     * always contains not just the current thread's exception but also the initial thread's.
+     */</comment>
+    <decl_stmt><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>seenExceptionsLocal</name> =<init> <expr><name>seenExceptions</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>seenExceptionsLocal</name> == <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>seenExceptionsLocal</name> = <call><name>newConcurrentHashSet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <comment type="block">/*
+       * Other handleException() callers may see this as soon as we publish it. We need to populate
+       * it with the initial failure before we do, or else they may think that the initial failure
+       * has never been seen before.
+       */</comment>
+      <expr_stmt><expr><call><name>addInitialException</name><argument_list>(<argument><expr><name>seenExceptionsLocal</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <expr_stmt><expr><call><name><name>SEEN_EXCEPTIONS_UDPATER</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>seenExceptionsLocal</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <comment type="block">/*
+       * If another handleException() caller created the set, we need to use that copy in case yet
+       * other callers have added to it.
+       *
+       * This read is guaranteed to get us the right value because we only set this once (here).
+       */</comment>
+      <expr_stmt><expr><name>seenExceptionsLocal</name> = <name>seenExceptions</name></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>seenExceptionsLocal</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Populates {@code seen} with the exception that was passed to {@code setException}. */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>addInitialException</name><parameter_list>(<param><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>seen</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function><type><specifier>final</specifier> <name>int</name></type> <name>decrementRemainingAndGet</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>REMAINING_COUNT_UPDATER</name>.<name>decrementAndGet</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

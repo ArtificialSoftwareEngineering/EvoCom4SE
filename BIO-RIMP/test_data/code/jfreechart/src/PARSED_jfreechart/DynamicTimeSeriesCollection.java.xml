@@ -1,0 +1,973 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\data\time\DynamicTimeSeriesCollection.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2007, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * --------------------------------
+ * DynamicTimeSeriesCollection.java
+ * --------------------------------
+ * (C) Copyright 2002-2007, by I. H. Thomae and Contributors.
+ *
+ * Original Author:  I. H. Thomae (ithomae@ists.dartmouth.edu);
+ * Contributor(s):   David Gilbert (for Object Refinery Limited);
+ *
+ * Changes
+ * -------
+ * 22-Nov-2002 : Initial version completed
+ *    Jan 2003 : Optimized advanceTime(), added implemnt'n of RangeInfo intfc
+ *               (using cached values for min, max, and range); also added
+ *               getOldestIndex() and getNewestIndex() ftns so client classes
+ *               can use this class as the master "index authority".
+ * 22-Jan-2003 : Made this class stand on its own, rather than extending
+ *               class FastTimeSeriesCollection
+ * 31-Jan-2003 : Changed TimePeriod --&gt; RegularTimePeriod (DG);
+ * 13-Mar-2003 : Moved to com.jrefinery.data.time package (DG);
+ * 29-Apr-2003 : Added small change to appendData method, from Irv Thomae (DG);
+ * 19-Sep-2003 : Added new appendData method, from Irv Thomae (DG);
+ * 05-May-2004 : Now extends AbstractIntervalXYDataset.  This also required a
+ *               change to the return type of the getY() method - I'm slightly
+ *               unsure of the implications of this, so it might require some
+ *               further amendment (DG);
+ * 15-Jul-2004 : Switched getX() with getXValue() and getY() with 
+ *               getYValue() (DG);
+ * 11-Jan-2004 : Removed deprecated code in preparation for the 1.0.0 
+ *               release (DG);
+ * 02-Feb-2007 : Removed author tags all over JFreeChart sources (DG);
+ * 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>time</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Calendar</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>TimeZone</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>DomainInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>Range</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>RangeInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>general</name>.<name>SeriesChangeEvent</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>AbstractIntervalXYDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>IntervalXYDataset</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A dynamic dataset.
+ * &lt;p&gt;
+ * Like FastTimeSeriesCollection, this class is a functional replacement
+ * for JFreeChart's TimeSeriesCollection _and_ TimeSeries classes.
+ * FastTimeSeriesCollection is appropriate for a fixed time range; for
+ * real-time applications this subclass adds the ability to append new
+ * data and discard the oldest.
+ * In this class, the arrays used in FastTimeSeriesCollection become FIFO's.
+ * NOTE:As presented here, all data is assumed &gt;= 0, an assumption which is
+ * embodied only in methods associated with interface RangeInfo.
+ */</comment>
+<class><specifier>public</specifier> class <name>DynamicTimeSeriesCollection</name> <super><extends>extends <name>AbstractIntervalXYDataset</name></extends>
+                                         <implements>implements <name>IntervalXYDataset</name>,
+                                                    <name>DomainInfo</name>,
+                                                    <name>RangeInfo</name></implements></super> <block>{
+
+    <comment type="javadoc">/** 
+     * Useful constant for controlling the x-value returned for a time 
+     * period. 
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>START</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Useful constant for controlling the x-value returned for a time period. 
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>MIDDLE</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * Useful constant for controlling the x-value returned for a time period. 
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>END</name> =<init> <expr>2</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The maximum number of items for each series (can be overridden). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>maximumItemCount</name> =<init> <expr>2000</expr></init></decl>;</decl_stmt>  <comment type="line">// an arbitrary safe default value</comment>
+
+    <comment type="javadoc">/** The history count. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>int</name></type> <name>historyCount</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Storage for the series keys. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Comparable</name><index>[]</index></type> <name>seriesKeys</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The time period class - barely used, and could be removed (DG). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Class</name></type> <name>timePeriodClass</name> =<init> <expr><name><name>Minute</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>   <comment type="line">// default value;</comment>
+
+    <comment type="javadoc">/** Storage for the x-values. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>RegularTimePeriod</name><index>[]</index></type> <name>pointsInTime</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The number of series. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>seriesCount</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * A wrapper for a fixed array of float values.
+     */</comment>
+    <class><specifier>protected</specifier> class <name>ValueSequence</name> <block>{
+
+        <comment type="javadoc">/** Storage for the float values. */</comment>
+        <decl_stmt><decl><type><name>float</name><index>[]</index></type> <name>dataPoints</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Default constructor:
+         */</comment>
+        <constructor><specifier>public</specifier> <name>ValueSequence</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name><name>DynamicTimeSeriesCollection</name>.<name>this</name>.<name>maximumItemCount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Creates a sequence with the specified length.
+         *
+         * @param length  the length.
+         */</comment>
+        <constructor><specifier>public</specifier> <name>ValueSequence</name><parameter_list>(<param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>dataPoints</name></name> = new <name><name>float</name><index>[<expr><name>length</name></expr>]</index></name></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>dataPoints</name><index>[<expr><name>i</name></expr>]</index></name> = 0.0f</expr>;</expr_stmt>
+            }</block></for>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Enters data into the storage array.
+         *
+         * @param index  the index.
+         * @param value  the value.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>enterData</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>float</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>dataPoints</name><index>[<expr><name>index</name></expr>]</index></name> = <name>value</name></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Returns a value from the storage array.
+         *
+         * @param index  the index.
+         *
+         * @return The value.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>float</name></type> <name>getData</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><name><name>this</name>.<name>dataPoints</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</return>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/** An array for storing the objects that represent each series. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>ValueSequence</name><index>[]</index></type> <name>valueHistory</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** A working calendar (to recycle) */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>Calendar</name></type> <name>workingCalendar</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * The position within a time period to return as the x-value (START, 
+     * MIDDLE or END). 
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>position</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * A flag that indicates that the domain is 'points in time'.  If this flag 
+     * is true, only the x-value is used to determine the range of values in 
+     * the domain, the start and end x-values are ignored.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>domainIsPointsInTime</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** index for mapping: points to the oldest valid time &amp; data. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>oldestAt</name></decl>;</decl_stmt>  <comment type="line">// as a class variable, initializes == 0</comment>
+
+    <comment type="javadoc">/** Index of the newest data item. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>newestAt</name></decl>;</decl_stmt>
+
+    <comment type="line">// cached values used for interface DomainInfo:</comment>
+
+    <comment type="javadoc">/** the # of msec by which time advances. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>deltaTime</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Cached domain start (for use by DomainInfo). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Long</name></type> <name>domainStart</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Cached domain end (for use by DomainInfo). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Long</name></type> <name>domainEnd</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Cached domain range (for use by DomainInfo). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Range</name></type> <name>domainRange</name></decl>;</decl_stmt>
+
+    <comment type="line">// Cached values used for interface RangeInfo: (note minValue pinned at 0)</comment>
+    <comment type="line">//   A single set of extrema covers the entire SeriesCollection</comment>
+
+    <comment type="javadoc">/** The minimum value. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Float</name></type> <name>minValue</name> =<init> <expr>new <call><name>Float</name><argument_list>(<argument><expr>0.0f</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The maximum value. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Float</name></type> <name>maxValue</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The value range. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Range</name></type> <name>valueRange</name></decl>;</decl_stmt>  <comment type="line">// autoinit's to null.</comment>
+
+    <comment type="javadoc">/**
+     * Constructs a dataset with capacity for N series, tied to default 
+     * timezone.
+     *
+     * @param nSeries the number of series to be accommodated.
+     * @param nMoments the number of TimePeriods to be spanned.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DynamicTimeSeriesCollection</name><parameter_list>(<param><decl><type><name>int</name></type> <name>nSeries</name></decl></param>, <param><decl><type><name>int</name></type> <name>nMoments</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>nSeries</name></expr></argument>, <argument><expr><name>nMoments</name></expr></argument>, <argument><expr>new <call><name>Millisecond</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>newestAt</name></name> = <name>nMoments</name> - 1</expr>;</expr_stmt>
+
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs an empty dataset, tied to a specific timezone.
+     *
+     * @param nSeries the number of series to be accommodated
+     * @param nMoments the number of TimePeriods to be spanned
+     * @param zone the timezone.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DynamicTimeSeriesCollection</name><parameter_list>(<param><decl><type><name>int</name></type> <name>nSeries</name></decl></param>, <param><decl><type><name>int</name></type> <name>nMoments</name></decl></param>, 
+                                       <param><decl><type><name>TimeZone</name></type> <name>zone</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>nSeries</name></expr></argument>, <argument><expr><name>nMoments</name></expr></argument>, <argument><expr>new <call><name>Millisecond</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>zone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>newestAt</name></name> = <name>nMoments</name> - 1</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new dataset.
+     *
+     * @param nSeries  the number of series.
+     * @param nMoments  the number of items per series.
+     * @param timeSample  a time period sample.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DynamicTimeSeriesCollection</name><parameter_list>(<param><decl><type><name>int</name></type> <name>nSeries</name></decl></param>,
+                                       <param><decl><type><name>int</name></type> <name>nMoments</name></decl></param>,
+                                       <param><decl><type><name>RegularTimePeriod</name></type> <name>timeSample</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>nSeries</name></expr></argument>, <argument><expr><name>nMoments</name></expr></argument>, <argument><expr><name>timeSample</name></expr></argument>, <argument><expr><call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new dataset.
+     *
+     * @param nSeries  the number of series.
+     * @param nMoments  the number of items per series.
+     * @param timeSample  a time period sample.
+     * @param zone  the time zone.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DynamicTimeSeriesCollection</name><parameter_list>(<param><decl><type><name>int</name></type> <name>nSeries</name></decl></param>,
+                                       <param><decl><type><name>int</name></type> <name>nMoments</name></decl></param>,
+                                       <param><decl><type><name>RegularTimePeriod</name></type> <name>timeSample</name></decl></param>,
+                                       <param><decl><type><name>TimeZone</name></type> <name>zone</name></decl></param>)</parameter_list> <block>{
+
+        <comment type="line">// the first initialization must precede creation of the ValueSet array:</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>maximumItemCount</name></name> = <name>nMoments</name></expr>;</expr_stmt>  <comment type="line">// establishes length of each array</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>historyCount</name></name> = <name>nMoments</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>seriesKeys</name></name> = new <name><name>Comparable</name><index>[<expr><name>nSeries</name></expr>]</index></name></expr>;</expr_stmt>
+        <comment type="line">// initialize the members of "seriesNames" array so they won't be null:</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>nSeries</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>seriesKeys</name><index>[<expr><name>i</name></expr>]</index></name> = ""</expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><name><name>this</name>.<name>newestAt</name></name> = <name>nMoments</name> - 1</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name></name> = new <name><name>ValueSequence</name><index>[<expr><name>nSeries</name></expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>timePeriodClass</name></name> = <call><name><name>timeSample</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">/// Expand the following for all defined TimePeriods:</comment>
+        <if>if <condition>(<expr><name><name>this</name>.<name>timePeriodClass</name></name> == <name><name>Second</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name></name> = new <name><name>Second</name><index>[<expr><name>nMoments</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><name><name>this</name>.<name>timePeriodClass</name></name> == <name><name>Minute</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name></name> = new <name><name>Minute</name><index>[<expr><name>nMoments</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><name><name>this</name>.<name>timePeriodClass</name></name> == <name><name>Hour</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name></name> = new <name><name>Hour</name><index>[<expr><name>nMoments</name></expr>]</index></name></expr>;</expr_stmt>
+        }</block></then></if></else></if></else></if>
+        <comment type="line">///  .. etc....</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>workingCalendar</name></name> = <call><name><name>Calendar</name>.<name>getInstance</name></name><argument_list>(<argument><expr><name>zone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>position</name></name> = <name>START</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>domainIsPointsInTime</name></name> = true</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Fill the pointsInTime with times using TimePeriod.next():
+     * Will silently return if the time array was already populated.
+     *
+     * Also computes the data cached for later use by
+     * methods implementing the DomainInfo interface:
+     *
+     * @param start  the start.
+     *
+     * @return ??.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>synchronized</specifier> <name>long</name></type> <name>setTimeBase</name><parameter_list>(<param><decl><type><name>RegularTimePeriod</name></type> <name>start</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr>0</expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr>0</expr>]</index></name> = <name>start</name></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>this</name>.<name>historyCount</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><name>i</name></expr>]</index></name> = <name><name>this</name>.<name>pointsInTime</name><index>[<expr><name>i</name> - 1</expr>]</index></name>.<call><name>next</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>long</name></type> <name>oldestL</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr>0</expr>]</index></name>.<call><name>getFirstMillisecond</name><argument_list>(
+            <argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>
+        )</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>nextL</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr>1</expr>]</index></name>.<call><name>getFirstMillisecond</name><argument_list>(
+            <argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>
+        )</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>deltaTime</name></name> = <name>nextL</name> - <name>oldestL</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>oldestAt</name></name> = 0</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>newestAt</name></name> = <name><name>this</name>.<name>historyCount</name></name> - 1</expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>findDomainLimits</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name><name>this</name>.<name>deltaTime</name></name></expr>;</return>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Finds the domain limits.  Note: this doesn't need to be synchronized 
+     * because it's called from within another method that already is.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>findDomainLimits</name><parameter_list>()</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>long</name></type> <name>startL</name> =<init> <expr><call><name>getOldestTime</name><argument_list>()</argument_list></call>.<call><name>getFirstMillisecond</name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>endL</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>domainIsPointsInTime</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>endL</name> = <call><name>getNewestTime</name><argument_list>()</argument_list></call>.<call><name>getFirstMillisecond</name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <expr_stmt><expr><name>endL</name> = <call><name>getNewestTime</name><argument_list>()</argument_list></call>.<call><name>getLastMillisecond</name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><name><name>this</name>.<name>domainStart</name></name> = new <call><name>Long</name><argument_list>(<argument><expr><name>startL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>domainEnd</name></name> = new <call><name>Long</name><argument_list>(<argument><expr><name>endL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>domainRange</name></name> = new <call><name>Range</name><argument_list>(<argument><expr><name>startL</name></expr></argument>, <argument><expr><name>endL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x position type (START, MIDDLE or END).
+     *
+     * @return The x position type.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getPosition</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>position</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the x position type (START, MIDDLE or END).
+     *
+     * @param position The x position type.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setPosition</name><parameter_list>(<param><decl><type><name>int</name></type> <name>position</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>position</name></name> = <name>position</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a series to the dataset.  Only the y-values are supplied, the 
+     * x-values are specified elsewhere.
+     *
+     * @param values  the y-values.
+     * @param seriesNumber  the series index (zero-based).
+     * @param seriesKey  the series key.
+     *
+     * Use this as-is during setup only, or add the synchronized keyword around 
+     * the copy loop.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addSeries</name><parameter_list>(<param><decl><type><name><name>float</name><index>[]</index></name></type> <name>values</name></decl></param>,
+                          <param><decl><type><name>int</name></type> <name>seriesNumber</name></decl></param>, <param><decl><type><name>Comparable</name></type> <name>seriesKey</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><call><name>invalidateRangeInfo</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>values</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"TimeSeriesDataset.addSeries(): "
+                + "cannot add null array of values."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>seriesNumber</name> &gt;= <name><name>this</name>.<name>valueHistory</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"TimeSeriesDataset.addSeries(): "
+                + "cannot add more series than specified in c'tor"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> 
+                = new <call><name>ValueSequence</name><argument_list>(<argument><expr><name><name>this</name>.<name>historyCount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>seriesCount</name></name>++</expr>;</expr_stmt>
+        }</block></then></if>   
+        <comment type="line">// But if that series array already exists, just overwrite its contents</comment>
+
+        <comment type="line">// Avoid IndexOutOfBoundsException:</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>srcLength</name> =<init> <expr><name><name>values</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>copyLength</name> =<init> <expr><name><name>this</name>.<name>historyCount</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>fillNeeded</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>srcLength</name> &lt; <name><name>this</name>.<name>historyCount</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>fillNeeded</name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name>copyLength</name> = <name>srcLength</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">//</comment>{
+        <for>for (<init><expr><name>i</name> = 0</expr>;</init> <condition><expr><name>i</name> &lt; <name>copyLength</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{ <comment type="line">// deep copy from values[], caller </comment>
+                                           <comment type="line">// can safely discard that array</comment>
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name><name>values</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <if>if <condition>(<expr><name>fillNeeded</name></expr>)</condition><then> <block>{
+            <for>for (<init><expr><name>i</name> = <name>copyLength</name></expr>;</init> <condition><expr><name>i</name> &lt; <name><name>this</name>.<name>historyCount</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr>0.0f</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+      <comment type="line">//</comment>}
+        <if>if <condition>(<expr><name>seriesKey</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>seriesKeys</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> = <name>seriesKey</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>fireSeriesChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the name of a series.  If planning to add values individually.
+     *
+     * @param seriesNumber  the series.
+     * @param key  the new key.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setSeriesKey</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesNumber</name></decl></param>, <param><decl><type><name>Comparable</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>seriesKeys</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> = <name>key</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a value to a series.
+     *
+     * @param seriesNumber  the series index.
+     * @param index  ??.
+     * @param value  the value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>float</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><call><name>invalidateRangeInfo</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>seriesNumber</name> &gt;= <name><name>this</name>.<name>valueHistory</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                <argument><expr>"TimeSeriesDataset.addValue(): series #"
+                + <name>seriesNumber</name> + "unspecified in c'tor"</expr></argument>
+            )</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name> 
+                = new <call><name>ValueSequence</name><argument_list>(<argument><expr><name><name>this</name>.<name>historyCount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>seriesCount</name></name>++</expr>;</expr_stmt>
+        }</block></then></if>  
+        <comment type="line">// But if that series array already exists, just overwrite its contents</comment>
+        <comment type="line">//synchronized(this)</comment>
+        <comment type="line">//</comment>{
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>seriesNumber</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">//</comment>}
+        <expr_stmt><expr><call><name>fireSeriesChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of series in the collection.
+     *
+     * @return The series count.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getSeriesCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>seriesCount</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of items in a series.
+     * &lt;p&gt;
+     * For this implementation, all series have the same number of items.
+     *
+     * @param series  the series index (zero-based).
+     *
+     * @return The item count.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getItemCount</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>)</parameter_list> <block>{  <comment type="line">// all arrays equal length, </comment>
+                                           <comment type="line">// so ignore argument:</comment>
+        <return>return <expr><name><name>this</name>.<name>historyCount</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Methods for managing the FIFO's:</comment>
+
+    <comment type="javadoc">/**
+     * Re-map an index, for use in retrieving data.
+     *
+     * @param toFetch  the index.
+     *
+     * @return The translated index.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>int</name></type> <name>translateGet</name><parameter_list>(<param><decl><type><name>int</name></type> <name>toFetch</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>this</name>.<name>oldestAt</name></name> == 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>toFetch</name></expr>;</return>  <comment type="line">// no translation needed</comment>
+        }</block></then></if>
+        <comment type="line">// else  [implicit here]</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>newIndex</name> =<init> <expr><name>toFetch</name> + <name><name>this</name>.<name>oldestAt</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>newIndex</name> &gt;= <name><name>this</name>.<name>historyCount</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>newIndex</name> -= <name><name>this</name>.<name>historyCount</name></name></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>newIndex</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the actual index to a time offset by "delta" from newestAt.
+     *
+     * @param delta  the delta.
+     *
+     * @return The offset.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>offsetFromNewest</name><parameter_list>(<param><decl><type><name>int</name></type> <name>delta</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>wrapOffset</name><argument_list>(<argument><expr><name><name>this</name>.<name>newestAt</name></name> + <name>delta</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * ??
+     *
+     * @param delta ??
+     *
+     * @return The offset.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>offsetFromOldest</name><parameter_list>(<param><decl><type><name>int</name></type> <name>delta</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>wrapOffset</name><argument_list>(<argument><expr><name><name>this</name>.<name>oldestAt</name></name> + <name>delta</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * ??
+     *
+     * @param protoIndex  the index.
+     *
+     * @return The offset.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>int</name></type> <name>wrapOffset</name><parameter_list>(<param><decl><type><name>int</name></type> <name>protoIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>tmp</name> =<init> <expr><name>protoIndex</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>tmp</name> &gt;= <name><name>this</name>.<name>historyCount</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>tmp</name> -= <name><name>this</name>.<name>historyCount</name></name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><name>tmp</name> &lt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>tmp</name> += <name><name>this</name>.<name>historyCount</name></name></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        <return>return <expr><name>tmp</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adjust the array offset as needed when a new time-period is added:
+     * Increments the indices "oldestAt" and "newestAt", mod(array length),
+     * zeroes the series values at newestAt, returns the new TimePeriod.
+     *
+     * @return The new time period.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>synchronized</specifier> <name>RegularTimePeriod</name></type> <name>advanceTime</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>RegularTimePeriod</name></type> <name>nextInstant</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><name><name>this</name>.<name>newestAt</name></name></expr>]</index></name>.<call><name>next</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>newestAt</name></name> = <name><name>this</name>.<name>oldestAt</name></name></expr>;</expr_stmt>  <comment type="line">// newestAt takes value previously held </comment>
+                                        <comment type="line">// by oldestAT</comment>
+        <comment type="javadoc">/*** 
+         * The next 10 lines or so should be expanded if data can be negative 
+         ***/</comment>
+        <comment type="line">// if the oldest data contained a maximum Y-value, invalidate the stored</comment>
+        <comment type="line">//   Y-max and Y-range data:</comment>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>extremaChanged</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>oldMax</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>maxValue</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>oldMax</name> = <call><name><name>this</name>.<name>maxValue</name>.<name>floatValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>s</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>s</name> &lt; <call><name>getSeriesCount</name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>s</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name>.<call><name>getData</name><argument_list>(<argument><expr><name><name>this</name>.<name>oldestAt</name></name></expr></argument>)</argument_list></call> == <name>oldMax</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>extremaChanged</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>extremaChanged</name></expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then></if>
+        }</block></for>  <comment type="javadoc">/*** If data can be &lt; 0, add code here to check the minimum    **/</comment>
+        <if>if <condition>(<expr><name>extremaChanged</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>invalidateRangeInfo</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">//  wipe the next (about to be used) set of data slots</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>wiper</name> =<init> <expr>(<name>float</name>) 0.0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>s</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>s</name> &lt; <call><name>getSeriesCount</name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>s</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name><name>this</name>.<name>newestAt</name></name></expr></argument>, <argument><expr><name>wiper</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <comment type="line">// Update the array of TimePeriods:</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><name><name>this</name>.<name>newestAt</name></name></expr>]</index></name> = <name>nextInstant</name></expr>;</expr_stmt>
+        <comment type="line">// Now advance "oldestAt", wrapping at end of the array</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>oldestAt</name></name>++</expr>;</expr_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>oldestAt</name></name> &gt;= <name><name>this</name>.<name>historyCount</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>oldestAt</name></name> = 0</expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// Update the domain limits:</comment>
+        <decl_stmt><decl><type><name>long</name></type> <name>startL</name> =<init> <expr><call><name><name>this</name>.<name>domainStart</name>.<name>longValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>  <comment type="line">//(time is kept in msec)</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>domainStart</name></name> = new <call><name>Long</name><argument_list>(<argument><expr><name>startL</name> + <name><name>this</name>.<name>deltaTime</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>endL</name> =<init> <expr><call><name><name>this</name>.<name>domainEnd</name>.<name>longValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>domainEnd</name></name> = new <call><name>Long</name><argument_list>(<argument><expr><name>endL</name> + <name><name>this</name>.<name>deltaTime</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>domainRange</name></name> = new <call><name>Range</name><argument_list>(<argument><expr><name>startL</name></expr></argument>, <argument><expr><name>endL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>fireSeriesChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>nextInstant</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//  If data can be &lt; 0, the next 2 methods should be modified</comment>
+
+    <comment type="javadoc">/**
+     * Invalidates the range info.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>invalidateRangeInfo</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>maxValue</name></name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>valueRange</name></name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the maximum value.
+     *
+     * @return The maximum value.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>double</name></type> <name>findMaxValue</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>max</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>s</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>s</name> &lt; <call><name>getSeriesCount</name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>s</name>++</expr></incr>) <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>this</name>.<name>historyCount</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <decl_stmt><decl><type><name>double</name></type> <name>tmp</name> =<init> <expr><call><name>getYValue</name><argument_list>(<argument><expr><name>s</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>tmp</name> &gt; <name>max</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>max</name> = <name>tmp</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+        }</block></for>
+        <return>return <expr><name>max</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** End, positive-data-only code  **/</comment>
+
+    <comment type="javadoc">/**
+     * Returns the index of the oldest data item.
+     *
+     * @return The index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getOldestIndex</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>oldestAt</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the index of the newest data item.
+     *
+     * @return The index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getNewestIndex</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>newestAt</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// appendData() writes new data at the index position given by newestAt/</comment>
+    <comment type="line">// When adding new data dynamically, use advanceTime(), followed by this:</comment>
+    <comment type="javadoc">/**
+     * Appends new data.
+     *
+     * @param newData  the data.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>appendData</name><parameter_list>(<param><decl><type><name><name>float</name><index>[]</index></name></type> <name>newData</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>nDataPoints</name> =<init> <expr><name><name>newData</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>nDataPoints</name> &gt; <name><name>this</name>.<name>valueHistory</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+               <argument><expr>"More data than series to put them in"</expr></argument>
+            )</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>s</name></decl>;</decl_stmt>   <comment type="line">// index to select the "series"</comment>
+        <for>for (<init><expr><name>s</name> = 0</expr>;</init> <condition><expr><name>s</name> &lt; <name>nDataPoints</name></expr>;</condition> <incr><expr><name>s</name>++</expr></incr>) <block>{
+            <comment type="line">// check whether the "valueHistory" array member exists; if not, </comment>
+            <comment type="line">// create them:</comment>
+            <if>if <condition>(<expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name> = new <call><name>ValueSequence</name><argument_list>(<argument><expr><name><name>this</name>.<name>historyCount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name><name>this</name>.<name>newestAt</name></name></expr></argument>, <argument><expr><name><name>newData</name><index>[<expr><name>s</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name>fireSeriesChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends data at specified index, for loading up with data from file(s).
+     *
+     * @param  newData  the data
+     * @param  insertionIndex  the index value at which to put it
+     * @param  refresh  value of n in "refresh the display on every nth call"
+     *                 (ignored if &lt;= 0 )
+     */</comment>
+     <function><type><specifier>public</specifier> <name>void</name></type> <name>appendData</name><parameter_list>(<param><decl><type><name><name>float</name><index>[]</index></name></type> <name>newData</name></decl></param>, <param><decl><type><name>int</name></type> <name>insertionIndex</name></decl></param>, <param><decl><type><name>int</name></type> <name>refresh</name></decl></param>)</parameter_list> <block>{
+         <decl_stmt><decl><type><name>int</name></type> <name>nDataPoints</name> =<init> <expr><name><name>newData</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+         <if>if <condition>(<expr><name>nDataPoints</name> &gt; <name><name>this</name>.<name>valueHistory</name>.<name>length</name></name></expr>)</condition><then> <block>{
+             <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+                 <argument><expr>"More data than series to put them " + "in"</expr></argument>
+             )</argument_list></call></expr>;</throw>
+         }</block></then></if>
+         <for>for (<init><decl><type><name>int</name></type> <name>s</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>s</name> &lt; <name>nDataPoints</name></expr>;</condition> <incr><expr><name>s</name>++</expr></incr>) <block>{
+             <if>if <condition>(<expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name> = new <call><name>ValueSequence</name><argument_list>(<argument><expr><name><name>this</name>.<name>historyCount</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+             }</block></then></if>
+             <expr_stmt><expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>s</name></expr>]</index></name>.<call><name>enterData</name><argument_list>(<argument><expr><name>insertionIndex</name></expr></argument>, <argument><expr><name><name>newData</name><index>[<expr><name>s</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+         }</block></for>
+         <if>if <condition>(<expr><name>refresh</name> &gt; 0</expr>)</condition><then> <block>{
+             <expr_stmt><expr><name>insertionIndex</name>++</expr>;</expr_stmt>
+             <if>if <condition>(<expr><name>insertionIndex</name> % <name>refresh</name> == 0</expr>)</condition><then> <block>{
+                 <expr_stmt><expr><call><name>fireSeriesChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+             }</block></then></if>
+         }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the newest time.
+     *
+     * @return The newest time.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>RegularTimePeriod</name></type> <name>getNewestTime</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><name><name>this</name>.<name>newestAt</name></name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the oldest time.
+     *
+     * @return The oldest time.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>RegularTimePeriod</name></type> <name>getOldestTime</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><name><name>this</name>.<name>oldestAt</name></name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <comment type="line">// getXxx() ftns can ignore the "series" argument:</comment>
+    <comment type="line">// Don't synchronize this!! Instead, synchronize the loop that calls it.</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getX</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>RegularTimePeriod</name></type> <name>tp</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><call><name>translateGet</name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>Long</name><argument_list>(<argument><expr><call><name>getX</name><argument_list>(<argument><expr><name>tp</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the y-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getYValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{  
+        <comment type="line">// Don't synchronize this!!</comment>
+        <comment type="line">// Instead, synchronize the loop that calls it.</comment>
+        <decl_stmt><decl><type><name>ValueSequence</name></type> <name>values</name> =<init> <expr><name><name>this</name>.<name>valueHistory</name><index>[<expr><name>series</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>values</name>.<name>getData</name></name><argument_list>(<argument><expr><call><name>translateGet</name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return> 
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the y-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getY</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>Float</name><argument_list>(<argument><expr><call><name>getYValue</name><argument_list>(<argument><expr><name>series</name></expr></argument>, <argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the start x-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getStartX</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>RegularTimePeriod</name></type> <name>tp</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><call><name>translateGet</name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>Long</name><argument_list>(<argument><expr><call><name><name>tp</name>.<name>getFirstMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the end x-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getEndX</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>RegularTimePeriod</name></type> <name>tp</name> =<init> <expr><name><name>this</name>.<name>pointsInTime</name><index>[<expr><call><name>translateGet</name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name>Long</name><argument_list>(<argument><expr><call><name><name>tp</name>.<name>getLastMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the start y-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getStartY</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getY</name><argument_list>(<argument><expr><name>series</name></expr></argument>, <argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the end y-value.
+     *
+     * @param series  the series index (zero-based).
+     * @param item  the item index (zero-based).
+     *
+     * @return The value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getEndY</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getY</name><argument_list>(<argument><expr><name>series</name></expr></argument>, <argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="block">/* // "Extras" found useful when analyzing/verifying class behavior:
+    public Number getUntranslatedXValue(int series, int item)
+    {
+      return super.getXValue(series, item);
+    }
+
+    public float getUntranslatedY(int series, int item)
+    {
+      return super.getY(series, item);
+    }  */</comment>
+
+    <comment type="javadoc">/**
+     * Returns the key for a series.
+     *
+     * @param series  the series index (zero-based).
+     *
+     * @return The key.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Comparable</name></type> <name>getSeriesKey</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>seriesKeys</name><index>[<expr><name>series</name></expr>]</index></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sends a {@link SeriesChangeEvent} to all registered listeners.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>fireSeriesChanged</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>seriesChanged</name><argument_list>(<argument><expr>new <call><name>SeriesChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// The next 3 functions override the base-class implementation of</comment>
+    <comment type="line">// the DomainInfo interface.  Using saved limits (updated by</comment>
+    <comment type="line">// each updateTime() call), improves performance.</comment>
+    <comment type="line">//</comment>
+
+    <comment type="javadoc">/**
+     * Returns the minimum x-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         x-interval is taken into account.
+     * 
+     * @return The minimum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getDomainLowerBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>this</name>.<name>domainStart</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</return>  
+        <comment type="line">// a Long kept updated by advanceTime()        </comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the maximum x-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         x-interval is taken into account.
+     * 
+     * @return The maximum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getDomainUpperBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>this</name>.<name>domainEnd</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</return>  
+        <comment type="line">// a Long kept updated by advanceTime()</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the range of the values in this dataset's domain.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         x-interval is taken into account.
+     * 
+     * @return The range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Range</name></type> <name>getDomainBounds</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>this</name>.<name>domainRange</name></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>findDomainLimits</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name><name>this</name>.<name>domainRange</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the x-value for a time period.
+     *
+     * @param period  the period.
+     *
+     * @return The x-value.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>long</name></type> <name>getX</name><parameter_list>(<param><decl><type><name>RegularTimePeriod</name></type> <name>period</name></decl></param>)</parameter_list> <block>{
+        <switch>switch <condition>(<expr><name><name>this</name>.<name>position</name></name></expr>)</condition> <block>{
+            <case>case <expr>(<name>START</name>)</expr> : 
+                <return>return <expr><call><name><name>period</name>.<name>getFirstMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</return>
+            </case><case>case <expr>(<name>MIDDLE</name>)</expr> : 
+                <return>return <expr><call><name><name>period</name>.<name>getMiddleMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</return>
+            </case><case>case <expr>(<name>END</name>)</expr> : 
+                <return>return <expr><call><name><name>period</name>.<name>getLastMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</return>
+            </case><default>default: 
+                <return>return <expr><call><name><name>period</name>.<name>getMiddleMillisecond</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>workingCalendar</name></name></expr></argument>)</argument_list></call></expr>;</return>
+        </default>}</block></switch>
+     }</block></function>
+
+    <comment type="line">// The next 3 functions implement the RangeInfo interface.</comment>
+    <comment type="line">// Using saved limits (updated by each updateTime() call) significantly</comment>
+    <comment type="line">// improves performance.  WARNING: this code makes the simplifying </comment>
+    <comment type="line">// assumption that data is never negative.  Expand as needed for the </comment>
+    <comment type="line">// general case.</comment>
+
+    <comment type="javadoc">/**
+     * Returns the minimum range value.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The minimum range value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeLowerBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>result</name> =<init> <expr><name><name>Double</name>.<name>NaN</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>minValue</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>this</name>.<name>minValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the maximum range value.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The maximum range value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeUpperBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>result</name> =<init> <expr><name><name>Double</name>.<name>NaN</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>maxValue</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>this</name>.<name>maxValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the value range.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Range</name></type> <name>getRangeBounds</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>this</name>.<name>valueRange</name></name> == <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>double</name></type> <name>max</name> =<init> <expr><call><name>getRangeUpperBound</name><argument_list>(<argument><expr><name>includeInterval</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>valueRange</name></name> = new <call><name>Range</name><argument_list>(<argument><expr>0.0</expr></argument>, <argument><expr><name>max</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name><name>this</name>.<name>valueRange</name></name></expr>;</return>
+    }</block></function>
+    
+}</block></class>
+</unit>

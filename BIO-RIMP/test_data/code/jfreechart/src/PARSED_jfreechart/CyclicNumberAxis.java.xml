@@ -1,0 +1,1213 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\chart\axis\CyclicNumberAxis.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2007, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * ---------------------
+ * CyclicNumberAxis.java
+ * ---------------------
+ * (C) Copyright 2003-2007, by Nicolas Brodu and Contributors.
+ *
+ * Original Author:  Nicolas Brodu;
+ * Contributor(s):   David Gilbert (for Object Refinery Limited);
+ *
+ * Changes
+ * -------
+ * 19-Nov-2003 : Initial import to JFreeChart from the JSynoptic project (NB);
+ * 16-Mar-2004 : Added plotState to draw() method (DG);
+ * 07-Apr-2004 : Modifed text bounds calculation (DG);
+ * 21-Apr-2005 : Replaced Insets with RectangleInsets, removed redundant
+ *               argument in selectAutoTickUnit() (DG);
+ * 22-Apr-2005 : Renamed refreshHorizontalTicks() --&gt; refreshTicksHorizontal
+ *               (for consistency with other classes) and removed unused
+ *               parameters (DG);
+ * 08-Jun-2005 : Fixed equals() method to handle GradientPaint (DG);
+ *
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>axis</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>awt</name>.<name>BasicStroke</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Color</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Font</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>FontMetrics</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Graphics2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Paint</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Stroke</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>Line2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>Rectangle2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>NumberFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>Plot</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>PlotRenderingInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>Range</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>io</name>.<name>SerialUtilities</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>text</name>.<name>TextUtilities</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>ui</name>.<name>RectangleEdge</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>ui</name>.<name>TextAnchor</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>ObjectUtilities</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>PaintUtilities</name></name>;</import>
+
+<comment type="javadoc">/**
+This class extends NumberAxis and handles cycling.
+ 
+Traditional representation of data in the range x0..x1
+&lt;pre&gt;
+|-------------------------|
+x0                       x1
+&lt;/pre&gt; 
+
+Here, the range bounds are at the axis extremities.
+With cyclic axis, however, the time is split in 
+"cycles", or "time frames", or the same duration : the period.
+
+A cycle axis cannot by definition handle a larger interval 
+than the period : &lt;pre&gt;x1 - x0 &gt;= period&lt;/pre&gt;. Thus, at most a full 
+period can be represented with such an axis.
+
+The cycle bound is the number between x0 and x1 which marks 
+the beginning of new time frame:
+&lt;pre&gt;
+|---------------------|----------------------------|
+x0                   cb                           x1
+&lt;---previous cycle---&gt;&lt;-------current cycle--------&gt;
+&lt;/pre&gt;
+
+It is actually a multiple of the period, plus optionally 
+a start offset: &lt;pre&gt;cb = n * period + offset&lt;/pre&gt;
+
+Thus, by definition, two consecutive cycle bounds 
+period apart, which is precisely why it is called a 
+period.
+
+The visual representation of a cyclic axis is like that:
+&lt;pre&gt;
+|----------------------------|---------------------|
+cb                         x1|x0                  cb
+&lt;-------current cycle--------&gt;&lt;---previous cycle---&gt;
+&lt;/pre&gt;
+
+The cycle bound is at the axis ends, then current 
+cycle is shown, then the last cycle. When using 
+dynamic data, the visual effect is the current cycle 
+erases the last cycle as x grows. Then, the next cycle 
+bound is reached, and the process starts over, erasing 
+the previous cycle.
+
+A Cyclic item renderer is provided to do exactly this.
+
+ */</comment>
+<class><specifier>public</specifier> class <name>CyclicNumberAxis</name> <super><extends>extends <name>NumberAxis</name></extends></super> <block>{
+
+    <comment type="javadoc">/** For serialization. */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>-7514160997164582554L</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The default axis line stroke. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <name>Stroke</name></type> <name>DEFAULT_ADVANCE_LINE_STROKE</name> =<init> <expr>new <call><name>BasicStroke</name><argument_list>(<argument><expr>1.0f</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** The default axis line paint. */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Paint</name></type> <name>DEFAULT_ADVANCE_LINE_PAINT</name> =<init> <expr><name><name>Color</name>.<name>gray</name></name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** The offset. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>double</name></type> <name>offset</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** The period.*/</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>double</name></type> <name>period</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** ??. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>boundMappedToLastCycle</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** A flag that controls whether or not the advance line is visible. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>boolean</name></type> <name>advanceLineVisible</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The advance line stroke. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>transient</name> <name>Stroke</name></type> <name>advanceLineStroke</name> =<init> <expr><name>DEFAULT_ADVANCE_LINE_STROKE</name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** The advance line paint. */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>transient</name> <name>Paint</name></type> <name>advanceLinePaint</name></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>boolean</name></type> <name>internalMarkerWhenTicksOverlap</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>Tick</name></type> <name>internalMarkerCycleBoundTick</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** 
+     * Creates a CycleNumberAxis with the given period.
+     * 
+     * @param period  the period.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CyclicNumberAxis</name><parameter_list>(<param><decl><type><name>double</name></type> <name>period</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>period</name></expr></argument>, <argument><expr>0.0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/** 
+     * Creates a CycleNumberAxis with the given period and offset.
+     * 
+     * @param period  the period.
+     * @param offset  the offset.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CyclicNumberAxis</name><parameter_list>(<param><decl><type><name>double</name></type> <name>period</name></decl></param>, <param><decl><type><name>double</name></type> <name>offset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>period</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/** 
+     * Creates a named CycleNumberAxis with the given period.
+     * 
+     * @param period  the period.
+     * @param label  the label.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CyclicNumberAxis</name><parameter_list>(<param><decl><type><name>double</name></type> <name>period</name></decl></param>, <param><decl><type><name>String</name></type> <name>label</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>period</name></expr></argument>, <argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <comment type="javadoc">/** 
+     * Creates a named CycleNumberAxis with the given period and offset.
+     * 
+     * @param period  the period.
+     * @param offset  the offset.
+     * @param label  the label.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CyclicNumberAxis</name><parameter_list>(<param><decl><type><name>double</name></type> <name>period</name></decl></param>, <param><decl><type><name>double</name></type> <name>offset</name></decl></param>, <param><decl><type><name>String</name></type> <name>label</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>label</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>period</name></name> = <name>period</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>offset</name></name> = <name>offset</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setFixedAutoRange</name><argument_list>(<argument><expr><name>period</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLineVisible</name></name> = true</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLinePaint</name></name> = <name>DEFAULT_ADVANCE_LINE_PAINT</name></expr>;</expr_stmt>
+    }</block></constructor>
+        
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isAdvanceLineVisible</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>advanceLineVisible</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @param visible  the flag.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAdvanceLineVisible</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>visible</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLineVisible</name></name> = <name>visible</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @return The paint (never &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Paint</name></type> <name>getAdvanceLinePaint</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>advanceLinePaint</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @param paint  the paint (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAdvanceLinePaint</name><parameter_list>(<param><decl><type><name>Paint</name></type> <name>paint</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>paint</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'paint' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLinePaint</name></name> = <name>paint</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @return The stroke (never &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Stroke</name></type> <name>getAdvanceLineStroke</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>advanceLineStroke</name></name></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/**
+     * The advance line is the line drawn at the limit of the current cycle, 
+     * when erasing the previous cycle. 
+     * 
+     * @param stroke  the stroke (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAdvanceLineStroke</name><parameter_list>(<param><decl><type><name>Stroke</name></type> <name>stroke</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>stroke</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'stroke' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLineStroke</name></name> = <name>stroke</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound can be associated either with the current or with the 
+     * last cycle.  It's up to the user's choice to decide which, as this is 
+     * just a convention.  By default, the cycle bound is mapped to the current
+     * cycle.
+     * &lt;br&gt;
+     * Note that this has no effect on visual appearance, as the cycle bound is
+     * mapped successively for both axis ends. Use this function for correct 
+     * results in translateValueToJava2D. 
+     *  
+     * @return &lt;code&gt;true&lt;/code&gt; if the cycle bound is mapped to the last 
+     *         cycle, &lt;code&gt;false&lt;/code&gt; if it is bound to the current cycle 
+     *         (default)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isBoundMappedToLastCycle</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound can be associated either with the current or with the 
+     * last cycle.  It's up to the user's choice to decide which, as this is 
+     * just a convention. By default, the cycle bound is mapped to the current 
+     * cycle. 
+     * &lt;br&gt;
+     * Note that this has no effect on visual appearance, as the cycle bound is
+     * mapped successively for both axis ends. Use this function for correct 
+     * results in valueToJava2D.
+     *  
+     * @param boundMappedToLastCycle Set it to true to map the cycle bound to 
+     *        the last cycle.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setBoundMappedToLastCycle</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>boundMappedToLastCycle</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = <name>boundMappedToLastCycle</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Selects a tick unit when the axis is displayed horizontally.
+     * 
+     * @param g2  the graphics device.
+     * @param drawArea  the drawing area.
+     * @param dataArea  the data area.
+     * @param edge  the side of the rectangle on which the axis is displayed.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>selectHorizontalAutoTickUnit</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>,
+                                                <param><decl><type><name>Rectangle2D</name></type> <name>drawArea</name></decl></param>, 
+                                                <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>,
+                                                <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>double</name></type> <name>tickLabelWidth</name> 
+            =<init> <expr><call><name>estimateMaximumTickLabelWidth</name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><call><name>getTickUnit</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <comment type="line">// Compute number of labels</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>n</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getLength</name><argument_list>()</argument_list></call> 
+                   * <name>tickLabelWidth</name> / <call><name><name>dataArea</name>.<name>getWidth</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name>setTickUnit</name><argument_list>(
+            <argument><expr>(<name>NumberTickUnit</name>) <call><name>getStandardTickUnits</name><argument_list>()</argument_list></call>.<call><name>getCeilingTickUnit</name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr></argument>, 
+            <argument><expr>false</expr></argument>, <argument><expr>false</expr></argument>
+        )</argument_list></call></expr>;</expr_stmt>
+        
+     }</block></function>
+
+    <comment type="javadoc">/**
+     * Selects a tick unit when the axis is displayed vertically.
+     * 
+     * @param g2  the graphics device.
+     * @param drawArea  the drawing area.
+     * @param dataArea  the data area.
+     * @param edge  the side of the rectangle on which the axis is displayed.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>selectVerticalAutoTickUnit</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>,
+                                                <param><decl><type><name>Rectangle2D</name></type> <name>drawArea</name></decl></param>, 
+                                                <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>,
+                                                <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>double</name></type> <name>tickLabelWidth</name> 
+            =<init> <expr><call><name>estimateMaximumTickLabelWidth</name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><call><name>getTickUnit</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Compute number of labels</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>n</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getLength</name><argument_list>()</argument_list></call> 
+                   * <name>tickLabelWidth</name> / <call><name><name>dataArea</name>.<name>getHeight</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name>setTickUnit</name><argument_list>(
+            <argument><expr>(<name>NumberTickUnit</name>) <call><name>getStandardTickUnits</name><argument_list>()</argument_list></call>.<call><name>getCeilingTickUnit</name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr></argument>, 
+            <argument><expr>false</expr></argument>, <argument><expr>false</expr></argument>
+        )</argument_list></call></expr>;</expr_stmt>
+        
+     }</block></function>
+
+    <comment type="javadoc">/** 
+     * A special Number tick that also hold information about the cycle bound 
+     * mapping for this tick.  This is especially useful for having a tick at 
+     * each axis end with the cycle bound value.  See also 
+     * isBoundMappedToLastCycle()
+     */</comment>
+    <class><specifier>protected</specifier> <specifier>static</specifier> class <name>CycleBoundTick</name> <super><extends>extends <name>NumberTick</name></extends></super> <block>{
+        
+        <comment type="javadoc">/** Map to last cycle. */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <name>boolean</name></type> <name>mapToLastCycle</name></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/**
+         * Creates a new tick.
+         * 
+         * @param mapToLastCycle  map to last cycle?
+         * @param number  the number.
+         * @param label  the label.
+         * @param textAnchor  the text anchor.
+         * @param rotationAnchor  the rotation anchor.
+         * @param angle  the rotation angle.
+         */</comment>
+        <constructor><specifier>public</specifier> <name>CycleBoundTick</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>mapToLastCycle</name></decl></param>, <param><decl><type><name>Number</name></type> <name>number</name></decl></param>, 
+                              <param><decl><type><name>String</name></type> <name>label</name></decl></param>, <param><decl><type><name>TextAnchor</name></type> <name>textAnchor</name></decl></param>,
+                              <param><decl><type><name>TextAnchor</name></type> <name>rotationAnchor</name></decl></param>, <param><decl><type><name>double</name></type> <name>angle</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>number</name></expr></argument>, <argument><expr><name>label</name></expr></argument>, <argument><expr><name>textAnchor</name></expr></argument>, <argument><expr><name>rotationAnchor</name></expr></argument>, <argument><expr><name>angle</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>mapToLastCycle</name></name> = <name>mapToLastCycle</name></expr>;</expr_stmt>
+        }</block></constructor>
+    }</block></class>
+    
+    <comment type="javadoc">/**
+     * Calculates the anchor point for a tick.
+     * 
+     * @param tick  the tick.
+     * @param cursor  the cursor.
+     * @param dataArea  the data area.
+     * @param edge  the side on which the axis is displayed.
+     * 
+     * @return The anchor point.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>float</name><index>[]</index></type> <name>calculateAnchorPoint</name><parameter_list>(<param><decl><type><name>ValueTick</name></type> <name>tick</name></decl></param>, <param><decl><type><name>double</name></type> <name>cursor</name></decl></param>, 
+                                           <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                           <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>tick</name> <name>instanceof</name> <name>CycleBoundTick</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>mapsav</name> =<init> <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> 
+                = ((<name>CycleBoundTick</name>) <name>tick</name>).<name>mapToLastCycle</name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>float</name><index>[]</index></type> <name>ret</name> =<init> <expr><call><name><name>super</name>.<name>calculateAnchorPoint</name></name><argument_list>(
+                <argument><expr><name>tick</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = <name>mapsav</name></expr>;</expr_stmt>
+            <return>return <expr><name>ret</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>super</name>.<name>calculateAnchorPoint</name></name><argument_list>(<argument><expr><name>tick</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    
+    
+    <comment type="javadoc">/**
+     * Builds a list of ticks for the axis.  This method is called when the 
+     * axis is at the top or bottom of the chart (so the axis is "horizontal").
+     * 
+     * @param g2  the graphics device.
+     * @param dataArea  the data area.
+     * @param edge  the edge.
+     * 
+     * @return A list of ticks.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>List</name></type> <name>refreshTicksHorizontal</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, 
+                                          <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                          <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>List</name></type> <name>result</name> =<init> <expr>new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>Font</name></type> <name>tickLabelFont</name> =<init> <expr><call><name>getTickLabelFont</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>g2</name>.<name>setFont</name></name><argument_list>(<argument><expr><name>tickLabelFont</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <if>if <condition>(<expr><call><name>isAutoTickUnitSelection</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>selectAutoTickUnit</name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>double</name></type> <name>unit</name> =<init> <expr><call><name>getTickUnit</name><argument_list>()</argument_list></call>.<call><name>getSize</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>cycleBound</name> =<init> <expr><call><name>getCycleBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>currentTickValue</name> =<init> <expr><call><name><name>Math</name>.<name>ceil</name></name><argument_list>(<argument><expr><name>cycleBound</name> / <name>unit</name></expr></argument>)</argument_list></call> * <name>unit</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>upperValue</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getUpperBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>cycled</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>boolean</name></type> <name>boundMapping</name> =<init> <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></init></decl>;</decl_stmt> 
+        <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = false</expr>;</expr_stmt> 
+        
+        <decl_stmt><decl><type><name>CycleBoundTick</name></type> <name>lastTick</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt> 
+        <decl_stmt><decl><type><name>float</name></type> <name>lastX</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>upperValue</name> == <name>cycleBound</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>currentTickValue</name> = <call><name>calculateLowestVisibleTickValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>cycled</name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = true</expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <while>while <condition>(<expr><name>currentTickValue</name> &lt;= <name>upperValue</name></expr>)</condition> <block>{
+            
+            <comment type="line">// Cycle when necessary</comment>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>cyclenow</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>(<name>currentTickValue</name> + <name>unit</name> &gt; <name>upperValue</name>) &amp;&amp; !<name>cycled</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>cyclenow</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+            
+            <decl_stmt><decl><type><name>double</name></type> <name>xx</name> =<init> <expr><call><name>valueToJava2D</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>tickLabel</name></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>NumberFormat</name></type> <name>formatter</name> =<init> <expr><call><name>getNumberFormatOverride</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>formatter</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>tickLabel</name> = <call><name><name>formatter</name>.<name>format</name></name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><name>tickLabel</name> = <call><name>getTickUnit</name><argument_list>()</argument_list></call>.<call><name>valueToString</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <decl_stmt><decl><type><name>float</name></type> <name>x</name> =<init> <expr>(<name>float</name>) <name>xx</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>TextAnchor</name></type> <name>anchor</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>TextAnchor</name></type> <name>rotationAnchor</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>double</name></type> <name>angle</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name>isVerticalTickLabels</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>TOP</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>angle</name> = <name><name>Math</name>.<name>PI</name></name> / 2.0</expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>angle</name> = -<name><name>Math</name>.<name>PI</name></name> / 2.0</expr>;</expr_stmt>
+                }</block></else></if>
+                <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>CENTER_RIGHT</name></name></expr>;</expr_stmt>
+                <comment type="line">// If tick overlap when cycling, update last tick too</comment>
+                <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastX</name> == <name>x</name>) 
+                        &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                        ? <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                        <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>, 
+                        <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                        <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                    )</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                        ? <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>TOP</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>BOTTOM_CENTER</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastX</name> == <name>x</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>TOP_CENTER</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastX</name> == <name>x</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>TOP_LEFT</name></name> : <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>TOP_LEFT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+
+            <decl_stmt><decl><type><name>CycleBoundTick</name></type> <name>tick</name> =<init> <expr>new <call><name>CycleBoundTick</name><argument_list>(
+                <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, 
+                <argument><expr>new <call><name>Double</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>tickLabel</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                <argument><expr><name>rotationAnchor</name></expr></argument>, <argument><expr><name>angle</name></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>currentTickValue</name> == <name>cycleBound</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>internalMarkerCycleBoundTick</name></name> = <name>tick</name></expr>;</expr_stmt> 
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr><name>tick</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>lastTick</name> = <name>tick</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>lastX</name> = <name>x</name></expr>;</expr_stmt>
+            
+            <expr_stmt><expr><name>currentTickValue</name> += <name>unit</name></expr>;</expr_stmt>
+            
+            <if>if <condition>(<expr><name>cyclenow</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>currentTickValue</name> = <call><name>calculateLowestVisibleTickValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>upperValue</name> = <name>cycleBound</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>cycled</name> = true</expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = true</expr>;</expr_stmt> 
+            }</block></then></if>
+
+        }</block></while>
+        <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = <name>boundMapping</name></expr>;</expr_stmt> 
+        <return>return <expr><name>result</name></expr>;</return>
+        
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Builds a list of ticks for the axis.  This method is called when the 
+     * axis is at the left or right of the chart (so the axis is "vertical").
+     * 
+     * @param g2  the graphics device.
+     * @param dataArea  the data area.
+     * @param edge  the edge.
+     * 
+     * @return A list of ticks.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>List</name></type> <name>refreshVerticalTicks</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, 
+                                        <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                        <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+        
+        <decl_stmt><decl><type><name>List</name></type> <name>result</name> =<init> <expr>new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>result</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>Font</name></type> <name>tickLabelFont</name> =<init> <expr><call><name>getTickLabelFont</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>g2</name>.<name>setFont</name></name><argument_list>(<argument><expr><name>tickLabelFont</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name>isAutoTickUnitSelection</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>selectAutoTickUnit</name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>double</name></type> <name>unit</name> =<init> <expr><call><name>getTickUnit</name><argument_list>()</argument_list></call>.<call><name>getSize</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>cycleBound</name> =<init> <expr><call><name>getCycleBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>currentTickValue</name> =<init> <expr><call><name><name>Math</name>.<name>ceil</name></name><argument_list>(<argument><expr><name>cycleBound</name> / <name>unit</name></expr></argument>)</argument_list></call> * <name>unit</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>upperValue</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getUpperBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>cycled</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>boolean</name></type> <name>boundMapping</name> =<init> <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></init></decl>;</decl_stmt> 
+        <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = true</expr>;</expr_stmt> 
+
+        <decl_stmt><decl><type><name>NumberTick</name></type> <name>lastTick</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>lastY</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>upperValue</name> == <name>cycleBound</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>currentTickValue</name> = <call><name>calculateLowestVisibleTickValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>cycled</name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = true</expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <while>while <condition>(<expr><name>currentTickValue</name> &lt;= <name>upperValue</name></expr>)</condition> <block>{
+            
+            <comment type="line">// Cycle when necessary</comment>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>cyclenow</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>(<name>currentTickValue</name> + <name>unit</name> &gt; <name>upperValue</name>) &amp;&amp; !<name>cycled</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>cyclenow</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+
+            <decl_stmt><decl><type><name>double</name></type> <name>yy</name> =<init> <expr><call><name>valueToJava2D</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>tickLabel</name></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>NumberFormat</name></type> <name>formatter</name> =<init> <expr><call><name>getNumberFormatOverride</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>formatter</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>tickLabel</name> = <call><name><name>formatter</name>.<name>format</name></name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><name>tickLabel</name> = <call><name>getTickUnit</name><argument_list>()</argument_list></call>.<call><name>valueToString</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+
+            <decl_stmt><decl><type><name>float</name></type> <name>y</name> =<init> <expr>(<name>float</name>) <name>yy</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>TextAnchor</name></type> <name>anchor</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>TextAnchor</name></type> <name>rotationAnchor</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>double</name></type> <name>angle</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name>isVerticalTickLabels</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+
+                <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>LEFT</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>BOTTOM_CENTER</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastY</name> == <name>y</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>angle</name> = -<name><name>Math</name>.<name>PI</name></name> / 2.0</expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>BOTTOM_CENTER</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastY</name> == <name>y</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>angle</name> = <name><name>Math</name>.<name>PI</name></name> / 2.0</expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then>
+            <else>else <block>{
+                <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>LEFT</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>CENTER_RIGHT</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastY</name> == <name>y</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>TOP_RIGHT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_RIGHT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><name>anchor</name> = <name><name>TextAnchor</name>.<name>CENTER_LEFT</name></name></expr>;</expr_stmt> 
+                    <if>if <condition>(<expr>(<name>lastTick</name> != <name>null</name>) &amp;&amp; (<name>lastY</name> == <name>y</name>) 
+                            &amp;&amp; (<name>currentTickValue</name> != <name>cycleBound</name>)</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name> : <name><name>TextAnchor</name>.<name>TOP_LEFT</name></name></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>CycleBoundTick</name><argument_list>(
+                            <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr><call><name><name>lastTick</name>.<name>getNumber</name></name><argument_list>()</argument_list></call></expr></argument>,
+                            <argument><expr><call><name><name>lastTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, 
+                            <argument><expr><call><name><name>lastTick</name>.<name>getAngle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                        )</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = true</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>anchor</name> = <call><name>isInverted</name><argument_list>()</argument_list></call> 
+                            ? <name><name>TextAnchor</name>.<name>TOP_LEFT</name></name> : <name><name>TextAnchor</name>.<name>BOTTOM_LEFT</name></name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>rotationAnchor</name> = <name>anchor</name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+
+            <decl_stmt><decl><type><name>CycleBoundTick</name></type> <name>tick</name> =<init> <expr>new <call><name>CycleBoundTick</name><argument_list>(
+                <argument><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name></expr></argument>, <argument><expr>new <call><name>Double</name><argument_list>(<argument><expr><name>currentTickValue</name></expr></argument>)</argument_list></call></expr></argument>, 
+                <argument><expr><name>tickLabel</name></expr></argument>, <argument><expr><name>anchor</name></expr></argument>, <argument><expr><name>rotationAnchor</name></expr></argument>, <argument><expr><name>angle</name></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>currentTickValue</name> == <name>cycleBound</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>internalMarkerCycleBoundTick</name></name> = <name>tick</name></expr>;</expr_stmt> 
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>result</name>.<name>add</name></name><argument_list>(<argument><expr><name>tick</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>lastTick</name> = <name>tick</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>lastY</name> = <name>y</name></expr>;</expr_stmt>
+            
+            <if>if <condition>(<expr><name>currentTickValue</name> == <name>cycleBound</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>internalMarkerCycleBoundTick</name></name> = <name>tick</name></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <expr_stmt><expr><name>currentTickValue</name> += <name>unit</name></expr>;</expr_stmt>
+            
+            <if>if <condition>(<expr><name>cyclenow</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>currentTickValue</name> = <call><name>calculateLowestVisibleTickValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>upperValue</name> = <name>cycleBound</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>cycled</name> = true</expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = false</expr>;</expr_stmt> 
+            }</block></then></if>
+
+        }</block></while>
+        <expr_stmt><expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> = <name>boundMapping</name></expr>;</expr_stmt> 
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Converts a coordinate from Java 2D space to data space.
+     * 
+     * @param java2DValue  the coordinate in Java2D space.
+     * @param dataArea  the data area.
+     * @param edge  the edge.
+     * 
+     * @return The data value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>java2DToValue</name><parameter_list>(<param><decl><type><name>double</name></type> <name>java2DValue</name></decl></param>, <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Range</name></type> <name>range</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><name>double</name></type> <name>vmax</name> =<init> <expr><call><name><name>range</name>.<name>getUpperBound</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>vp</name> =<init> <expr><call><name>getCycleBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>double</name></type> <name>jmin</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>jmax</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isTopOrBottom</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>jmin</name> = <call><name><name>dataArea</name>.<name>getMinX</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>jmax</name> = <call><name><name>dataArea</name>.<name>getMaxX</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isLeftOrRight</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>jmin</name> = <call><name><name>dataArea</name>.<name>getMaxY</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>jmax</name> = <call><name><name>dataArea</name>.<name>getMinY</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        
+        <if>if <condition>(<expr><call><name>isInverted</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>double</name></type> <name>jbreak</name> =<init> <expr><name>jmax</name> - (<name>vmax</name> - <name>vp</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>java2DValue</name> &gt;= <name>jbreak</name></expr>)</condition><then> <block>{ 
+                <return>return <expr><name>vp</name> + (<name>jmax</name> - <name>java2DValue</name>) * <name><name>this</name>.<name>period</name></name> / (<name>jmax</name> - <name>jmin</name>)</expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>vp</name> - (<name>java2DValue</name> - <name>jmin</name>) * <name><name>this</name>.<name>period</name></name> / (<name>jmax</name> - <name>jmin</name>)</expr>;</return>
+            }</block></else></if>
+        }</block></then>
+        <else>else <block>{
+            <decl_stmt><decl><type><name>double</name></type> <name>jbreak</name> =<init> <expr>(<name>vmax</name> - <name>vp</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name> + <name>jmin</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>java2DValue</name> &lt;= <name>jbreak</name></expr>)</condition><then> <block>{ 
+                <return>return <expr><name>vp</name> + (<name>java2DValue</name> - <name>jmin</name>) * <name><name>this</name>.<name>period</name></name> / (<name>jmax</name> - <name>jmin</name>)</expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>vp</name> - (<name>jmax</name> - <name>java2DValue</name>) * <name><name>this</name>.<name>period</name></name> / (<name>jmax</name> - <name>jmin</name>)</expr>;</return>
+            }</block></else></if>
+        }</block></else></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Translates a value from data space to Java 2D space.
+     * 
+     * @param value  the data value.
+     * @param dataArea  the data area.
+     * @param edge  the edge.
+     * 
+     * @return The Java 2D value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>valueToJava2D</name><parameter_list>(<param><decl><type><name>double</name></type> <name>value</name></decl></param>, <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Range</name></type> <name>range</name> =<init> <expr><call><name>getRange</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><name>double</name></type> <name>vmin</name> =<init> <expr><call><name><name>range</name>.<name>getLowerBound</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>vmax</name> =<init> <expr><call><name><name>range</name>.<name>getUpperBound</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>vp</name> =<init> <expr><call><name>getCycleBound</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr>(<name>value</name> &lt; <name>vmin</name>) || (<name>value</name> &gt; <name>vmax</name>)</expr>)</condition><then> <block>{
+            <return>return <expr><name><name>Double</name>.<name>NaN</name></name></expr>;</return>
+        }</block></then></if>
+        
+        
+        <decl_stmt><decl><type><name>double</name></type> <name>jmin</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>jmax</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isTopOrBottom</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>jmin</name> = <call><name><name>dataArea</name>.<name>getMinX</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>jmax</name> = <call><name><name>dataArea</name>.<name>getMaxX</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isLeftOrRight</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>jmax</name> = <call><name><name>dataArea</name>.<name>getMinY</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>jmin</name> = <call><name><name>dataArea</name>.<name>getMaxY</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+
+        <if>if <condition>(<expr><call><name>isInverted</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>value</name> == <name>vp</name></expr>)</condition><then> <block>{
+                <return>return <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> ? <name>jmin</name> : <name>jmax</name></expr>;</return> 
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>value</name> &gt; <name>vp</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>jmax</name> - (<name>value</name> - <name>vp</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name></expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>jmin</name> + (<name>vp</name> - <name>value</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name></expr>;</return>
+            }</block></else></if></else></if>
+        }</block></then>
+        <else>else <block>{
+            <if>if <condition>(<expr><name>value</name> == <name>vp</name></expr>)</condition><then> <block>{
+                <return>return <expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> ? <name>jmax</name> : <name>jmin</name></expr>;</return> 
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>value</name> &gt;= <name>vp</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>jmin</name> + (<name>value</name> - <name>vp</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name></expr>;</return>
+            }</block></then> 
+            <else>else <block>{
+                <return>return <expr><name>jmax</name> - (<name>vp</name> - <name>value</name>) * (<name>jmax</name> - <name>jmin</name>) / <name><name>this</name>.<name>period</name></name></expr>;</return>
+            }</block></else></if></else></if>
+        }</block></else></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Centers the range about the given value.
+     * 
+     * @param value  the data value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>centerRange</name><parameter_list>(<param><decl><type><name>double</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>setRange</name><argument_list>(<argument><expr><name>value</name> - <name><name>this</name>.<name>period</name></name> / 2.0</expr></argument>, <argument><expr><name>value</name> + <name><name>this</name>.<name>period</name></name> / 2.0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/** 
+     * This function is nearly useless since the auto range is fixed for this 
+     * class to the period.  The period is extended if necessary to fit the 
+     * minimum size.
+     * 
+     * @param size  the size.
+     * @param notify  notify?
+     * 
+     * @see org.jfree.chart.axis.ValueAxis#setAutoRangeMinimumSize(double, 
+     *      boolean)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAutoRangeMinimumSize</name><parameter_list>(<param><decl><type><name>double</name></type> <name>size</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>notify</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>size</name> &gt; <name><name>this</name>.<name>period</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>period</name></name> = <name>size</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>super</name>.<name>setAutoRangeMinimumSize</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>, <argument><expr><name>notify</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/** 
+     * The auto range is fixed for this class to the period by default. 
+     * This function will thus set a new period.
+     * 
+     * @param length  the length.
+     * 
+     * @see org.jfree.chart.axis.ValueAxis#setFixedAutoRange(double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setFixedAutoRange</name><parameter_list>(<param><decl><type><name>double</name></type> <name>length</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>period</name></name> = <name>length</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>super</name>.<name>setFixedAutoRange</name></name><argument_list>(<argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/** 
+     * Sets a new axis range. The period is extended to fit the range size, if 
+     * necessary.
+     * 
+     * @param range  the range.
+     * @param turnOffAutoRange  switch off the auto range.
+     * @param notify notify?
+     * 
+     * @see org.jfree.chart.axis.ValueAxis#setRange(Range, boolean, boolean) 
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setRange</name><parameter_list>(<param><decl><type><name>Range</name></type> <name>range</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>turnOffAutoRange</name></decl></param>, 
+                         <param><decl><type><name>boolean</name></type> <name>notify</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>size</name> =<init> <expr><call><name><name>range</name>.<name>getUpperBound</name></name><argument_list>()</argument_list></call> - <call><name><name>range</name>.<name>getLowerBound</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>size</name> &gt; <name><name>this</name>.<name>period</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>period</name></name> = <name>size</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>super</name>.<name>setRange</name></name><argument_list>(<argument><expr><name>range</name></expr></argument>, <argument><expr><name>turnOffAutoRange</name></expr></argument>, <argument><expr><name>notify</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound is defined as the higest value x such that 
+     * "offset + period * i = x", with i and integer and x &amp;lt; 
+     * range.getUpperBound() This is the value which is at both ends of the 
+     * axis :  x...up|low...x
+     * The values from x to up are the valued in the current cycle.
+     * The values from low to x are the valued in the previous cycle.
+     * 
+     * @return The cycle bound.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getCycleBound</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>Math</name>.<name>floor</name></name><argument_list>(
+            <argument><expr>(<call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getUpperBound</name><argument_list>()</argument_list></call> - <name><name>this</name>.<name>offset</name></name>) / <name><name>this</name>.<name>period</name></name></expr></argument>
+        )</argument_list></call> * <name><name>this</name>.<name>period</name></name> + <name><name>this</name>.<name>offset</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound is a multiple of the period, plus optionally a start 
+     * offset.
+     * &lt;P&gt;
+     * &lt;pre&gt;cb = n * period + offset&lt;/pre&gt;&lt;br&gt;
+     * 
+     * @return The current offset.
+     * 
+     * @see #getCycleBound()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getOffset</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>offset</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound is a multiple of the period, plus optionally a start 
+     * offset.
+     * &lt;P&gt;
+     * &lt;pre&gt;cb = n * period + offset&lt;/pre&gt;&lt;br&gt;
+     * 
+     * @param offset The offset to set.
+     *
+     * @see #getCycleBound() 
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setOffset</name><parameter_list>(<param><decl><type><name>double</name></type> <name>offset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>offset</name></name> = <name>offset</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound is a multiple of the period, plus optionally a start 
+     * offset.
+     * &lt;P&gt;
+     * &lt;pre&gt;cb = n * period + offset&lt;/pre&gt;&lt;br&gt;
+     * 
+     * @return The current period.
+     * 
+     * @see #getCycleBound()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getPeriod</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>period</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * The cycle bound is a multiple of the period, plus optionally a start 
+     * offset.
+     * &lt;P&gt;
+     * &lt;pre&gt;cb = n * period + offset&lt;/pre&gt;&lt;br&gt;
+     * 
+     * @param period The period to set.
+     * 
+     * @see #getCycleBound()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setPeriod</name><parameter_list>(<param><decl><type><name>double</name></type> <name>period</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>period</name></name> = <name>period</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Draws the tick marks and labels.
+     * 
+     * @param g2  the graphics device.
+     * @param cursor  the cursor.
+     * @param plotArea  the plot area.
+     * @param dataArea  the area inside the axes.
+     * @param edge  the side on which the axis is displayed.
+     * 
+     * @return The axis state.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>AxisState</name></type> <name>drawTickMarksAndLabels</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, <param><decl><type><name>double</name></type> <name>cursor</name></decl></param>, 
+                                               <param><decl><type><name>Rectangle2D</name></type> <name>plotArea</name></decl></param>, 
+                                               <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                                               <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name> = false</expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>AxisState</name></type> <name>ret</name> =<init> <expr><call><name><name>super</name>.<name>drawTickMarksAndLabels</name></name><argument_list>(
+            <argument><expr><name>g2</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>plotArea</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>
+        )</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <comment type="line">// continue and separate the labels only if necessary</comment>
+        <if>if <condition>(<expr>!<name><name>this</name>.<name>internalMarkerWhenTicksOverlap</name></name></expr>)</condition><then> <block>{
+            <return>return <expr><name>ret</name></expr>;</return>
+        }</block></then></if>
+        
+        <decl_stmt><decl><type><name>double</name></type> <name>ol</name> =<init> <expr><call><name>getTickMarkOutsideLength</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FontMetrics</name></type> <name>fm</name> =<init> <expr><call><name><name>g2</name>.<name>getFontMetrics</name></name><argument_list>(<argument><expr><call><name>getTickLabelFont</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><call><name>isVerticalTickLabels</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>ol</name> = <call><name><name>fm</name>.<name>getMaxAdvance</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt> 
+        }</block></then>
+        <else>else <block>{
+            <expr_stmt><expr><name>ol</name> = <call><name><name>fm</name>.<name>getHeight</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        
+        <decl_stmt><decl><type><name>double</name></type> <name>il</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>isTickMarksVisible</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>float</name></type> <name>xx</name> =<init> <expr>(<name>float</name>) <call><name>valueToJava2D</name><argument_list>(
+                <argument><expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getUpperBound</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Line2D</name></type> <name>mark</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>setStroke</name></name><argument_list>(<argument><expr><call><name>getTickMarkStroke</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>setPaint</name></name><argument_list>(<argument><expr><call><name>getTickMarkPaint</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>LEFT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>cursor</name> - <name>ol</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> + <name>il</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>RIGHT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>cursor</name> + <name>ol</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> - <name>il</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>TOP</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> - <name>ol</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> + <name>il</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>BOTTOM</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> + <name>ol</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> - <name>il</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if></else></if></else></if></else></if>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>draw</name></name><argument_list>(<argument><expr><name>mark</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>ret</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Draws the axis.
+     * 
+     * @param g2  the graphics device (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param cursor  the cursor position.
+     * @param plotArea  the plot area (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param dataArea  the data area (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param edge  the edge (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param plotState  collects information about the plot 
+     *                   (&lt;code&gt;null&lt;/code&gt; permitted).
+     * 
+     * @return The axis state (never &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>AxisState</name></type> <name>draw</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, 
+                          <param><decl><type><name>double</name></type> <name>cursor</name></decl></param>,
+                          <param><decl><type><name>Rectangle2D</name></type> <name>plotArea</name></decl></param>, 
+                          <param><decl><type><name>Rectangle2D</name></type> <name>dataArea</name></decl></param>, 
+                          <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>,
+                          <param><decl><type><name>PlotRenderingInfo</name></type> <name>plotState</name></decl></param>)</parameter_list> <block>{
+        
+        <decl_stmt><decl><type><name>AxisState</name></type> <name>ret</name> =<init> <expr><call><name><name>super</name>.<name>draw</name></name><argument_list>(
+            <argument><expr><name>g2</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>plotArea</name></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>, <argument><expr><name>plotState</name></expr></argument>
+        )</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>isAdvanceLineVisible</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>double</name></type> <name>xx</name> =<init> <expr><call><name>valueToJava2D</name><argument_list>(
+                <argument><expr><call><name>getRange</name><argument_list>()</argument_list></call>.<call><name>getUpperBound</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>dataArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>
+            )</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Line2D</name></type> <name>mark</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>setStroke</name></name><argument_list>(<argument><expr><call><name>getAdvanceLineStroke</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>setPaint</name></name><argument_list>(<argument><expr><call><name>getAdvanceLinePaint</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>LEFT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(
+                    <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> + <call><name><name>dataArea</name>.<name>getWidth</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>xx</name></expr></argument>
+                )</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>RIGHT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(
+                    <argument><expr><name>cursor</name> - <call><name><name>dataArea</name>.<name>getWidth</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>
+                )</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>TOP</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(
+                    <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> + <call><name><name>dataArea</name>.<name>getHeight</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>
+                )</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>edge</name> == <name><name>RectangleEdge</name>.<name>BOTTOM</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mark</name> = new <call><name><name>Line2D</name>.<name>Double</name></name><argument_list>(
+                    <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name></expr></argument>, <argument><expr><name>xx</name></expr></argument>, <argument><expr><name>cursor</name> - <call><name><name>dataArea</name>.<name>getHeight</name></name><argument_list>()</argument_list></call></expr></argument>
+                )</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if></else></if></else></if></else></if>
+            <expr_stmt><expr><call><name><name>g2</name>.<name>draw</name></name><argument_list>(<argument><expr><name>mark</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>ret</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Reserve some space on each axis side because we draw a centered label at
+     * each extremity. 
+     * 
+     * @param g2  the graphics device.
+     * @param plot  the plot.
+     * @param plotArea  the plot area.
+     * @param edge  the edge.
+     * @param space  the space already reserved.
+     * 
+     * @return The reserved space.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>AxisSpace</name></type> <name>reserveSpace</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, 
+                                  <param><decl><type><name>Plot</name></type> <name>plot</name></decl></param>, 
+                                  <param><decl><type><name>Rectangle2D</name></type> <name>plotArea</name></decl></param>, 
+                                  <param><decl><type><name>RectangleEdge</name></type> <name>edge</name></decl></param>, 
+                                  <param><decl><type><name>AxisSpace</name></type> <name>space</name></decl></param>)</parameter_list> <block>{
+        
+        <expr_stmt><expr><name><name>this</name>.<name>internalMarkerCycleBoundTick</name></name> = <name>null</name></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>AxisSpace</name></type> <name>ret</name> =<init> <expr><call><name><name>super</name>.<name>reserveSpace</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>plot</name></expr></argument>, <argument><expr><name>plotArea</name></expr></argument>, <argument><expr><name>edge</name></expr></argument>, <argument><expr><name>space</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>internalMarkerCycleBoundTick</name></name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>ret</name></expr>;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>FontMetrics</name></type> <name>fm</name> =<init> <expr><call><name><name>g2</name>.<name>getFontMetrics</name></name><argument_list>(<argument><expr><call><name>getTickLabelFont</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Rectangle2D</name></type> <name>r</name> =<init> <expr><call><name><name>TextUtilities</name>.<name>getTextBounds</name></name><argument_list>(
+            <argument><expr><call><name><name>this</name>.<name>internalMarkerCycleBoundTick</name>.<name>getText</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>g2</name></expr></argument>, <argument><expr><name>fm</name></expr></argument>
+        )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isTopOrBottom</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isVerticalTickLabels</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>space</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>r</name>.<name>getHeight</name></name><argument_list>()</argument_list></call> / 2</expr></argument>, <argument><expr><name><name>RectangleEdge</name>.<name>RIGHT</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>space</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>r</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> / 2</expr></argument>, <argument><expr><name><name>RectangleEdge</name>.<name>RIGHT</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then>
+        <else>else <if>if <condition>(<expr><call><name><name>RectangleEdge</name>.<name>isLeftOrRight</name></name><argument_list>(<argument><expr><name>edge</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isVerticalTickLabels</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>space</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>r</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> / 2</expr></argument>, <argument><expr><name><name>RectangleEdge</name>.<name>TOP</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>space</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>r</name>.<name>getHeight</name></name><argument_list>()</argument_list></call> / 2</expr></argument>, <argument><expr><name><name>RectangleEdge</name>.<name>TOP</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if></else></if>
+        
+        <return>return <expr><name>ret</name></expr>;</return>
+        
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Provides serialization support.
+     *
+     * @param stream  the output stream.
+     *
+     * @throws IOException  if there is an I/O error.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><name>ObjectOutputStream</name></type> <name>stream</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    
+        <expr_stmt><expr><call><name><name>stream</name>.<name>defaultWriteObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>SerialUtilities</name>.<name>writePaint</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>advanceLinePaint</name></name></expr></argument>, <argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>SerialUtilities</name>.<name>writeStroke</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>advanceLineStroke</name></name></expr></argument>, <argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Provides serialization support.
+     *
+     * @param stream  the input stream.
+     *
+     * @throws IOException  if there is an I/O error.
+     * @throws ClassNotFoundException  if there is a classpath problem.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>stream</name></decl></param>)</parameter_list> 
+        <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+    
+        <expr_stmt><expr><call><name><name>stream</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLinePaint</name></name> = <call><name><name>SerialUtilities</name>.<name>readPaint</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>advanceLineStroke</name></name> = <call><name><name>SerialUtilities</name>.<name>readStroke</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    
+    }</block></function>
+     
+    
+    <comment type="javadoc">/**
+     * Tests the axis for equality with another object.
+     * 
+     * @param obj  the object to test against.
+     * 
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>obj</name> == <name>this</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!(<name>obj</name> <name>instanceof</name> <name>CyclicNumberAxis</name>)</expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>super</name>.<name>equals</name></name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>CyclicNumberAxis</name></type> <name>that</name> =<init> <expr>(<name>CyclicNumberAxis</name>) <name>obj</name></expr></init></decl>;</decl_stmt>      
+        <if>if <condition>(<expr><name><name>this</name>.<name>period</name></name> != <name><name>that</name>.<name>period</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>offset</name></name> != <name><name>that</name>.<name>offset</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>PaintUtilities</name>.<name>equal</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>advanceLinePaint</name></name></expr></argument>, 
+                <argument><expr><name><name>that</name>.<name>advanceLinePaint</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>ObjectUtilities</name>.<name>equal</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>advanceLineStroke</name></name></expr></argument>, 
+                <argument><expr><name><name>that</name>.<name>advanceLineStroke</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>advanceLineVisible</name></name> != <name><name>that</name>.<name>advanceLineVisible</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>boundMappedToLastCycle</name></name> != <name><name>that</name>.<name>boundMappedToLastCycle</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+}</block></class>
+</unit>

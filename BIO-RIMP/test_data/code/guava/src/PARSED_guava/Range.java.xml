@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\Range.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Equivalence</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Function</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Predicate</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>NoSuchElementException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>SortedSet</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A range (or "interval") defines the &lt;i&gt;boundaries&lt;/i&gt; around a contiguous span of values of some
+ * {@code Comparable} type; for example, "integers from 1 to 100 inclusive." Note that it is not
+ * possible to &lt;i&gt;iterate&lt;/i&gt; over these contained values. To do so, pass this range instance and
+ * an appropriate {@link DiscreteDomain} to {@link ContiguousSet#create}.
+ *
+ * &lt;h3&gt;Types of ranges&lt;/h3&gt;
+ *
+ * &lt;p&gt;Each end of the range may be bounded or unbounded. If bounded, there is an associated
+ * &lt;i&gt;endpoint&lt;/i&gt; value, and the range is considered to be either &lt;i&gt;open&lt;/i&gt; (does not include the
+ * endpoint) or &lt;i&gt;closed&lt;/i&gt; (includes the endpoint) on that side. With three possibilities on each
+ * side, this yields nine basic types of ranges, enumerated below. (Notation: a square bracket
+ * ({@code [ ]}) indicates that the range is closed on that side; a parenthesis ({@code ( )}) means
+ * it is either open or unbounded. The construct {@code {x | statement}} is read "the set of all
+ * &lt;i&gt;x&lt;/i&gt; such that &lt;i&gt;statement&lt;/i&gt;.")
+ *
+ * &lt;blockquote&gt;&lt;table&gt;
+ * &lt;tr&gt;&lt;td&gt;&lt;b&gt;Notation&lt;/b&gt; &lt;td&gt;&lt;b&gt;Definition&lt;/b&gt;        &lt;td&gt;&lt;b&gt;Factory method&lt;/b&gt;
+ * &lt;tr&gt;&lt;td&gt;{@code (a..b)}  &lt;td&gt;{@code {x | a &lt; x &lt; b}}  &lt;td&gt;{@link Range#open open}
+ * &lt;tr&gt;&lt;td&gt;{@code [a..b]}  &lt;td&gt;{@code {x | a &lt;= x &lt;= b}}&lt;td&gt;{@link Range#closed closed}
+ * &lt;tr&gt;&lt;td&gt;{@code (a..b]}  &lt;td&gt;{@code {x | a &lt; x &lt;= b}} &lt;td&gt;{@link Range#openClosed openClosed}
+ * &lt;tr&gt;&lt;td&gt;{@code [a..b)}  &lt;td&gt;{@code {x | a &lt;= x &lt; b}} &lt;td&gt;{@link Range#closedOpen closedOpen}
+ * &lt;tr&gt;&lt;td&gt;{@code (a..+â)} &lt;td&gt;{@code {x | x &gt; a}}      &lt;td&gt;{@link Range#greaterThan greaterThan}
+ * &lt;tr&gt;&lt;td&gt;{@code [a..+â)} &lt;td&gt;{@code {x | x &gt;= a}}     &lt;td&gt;{@link Range#atLeast atLeast}
+ * &lt;tr&gt;&lt;td&gt;{@code (-â..b)} &lt;td&gt;{@code {x | x &lt; b}}      &lt;td&gt;{@link Range#lessThan lessThan}
+ * &lt;tr&gt;&lt;td&gt;{@code (-â..b]} &lt;td&gt;{@code {x | x &lt;= b}}     &lt;td&gt;{@link Range#atMost atMost}
+ * &lt;tr&gt;&lt;td&gt;{@code (-â..+â)}&lt;td&gt;{@code {x}}              &lt;td&gt;{@link Range#all all}
+ * &lt;/table&gt;&lt;/blockquote&gt;
+ *
+ * &lt;p&gt;When both endpoints exist, the upper endpoint may not be less than the lower. The endpoints
+ * may be equal only if at least one of the bounds is closed:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;{@code [a..a]} : a singleton range
+ * &lt;li&gt;{@code [a..a); (a..a]} : {@linkplain #isEmpty empty} ranges; also valid
+ * &lt;li&gt;{@code (a..a)} : &lt;b&gt;invalid&lt;/b&gt;; an exception will be thrown
+ * &lt;/ul&gt;
+ *
+ * &lt;h3&gt;Warnings&lt;/h3&gt;
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;Use immutable value types only, if at all possible. If you must use a mutable type, &lt;b&gt;do
+ *     not&lt;/b&gt; allow the endpoint instances to mutate after the range is created!
+ * &lt;li&gt;Your value type's comparison method should be {@linkplain Comparable consistent with equals}
+ *     if at all possible. Otherwise, be aware that concepts used throughout this documentation such
+ *     as "equal", "same", "unique" and so on actually refer to whether {@link Comparable#compareTo
+ *     compareTo} returns zero, not whether {@link Object#equals equals} returns {@code true}.
+ * &lt;li&gt;A class which implements {@code Comparable&lt;UnrelatedType&gt;} is very broken, and will cause
+ *     undefined horrible things to happen in {@code Range}. For now, the Range API does not prevent
+ *     its use, because this would also rule out all ungenerified (pre-JDK1.5) data types. &lt;b&gt;This
+ *     may change in the future.&lt;/b&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;h3&gt;Other notes&lt;/h3&gt;
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;Instances of this type are obtained using the static factory methods in this class.
+ * &lt;li&gt;Ranges are &lt;i&gt;convex&lt;/i&gt;: whenever two values are contained, all values in between them must
+ *     also be contained. More formally, for any {@code c1 &lt;= c2 &lt;= c3} of type {@code C}, {@code
+ *     r.contains(c1) &amp;&amp; r.contains(c3)} implies {@code r.contains(c2)}). This means that a {@code
+ *     Range&lt;Integer&gt;} can never be used to represent, say, "all &lt;i&gt;prime&lt;/i&gt; numbers from 1 to
+ *     100."
+ * &lt;li&gt;When evaluated as a {@link Predicate}, a range yields the same result as invoking {@link
+ *     #contains}.
+ * &lt;li&gt;Terminology note: a range {@code a} is said to be the &lt;i&gt;maximal&lt;/i&gt; range having property
+ *     &lt;i&gt;P&lt;/i&gt; if, for all ranges {@code b} also having property &lt;i&gt;P&lt;/i&gt;, {@code a.encloses(b)}.
+ *     Likewise, {@code a} is &lt;i&gt;minimal&lt;/i&gt; when {@code b.encloses(a)} for all {@code b} having
+ *     property &lt;i&gt;P&lt;/i&gt;. See, for example, the definition of {@link #intersection intersection}.
+ * &lt;/ul&gt;
+ *
+ * &lt;h3&gt;Further reading&lt;/h3&gt;
+ *
+ * &lt;p&gt;See the Guava User Guide article on
+ * &lt;a href="https://github.com/google/guava/wiki/RangesExplained"&gt;{@code Range}&lt;/a&gt;.
+ *
+ * @author Kevin Bourrillion
+ * @author Gregory Kick
+ * @since 10.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name></annotation>
+<annotation>@<name>SuppressWarnings</name><argument_list>("rawtypes")</argument_list></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name><name>Range</name><argument_list>&lt;<argument><name>C</name> <extends>extends <name>Comparable</name></extends></argument>&gt;</argument_list></name> <super><implements>implements <name><name>Predicate</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name>, <name>Serializable</name></implements></super> <block>{
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>Range</name></argument>, <argument><name>Cut</name></argument>&gt;</argument_list></name></type> <name>LOWER_BOUND_FN</name> =<init> <expr>new <class><super><name><name>Function</name><argument_list>&lt;<argument><name>Range</name></argument>, <argument><name>Cut</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>Cut</name></type> <name>apply</name><parameter_list>(<param><decl><type><name>Range</name></type> <name>range</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name><name>range</name>.<name>lowerBound</name></name></expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Function</name><argument_list>&lt;<argument><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></argument>, <argument><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>lowerBoundFn</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>Function</name>) <name>LOWER_BOUND_FN</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>Range</name></argument>, <argument><name>Cut</name></argument>&gt;</argument_list></name></type> <name>UPPER_BOUND_FN</name> =<init> <expr>new <class><super><name><name>Function</name><argument_list>&lt;<argument><name>Range</name></argument>, <argument><name>Cut</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>Cut</name></type> <name>apply</name><parameter_list>(<param><decl><type><name>Range</name></type> <name>range</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name><name>range</name>.<name>upperBound</name></name></expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Function</name><argument_list>&lt;<argument><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></argument>, <argument><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>upperBoundFn</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>Function</name>) <name>UPPER_BOUND_FN</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>Ordering</name><argument_list>&lt;<argument><name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>RANGE_LEX_ORDERING</name> =<init> <expr>new <call><name>RangeLexOrdering</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <function><type><specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>(
+      <param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lowerBound</name></decl></param>, <param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upperBound</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>, <argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values strictly greater than {@code
+   * lower} and strictly less than {@code upper}.
+   *
+   * @throws IllegalArgumentException if {@code lower} is greater than &lt;i&gt;or
+   *     equal to&lt;/i&gt; {@code upper}
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>open</name><parameter_list>(<param><decl><type><name>C</name></type> <name>lower</name></decl></param>, <param><decl><type><name>C</name></type> <name>upper</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values greater than or equal to
+   * {@code lower} and less than or equal to {@code upper}.
+   *
+   * @throws IllegalArgumentException if {@code lower} is greater than {@code
+   *     upper}
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>closed</name><parameter_list>(<param><decl><type><name>C</name></type> <name>lower</name></decl></param>, <param><decl><type><name>C</name></type> <name>upper</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values greater than or equal to
+   * {@code lower} and strictly less than {@code upper}.
+   *
+   * @throws IllegalArgumentException if {@code lower} is greater than {@code
+   *     upper}
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>closedOpen</name><parameter_list>(
+      <param><decl><type><name>C</name></type> <name>lower</name></decl></param>, <param><decl><type><name>C</name></type> <name>upper</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values strictly greater than {@code
+   * lower} and less than or equal to {@code upper}.
+   *
+   * @throws IllegalArgumentException if {@code lower} is greater than {@code
+   *     upper}
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>openClosed</name><parameter_list>(
+      <param><decl><type><name>C</name></type> <name>lower</name></decl></param>, <param><decl><type><name>C</name></type> <name>upper</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains any value from {@code lower} to {@code
+   * upper}, where each endpoint may be either inclusive (closed) or exclusive
+   * (open).
+   *
+   * @throws IllegalArgumentException if {@code lower} is greater than {@code
+   *     upper}
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>range</name><parameter_list>(
+      <param><decl><type><name>C</name></type> <name>lower</name></decl></param>, <param><decl><type><name>BoundType</name></type> <name>lowerType</name></decl></param>, <param><decl><type><name>C</name></type> <name>upper</name></decl></param>, <param><decl><type><name>BoundType</name></type> <name>upperType</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>lowerType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>upperType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lowerBound</name> =<init> <expr>(<name>lowerType</name> == <name><name>BoundType</name>.<name>OPEN</name></name>)
+        ? <call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call>
+        : <call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>lower</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upperBound</name> =<init> <expr>(<name>upperType</name> == <name><name>BoundType</name>.<name>OPEN</name></name>)
+        ? <call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call>
+        : <call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>, <argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values strictly less than {@code
+   * endpoint}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lessThan</name><parameter_list>(<param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>belowAll</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values less than or equal to
+   * {@code endpoint}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>atMost</name><parameter_list>(<param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>belowAll</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range with no lower bound up to the given endpoint, which may be
+   * either inclusive (closed) or exclusive (open).
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upTo</name><parameter_list>(
+      <param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>, <param><decl><type><name>BoundType</name></type> <name>boundType</name></decl></param>)</parameter_list> <block>{
+    <switch>switch <condition>(<expr><name>boundType</name></expr>)</condition> <block>{
+      <case>case <expr><name>OPEN</name></expr>:
+        <return>return <expr><call><name>lessThan</name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><case>case <expr><name>CLOSED</name></expr>:
+        <return>return <expr><call><name>atMost</name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values strictly greater than {@code
+   * endpoint}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>greaterThan</name><parameter_list>(<param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>aboveValue</name></name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>aboveAll</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains all values greater than or equal to
+   * {@code endpoint}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>atLeast</name><parameter_list>(<param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>belowValue</name></name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>aboveAll</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range from the given endpoint, which may be either inclusive
+   * (closed) or exclusive (open), with no upper bound.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>downTo</name><parameter_list>(
+      <param><decl><type><name>C</name></type> <name>endpoint</name></decl></param>, <param><decl><type><name>BoundType</name></type> <name>boundType</name></decl></param>)</parameter_list> <block>{
+    <switch>switch <condition>(<expr><name>boundType</name></expr>)</condition> <block>{
+      <case>case <expr><name>OPEN</name></expr>:
+        <return>return <expr><call><name>greaterThan</name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><case>case <expr><name>CLOSED</name></expr>:
+        <return>return <expr><call><name>atLeast</name><argument_list>(<argument><expr><name>endpoint</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>Range</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name></type> <name>ALL</name> =<init>
+      <expr>new <call><name><name>Range</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Cut</name>.<name>belowAll</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>Cut</name>.<name>aboveAll</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns a range that contains every value of type {@code C}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>all</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>Range</name>) <name>ALL</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a range that {@linkplain Range#contains(Comparable) contains} only
+   * the given value. The returned range is {@linkplain BoundType#CLOSED closed}
+   * on both ends.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>singleton</name><parameter_list>(<param><decl><type><name>C</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>closed</name><argument_list>(<argument><expr><name>value</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+   <comment type="javadoc">/**
+   * Returns the minimal range that
+   * {@linkplain Range#contains(Comparable) contains} all of the given values.
+   * The returned range is {@linkplain BoundType#CLOSED closed} on both ends.
+   *
+   * @throws ClassCastException if the parameters are not &lt;i&gt;mutually
+   *     comparable&lt;/i&gt;
+   * @throws NoSuchElementException if {@code values} is empty
+   * @throws NullPointerException if any of {@code values} is null
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>C</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>encloseAll</name><parameter_list>(
+      <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>values</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>values</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>values</name> <name>instanceof</name> <name>ContiguousSet</name></expr>)</condition><then> <block>{
+      <return>return <expr>((<name><name>ContiguousSet</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name>) <name>values</name>).<call><name>range</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>valueIterator</name> =<init> <expr><call><name><name>values</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>C</name></type> <name>min</name> =<init> <expr><call><name>checkNotNull</name><argument_list>(<argument><expr><call><name><name>valueIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>C</name></type> <name>max</name> =<init> <expr><name>min</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><call><name><name>valueIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>C</name></type> <name>value</name> =<init> <expr><call><name>checkNotNull</name><argument_list>(<argument><expr><call><name><name>valueIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>min</name> = <call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call>.<call><name>min</name><argument_list>(<argument><expr><name>min</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>max</name> = <call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call>.<call><name>max</name><argument_list>(<argument><expr><name>max</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><call><name>closed</name><argument_list>(<argument><expr><name>min</name></expr></argument>, <argument><expr><name>max</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>final</specifier> <name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lowerBound</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>final</specifier> <name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upperBound</name></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>Range</name><parameter_list>(<param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lowerBound</name></decl></param>, <param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upperBound</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>lowerBound</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>upperBound</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><call><name><name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name>upperBound</name></expr></argument>)</argument_list></call> &gt; 0 || <name>lowerBound</name> == <name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>aboveAll</name><argument_list>()</argument_list></call>
+        || <name>upperBound</name> == <name><name>Cut</name>.<name><name/></name></name>&lt;<name>C</name>&gt;<call><name>belowAll</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid range: " + <call><name>toString</name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>, <argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if this range has a lower endpoint.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasLowerBound</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>lowerBound</name> != <call><name><name>Cut</name>.<name>belowAll</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the lower endpoint of this range.
+   *
+   * @throws IllegalStateException if this range is unbounded below (that is, {@link
+   *     #hasLowerBound()} returns {@code false})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>C</name></type> <name>lowerEndpoint</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>endpoint</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the type of this range's lower bound: {@link BoundType#CLOSED} if the range includes
+   * its lower endpoint, {@link BoundType#OPEN} if it does not.
+   *
+   * @throws IllegalStateException if this range is unbounded below (that is, {@link
+   *     #hasLowerBound()} returns {@code false})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>BoundType</name></type> <name>lowerBoundType</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>typeAsLowerBound</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if this range has an upper endpoint.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasUpperBound</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>upperBound</name> != <call><name><name>Cut</name>.<name>aboveAll</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the upper endpoint of this range.
+   *
+   * @throws IllegalStateException if this range is unbounded above (that is, {@link
+   *     #hasUpperBound()} returns {@code false})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>C</name></type> <name>upperEndpoint</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>upperBound</name>.<name>endpoint</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the type of this range's upper bound: {@link BoundType#CLOSED} if the range includes
+   * its upper endpoint, {@link BoundType#OPEN} if it does not.
+   *
+   * @throws IllegalStateException if this range is unbounded above (that is, {@link
+   *     #hasUpperBound()} returns {@code false})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>BoundType</name></type> <name>upperBoundType</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>upperBound</name>.<name>typeAsUpperBound</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if this range is of the form {@code [v..v)} or {@code (v..v]}. (This does
+   * not encompass ranges of the form {@code (v..v)}, because such ranges are &lt;i&gt;invalid&lt;/i&gt; and
+   * can't be constructed at all.)
+   *
+   * &lt;p&gt;Note that certain discrete ranges such as the integer range {@code (3..4)} are &lt;b&gt;not&lt;/b&gt;
+   * considered empty, even though they contain no actual values.  In these cases, it may be
+   * helpful to preprocess ranges with {@link #canonical(DiscreteDomain)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isEmpty</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>equals</name></name><argument_list>(<argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if {@code value} is within the bounds of this range. For example, on the
+   * range {@code [0..2)}, {@code contains(1)} returns {@code true}, while {@code contains(2)}
+   * returns {@code false}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>contains</name><parameter_list>(<param><decl><type><name>C</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <comment type="line">// let this throw CCE if there is some trickery going on</comment>
+    <return>return <expr><call><name><name>lowerBound</name>.<name>isLessThan</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call> &amp;&amp; !<call><name><name>upperBound</name>.<name>isLessThan</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @deprecated Provided only to satisfy the {@link Predicate} interface; use {@link #contains}
+   *     instead.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>apply</name><parameter_list>(<param><decl><type><name>C</name></type> <name>input</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>contains</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if every element in {@code values} is {@linkplain #contains contained} in
+   * this range.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsAll</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>C</name></extends></argument>&gt;</argument_list></name></type> <name>values</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>Iterables</name>.<name>isEmpty</name></name><argument_list>(<argument><expr><name>values</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// this optimizes testing equality of two range-backed sets</comment>
+    <if>if <condition>(<expr><name>values</name> <name>instanceof</name> <name>SortedSet</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>SortedSet</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>C</name></extends></argument>&gt;</argument_list></name></type> <name>set</name> =<init> <expr><call><name>cast</name><argument_list>(<argument><expr><name>values</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>comparator</name> =<init> <expr><call><name><name>set</name>.<name>comparator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call> || <name>comparator</name> == <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><call><name>contains</name><argument_list>(<argument><expr><call><name><name>set</name>.<name>first</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> &amp;&amp; <call><name>contains</name><argument_list>(<argument><expr><call><name><name>set</name>.<name>last</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+    }</block></then></if>
+
+    <for>for (<init><decl><type><name>C</name></type> <name>value</name> :<range> <expr><name>values</name></expr></range></decl></init>) <block>{
+      <if>if <condition>(<expr>!<call><name>contains</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if the bounds of {@code other} do not extend outside the bounds of this
+   * range. Examples:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;{@code [3..6]} encloses {@code [4..5]}
+   * &lt;li&gt;{@code (3..6)} encloses {@code (3..6)}
+   * &lt;li&gt;{@code [3..6]} encloses {@code [4..4)} (even though the latter is empty)
+   * &lt;li&gt;{@code (3..6]} does not enclose {@code [3..6]}
+   * &lt;li&gt;{@code [4..5]} does not enclose {@code (3..6)} (even though it contains every value
+   *     contained by the latter range)
+   * &lt;li&gt;{@code [3..6]} does not enclose {@code (1..1]} (even though it contains every value
+   *     contained by the latter range)
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;Note that if {@code a.encloses(b)}, then {@code b.contains(v)} implies
+   * {@code a.contains(v)}, but as the last two examples illustrate, the converse is not always
+   * true.
+   *
+   * &lt;p&gt;Being reflexive, antisymmetric and transitive, the {@code encloses} relation defines a
+   * &lt;i&gt;partial order&lt;/i&gt; over ranges. There exists a unique {@linkplain Range#all maximal} range
+   * according to this relation, and also numerous {@linkplain #isEmpty minimal} ranges. Enclosure
+   * also implies {@linkplain #isConnected connectedness}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>encloses</name><parameter_list>(<param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>other</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>lowerBound</name></name></expr></argument>)</argument_list></call> &lt;= 0
+        &amp;&amp; <call><name><name>upperBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call> &gt;= 0</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if there exists a (possibly empty) range which is {@linkplain #encloses
+   * enclosed} by both this range and {@code other}.
+   *
+   * &lt;p&gt;For example,
+   * &lt;ul&gt;
+   * &lt;li&gt;{@code [2, 4)} and {@code [5, 7)} are not connected
+   * &lt;li&gt;{@code [2, 4)} and {@code [3, 5)} are connected, because both enclose {@code [3, 4)}
+   * &lt;li&gt;{@code [2, 4)} and {@code [4, 6)} are connected, because both enclose the empty range
+   *     {@code [4, 4)}
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;Note that this range and {@code other} have a well-defined {@linkplain #span union} and
+   * {@linkplain #intersection intersection} (as a single, possibly-empty range) if and only if this
+   * method returns {@code true}.
+   *
+   * &lt;p&gt;The connectedness relation is both reflexive and symmetric, but does not form an {@linkplain
+   * Equivalence equivalence relation} as it is not transitive.
+   *
+   * &lt;p&gt;Note that certain discrete ranges are not considered connected, even though there are no
+   * elements "between them."  For example, {@code [3, 5]} is not considered connected to {@code
+   * [6, 10]}.  In these cases, it may be desirable for both input ranges to be preprocessed with
+   * {@link #canonical(DiscreteDomain)} before testing for connectedness.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isConnected</name><parameter_list>(<param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>other</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call> &lt;= 0
+        &amp;&amp; <call><name><name>other</name>.<name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name>upperBound</name></expr></argument>)</argument_list></call> &lt;= 0</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the maximal range {@linkplain #encloses enclosed} by both this range and {@code
+   * connectedRange}, if such a range exists.
+   *
+   * &lt;p&gt;For example, the intersection of {@code [1..5]} and {@code (3..7)} is {@code (3..5]}. The
+   * resulting range may be empty; for example, {@code [1..5)} intersected with {@code [5..7)}
+   * yields the empty range {@code [5..5)}.
+   *
+   * &lt;p&gt;The intersection exists if and only if the two ranges are {@linkplain #isConnected
+   * connected}.
+   *
+   * &lt;p&gt;The intersection operation is commutative, associative and idempotent, and its identity
+   * element is {@link Range#all}).
+   *
+   * @throws IllegalArgumentException if {@code isConnected(connectedRange)} is {@code false}
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>intersection</name><parameter_list>(<param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>connectedRange</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>lowerCmp</name> =<init> <expr><call><name><name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>connectedRange</name>.<name>lowerBound</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>upperCmp</name> =<init> <expr><call><name><name>upperBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>connectedRange</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>lowerCmp</name> &gt;= 0 &amp;&amp; <name>upperCmp</name> &lt;= 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>lowerCmp</name> &lt;= 0 &amp;&amp; <name>upperCmp</name> &gt;= 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>connectedRange</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>newLower</name> =<init> <expr>(<name>lowerCmp</name> &gt;= 0) ? <name>lowerBound</name> : <name><name>connectedRange</name>.<name>lowerBound</name></name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>newUpper</name> =<init> <expr>(<name>upperCmp</name> &lt;= 0) ? <name>upperBound</name> : <name><name>connectedRange</name>.<name>upperBound</name></name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name>newLower</name></expr></argument>, <argument><expr><name>newUpper</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the minimal range that {@linkplain #encloses encloses} both this range and {@code
+   * other}. For example, the span of {@code [1..3]} and {@code (5..7)} is {@code [1..7)}.
+   *
+   * &lt;p&gt;&lt;i&gt;If&lt;/i&gt; the input ranges are {@linkplain #isConnected connected}, the returned range can
+   * also be called their &lt;i&gt;union&lt;/i&gt;. If they are not, note that the span might contain values
+   * that are not contained in either input range.
+   *
+   * &lt;p&gt;Like {@link #intersection(Range) intersection}, this operation is commutative, associative
+   * and idempotent. Unlike it, it is always well-defined for any two input ranges.
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>span</name><parameter_list>(<param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>other</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>lowerCmp</name> =<init> <expr><call><name><name>lowerBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>lowerBound</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>upperCmp</name> =<init> <expr><call><name><name>upperBound</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>lowerCmp</name> &lt;= 0 &amp;&amp; <name>upperCmp</name> &gt;= 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>lowerCmp</name> &gt;= 0 &amp;&amp; <name>upperCmp</name> &lt;= 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>other</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>newLower</name> =<init> <expr>(<name>lowerCmp</name> &lt;= 0) ? <name>lowerBound</name> : <name><name>other</name>.<name>lowerBound</name></name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>newUpper</name> =<init> <expr>(<name>upperCmp</name> &gt;= 0) ? <name>upperBound</name> : <name><name>other</name>.<name>upperBound</name></name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name>newLower</name></expr></argument>, <argument><expr><name>newUpper</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the canonical form of this range in the given domain. The canonical form has the
+   * following properties:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;equivalence: {@code a.canonical().contains(v) == a.contains(v)} for all {@code v} (in other
+   *     words, {@code ContiguousSet.create(a.canonical(domain), domain).equals(
+   *     ContiguousSet.create(a, domain))}
+   * &lt;li&gt;uniqueness: unless {@code a.isEmpty()},
+   *     {@code ContiguousSet.create(a, domain).equals(ContiguousSet.create(b, domain))} implies
+   *     {@code a.canonical(domain).equals(b.canonical(domain))}
+   * &lt;li&gt;idempotence: {@code a.canonical(domain).canonical(domain).equals(a.canonical(domain))}
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;Furthermore, this method guarantees that the range returned will be one of the following
+   * canonical forms:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;[start..end)
+   * &lt;li&gt;[start..+â)
+   * &lt;li&gt;(-â..end) (only if type {@code C} is unbounded below)
+   * &lt;li&gt;(-â..+â) (only if type {@code C} is unbounded below)
+   * &lt;/ul&gt;
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Range</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>canonical</name><parameter_list>(<param><decl><type><name><name>DiscreteDomain</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>domain</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>domain</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>lower</name> =<init> <expr><call><name><name>lowerBound</name>.<name>canonical</name></name><argument_list>(<argument><expr><name>domain</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list></name></type> <name>upper</name> =<init> <expr><call><name><name>upperBound</name>.<name>canonical</name></name><argument_list>(<argument><expr><name>domain</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name>lower</name> == <name>lowerBound</name> &amp;&amp; <name>upper</name> == <name>upperBound</name>) ? <name>this</name> : <call><name>create</name><argument_list>(<argument><expr><name>lower</name></expr></argument>, <argument><expr><name>upper</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if {@code object} is a range having the same endpoints and bound types as
+   * this range. Note that discrete ranges such as {@code (1..4)} and {@code [2..3]} are &lt;b&gt;not&lt;/b&gt;
+   * equal to one another, despite the fact that they each contain precisely the same set of values.
+   * Similarly, empty ranges are not equal unless they have exactly the same representation, so
+   * {@code [3..3)}, {@code (3..3]}, {@code (4..4]} are all unequal.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>Range</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>other</name> =<init> <expr>(<name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>object</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>lowerBound</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>lowerBound</name></name></expr></argument>)</argument_list></call>
+          &amp;&amp; <call><name><name>upperBound</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Returns a hash code for this range. */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lowerBound</name>.<name>hashCode</name></name><argument_list>()</argument_list></call> * 31 + <call><name><name>upperBound</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a string representation of this range, such as {@code "[3..5)"} (other examples are
+   * listed in the class documentation).
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>toString</name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>, <argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>toString</name><parameter_list>(<param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>lowerBound</name></decl></param>, <param><decl><type><name><name>Cut</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>upperBound</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>StringBuilder</name></type> <name>sb</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>16</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>lowerBound</name>.<name>describeAsLowerBound</name></name><argument_list>(<argument><expr><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>sb</name>.<name>append</name></name><argument_list>(<argument><expr>'\u2025'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>upperBound</name>.<name>describeAsUpperBound</name></name><argument_list>(<argument><expr><name>sb</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name><name>sb</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Used to avoid http://bugs.sun.com/view_bug.do?bug_id=6558557
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name><name>SortedSet</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>cast</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>iterable</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>(<name><name>SortedSet</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name>) <name>iterable</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>this</name>.<name>equals</name></name><argument_list>(<argument><expr><name>ALL</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>all</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// this method may throw CCE</comment>
+  <specifier>static</specifier> <name>int</name></type> <name>compareOrThrow</name><parameter_list>(<param><decl><type><name>Comparable</name></type> <name>left</name></decl></param>, <param><decl><type><name>Comparable</name></type> <name>right</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>left</name>.<name>compareTo</name></name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Needed to serialize sorted collections of Ranges.
+    */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>RangeLexOrdering</name> <super><extends>extends <name><name>Ordering</name><argument_list>&lt;<argument><name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></extends> <implements>implements <name>Serializable</name></implements></super> <block>{
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>compare</name><parameter_list>(<param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>left</name></decl></param>, <param><decl><type><name><name>Range</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>right</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>ComparisonChain</name>.<name>start</name></name><argument_list>()</argument_list></call>
+          .<call><name>compare</name><argument_list>(<argument><expr><name><name>left</name>.<name>lowerBound</name></name></expr></argument>, <argument><expr><name><name>right</name>.<name>lowerBound</name></name></expr></argument>)</argument_list></call>
+          .<call><name>compare</name><argument_list>(<argument><expr><name><name>left</name>.<name>upperBound</name></name></expr></argument>, <argument><expr><name><name>right</name>.<name>upperBound</name></name></expr></argument>)</argument_list></call>
+          .<call><name>result</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+}</block></class>
+</unit>

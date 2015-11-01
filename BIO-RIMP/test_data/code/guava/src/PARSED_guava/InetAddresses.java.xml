@@ -1,0 +1,1039 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\net\InetAddresses.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>net</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>hash</name>.<name>Hashing</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>io</name>.<name>ByteStreams</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Ints</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>net</name>.<name>Inet4Address</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>Inet6Address</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>InetAddress</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>UnknownHostException</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>ByteBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Static utility methods pertaining to {@link InetAddress} instances.
+ *
+ * &lt;p&gt;&lt;b&gt;Important note:&lt;/b&gt; Unlike {@code InetAddress.getByName()}, the
+ * methods of this class never cause DNS services to be accessed. For
+ * this reason, you should prefer these methods as much as possible over
+ * their JDK equivalents whenever you are expecting to handle only
+ * IP address string literals -- there is no blocking DNS penalty for a
+ * malformed string.
+ *
+ * &lt;p&gt;When dealing with {@link Inet4Address} and {@link Inet6Address}
+ * objects as byte arrays (vis. {@code InetAddress.getAddress()}) they
+ * are 4 and 16 bytes in length, respectively, and represent the address
+ * in network byte order.
+ *
+ * &lt;p&gt;Examples of IP addresses and their byte representations:
+ * &lt;ul&gt;
+ * &lt;li&gt;The IPv4 loopback address, {@code "127.0.0.1"}.&lt;br/&gt;
+ *     {@code 7f 00 00 01}
+ *
+ * &lt;li&gt;The IPv6 loopback address, {@code "::1"}.&lt;br/&gt;
+ *     {@code 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01}
+ *
+ * &lt;li&gt;From the IPv6 reserved documentation prefix ({@code 2001:db8::/32}),
+ *     {@code "2001:db8::1"}.&lt;br/&gt;
+ *     {@code 20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01}
+ *
+ * &lt;li&gt;An IPv6 "IPv4 compatible" (or "compat") address,
+ *     {@code "::192.168.0.1"}.&lt;br/&gt;
+ *     {@code 00 00 00 00 00 00 00 00 00 00 00 00 c0 a8 00 01}
+ *
+ * &lt;li&gt;An IPv6 "IPv4 mapped" address, {@code "::ffff:192.168.0.1"}.&lt;br/&gt;
+ *     {@code 00 00 00 00 00 00 00 00 00 00 ff ff c0 a8 00 01}
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;A few notes about IPv6 "IPv4 mapped" addresses and their observed
+ * use in Java.
+ * &lt;br&gt;&lt;br&gt;
+ * "IPv4 mapped" addresses were originally a representation of IPv4
+ * addresses for use on an IPv6 socket that could receive both IPv4
+ * and IPv6 connections (by disabling the {@code IPV6_V6ONLY} socket
+ * option on an IPv6 socket).  Yes, it's confusing.  Nevertheless,
+ * these "mapped" addresses were never supposed to be seen on the
+ * wire.  That assumption was dropped, some say mistakenly, in later
+ * RFCs with the apparent aim of making IPv4-to-IPv6 transition simpler.
+ *
+ * &lt;p&gt;Technically one &lt;i&gt;can&lt;/i&gt; create a 128bit IPv6 address with the wire
+ * format of a "mapped" address, as shown above, and transmit it in an
+ * IPv6 packet header.  However, Java's InetAddress creation methods
+ * appear to adhere doggedly to the original intent of the "mapped"
+ * address: all "mapped" addresses return {@link Inet4Address} objects.
+ *
+ * &lt;p&gt;For added safety, it is common for IPv6 network operators to filter
+ * all packets where either the source or destination address appears to
+ * be a "compat" or "mapped" address.  Filtering suggestions usually
+ * recommend discarding any packets with source or destination addresses
+ * in the invalid range {@code ::/3}, which includes both of these bizarre
+ * address formats.  For more information on "bogons", including lists
+ * of IPv6 bogon space, see:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;a target="_parent"
+ *        href="http://en.wikipedia.org/wiki/Bogon_filtering"
+ *       &gt;http://en.wikipedia.org/wiki/Bogon_filtering&lt;/a&gt;
+ * &lt;li&gt;&lt;a target="_parent"
+ *        href="http://www.cymru.com/Bogons/ipv6.txt"
+ *       &gt;http://www.cymru.com/Bogons/ipv6.txt&lt;/a&gt;
+ * &lt;li&gt;&lt;a target="_parent"
+ *        href="http://www.cymru.com/Bogons/v6bogon.html"
+ *       &gt;http://www.cymru.com/Bogons/v6bogon.html&lt;/a&gt;
+ * &lt;li&gt;&lt;a target="_parent"
+ *        href="http://www.space.net/~gert/RIPE/ipv6-filters.html"
+ *       &gt;http://www.space.net/~gert/RIPE/ipv6-filters.html&lt;/a&gt;
+ * &lt;/ul&gt;
+ *
+ * @author Erik Kline
+ * @since 5.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>InetAddresses</name> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>IPV4_PART_COUNT</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>IPV6_PART_COUNT</name> =<init> <expr>8</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Inet4Address</name></type> <name>LOOPBACK4</name> =<init> <expr>(<name>Inet4Address</name>) <call><name>forString</name><argument_list>(<argument><expr>"127.0.0.1"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Inet4Address</name></type> <name>ANY4</name> =<init> <expr>(<name>Inet4Address</name>) <call><name>forString</name><argument_list>(<argument><expr>"0.0.0.0"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>InetAddresses</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Returns an {@link Inet4Address}, given a byte array representation of the IPv4 address.
+   *
+   * @param bytes byte array representing an IPv4 address (should be of length 4)
+   * @return {@link Inet4Address} corresponding to the supplied byte array
+   * @throws IllegalArgumentException if a valid {@link Inet4Address} can not be created
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>getInet4Address</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name><name>bytes</name>.<name>length</name></name> == 4</expr></argument>,
+        <argument><expr>"Byte array has invalid length for an IPv4 address: %s != 4."</expr></argument>,
+        <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Given a 4-byte array, this cast should always succeed.</comment>
+    <return>return <expr>(<name>Inet4Address</name>) <call><name>bytesToInetAddress</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the {@link InetAddress} having the given string representation.
+   *
+   * &lt;p&gt;This deliberately avoids all nameservice lookups (e.g. no DNS).
+   *
+   * @param ipString {@code String} containing an IPv4 or IPv6 string literal, e.g.
+   *     {@code "192.168.0.1"} or {@code "2001:db8::1"}
+   * @return {@link InetAddress} representing the argument
+   * @throws IllegalArgumentException if the argument is not a valid IP string literal
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>forString</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>addr</name> =<init> <expr><call><name>ipStringToBytes</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// The argument was malformed, i.e. not an IP string literal.</comment>
+    <if>if <condition>(<expr><name>addr</name> == <name>null</name></expr>)</condition><then> <block>{
+      <throw>throw <expr><call><name>formatIllegalArgumentException</name><argument_list>(<argument><expr>"'%s' is not an IP string literal."</expr></argument>, <argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+
+    <return>return <expr><call><name>bytesToInetAddress</name><argument_list>(<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if the supplied string is a valid IP string
+   * literal, {@code false} otherwise.
+   *
+   * @param ipString {@code String} to evaluated as an IP string literal
+   * @return {@code true} if the argument is a valid IP string literal
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isInetAddress</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>ipStringToBytes</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call> != <name>null</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>ipStringToBytes</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Make a first pass to categorize the characters in this string.</comment>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>hasColon</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>hasDot</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <call><name><name>ipString</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>ipString</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>c</name> == '.'</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>hasDot</name> = true</expr>;</expr_stmt>
+      }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == ':'</expr>)</condition><then> <block>{
+        <if>if <condition>(<expr><name>hasDot</name></expr>)</condition><then> <block>{
+          <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// Colons must not appear after dots.</comment>
+        }</block></then></if>
+        <expr_stmt><expr><name>hasColon</name> = true</expr>;</expr_stmt>
+      }</block></then> <else>else <if>if <condition>(<expr><call><name><name>Character</name>.<name>digit</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call> == -1</expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// Everything else must be a decimal or hex digit.</comment>
+      }</block></then></if></else></if></else></if>
+    }</block></for>
+
+    <comment type="line">// Now decide which address family to parse.</comment>
+    <if>if <condition>(<expr><name>hasColon</name></expr>)</condition><then> <block>{
+      <if>if <condition>(<expr><name>hasDot</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>ipString</name> = <call><name>convertDottedQuadToHex</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>ipString</name> == <name>null</name></expr>)</condition><then> <block>{
+          <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+      }</block></then></if>
+      <return>return <expr><call><name>textToNumericFormatV6</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>hasDot</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>textToNumericFormatV4</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if></else></if>
+    <return>return <expr><name>null</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>textToNumericFormatV4</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>address</name> =<init> <expr><call><name><name>ipString</name>.<name>split</name></name><argument_list>(<argument><expr>"\\."</expr></argument>, <argument><expr><name>IPV4_PART_COUNT</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>address</name>.<name>length</name></name> != <name>IPV4_PART_COUNT</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>IPV4_PART_COUNT</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>bytes</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>bytes</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>parseOctet</name><argument_list>(<argument><expr><name><name>address</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>ex</name></decl></param>) <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></catch></try>
+
+    <return>return <expr><name>bytes</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>textToNumericFormatV6</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// An address can have [2..8] colons, and N colons make N+1 parts.</comment>
+    <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>parts</name> =<init> <expr><call><name><name>ipString</name>.<name>split</name></name><argument_list>(<argument><expr>":"</expr></argument>, <argument><expr><name>IPV6_PART_COUNT</name> + 2</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>parts</name>.<name>length</name></name> &lt; 3 || <name><name>parts</name>.<name>length</name></name> &gt; <name>IPV6_PART_COUNT</name> + 1</expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// Disregarding the endpoints, find "::" with nothing in between.</comment>
+    <comment type="line">// This indicates that a run of zeroes has been skipped.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>skipIndex</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>parts</name>.<name>length</name></name> - 1</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <if>if <condition>(<expr><name><name>parts</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>length</name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+        <if>if <condition>(<expr><name>skipIndex</name> &gt;= 0</expr>)</condition><then> <block>{
+          <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// Can't have more than one ::</comment>
+        }</block></then></if>
+        <expr_stmt><expr><name>skipIndex</name> = <name>i</name></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></for>
+
+    <decl_stmt><decl><type><name>int</name></type> <name>partsHi</name></decl>;</decl_stmt>  <comment type="line">// Number of parts to copy from above/before the "::"</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>partsLo</name></decl>;</decl_stmt>  <comment type="line">// Number of parts to copy from below/after the "::"</comment>
+    <if>if <condition>(<expr><name>skipIndex</name> &gt;= 0</expr>)</condition><then> <block>{
+      <comment type="line">// If we found a "::", then check if it also covers the endpoints.</comment>
+      <expr_stmt><expr><name>partsHi</name> = <name>skipIndex</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>partsLo</name> = <name><name>parts</name>.<name>length</name></name> - <name>skipIndex</name> - 1</expr>;</expr_stmt>
+      <if>if <condition>(<expr><name><name>parts</name><index>[<expr>0</expr>]</index></name>.<call><name>length</name><argument_list>()</argument_list></call> == 0 &amp;&amp; --<name>partsHi</name> != 0</expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// ^: requires ^::</comment>
+      }</block></then></if>
+      <if>if <condition>(<expr><name><name>parts</name><index>[<expr><name><name>parts</name>.<name>length</name></name> - 1</expr>]</index></name>.<call><name>length</name><argument_list>()</argument_list></call> == 0 &amp;&amp; --<name>partsLo</name> != 0</expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// :$ requires ::$</comment>
+      }</block></then></if>
+    }</block></then> <else>else <block>{
+      <comment type="line">// Otherwise, allocate the entire address to partsHi.  The endpoints</comment>
+      <comment type="line">// could still be empty, but parseHextet() will check for that.</comment>
+      <expr_stmt><expr><name>partsHi</name> = <name><name>parts</name>.<name>length</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>partsLo</name> = 0</expr>;</expr_stmt>
+    }</block></else></if>
+
+    <comment type="line">// If we found a ::, then we must have skipped at least one part.</comment>
+    <comment type="line">// Otherwise, we must have exactly the right number of parts.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>partsSkipped</name> =<init> <expr><name>IPV6_PART_COUNT</name> - (<name>partsHi</name> + <name>partsLo</name>)</expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!(<name>skipIndex</name> &gt;= 0 ? <name>partsSkipped</name> &gt;= 1 : <name>partsSkipped</name> == 0)</expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// Now parse the hextets into a byte array.</comment>
+    <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>rawBytes</name> =<init> <expr><call><name><name>ByteBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr>2 * <name>IPV6_PART_COUNT</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>partsHi</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><call><name><name>rawBytes</name>.<name>putShort</name></name><argument_list>(<argument><expr><call><name>parseHextet</name><argument_list>(<argument><expr><name><name>parts</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>partsSkipped</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><call><name><name>rawBytes</name>.<name>putShort</name></name><argument_list>(<argument><expr>(<name>short</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>partsLo</name></expr></init></decl>;</init> <condition><expr><name>i</name> &gt; 0</expr>;</condition> <incr><expr><name>i</name>--</expr></incr>) <block>{
+        <expr_stmt><expr><call><name><name>rawBytes</name>.<name>putShort</name></name><argument_list>(<argument><expr><call><name>parseHextet</name><argument_list>(<argument><expr><name><name>parts</name><index>[<expr><name><name>parts</name>.<name>length</name></name> - <name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>ex</name></decl></param>) <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></catch></try>
+    <return>return <expr><call><name><name>rawBytes</name>.<name>array</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>convertDottedQuadToHex</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>lastColon</name> =<init> <expr><call><name><name>ipString</name>.<name>lastIndexOf</name></name><argument_list>(<argument><expr>':'</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>String</name></type> <name>initialPart</name> =<init> <expr><call><name><name>ipString</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>lastColon</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>String</name></type> <name>dottedQuad</name> =<init> <expr><call><name><name>ipString</name>.<name>substring</name></name><argument_list>(<argument><expr><name>lastColon</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>quad</name> =<init> <expr><call><name>textToNumericFormatV4</name><argument_list>(<argument><expr><name>dottedQuad</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>quad</name> == <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>String</name></type> <name>penultimate</name> =<init> <expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr>((<name><name>quad</name><index>[<expr>0</expr>]</index></name> &amp; 0xff) &lt;&lt; 8) | (<name><name>quad</name><index>[<expr>1</expr>]</index></name> &amp; 0xff)</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>String</name></type> <name>ultimate</name> =<init> <expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr>((<name><name>quad</name><index>[<expr>2</expr>]</index></name> &amp; 0xff) &lt;&lt; 8) | (<name><name>quad</name><index>[<expr>3</expr>]</index></name> &amp; 0xff)</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>initialPart</name> + <name>penultimate</name> + ":" + <name>ultimate</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>byte</name></type> <name>parseOctet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipPart</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Note: we already verified that this string contains only hex digits.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>octet</name> =<init> <expr><call><name><name>Integer</name>.<name>parseInt</name></name><argument_list>(<argument><expr><name>ipPart</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Disallow leading zeroes, because no clear standard exists on</comment>
+    <comment type="line">// whether these should be interpreted as decimal or octal.</comment>
+    <if>if <condition>(<expr><name>octet</name> &gt; 255 || (<call><name><name>ipPart</name>.<name>startsWith</name></name><argument_list>(<argument><expr>"0"</expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>ipPart</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 1)</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>NumberFormatException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr>(<name>byte</name>) <name>octet</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>short</name></type> <name>parseHextet</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipPart</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Note: we already verified that this string contains only hex digits.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>hextet</name> =<init> <expr><call><name><name>Integer</name>.<name>parseInt</name></name><argument_list>(<argument><expr><name>ipPart</name></expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>hextet</name> &gt; 0xffff</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>NumberFormatException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr>(<name>short</name>) <name>hextet</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Convert a byte array into an InetAddress.
+   *
+   * {@link InetAddress#getByAddress} is documented as throwing a checked
+   * exception "if IP address is of illegal length."  We replace it with
+   * an unchecked exception, for use by callers who already know that addr
+   * is an array of length 4 or 16.
+   *
+   * @param addr the raw 4-byte or 16-byte IP address in big-endian order
+   * @return an InetAddress object created from the raw IP address
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>bytesToInetAddress</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>addr</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <return>return <expr><call><name><name>InetAddress</name>.<name>getByAddress</name></name><argument_list>(<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>UnknownHostException</name></type> <name>e</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the string representation of an {@link InetAddress}.
+   *
+   * &lt;p&gt;For IPv4 addresses, this is identical to
+   * {@link InetAddress#getHostAddress()}, but for IPv6 addresses, the output
+   * follows &lt;a href="http://tools.ietf.org/html/rfc5952"&gt;RFC 5952&lt;/a&gt;
+   * section 4.  The main difference is that this method uses "::" for zero
+   * compression, while Java's version uses the uncompressed form.
+   *
+   * &lt;p&gt;This method uses hexadecimal for all IPv6 addresses, including
+   * IPv4-mapped IPv6 addresses such as "::c000:201".  The output does not
+   * include a Scope ID.
+   *
+   * @param ip {@link InetAddress} to be converted to an address string
+   * @return {@code String} containing the text-formatted IP address
+   * @since 10.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toAddrString</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>ip</name> <name>instanceof</name> <name>Inet4Address</name></expr>)</condition><then> <block>{
+      <comment type="line">// For IPv4, Java's formatting is good enough.</comment>
+      <return>return <expr><call><name><name>ip</name>.<name>getHostAddress</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name>ip</name> <name>instanceof</name> <name>Inet6Address</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>hextets</name> =<init> <expr>new <name><name>int</name><index>[<expr><name>IPV6_PART_COUNT</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>hextets</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>hextets</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>Ints</name>.<name>fromBytes</name></name><argument_list>(
+          <argument><expr>(<name>byte</name>) 0</expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>2 * <name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>bytes</name><index>[<expr>2 * <name>i</name> + 1</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <expr_stmt><expr><call><name>compressLongestRunOfZeroes</name><argument_list>(<argument><expr><name>hextets</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>hextetsToIPv6String</name><argument_list>(<argument><expr><name>hextets</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Identify and mark the longest run of zeroes in an IPv6 address.
+   *
+   * &lt;p&gt;Only runs of two or more hextets are considered.  In case of a tie, the
+   * leftmost run wins.  If a qualifying run is found, its hextets are replaced
+   * by the sentinel value -1.
+   *
+   * @param hextets {@code int[]} mutable array of eight 16-bit hextets
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>compressLongestRunOfZeroes</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>hextets</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>bestRunStart</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>bestRunLength</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>runStart</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>hextets</name>.<name>length</name></name> + 1</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <if>if <condition>(<expr><name>i</name> &lt; <name><name>hextets</name>.<name>length</name></name> &amp;&amp; <name><name>hextets</name><index>[<expr><name>i</name></expr>]</index></name> == 0</expr>)</condition><then> <block>{
+        <if>if <condition>(<expr><name>runStart</name> &lt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>runStart</name> = <name>i</name></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></then> <else>else <if>if <condition>(<expr><name>runStart</name> &gt;= 0</expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>runLength</name> =<init> <expr><name>i</name> - <name>runStart</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>runLength</name> &gt; <name>bestRunLength</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>bestRunStart</name> = <name>runStart</name></expr>;</expr_stmt>
+          <expr_stmt><expr><name>bestRunLength</name> = <name>runLength</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>runStart</name> = -1</expr>;</expr_stmt>
+      }</block></then></if></else></if>
+    }</block></for>
+    <if>if <condition>(<expr><name>bestRunLength</name> &gt;= 2</expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>hextets</name></expr></argument>, <argument><expr><name>bestRunStart</name></expr></argument>, <argument><expr><name>bestRunStart</name> + <name>bestRunLength</name></expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Convert a list of hextets into a human-readable IPv6 address.
+   *
+   * &lt;p&gt;In order for "::" compression to work, the input should contain negative
+   * sentinel values in place of the elided zeroes.
+   *
+   * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>hextetsToIPv6String</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>hextets</name></decl></param>)</parameter_list> <block>{
+    <comment type="block">/*
+     * While scanning the array, handle these state transitions:
+     *   start-&gt;num =&gt; "num"     start-&gt;gap =&gt; "::"
+     *   num-&gt;num   =&gt; ":num"    num-&gt;gap   =&gt; "::"
+     *   gap-&gt;num   =&gt; "num"     gap-&gt;gap   =&gt; ""
+     */</comment>
+    <decl_stmt><decl><type><name>StringBuilder</name></type> <name>buf</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>39</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>lastWasNumber</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>hextets</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>boolean</name></type> <name>thisIsNumber</name> =<init> <expr><name><name>hextets</name><index>[<expr><name>i</name></expr>]</index></name> &gt;= 0</expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>thisIsNumber</name></expr>)</condition><then> <block>{
+        <if>if <condition>(<expr><name>lastWasNumber</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>':'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name><name>hextets</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <if>if <condition>(<expr><name>i</name> == 0 || <name>lastWasNumber</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"::"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></else></if>
+      <expr_stmt><expr><name>lastWasNumber</name> = <name>thisIsNumber</name></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the string representation of an {@link InetAddress} suitable
+   * for inclusion in a URI.
+   *
+   * &lt;p&gt;For IPv4 addresses, this is identical to
+   * {@link InetAddress#getHostAddress()}, but for IPv6 addresses it
+   * compresses zeroes and surrounds the text with square brackets; for example
+   * {@code "[2001:db8::1]"}.
+   *
+   * &lt;p&gt;Per section 3.2.2 of
+   * &lt;a target="_parent"
+   *    href="http://tools.ietf.org/html/rfc3986#section-3.2.2"
+   *  &gt;http://tools.ietf.org/html/rfc3986&lt;/a&gt;,
+   * a URI containing an IPv6 string literal is of the form
+   * {@code "http://[2001:db8::1]:8888/index.html"}.
+   *
+   * &lt;p&gt;Use of either {@link InetAddresses#toAddrString},
+   * {@link InetAddress#getHostAddress()}, or this method is recommended over
+   * {@link InetAddress#toString()} when an IP address string literal is
+   * desired.  This is because {@link InetAddress#toString()} prints the
+   * hostname and the IP address string joined by a "/".
+   *
+   * @param ip {@link InetAddress} to be converted to URI string literal
+   * @return {@code String} containing URI-safe string literal
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>toUriString</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>ip</name> <name>instanceof</name> <name>Inet6Address</name></expr>)</condition><then> <block>{
+      <return>return <expr>"[" + <call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call> + "]"</expr>;</return>
+    }</block></then></if>
+    <return>return <expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an InetAddress representing the literal IPv4 or IPv6 host
+   * portion of a URL, encoded in the format specified by RFC 3986 section 3.2.2.
+   *
+   * &lt;p&gt;This function is similar to {@link InetAddresses#forString(String)},
+   * however, it requires that IPv6 addresses are surrounded by square brackets.
+   *
+   * &lt;p&gt;This function is the inverse of
+   * {@link InetAddresses#toUriString(java.net.InetAddress)}.
+   *
+   * @param hostAddr A RFC 3986 section 3.2.2 encoded IPv4 or IPv6 address
+   * @return an InetAddress representing the address in {@code hostAddr}
+   * @throws IllegalArgumentException if {@code hostAddr} is not a valid
+   *     IPv4 address, or IPv6 address surrounded by square brackets
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>forUriString</name><parameter_list>(<param><decl><type><name>String</name></type> <name>hostAddr</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>hostAddr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Decide if this should be an IPv6 or IPv4 address.</comment>
+    <decl_stmt><decl><type><name>String</name></type> <name>ipString</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>expectBytes</name></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name><name>hostAddr</name>.<name>startsWith</name></name><argument_list>(<argument><expr>"["</expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>hostAddr</name>.<name>endsWith</name></name><argument_list>(<argument><expr>"]"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>ipString</name> = <call><name><name>hostAddr</name>.<name>substring</name></name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr><call><name><name>hostAddr</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>expectBytes</name> = 16</expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <expr_stmt><expr><name>ipString</name> = <name>hostAddr</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>expectBytes</name> = 4</expr>;</expr_stmt>
+    }</block></else></if>
+
+    <comment type="line">// Parse the address, and make sure the length/version is correct.</comment>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>addr</name> =<init> <expr><call><name>ipStringToBytes</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>addr</name> == <name>null</name> || <name><name>addr</name>.<name>length</name></name> != <name>expectBytes</name></expr>)</condition><then> <block>{
+      <throw>throw <expr><call><name>formatIllegalArgumentException</name><argument_list>(<argument><expr>"Not a valid URI IP literal: '%s'"</expr></argument>, <argument><expr><name>hostAddr</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+
+    <return>return <expr><call><name>bytesToInetAddress</name><argument_list>(<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if the supplied string is a valid URI IP string
+   * literal, {@code false} otherwise.
+   *
+   * @param ipString {@code String} to evaluated as an IP URI host string literal
+   * @return {@code true} if the argument is a valid IP URI host
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isUriInetAddress</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <expr_stmt><expr><call><name>forUriString</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>true</expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>e</name></decl></param>) <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></catch></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Evaluates whether the argument is an IPv6 "compat" address.
+   *
+   * &lt;p&gt;An "IPv4 compatible", or "compat", address is one with 96 leading
+   * bits of zero, with the remaining 32 bits interpreted as an
+   * IPv4 address.  These are conventionally represented in string
+   * literals as {@code "::192.168.0.1"}, though {@code "::c0a8:1"} is
+   * also considered an IPv4 compatible address (and equivalent to
+   * {@code "::192.168.0.1"}).
+   *
+   * &lt;p&gt;For more on IPv4 compatible addresses see section 2.5.5.1 of
+   * &lt;a target="_parent"
+   *    href="http://tools.ietf.org/html/rfc4291#section-2.5.5.1"
+   *    &gt;http://tools.ietf.org/html/rfc4291&lt;/a&gt;
+   *
+   * &lt;p&gt;NOTE: This method is different from
+   * {@link Inet6Address#isIPv4CompatibleAddress} in that it more
+   * correctly classifies {@code "::"} and {@code "::1"} as
+   * proper IPv6 addresses (which they are), NOT IPv4 compatible
+   * addresses (which they are generally NOT considered to be).
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded IPv4 compatible address format
+   * @return {@code true} if the argument is a valid "compat" address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isCompatIPv4Address</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr>!<call><name><name>ip</name>.<name>isIPv4CompatibleAddress</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>(<name><name>bytes</name><index>[<expr>12</expr>]</index></name> == 0) &amp;&amp; (<name><name>bytes</name><index>[<expr>13</expr>]</index></name> == 0) &amp;&amp; (<name><name>bytes</name><index>[<expr>14</expr>]</index></name> == 0)
+        &amp;&amp; ((<name><name>bytes</name><index>[<expr>15</expr>]</index></name> == 0) || (<name><name>bytes</name><index>[<expr>15</expr>]</index></name> == 1))</expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the IPv4 address embedded in an IPv4 compatible address.
+   *
+   * @param ip {@link Inet6Address} to be examined for an embedded IPv4 address
+   * @return {@link Inet4Address} of the embedded IPv4 address
+   * @throws IllegalArgumentException if the argument is not a valid IPv4 compatible address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>getCompatIPv4Address</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><call><name>isCompatIPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"Address '%s' is not IPv4-compatible."</expr></argument>, <argument><expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <return>return <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>12</expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Evaluates whether the argument is a 6to4 address.
+   *
+   * &lt;p&gt;6to4 addresses begin with the {@code "2002::/16"} prefix.
+   * The next 32 bits are the IPv4 address of the host to which
+   * IPv6-in-IPv4 tunneled packets should be routed.
+   *
+   * &lt;p&gt;For more on 6to4 addresses see section 2 of
+   * &lt;a target="_parent" href="http://tools.ietf.org/html/rfc3056#section-2"
+   *    &gt;http://tools.ietf.org/html/rfc3056&lt;/a&gt;
+   *
+   * @param ip {@link Inet6Address} to be examined for 6to4 address format
+   * @return {@code true} if the argument is a 6to4 address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>is6to4Address</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name><name>bytes</name><index>[<expr>0</expr>]</index></name> == (<name>byte</name>) 0x20) &amp;&amp; (<name><name>bytes</name><index>[<expr>1</expr>]</index></name> == (<name>byte</name>) 0x02)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the IPv4 address embedded in a 6to4 address.
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded IPv4 in 6to4 address
+   * @return {@link Inet4Address} of embedded IPv4 in 6to4 address
+   * @throws IllegalArgumentException if the argument is not a valid IPv6 6to4 address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>get6to4IPv4Address</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><call><name>is6to4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"Address '%s' is not a 6to4 address."</expr></argument>, <argument><expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <return>return <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>2</expr></argument>, <argument><expr>6</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * A simple immutable data class to encapsulate the information to be found in a
+   * Teredo address.
+   *
+   * &lt;p&gt;All of the fields in this class are encoded in various portions
+   * of the IPv6 address as part of the protocol.  More protocols details
+   * can be found at:
+   * &lt;a target="_parent" href="http://en.wikipedia.org/wiki/Teredo_tunneling"
+   *    &gt;http://en.wikipedia.org/wiki/Teredo_tunneling&lt;/a&gt;.
+   *
+   * &lt;p&gt;The RFC can be found here:
+   * &lt;a target="_parent" href="http://tools.ietf.org/html/rfc4380"
+   *    &gt;http://tools.ietf.org/html/rfc4380&lt;/a&gt;.
+   *
+   * @since 5.0
+   */</comment>
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>TeredoInfo</name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Inet4Address</name></type> <name>server</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Inet4Address</name></type> <name>client</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>port</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>flags</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a TeredoInfo instance.
+     *
+     * &lt;p&gt;Both server and client can be {@code null}, in which case the
+     * value {@code "0.0.0.0"} will be assumed.
+     *
+     * @throws IllegalArgumentException if either of the {@code port} or the {@code flags}
+     *     arguments are out of range of an unsigned short
+     */</comment>
+    <comment type="line">// TODO: why is this public?</comment>
+    <constructor><specifier>public</specifier> <name>TeredoInfo</name><parameter_list>(
+        <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Inet4Address</name></type> <name>server</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Inet4Address</name></type> <name>client</name></decl></param>, <param><decl><type><name>int</name></type> <name>port</name></decl></param>, <param><decl><type><name>int</name></type> <name>flags</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr>(<name>port</name> &gt;= 0) &amp;&amp; (<name>port</name> &lt;= 0xffff)</expr></argument>,
+          <argument><expr>"port '%s' is out of range (0 &lt;= port &lt;= 0xffff)"</expr></argument>, <argument><expr><name>port</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr>(<name>flags</name> &gt;= 0) &amp;&amp; (<name>flags</name> &lt;= 0xffff)</expr></argument>,
+          <argument><expr>"flags '%s' is out of range (0 &lt;= flags &lt;= 0xffff)"</expr></argument>, <argument><expr><name>flags</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <expr_stmt><expr><name><name>this</name>.<name>server</name></name> = <call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>server</name></expr></argument>, <argument><expr><name>ANY4</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>client</name></name> = <call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>client</name></expr></argument>, <argument><expr><name>ANY4</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>port</name></name> = <name>port</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>flags</name></name> = <name>flags</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>public</specifier> <name>Inet4Address</name></type> <name>getServer</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>server</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>Inet4Address</name></type> <name>getClient</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>client</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getPort</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>port</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getFlags</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>flags</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Evaluates whether the argument is a Teredo address.
+   *
+   * &lt;p&gt;Teredo addresses begin with the {@code "2001::/32"} prefix.
+   *
+   * @param ip {@link Inet6Address} to be examined for Teredo address format
+   * @return {@code true} if the argument is a Teredo address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isTeredoAddress</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name><name>bytes</name><index>[<expr>0</expr>]</index></name> == (<name>byte</name>) 0x20) &amp;&amp; (<name><name>bytes</name><index>[<expr>1</expr>]</index></name> == (<name>byte</name>) 0x01)
+           &amp;&amp; (<name><name>bytes</name><index>[<expr>2</expr>]</index></name> == 0) &amp;&amp; (<name><name>bytes</name><index>[<expr>3</expr>]</index></name> == 0)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the Teredo information embedded in a Teredo address.
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded Teredo information
+   * @return extracted {@code TeredoInfo}
+   * @throws IllegalArgumentException if the argument is not a valid IPv6 Teredo address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>TeredoInfo</name></type> <name>getTeredoInfo</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><call><name>isTeredoAddress</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"Address '%s' is not a Teredo address."</expr></argument>, <argument><expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Inet4Address</name></type> <name>server</name> =<init> <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr>8</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><name>int</name></type> <name>flags</name> =<init> <expr><call><name><name>ByteStreams</name>.<name>newDataInput</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>8</expr></argument>)</argument_list></call>.<call><name>readShort</name><argument_list>()</argument_list></call> &amp; 0xffff</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Teredo obfuscates the mapped client port, per section 4 of the RFC.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>port</name> =<init> <expr>~<call><name><name>ByteStreams</name>.<name>newDataInput</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>10</expr></argument>)</argument_list></call>.<call><name>readShort</name><argument_list>()</argument_list></call> &amp; 0xffff</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>clientBytes</name> =<init> <expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>12</expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>clientBytes</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <comment type="line">// Teredo obfuscates the mapped client IP, per section 4 of the RFC.</comment>
+      <expr_stmt><expr><name><name>clientBytes</name><index>[<expr><name>i</name></expr>]</index></name> = (<name>byte</name>) ~<name><name>clientBytes</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+    }</block></for>
+    <decl_stmt><decl><type><name>Inet4Address</name></type> <name>client</name> =<init> <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><name>clientBytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <return>return <expr>new <call><name>TeredoInfo</name><argument_list>(<argument><expr><name>server</name></expr></argument>, <argument><expr><name>client</name></expr></argument>, <argument><expr><name>port</name></expr></argument>, <argument><expr><name>flags</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Evaluates whether the argument is an ISATAP address.
+   *
+   * &lt;p&gt;From RFC 5214: "ISATAP interface identifiers are constructed in
+   * Modified EUI-64 format [...] by concatenating the 24-bit IANA OUI
+   * (00-00-5E), the 8-bit hexadecimal value 0xFE, and a 32-bit IPv4
+   * address in network byte order [...]"
+   *
+   * &lt;p&gt;For more on ISATAP addresses see section 6.1 of
+   * &lt;a target="_parent" href="http://tools.ietf.org/html/rfc5214#section-6.1"
+   *    &gt;http://tools.ietf.org/html/rfc5214&lt;/a&gt;
+   *
+   * @param ip {@link Inet6Address} to be examined for ISATAP address format
+   * @return {@code true} if the argument is an ISATAP address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isIsatapAddress</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+
+    <comment type="line">// If it's a Teredo address with the right port (41217, or 0xa101)</comment>
+    <comment type="line">// which would be encoded as 0x5efe then it can't be an ISATAP address.</comment>
+    <if>if <condition>(<expr><call><name>isTeredoAddress</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <if>if <condition>(<expr>(<name><name>bytes</name><index>[<expr>8</expr>]</index></name> | (<name>byte</name>) 0x03) != (<name>byte</name>) 0x03</expr>)</condition><then> <block>{
+
+      <comment type="line">// Verify that high byte of the 64 bit identifier is zero, modulo</comment>
+      <comment type="line">// the U/L and G bits, with which we are not concerned.</comment>
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <return>return <expr>(<name><name>bytes</name><index>[<expr>9</expr>]</index></name> == (<name>byte</name>) 0x00) &amp;&amp; (<name><name>bytes</name><index>[<expr>10</expr>]</index></name> == (<name>byte</name>) 0x5e)
+           &amp;&amp; (<name><name>bytes</name><index>[<expr>11</expr>]</index></name> == (<name>byte</name>) 0xfe)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the IPv4 address embedded in an ISATAP address.
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded IPv4 in ISATAP address
+   * @return {@link Inet4Address} of embedded IPv4 in an ISATAP address
+   * @throws IllegalArgumentException if the argument is not a valid IPv6 ISATAP address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>getIsatapIPv4Address</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><call><name>isIsatapAddress</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"Address '%s' is not an ISATAP address."</expr></argument>, <argument><expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <return>return <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>12</expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Examines the Inet6Address to determine if it is an IPv6 address of one
+   * of the specified address types that contain an embedded IPv4 address.
+   *
+   * &lt;p&gt;NOTE: ISATAP addresses are explicitly excluded from this method
+   * due to their trivial spoofability.  With other transition addresses
+   * spoofing involves (at least) infection of one's BGP routing table.
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded IPv4 client address
+   * @return {@code true} if there is an embedded IPv4 client address
+   * @since 7.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>hasEmbeddedIPv4ClientAddress</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isCompatIPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call> || <call><name>is6to4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call> || <call><name>isTeredoAddress</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Examines the Inet6Address to extract the embedded IPv4 client address
+   * if the InetAddress is an IPv6 address of one of the specified address
+   * types that contain an embedded IPv4 address.
+   *
+   * &lt;p&gt;NOTE: ISATAP addresses are explicitly excluded from this method
+   * due to their trivial spoofability.  With other transition addresses
+   * spoofing involves (at least) infection of one's BGP routing table.
+   *
+   * @param ip {@link Inet6Address} to be examined for embedded IPv4 client address
+   * @return {@link Inet4Address} of embedded IPv4 client address
+   * @throws IllegalArgumentException if the argument does not have a valid embedded IPv4 address
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>getEmbeddedIPv4ClientAddress</name><parameter_list>(<param><decl><type><name>Inet6Address</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name>isCompatIPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getCompatIPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+
+    <if>if <condition>(<expr><call><name>is6to4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>get6to4IPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+
+    <if>if <condition>(<expr><call><name>isTeredoAddress</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getTeredoInfo</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call>.<call><name>getClient</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></then></if>
+
+    <throw>throw <expr><call><name>formatIllegalArgumentException</name><argument_list>(<argument><expr>"'%s' has no embedded IPv4 address."</expr></argument>, <argument><expr><call><name>toAddrString</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Evaluates whether the argument is an "IPv4 mapped" IPv6 address.
+   *
+   * &lt;p&gt;An "IPv4 mapped" address is anything in the range ::ffff:0:0/96
+   * (sometimes written as ::ffff:0.0.0.0/96), with the last 32 bits
+   * interpreted as an IPv4 address.
+   *
+   * &lt;p&gt;For more on IPv4 mapped addresses see section 2.5.5.2 of
+   * &lt;a target="_parent"
+   *    href="http://tools.ietf.org/html/rfc4291#section-2.5.5.2"
+   *    &gt;http://tools.ietf.org/html/rfc4291&lt;/a&gt;
+   *
+   * &lt;p&gt;Note: This method takes a {@code String} argument because
+   * {@link InetAddress} automatically collapses mapped addresses to IPv4.
+   * (It is actually possible to avoid this using one of the obscure
+   * {@link Inet6Address} methods, but it would be unwise to depend on such
+   * a poorly-documented feature.)
+   *
+   * @param ipString {@code String} to be examined for embedded IPv4-mapped IPv6 address format
+   * @return {@code true} if the argument is a valid "mapped" address
+   * @since 10.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isMappedIPv4Address</name><parameter_list>(<param><decl><type><name>String</name></type> <name>ipString</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name>ipStringToBytes</name><argument_list>(<argument><expr><name>ipString</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>bytes</name> != <name>null</name> &amp;&amp; <name><name>bytes</name>.<name>length</name></name> == 16</expr>)</condition><then> <block>{
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 10</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <if>if <condition>(<expr><name><name>bytes</name><index>[<expr><name>i</name></expr>]</index></name> != 0</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>10</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 12</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <if>if <condition>(<expr><name><name>bytes</name><index>[<expr><name>i</name></expr>]</index></name> != (<name>byte</name>) 0xff</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Coerces an IPv6 address into an IPv4 address.
+   *
+   * &lt;p&gt;HACK: As long as applications continue to use IPv4 addresses for
+   * indexing into tables, accounting, et cetera, it may be necessary to
+   * &lt;b&gt;coerce&lt;/b&gt; IPv6 addresses into IPv4 addresses. This function does
+   * so by hashing the upper 64 bits into {@code 224.0.0.0/3}
+   * (64 bits into 29 bits).
+   *
+   * &lt;p&gt;A "coerced" IPv4 address is equivalent to itself.
+   *
+   * &lt;p&gt;NOTE: This function is failsafe for security purposes: ALL IPv6
+   * addresses (except localhost (::1)) are hashed to avoid the security
+   * risk associated with extracting an embedded IPv4 address that might
+   * permit elevated privileges.
+   *
+   * @param ip {@link InetAddress} to "coerce"
+   * @return {@link Inet4Address} represented "coerced" address
+   * @since 7.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>getCoercedIPv4Address</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>ip</name> <name>instanceof</name> <name>Inet4Address</name></expr>)</condition><then> <block>{
+      <return>return <expr>(<name>Inet4Address</name>) <name>ip</name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// Special cases:</comment>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>ip</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>leadingBytesOfZero</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; 15</expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+      <if>if <condition>(<expr><name><name>bytes</name><index>[<expr><name>i</name></expr>]</index></name> != 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>leadingBytesOfZero</name> = false</expr>;</expr_stmt>
+        <break>break;</break>
+      }</block></then></if>
+    }</block></for>
+    <if>if <condition>(<expr><name>leadingBytesOfZero</name> &amp;&amp; (<name><name>bytes</name><index>[<expr>15</expr>]</index></name> == 1)</expr>)</condition><then> <block>{
+      <return>return <expr><name>LOOPBACK4</name></expr>;</return>  <comment type="line">// ::1</comment>
+    }</block></then> <else>else <if>if <condition>(<expr><name>leadingBytesOfZero</name> &amp;&amp; (<name><name>bytes</name><index>[<expr>15</expr>]</index></name> == 0)</expr>)</condition><then> <block>{
+      <return>return <expr><name>ANY4</name></expr>;</return>  <comment type="line">// ::0</comment>
+    }</block></then></if></else></if>
+
+    <decl_stmt><decl><type><name>Inet6Address</name></type> <name>ip6</name> =<init> <expr>(<name>Inet6Address</name>) <name>ip</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>addressAsLong</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name>hasEmbeddedIPv4ClientAddress</name><argument_list>(<argument><expr><name>ip6</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>addressAsLong</name> = <call><name>getEmbeddedIPv4ClientAddress</name><argument_list>(<argument><expr><name>ip6</name></expr></argument>)</argument_list></call>.<call><name>hashCode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+
+      <comment type="line">// Just extract the high 64 bits (assuming the rest is user-modifiable).</comment>
+      <expr_stmt><expr><name>addressAsLong</name> = <call><name><name>ByteBuffer</name>.<name>wrap</name></name><argument_list>(<argument><expr><call><name><name>ip6</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>8</expr></argument>)</argument_list></call>.<call><name>getLong</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></else></if>
+
+    <comment type="line">// Many strategies for hashing are possible.  This might suffice for now.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>coercedHash</name> =<init> <expr><call><name><name>Hashing</name>.<name>murmur3_32</name></name><argument_list>()</argument_list></call>.<call><name>hashLong</name><argument_list>(<argument><expr><name>addressAsLong</name></expr></argument>)</argument_list></call>.<call><name>asInt</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Squash into 224/4 Multicast and 240/4 Reserved space (i.e. 224/3).</comment>
+    <expr_stmt><expr><name>coercedHash</name> |= 0xe0000000</expr>;</expr_stmt>
+
+    <comment type="line">// Fixup to avoid some "illegal" values.  Currently the only potential</comment>
+    <comment type="line">// illegal value is 255.255.255.255.</comment>
+    <if>if <condition>(<expr><name>coercedHash</name> == 0xffffffff</expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>coercedHash</name> = 0xfffffffe</expr>;</expr_stmt>
+    }</block></then></if>
+
+    <return>return <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Ints</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>coercedHash</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an integer representing an IPv4 address regardless of
+   * whether the supplied argument is an IPv4 address or not.
+   *
+   * &lt;p&gt;IPv6 addresses are &lt;b&gt;coerced&lt;/b&gt; to IPv4 addresses before being
+   * converted to integers.
+   *
+   * &lt;p&gt;As long as there are applications that assume that all IP addresses
+   * are IPv4 addresses and can therefore be converted safely to integers
+   * (for whatever purpose) this function can be used to handle IPv6
+   * addresses as well until the application is suitably fixed.
+   *
+   * &lt;p&gt;NOTE: an IPv6 address coerced to an IPv4 address can only be used
+   * for such purposes as rudimentary identification or indexing into a
+   * collection of real {@link InetAddress}es.  They cannot be used as
+   * real addresses for the purposes of network communication.
+   *
+   * @param ip {@link InetAddress} to convert
+   * @return {@code int}, "coerced" if ip is not an IPv4 address
+   * @since 7.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>coerceToInteger</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>ip</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>ByteStreams</name>.<name>newDataInput</name></name><argument_list>(<argument><expr><call><name>getCoercedIPv4Address</name><argument_list>(<argument><expr><name>ip</name></expr></argument>)</argument_list></call>.<call><name>getAddress</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>readInt</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an Inet4Address having the integer value specified by
+   * the argument.
+   *
+   * @param address {@code int}, the 32bit integer address to be converted
+   * @return {@link Inet4Address} equivalent of the argument
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Inet4Address</name></type> <name>fromInteger</name><parameter_list>(<param><decl><type><name>int</name></type> <name>address</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>getInet4Address</name><argument_list>(<argument><expr><call><name><name>Ints</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>address</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an address from a &lt;b&gt;little-endian ordered&lt;/b&gt; byte array
+   * (the opposite of what {@link InetAddress#getByAddress} expects).
+   *
+   * &lt;p&gt;IPv4 address byte array must be 4 bytes long and IPv6 byte array
+   * must be 16 bytes long.
+   *
+   * @param addr the raw IP address in little-endian byte order
+   * @return an InetAddress object created from the raw IP address
+   * @throws UnknownHostException if IP address is of illegal length
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>fromLittleEndianByteArray</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>addr</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>UnknownHostException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>reversed</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name><name>addr</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>addr</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>reversed</name><index>[<expr><name>i</name></expr>]</index></name> = <name><name>addr</name><index>[<expr><name><name>addr</name>.<name>length</name></name> - <name>i</name> - 1</expr>]</index></name></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><call><name><name>InetAddress</name>.<name>getByAddress</name></name><argument_list>(<argument><expr><name>reversed</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new InetAddress that is one less than the passed in address.
+   * This method works for both IPv4 and IPv6 addresses.
+   *
+   * @param address the InetAddress to decrement
+   * @return a new InetAddress that is one less than the passed in address
+   * @throws IllegalArgumentException if InetAddress is at the beginning of its range
+   * @since 18.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>decrement</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>address</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>addr</name> =<init> <expr><call><name><name>address</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>addr</name>.<name>length</name></name> - 1</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>i</name> &gt;= 0 &amp;&amp; <name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name> == (<name>byte</name>) 0x00</expr>)</condition> <block>{
+      <expr_stmt><expr><name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name> = (<name>byte</name>) 0xff</expr>;</expr_stmt>
+      <expr_stmt><expr><name>i</name>--</expr>;</expr_stmt>
+    }</block></while>
+
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name>i</name> &gt;= 0</expr></argument>, <argument><expr>"Decrementing %s would wrap."</expr></argument>, <argument><expr><name>address</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <expr_stmt><expr><name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name>--</expr>;</expr_stmt>
+    <return>return <expr><call><name>bytesToInetAddress</name><argument_list>(<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new InetAddress that is one more than the passed in address.
+   * This method works for both IPv4 and IPv6 addresses.
+   *
+   * @param address the InetAddress to increment
+   * @return a new InetAddress that is one more than the passed in address
+   * @throws IllegalArgumentException if InetAddress is at the end of its range
+   * @since 10.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>InetAddress</name></type> <name>increment</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>address</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>addr</name> =<init> <expr><call><name><name>address</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>addr</name>.<name>length</name></name> - 1</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>i</name> &gt;= 0 &amp;&amp; <name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name> == (<name>byte</name>) 0xff</expr>)</condition> <block>{
+      <expr_stmt><expr><name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name> = 0</expr>;</expr_stmt>
+      <expr_stmt><expr><name>i</name>--</expr>;</expr_stmt>
+    }</block></while>
+
+    <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkArgument</name></name><argument_list>(<argument><expr><name>i</name> &gt;= 0</expr></argument>, <argument><expr>"Incrementing %s would wrap."</expr></argument>, <argument><expr><name>address</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <expr_stmt><expr><name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name>++</expr>;</expr_stmt>
+    <return>return <expr><call><name>bytesToInetAddress</name><argument_list>(<argument><expr><name>addr</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if the InetAddress is either 255.255.255.255 for IPv4 or
+   * ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff for IPv6.
+   *
+   * @return true if the InetAddress is either 255.255.255.255 for IPv4 or
+   *     ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff for IPv6
+   * @since 10.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isMaximum</name><parameter_list>(<param><decl><type><name>InetAddress</name></type> <name>address</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>addr</name> =<init> <expr><call><name><name>address</name>.<name>getAddress</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>addr</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <if>if <condition>(<expr><name><name>addr</name><index>[<expr><name>i</name></expr>]</index></name> != (<name>byte</name>) 0xff</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>IllegalArgumentException</name></type> <name>formatIllegalArgumentException</name><parameter_list>(
+      <param><decl><type><name>String</name></type> <name>format</name></decl></param>, <param><decl><type><name>Object</name>...</type> <name>args</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><call><name><name>String</name>.<name>format</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ROOT</name></name></expr></argument>, <argument><expr><name>format</name></expr></argument>, <argument><expr><name>args</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

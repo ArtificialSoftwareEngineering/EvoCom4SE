@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\hash\Hashing.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>hash</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Supplier</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>security</name>.<name>MessageDigest</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>Adler32</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>CRC32</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>Checksum</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>CheckReturnValue</name></name>;</import>
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Static methods to obtain {@link HashFunction} instances, and other static hashing-related
+ * utilities.
+ *
+ * &lt;p&gt;A comparison of the various hash functions can be found
+ * &lt;a href="http://goo.gl/jS7HH"&gt;here&lt;/a&gt;.
+ *
+ * @author Kevin Bourrillion
+ * @author Dimitris Andreou
+ * @author Kurt Alfred Kluever
+ * @since 11.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>CheckReturnValue</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>Hashing</name> <block>{
+  <comment type="javadoc">/**
+   * Returns a general-purpose, &lt;b&gt;temporary-use&lt;/b&gt;, non-cryptographic hash function. The algorithm
+   * the returned function implements is unspecified and subject to change without notice.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; a new random seed for these functions is chosen each time the {@code
+   * Hashing} class is loaded. &lt;b&gt;Do not use this method&lt;/b&gt; if hash codes may escape the current
+   * process in any way, for example being sent over RPC, or saved to disk.
+   *
+   * &lt;p&gt;Repeated calls to this method on the same loaded {@code Hashing} class, using the same value
+   * for {@code minimumBits}, will return identically-behaving {@link HashFunction} instances.
+   *
+   * @param minimumBits a positive integer (can be arbitrarily large)
+   * @return a hash function, described above, that produces hash codes of length {@code
+   *     minimumBits} or greater
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>goodFastHash</name><parameter_list>(<param><decl><type><name>int</name></type> <name>minimumBits</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>bits</name> =<init> <expr><call><name>checkPositiveAndMakeMultipleOf32</name><argument_list>(<argument><expr><name>minimumBits</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <if>if <condition>(<expr><name>bits</name> == 32</expr>)</condition><then> <block>{
+      <return>return <expr><name><name>Murmur3_32Holder</name>.<name>GOOD_FAST_HASH_FUNCTION_32</name></name></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>bits</name> &lt;= 128</expr>)</condition><then> <block>{
+      <return>return <expr><name><name>Murmur3_128Holder</name>.<name>GOOD_FAST_HASH_FUNCTION_128</name></name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="line">// Otherwise, join together some 128-bit murmur3s</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>hashFunctionsNeeded</name> =<init> <expr>(<name>bits</name> + 127) / 128</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>HashFunction</name><index>[]</index></type> <name>hashFunctions</name> =<init> <expr>new <name><name>HashFunction</name><index>[<expr><name>hashFunctionsNeeded</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>hashFunctions</name><index>[<expr>0</expr>]</index></name> = <name><name>Murmur3_128Holder</name>.<name>GOOD_FAST_HASH_FUNCTION_128</name></name></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>seed</name> =<init> <expr><name>GOOD_FAST_HASH_SEED</name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>hashFunctionsNeeded</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name>seed</name> += 1500450271</expr>;</expr_stmt> <comment type="line">// a prime; shouldn't matter</comment>
+      <expr_stmt><expr><name><name>hashFunctions</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>murmur3_128</name><argument_list>(<argument><expr><name>seed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr>new <call><name>ConcatenatedHashFunction</name><argument_list>(<argument><expr><name>hashFunctions</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Used to randomize {@link #goodFastHash} instances, so that programs which persist anything
+   * dependent on the hash codes they produce will fail sooner.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>GOOD_FAST_HASH_SEED</name> =<init> <expr>(<name>int</name>) <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="http://smhasher.googlecode.com/svn/trunk/MurmurHash3.cpp"&gt;
+   * 32-bit murmur3 algorithm, x86 variant&lt;/a&gt; (little-endian variant),
+   * using the given seed value.
+   *
+   * &lt;p&gt;The exact C++ equivalent is the MurmurHash3_x86_32 function (Murmur3A).
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>murmur3_32</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seed</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>Murmur3_32HashFunction</name><argument_list>(<argument><expr><name>seed</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="http://smhasher.googlecode.com/svn/trunk/MurmurHash3.cpp"&gt;
+   * 32-bit murmur3 algorithm, x86 variant&lt;/a&gt; (little-endian variant),
+   * using a seed value of zero.
+   *
+   * &lt;p&gt;The exact C++ equivalent is the MurmurHash3_x86_32 function (Murmur3A).
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>murmur3_32</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Murmur3_32Holder</name>.<name>MURMUR3_32</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Murmur3_32Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>MURMUR3_32</name> =<init> <expr>new <call><name>Murmur3_32HashFunction</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Returned by {@link #goodFastHash} when {@code minimumBits &lt;= 32}. */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>GOOD_FAST_HASH_FUNCTION_32</name> =<init> <expr><call><name>murmur3_32</name><argument_list>(<argument><expr><name>GOOD_FAST_HASH_SEED</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="http://smhasher.googlecode.com/svn/trunk/MurmurHash3.cpp"&gt;
+   * 128-bit murmur3 algorithm, x64 variant&lt;/a&gt; (little-endian variant),
+   * using the given seed value.
+   *
+   * &lt;p&gt;The exact C++ equivalent is the MurmurHash3_x64_128 function (Murmur3F).
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>murmur3_128</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seed</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>Murmur3_128HashFunction</name><argument_list>(<argument><expr><name>seed</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="http://smhasher.googlecode.com/svn/trunk/MurmurHash3.cpp"&gt;
+   * 128-bit murmur3 algorithm, x64 variant&lt;/a&gt; (little-endian variant),
+   * using a seed value of zero.
+   *
+   * &lt;p&gt;The exact C++ equivalent is the MurmurHash3_x64_128 function (Murmur3F).
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>murmur3_128</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Murmur3_128Holder</name>.<name>MURMUR3_128</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Murmur3_128Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>MURMUR3_128</name> =<init> <expr>new <call><name>Murmur3_128HashFunction</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Returned by {@link #goodFastHash} when {@code 32 &lt; minimumBits &lt;= 128}. */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>GOOD_FAST_HASH_FUNCTION_128</name> =<init> <expr><call><name>murmur3_128</name><argument_list>(<argument><expr><name>GOOD_FAST_HASH_SEED</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="https://131002.net/siphash/"&gt;64-bit SipHash-2-4 algorithm&lt;/a&gt;
+   * using a seed value of {@code k = 00 01 02 ...}.
+   *
+   * @since 15.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sipHash24</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>SipHash24Holder</name>.<name>SIP_HASH_24</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>SipHash24Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>SIP_HASH_24</name> =<init>
+        <expr>new <call><name>SipHashFunction</name><argument_list>(<argument><expr>2</expr></argument>, <argument><expr>4</expr></argument>, <argument><expr>0x0706050403020100L</expr></argument>, <argument><expr>0x0f0e0d0c0b0a0908L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the
+   * &lt;a href="https://131002.net/siphash/"&gt;64-bit SipHash-2-4 algorithm&lt;/a&gt;
+   * using the given seed.
+   *
+   * @since 15.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sipHash24</name><parameter_list>(<param><decl><type><name>long</name></type> <name>k0</name></decl></param>, <param><decl><type><name>long</name></type> <name>k1</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>SipHashFunction</name><argument_list>(<argument><expr>2</expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>k0</name></expr></argument>, <argument><expr><name>k1</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the MD5 hash algorithm (128 hash bits) by delegating to
+   * the MD5 {@link MessageDigest}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>md5</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Md5Holder</name>.<name>MD5</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Md5Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>MD5</name> =<init> <expr>new <call><name>MessageDigestHashFunction</name><argument_list>(<argument><expr>"MD5"</expr></argument>, <argument><expr>"Hashing.md5()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the SHA-1 algorithm (160 hash bits) by delegating to the
+   * SHA-1 {@link MessageDigest}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sha1</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Sha1Holder</name>.<name>SHA_1</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Sha1Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>SHA_1</name> =<init> <expr>new <call><name>MessageDigestHashFunction</name><argument_list>(<argument><expr>"SHA-1"</expr></argument>, <argument><expr>"Hashing.sha1()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the SHA-256 algorithm (256 hash bits) by delegating to
+   * the SHA-256 {@link MessageDigest}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sha256</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Sha256Holder</name>.<name>SHA_256</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Sha256Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>SHA_256</name> =<init>
+        <expr>new <call><name>MessageDigestHashFunction</name><argument_list>(<argument><expr>"SHA-256"</expr></argument>, <argument><expr>"Hashing.sha256()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the SHA-384 algorithm (384 hash bits) by delegating to
+   * the SHA-384 {@link MessageDigest}.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sha384</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Sha384Holder</name>.<name>SHA_384</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Sha384Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>SHA_384</name> =<init>
+        <expr>new <call><name>MessageDigestHashFunction</name><argument_list>(<argument><expr>"SHA-384"</expr></argument>, <argument><expr>"Hashing.sha384()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the SHA-512 algorithm (512 hash bits) by delegating to the
+   * SHA-512 {@link MessageDigest}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>sha512</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Sha512Holder</name>.<name>SHA_512</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Sha512Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>SHA_512</name> =<init>
+        <expr>new <call><name>MessageDigestHashFunction</name><argument_list>(<argument><expr>"SHA-512"</expr></argument>, <argument><expr>"Hashing.sha512()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the CRC32C checksum algorithm (32 hash bits) as described
+   * by RFC 3720, Section 12.1.
+   *
+   * @since 18.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>crc32c</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Crc32cHolder</name>.<name>CRC_32_C</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Crc32cHolder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>CRC_32_C</name> =<init> <expr>new <call><name>Crc32cHashFunction</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the CRC-32 checksum algorithm (32 hash bits) by delegating
+   * to the {@link CRC32} {@link Checksum}.
+   *
+   * &lt;p&gt;To get the {@code long} value equivalent to {@link Checksum#getValue()} for a
+   * {@code HashCode} produced by this function, use {@link HashCode#padToLong()}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>crc32</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Crc32Holder</name>.<name>CRC_32</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Crc32Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>CRC_32</name> =<init> <expr><call><name>checksumHashFunction</name><argument_list>(<argument><expr><name><name>ChecksumType</name>.<name>CRC_32</name></name></expr></argument>, <argument><expr>"Hashing.crc32()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a hash function implementing the Adler-32 checksum algorithm (32 hash bits) by
+   * delegating to the {@link Adler32} {@link Checksum}.
+   *
+   * &lt;p&gt;To get the {@code long} value equivalent to {@link Checksum#getValue()} for a
+   * {@code HashCode} produced by this function, use {@link HashCode#padToLong()}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>adler32</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>Adler32Holder</name>.<name>ADLER_32</name></name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Adler32Holder</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>HashFunction</name></type> <name>ADLER_32</name> =<init>
+        <expr><call><name>checksumHashFunction</name><argument_list>(<argument><expr><name><name>ChecksumType</name>.<name>ADLER_32</name></name></expr></argument>, <argument><expr>"Hashing.adler32()"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>checksumHashFunction</name><parameter_list>(<param><decl><type><name>ChecksumType</name></type> <name>type</name></decl></param>, <param><decl><type><name>String</name></type> <name>toString</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>ChecksumHashFunction</name><argument_list>(<argument><expr><name>type</name></expr></argument>, <argument><expr><name><name>type</name>.<name>bits</name></name></expr></argument>, <argument><expr><name>toString</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <enum>enum <name>ChecksumType</name> <super><implements>implements <name><name>Supplier</name><argument_list>&lt;<argument><name>Checksum</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <expr_stmt><expr><call><name>CRC_32</name><argument_list>(<argument><expr>32</expr></argument>)</argument_list></call> <block>{
+      @<expr><name>Override</name>
+      public <name>Checksum</name> <call><name>get</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>new <call><name>CRC32</name><argument_list>()</argument_list></call></expr>;</return></block></expr></block></expr></expr_stmt>
+      }</block></enum>
+    }</block></class>,
+    <expr_stmt><expr><call><name>ADLER_32</name><argument_list>(<argument><expr>32</expr></argument>)</argument_list></call> <block>{
+      @<expr><name>Override</name>
+      public <name>Checksum</name> <call><name>get</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>new <call><name>Adler32</name><argument_list>()</argument_list></call></expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    }<empty_stmt>;</empty_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>bits</name></decl>;</decl_stmt>
+
+    <expr_stmt><expr><call><name>ChecksumType</name><argument_list>(<argument><expr><name>int</name> <name>bits</name></expr></argument>)</argument_list></call> <block>{
+      <expr><name><name>this</name>.<name>bits</name></name> = <name>bits</name></expr>;
+    }</block>
+
+    @<name>Override</name>
+    public abstract <name>Checksum</name> <call><name>get</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }
+
+  <comment type="javadoc">/**
+   * Assigns to {@code hashCode} a "bucket" in the range {@code [0, buckets)}, in a uniform manner
+   * that minimizes the need for remapping as {@code buckets} grows. That is, {@code
+   * consistentHash(h, n)} equals:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;{@code n - 1}, with approximate probability {@code 1/n}
+   * &lt;li&gt;{@code consistentHash(h, n - 1)}, otherwise (probability {@code 1 - 1/n})
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;This method is suitable for the common use case of dividing work among buckets that meet the
+   * following conditions:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;You want to assign the same fraction of inputs to each bucket.
+   * &lt;li&gt;When you reduce the number of buckets, you can accept that the most recently added buckets
+   * will be removed first. More concretely, if you are dividing traffic among tasks, you can
+   * decrease the number of tasks from 15 and 10, killing off the final 5 tasks, and {@code
+   * consistentHash} will handle it. If, however, you are dividing traffic among servers {@code
+   * alpha}, {@code bravo}, and {@code charlie} and you occasionally need to take each of the
+   * servers offline, {@code consistentHash} will be a poor fit: It provides no way for you to
+   * specify which of the three buckets is disappearing. Thus, if your buckets change from {@code
+   * [alpha, bravo, charlie]} to {@code [bravo, charlie]}, it will assign all the old {@code alpha}
+   * traffic to {@code bravo} and all the old {@code bravo} traffic to {@code charlie}, rather than
+   * letting {@code bravo} keep its traffic.
+   * &lt;/ul&gt;
+   *
+   *
+   * &lt;p&gt;See the &lt;a href="http://en.wikipedia.org/wiki/Consistent_hashing"&gt;Wikipedia article on
+   * consistent hashing&lt;/a&gt; for more information.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>consistentHash</name><parameter_list>(<param><decl><type><name>HashCode</name></type> <name>hashCode</name></decl></param>, <param><decl><type><name>int</name></type> <name>buckets</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>consistentHash</name><argument_list>(<argument><expr><call><name><name>hashCode</name>.<name>padToLong</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>buckets</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Assigns to {@code input} a "bucket" in the range {@code [0, buckets)}, in a uniform manner that
+   * minimizes the need for remapping as {@code buckets} grows. That is, {@code consistentHash(h,
+   * n)} equals:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;{@code n - 1}, with approximate probability {@code 1/n}
+   * &lt;li&gt;{@code consistentHash(h, n - 1)}, otherwise (probability {@code 1 - 1/n})
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;This method is suitable for the common use case of dividing work among buckets that meet the
+   * following conditions:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;You want to assign the same fraction of inputs to each bucket.
+   * &lt;li&gt;When you reduce the number of buckets, you can accept that the most recently added buckets
+   * will be removed first. More concretely, if you are dividing traffic among tasks, you can
+   * decrease the number of tasks from 15 and 10, killing off the final 5 tasks, and {@code
+   * consistentHash} will handle it. If, however, you are dividing traffic among servers {@code
+   * alpha}, {@code bravo}, and {@code charlie} and you occasionally need to take each of the
+   * servers offline, {@code consistentHash} will be a poor fit: It provides no way for you to
+   * specify which of the three buckets is disappearing. Thus, if your buckets change from {@code
+   * [alpha, bravo, charlie]} to {@code [bravo, charlie]}, it will assign all the old {@code alpha}
+   * traffic to {@code bravo} and all the old {@code bravo} traffic to {@code charlie}, rather than
+   * letting {@code bravo} keep its traffic.
+   * &lt;/ul&gt;
+   *
+   *
+   * &lt;p&gt;See the &lt;a href="http://en.wikipedia.org/wiki/Consistent_hashing"&gt;Wikipedia article on
+   * consistent hashing&lt;/a&gt; for more information.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>consistentHash</name><parameter_list>(<param><decl><type><name>long</name></type> <name>input</name></decl></param>, <param><decl><type><name>int</name></type> <name>buckets</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>buckets</name> &gt; 0</expr></argument>, <argument><expr>"buckets must be positive: %s"</expr></argument>, <argument><expr><name>buckets</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>LinearCongruentialGenerator</name></type> <name>generator</name> =<init> <expr>new <call><name>LinearCongruentialGenerator</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>candidate</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>next</name></decl>;</decl_stmt>
+
+    <comment type="line">// Jump from bucket to bucket until we go out of range</comment>
+    <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <expr_stmt><expr><name>next</name> = <call>(<name>int</name>) <argument_list>(<argument><expr>(<name>candidate</name> + 1) / <call><name><name>generator</name>.<name>nextDouble</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>next</name> &gt;= 0 &amp;&amp; <name>next</name> &lt; <name>buckets</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>candidate</name> = <name>next</name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>candidate</name></expr>;</return>
+      }</block></else></if>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash code, having the same bit length as each of the input hash codes,
+   * that combines the information of these hash codes in an ordered fashion. That
+   * is, whenever two equal hash codes are produced by two calls to this method, it
+   * is &lt;i&gt;as likely as possible&lt;/i&gt; that each was computed from the &lt;i&gt;same&lt;/i&gt;
+   * input hash codes in the &lt;i&gt;same&lt;/i&gt; order.
+   *
+   * @throws IllegalArgumentException if {@code hashCodes} is empty, or the hash codes
+   *     do not all have the same bit length
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashCode</name></type> <name>combineOrdered</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>HashCode</name></argument>&gt;</argument_list></name></type> <name>hashCodes</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>HashCode</name></argument>&gt;</argument_list></name></type> <name>iterator</name> =<init> <expr><call><name><name>hashCodes</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>iterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"Must be at least 1 hash code to combine."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>bits</name> =<init> <expr><call><name><name>iterator</name>.<name>next</name></name><argument_list>()</argument_list></call>.<call><name>bits</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>resultBytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>bits</name> / 8</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>HashCode</name></type> <name>hashCode</name> :<range> <expr><name>hashCodes</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>nextBytes</name> =<init> <expr><call><name><name>hashCode</name>.<name>asBytes</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+          <argument><expr><name><name>nextBytes</name>.<name>length</name></name> == <name><name>resultBytes</name>.<name>length</name></name></expr></argument>, <argument><expr>"All hashcodes must have the same bit length."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>nextBytes</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>resultBytes</name><index>[<expr><name>i</name></expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr><name><name>resultBytes</name><index>[<expr><name>i</name></expr>]</index></name> * 37 ^ <name><name>nextBytes</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></for>
+    <return>return <expr><call><name><name>HashCode</name>.<name>fromBytesNoCopy</name></name><argument_list>(<argument><expr><name>resultBytes</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash code, having the same bit length as each of the input hash codes,
+   * that combines the information of these hash codes in an unordered fashion. That
+   * is, whenever two equal hash codes are produced by two calls to this method, it
+   * is &lt;i&gt;as likely as possible&lt;/i&gt; that each was computed from the &lt;i&gt;same&lt;/i&gt;
+   * input hash codes in &lt;i&gt;some&lt;/i&gt; order.
+   *
+   * @throws IllegalArgumentException if {@code hashCodes} is empty, or the hash codes
+   *     do not all have the same bit length
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashCode</name></type> <name>combineUnordered</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>HashCode</name></argument>&gt;</argument_list></name></type> <name>hashCodes</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>HashCode</name></argument>&gt;</argument_list></name></type> <name>iterator</name> =<init> <expr><call><name><name>hashCodes</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>iterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"Must be at least 1 hash code to combine."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>resultBytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><call><name><name>iterator</name>.<name>next</name></name><argument_list>()</argument_list></call>.<call><name>bits</name><argument_list>()</argument_list></call> / 8</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>HashCode</name></type> <name>hashCode</name> :<range> <expr><name>hashCodes</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>nextBytes</name> =<init> <expr><call><name><name>hashCode</name>.<name>asBytes</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+          <argument><expr><name><name>nextBytes</name>.<name>length</name></name> == <name><name>resultBytes</name>.<name>length</name></name></expr></argument>, <argument><expr>"All hashcodes must have the same bit length."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>nextBytes</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>resultBytes</name><index>[<expr><name>i</name></expr>]</index></name> += <name><name>nextBytes</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+      }</block></for>
+    }</block></for>
+    <return>return <expr><call><name><name>HashCode</name>.<name>fromBytesNoCopy</name></name><argument_list>(<argument><expr><name>resultBytes</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Checks that the passed argument is positive, and ceils it to a multiple of 32.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>int</name></type> <name>checkPositiveAndMakeMultipleOf32</name><parameter_list>(<param><decl><type><name>int</name></type> <name>bits</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>bits</name> &gt; 0</expr></argument>, <argument><expr>"Number of bits must be positive"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>bits</name> + 31) &amp; ~31</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash function which computes its hash code by concatenating the hash codes of the
+   * underlying hash functions together. This can be useful if you need to generate hash codes
+   * of a specific length.
+   *
+   * &lt;p&gt;For example, if you need 1024-bit hash codes, you could join two {@link Hashing#sha512}
+   * hash functions together: {@code Hashing.concatenating(Hashing.sha512(), Hashing.sha512())}.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>concatenating</name><parameter_list>(
+      <param><decl><type><name>HashFunction</name></type> <name>first</name></decl></param>, <param><decl><type><name>HashFunction</name></type> <name>second</name></decl></param>, <param><decl><type><name>HashFunction</name>...</type> <name>rest</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// We can't use Lists.asList() here because there's no hash-&gt;collect dependency</comment>
+    <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>HashFunction</name></argument>&gt;</argument_list></name></type> <name>list</name> =<init> <expr>new <call><name><name>ArrayList</name><argument_list>&lt;<argument><name>HashFunction</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>first</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>second</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <for>for (<init><decl><type><name>HashFunction</name></type> <name>hashFunc</name> :<range> <expr><name>rest</name></expr></range></decl></init>) <block>{
+      <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>hashFunc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr>new <call><name>ConcatenatedHashFunction</name><argument_list>(<argument><expr><call><name><name>list</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>HashFunction</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a hash function which computes its hash code by concatenating the hash codes of the
+   * underlying hash functions together. This can be useful if you need to generate hash codes
+   * of a specific length.
+   *
+   * &lt;p&gt;For example, if you need 1024-bit hash codes, you could join two {@link Hashing#sha512}
+   * hash functions together: {@code Hashing.concatenating(Hashing.sha512(), Hashing.sha512())}.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>HashFunction</name></type> <name>concatenating</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>HashFunction</name></argument>&gt;</argument_list></name></type> <name>hashFunctions</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>hashFunctions</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <comment type="line">// We can't use Iterables.toArray() here because there's no hash-&gt;collect dependency</comment>
+    <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>HashFunction</name></argument>&gt;</argument_list></name></type> <name>list</name> =<init> <expr>new <call><name><name>ArrayList</name><argument_list>&lt;<argument><name>HashFunction</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>HashFunction</name></type> <name>hashFunction</name> :<range> <expr><name>hashFunctions</name></expr></range></decl></init>) <block>{
+      <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>hashFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call> &gt; 0</expr></argument>, <argument><expr>"number of hash functions (%s) must be &gt; 0"</expr></argument>, <argument><expr><call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <call><name>ConcatenatedHashFunction</name><argument_list>(<argument><expr><call><name><name>list</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>HashFunction</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>ConcatenatedHashFunction</name> <super><extends>extends <name>AbstractCompositeHashFunction</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>bits</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>ConcatenatedHashFunction</name><parameter_list>(<param><decl><type><name>HashFunction</name>...</type> <name>functions</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>functions</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>bitSum</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>HashFunction</name></type> <name>function</name> :<range> <expr><name>functions</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><name>bitSum</name> += <call><name><name>function</name>.<name>bits</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+            <argument><expr><call><name><name>function</name>.<name>bits</name></name><argument_list>()</argument_list></call> % 8 == 0</expr></argument>,
+            <argument><expr>"the number of bits (%s) in hashFunction (%s) must be divisible by 8"</expr></argument>,
+            <argument><expr><call><name><name>function</name>.<name>bits</name></name><argument_list>()</argument_list></call></expr></argument>,
+            <argument><expr><name>function</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <expr_stmt><expr><name><name>this</name>.<name>bits</name></name> = <name>bitSum</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>HashCode</name></type> <name>makeHash</name><parameter_list>(<param><decl><type><name><name>Hasher</name><index>[]</index></name></type> <name>hashers</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>bits</name> / 8</expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>Hasher</name></type> <name>hasher</name> :<range> <expr><name>hashers</name></expr></range></decl></init>) <block>{
+        <decl_stmt><decl><type><name>HashCode</name></type> <name>newHash</name> =<init> <expr><call><name><name>hasher</name>.<name>hash</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>i</name> += <call><name><name>newHash</name>.<name>writeBytesTo</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><call><name><name>newHash</name>.<name>bits</name></name><argument_list>()</argument_list></call> / 8</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><call><name><name>HashCode</name>.<name>fromBytesNoCopy</name></name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>bits</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>bits</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>ConcatenatedHashFunction</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>ConcatenatedHashFunction</name></type> <name>other</name> =<init> <expr>(<name>ConcatenatedHashFunction</name>) <name>object</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>Arrays</name>.<name>equals</name></name><argument_list>(<argument><expr><name>functions</name></expr></argument>, <argument><expr><name><name>other</name>.<name>functions</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>Arrays</name>.<name>hashCode</name></name><argument_list>(<argument><expr><name>functions</name></expr></argument>)</argument_list></call> * 31 + <name>bits</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Linear CongruentialGenerator to use for consistent hashing.
+   * See http://en.wikipedia.org/wiki/Linear_congruential_generator
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>LinearCongruentialGenerator</name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>state</name></decl>;</decl_stmt>
+
+    <constructor><specifier>public</specifier> <name>LinearCongruentialGenerator</name><parameter_list>(<param><decl><type><name>long</name></type> <name>seed</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>state</name></name> = <name>seed</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>nextDouble</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><name>state</name> = 2862933555777941757L * <name>state</name> + 1</expr>;</expr_stmt>
+      <return>return <expr>(<call>(<name>double</name>) <argument_list>(<argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name>state</name> &gt;&gt;&gt; 33</expr></argument>)</argument_list></call> + 1</expr></argument>)</argument_list></call>) / (0x1.0p31)</expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <constructor><specifier>private</specifier> <name>Hashing</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+}
+</unit>

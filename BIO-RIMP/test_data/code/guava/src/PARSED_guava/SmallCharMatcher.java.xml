@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\base\SmallCharMatcher.java"><comment type="block">/*
+ * Copyright (C) 2012 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>CharMatcher</name>.<name>NamedFastMatcher</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>BitSet</name></name>;</import>
+
+<comment type="javadoc">/**
+ * An immutable version of CharMatcher for smallish sets of characters that uses a hash table
+ * with linear probing to check for matches.
+ *
+ * @author Christopher Swenson
+ */</comment>
+<class><annotation>@<name>GwtIncompatible</name><argument_list>("no precomputation is done in GWT")</argument_list></annotation>
+<specifier>final</specifier> class <name>SmallCharMatcher</name> <super><extends>extends <name>NamedFastMatcher</name></extends></super> <block>{
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>MAX_SIZE</name> =<init> <expr>1023</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>char</name><index>[]</index></type> <name>table</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>containsZero</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>long</name></type> <name>filter</name></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>SmallCharMatcher</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>table</name></decl></param>, <param><decl><type><name>long</name></type> <name>filter</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>containsZero</name></decl></param>, <param><decl><type><name>String</name></type> <name>description</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>description</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>table</name></name> = <name>table</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>filter</name></name> = <name>filter</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>containsZero</name></name> = <name>containsZero</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>C1</name> =<init> <expr>0xcc9e2d51</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>C2</name> =<init> <expr>0x1b873593</expr></init></decl>;</decl_stmt>
+
+  <comment type="block">/*
+   * This method was rewritten in Java from an intermediate step of the Murmur hash function in
+   * http://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp, which contained the
+   * following header:
+   *
+   * MurmurHash3 was written by Austin Appleby, and is placed in the public domain. The author
+   * hereby disclaims copyright to this source code.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>int</name></type> <name>smear</name><parameter_list>(<param><decl><type><name>int</name></type> <name>hashCode</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><name>C2</name> * <call><name><name>Integer</name>.<name>rotateLeft</name></name><argument_list>(<argument><expr><name>hashCode</name> * <name>C1</name></expr></argument>, <argument><expr>15</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>checkFilter</name><parameter_list>(<param><decl><type><name>int</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>1 == (1 &amp; (<name>filter</name> &gt;&gt; <name>c</name>))</expr>;</return>
+  }</block></function>
+
+  <comment type="line">// This is all essentially copied from ImmutableSet, but we have to duplicate because</comment>
+  <comment type="line">// of dependencies.</comment>
+
+  <comment type="line">// Represents how tightly we can pack things, as a maximum.</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>double</name></type> <name>DESIRED_LOAD_FACTOR</name> =<init> <expr>0.5</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns an array size suitable for the backing array of a hash table that
+   * uses open addressing with linear probing in its implementation.  The
+   * returned size is the smallest power of two that can hold setSize elements
+   * with the desired load factor.
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>static</specifier> <name>int</name></type> <name>chooseTableSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>setSize</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>setSize</name> == 1</expr>)</condition><then> <block>{
+      <return>return <expr>2</expr>;</return>
+    }</block></then></if>
+    <comment type="line">// Correct the size for open addressing to match desired load factor.</comment>
+    <comment type="line">// Round up to the next highest power of 2.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>tableSize</name> =<init> <expr><call><name><name>Integer</name>.<name>highestOneBit</name></name><argument_list>(<argument><expr><name>setSize</name> - 1</expr></argument>)</argument_list></call> &lt;&lt; 1</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>tableSize</name> * <name>DESIRED_LOAD_FACTOR</name> &lt; <name>setSize</name></expr>)</condition> <block>{
+      <expr_stmt><expr><name>tableSize</name> &lt;&lt;= 1</expr>;</expr_stmt>
+    }</block></while>
+    <return>return <expr><name>tableSize</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>static</specifier> <name>CharMatcher</name></type> <name>from</name><parameter_list>(<param><decl><type><name>BitSet</name></type> <name>chars</name></decl></param>, <param><decl><type><name>String</name></type> <name>description</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Compute the filter.</comment>
+    <decl_stmt><decl><type><name>long</name></type> <name>filter</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>size</name> =<init> <expr><call><name><name>chars</name>.<name>cardinality</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>containsZero</name> =<init> <expr><call><name><name>chars</name>.<name>get</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Compute the hash table.</comment>
+    <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>table</name> =<init> <expr>new <name><name>char</name><index>[<expr><call><name>chooseTableSize</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>mask</name> =<init> <expr><name><name>table</name>.<name>length</name></name> - 1</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>chars</name>.<name>nextSetBit</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</init> <condition><expr><name>c</name> != -1</expr>;</condition> <incr><expr><name>c</name> = <call><name><name>chars</name>.<name>nextSetBit</name></name><argument_list>(<argument><expr><name>c</name> + 1</expr></argument>)</argument_list></call></expr></incr>) <block>{
+      <comment type="line">// Compute the filter at the same time.</comment>
+      <expr_stmt><expr><name>filter</name> |= 1L &lt;&lt; <name>c</name></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><call><name>smear</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> &amp; <name>mask</name></expr></init></decl>;</decl_stmt>
+      <while>while <condition>(<expr>true</expr>)</condition> <block>{
+        <comment type="line">// Check for empty.</comment>
+        <if>if <condition>(<expr><name><name>table</name><index>[<expr><name>index</name></expr>]</index></name> == 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name><name>table</name><index>[<expr><name>index</name></expr>]</index></name> = (<name>char</name>) <name>c</name></expr>;</expr_stmt>
+          <break>break;</break>
+        }</block></then></if>
+        <comment type="line">// Linear probing.</comment>
+        <expr_stmt><expr><name>index</name> = (<name>index</name> + 1) &amp; <name>mask</name></expr>;</expr_stmt>
+      }</block></while>
+    }</block></for>
+    <return>return <expr>new <call><name>SmallCharMatcher</name><argument_list>(<argument><expr><name>table</name></expr></argument>, <argument><expr><name>filter</name></expr></argument>, <argument><expr><name>containsZero</name></expr></argument>, <argument><expr><name>description</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>matches</name><parameter_list>(<param><decl><type><name>char</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>c</name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>containsZero</name></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr>!<call><name>checkFilter</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>int</name></type> <name>mask</name> =<init> <expr><name><name>table</name>.<name>length</name></name> - 1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>startingIndex</name> =<init> <expr><call><name>smear</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call> &amp; <name>mask</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><name>startingIndex</name></expr></init></decl>;</decl_stmt>
+    <do>do <block>{
+      <comment type="line">// Check for empty.</comment>
+      <if>if <condition>(<expr><name><name>table</name><index>[<expr><name>index</name></expr>]</index></name> == 0</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      <comment type="line">// Check for match.</comment>
+      }</block></then> <else>else <if>if <condition>(<expr><name><name>table</name><index>[<expr><name>index</name></expr>]</index></name> == <name>c</name></expr>)</condition><then> <block>{
+        <return>return <expr>true</expr>;</return>
+      }</block></then> <else>else <block>{
+        <comment type="line">// Linear probing.</comment>
+        <expr_stmt><expr><name>index</name> = (<name>index</name> + 1) &amp; <name>mask</name></expr>;</expr_stmt>
+      }</block></else></if></else></if>
+      <comment type="line">// Check to see if we wrapped around the whole table.</comment>
+    }</block> while <condition>(<expr><name>index</name> != <name>startingIndex</name></expr>)</condition>;</do>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name>void</name></type> <name>setBits</name><parameter_list>(<param><decl><type><name>BitSet</name></type> <name>table</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>containsZero</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>table</name>.<name>set</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <for>for (<init><decl><type><name>char</name></type> <name>c</name> :<range> <expr><name><name>this</name>.<name>table</name></name></expr></range></decl></init>) <block>{
+      <if>if <condition>(<expr><name>c</name> != 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>table</name>.<name>set</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></for>
+  }</block></function>
+}</block></class>
+</unit>

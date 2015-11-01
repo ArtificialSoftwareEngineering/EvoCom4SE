@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\SerializingExecutor.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayDeque</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Deque</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executor</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Executor ensuring that all Runnables submitted are executed in order,
+ * using the provided Executor, and serially such that no two will ever
+ * be running at the same time.
+ *
+ * &lt;p&gt;Tasks submitted to {@link #execute(Runnable)} are executed in FIFO order.
+ *
+ * &lt;p&gt;Tasks can also be prepended to the queue to be executed in LIFO order before any other
+ * submitted tasks. Primarily intended for the currently executing task to be able to schedule a
+ * continuation task.
+ *
+ * &lt;p&gt;Execution on the queue can be {@linkplain #suspend suspended}, e.g. while waiting for an RPC,
+ * and execution can be {@linkplain #resume resumed} later.
+ *
+ * &lt;p&gt;The execution of tasks is done by one thread as long as there are tasks left in the queue and
+ * execution has not been suspended. (Even if one task is {@linkplain Thread#interrupt interrupted},
+ * execution of subsequent tasks continues.) {@code RuntimeException}s thrown by tasks are simply
+ * logged and the executor keeps trucking. If an {@code Error} is thrown, the error will propagate
+ * and execution will stop until it is restarted by external calls.
+ */</comment>
+<class><specifier>final</specifier> class <name>SerializingExecutor</name> <super><implements>implements <name>Executor</name></implements></super> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>log</name> =<init>
+      <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>SerializingExecutor</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Underlying executor that all submitted Runnable objects are run on. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Executor</name></type> <name>executor</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("internalLock")</argument_list></annotation>
+  <specifier>private</specifier> <specifier>final</specifier> <name><name>Deque</name><argument_list>&lt;<argument><name>Runnable</name></argument>&gt;</argument_list></name></type> <name>queue</name> =<init> <expr>new <call><name><name>ArrayDeque</name><argument_list>&lt;<argument><name>Runnable</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("internalLock")</argument_list></annotation>
+  <specifier>private</specifier> <name>boolean</name></type> <name>isWorkerRunning</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("internalLock")</argument_list></annotation>
+  <specifier>private</specifier> <name>int</name></type> <name>suspensions</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>internalLock</name> =<init> <expr>new <call><name>Object</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <constructor><specifier>public</specifier> <name>SerializingExecutor</name><parameter_list>(<param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>executor</name></name> = <call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Adds a task to the queue and makes sure a worker thread is running, unless the queue has been
+   * suspended.
+   *
+   * &lt;p&gt;If this method throws, e.g. a {@code RejectedExecutionException} from the delegate executor,
+   * execution of tasks will stop until a call to this method or to {@link #resume()} is
+   * made.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>execute</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>task</name></decl></param>)</parameter_list> <block>{
+    <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+      <expr_stmt><expr><call><name><name>queue</name>.<name>add</name></name><argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></synchronized>
+    <expr_stmt><expr><call><name>startQueueWorker</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Prepends a task to the front of the queue and makes sure a worker thread is running, unless the
+   * queue has been suspended.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>executeFirst</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>task</name></decl></param>)</parameter_list> <block>{
+    <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+      <expr_stmt><expr><call><name><name>queue</name>.<name>addFirst</name></name><argument_list>(<argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></synchronized>
+    <expr_stmt><expr><call><name>startQueueWorker</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Suspends the running of tasks until {@link #resume()} is called. This can be called multiple
+   * times to increase the suspensions count and execution will not continue until {@link #resume}
+   * has been called the same number of times as {@code suspend} has been.
+   *
+   * &lt;p&gt;Any task that has already been pulled off the queue for execution will be completed
+   * before execution is suspended.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>suspend</name><parameter_list>()</parameter_list> <block>{
+    <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+      <expr_stmt><expr><name>suspensions</name>++</expr>;</expr_stmt>
+    }</block></synchronized>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Continue execution of tasks after a call to {@link #suspend()}. More accurately, decreases the
+   * suspension counter, as has been incremented by calls to {@link #suspend}, and resumes execution
+   * if the suspension counter is zero.
+   *
+   * &lt;p&gt;If this method throws, e.g. a {@code RejectedExecutionException} from the delegate executor,
+   * execution of tasks will stop until a call to this method or to {@link #execute(Runnable)} or
+   * {@link #executeFirst(Runnable)} is made.
+   *
+   * @throws java.lang.IllegalStateException if this executor is not suspended.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>resume</name><parameter_list>()</parameter_list> <block>{
+    <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkState</name></name><argument_list>(<argument><expr><name>suspensions</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>suspensions</name>--</expr>;</expr_stmt>
+    }</block></synchronized>
+    <expr_stmt><expr><call><name>startQueueWorker</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>startQueueWorker</name><parameter_list>()</parameter_list> <block>{
+    <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+      <comment type="line">// We sometimes try to start a queue worker without knowing if there is any work to do.</comment>
+      <if>if <condition>(<expr><call><name><name>queue</name>.<name>peek</name></name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+        <return>return;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>suspensions</name> &gt; 0</expr>)</condition><then> <block>{
+        <return>return;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>isWorkerRunning</name></expr>)</condition><then> <block>{
+        <return>return;</return>
+      }</block></then></if>
+      <expr_stmt><expr><name>isWorkerRunning</name> = true</expr>;</expr_stmt>
+    }</block></synchronized>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>executionRejected</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <expr_stmt><expr><call><name><name>executor</name>.<name>execute</name></name><argument_list>(<argument><expr>new <call><name>QueueWorker</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>executionRejected</name> = false</expr>;</expr_stmt>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr><name>executionRejected</name></expr>)</condition><then> <block>{
+        <comment type="line">// The best we can do is to stop executing the queue, but reset the state so that</comment>
+        <comment type="line">// execution can be resumed later if the caller so wishes.</comment>
+        <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+          <expr_stmt><expr><name>isWorkerRunning</name> = false</expr>;</expr_stmt>
+        }</block></synchronized>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Worker that runs tasks off the queue until it is empty or the queue is suspended.
+   */</comment>
+  <class><specifier>private</specifier> class <name>QueueWorker</name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name>workOnQueue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Error</name></type> <name>e</name></decl></param>) <block>{
+        <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+          <expr_stmt><expr><name>isWorkerRunning</name> = false</expr>;</expr_stmt>
+        }</block></synchronized>
+        <throw>throw <expr><name>e</name></expr>;</throw>
+        <comment type="line">// The execution of a task has ended abnormally.</comment>
+        <comment type="line">// We could have tasks left in the queue, so should perhaps try to restart a worker,</comment>
+        <comment type="line">// but then the Error will get delayed if we are using a direct (same thread) executor.</comment>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>workOnQueue</name><parameter_list>()</parameter_list> <block>{
+      <while>while <condition>(<expr>true</expr>)</condition> <block>{
+        <decl_stmt><decl><type><name>Runnable</name></type> <name>task</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <synchronized>synchronized (<expr><name>internalLock</name></expr>) <block>{
+          <comment type="line">// TODO(user): How should we handle interrupts and shutdowns?</comment>
+          <if>if <condition>(<expr><name>suspensions</name> == 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>task</name> = <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <if>if <condition>(<expr><name>task</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>isWorkerRunning</name> = false</expr>;</expr_stmt>
+            <return>return;</return>
+          }</block></then></if>
+        }</block></synchronized>
+        <try>try <block>{
+          <expr_stmt><expr><call><name><name>task</name>.<name>run</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+          <expr_stmt><expr><call><name><name>log</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"Exception while executing runnable " + <name>task</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+      }</block></while>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

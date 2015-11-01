@@ -1,0 +1,956 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\MinMaxPriorityQueue.java"><comment type="block">/*
+ * Copyright (C) 2010 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkPositionIndex</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>CollectPreconditions</name>.<name>checkRemove</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>IntMath</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>j2objc</name>.<name>annotations</name>.<name>Weak</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>j2objc</name>.<name>annotations</name>.<name>WeakOuter</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>AbstractQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayDeque</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collections</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ConcurrentModificationException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>NoSuchElementException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>PriorityQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Queue</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A double-ended priority queue, which provides constant-time access to both
+ * its least element and its greatest element, as determined by the queue's
+ * specified comparator. If no comparator is given at creation time, the
+ * natural order of elements is used. If no maximum size is given at creation time,
+ * the queue is unbounded.
+ *
+ * &lt;p&gt;Usage example: &lt;pre&gt;   {@code
+ *
+ *   MinMaxPriorityQueue&lt;User&gt; users = MinMaxPriorityQueue.orderedBy(userComparator)
+ *       .maximumSize(1000)
+ *       .create();}&lt;/pre&gt;
+ *
+ * &lt;p&gt;As a {@link Queue} it functions exactly as a {@link PriorityQueue}: its
+ * head element -- the implicit target of the methods {@link #peek()}, {@link
+ * #poll()} and {@link #remove()} -- is defined as the &lt;i&gt;least&lt;/i&gt; element in
+ * the queue according to the queue's comparator. But unlike a regular priority
+ * queue, the methods {@link #peekLast}, {@link #pollLast} and
+ * {@link #removeLast} are also provided, to act on the &lt;i&gt;greatest&lt;/i&gt; element
+ * in the queue instead.
+ *
+ * &lt;p&gt;A min-max priority queue can be configured with a maximum size. If so,
+ * each time the size of the queue exceeds that value, the queue automatically
+ * removes its greatest element according to its comparator (which might be the
+ * element that was just added). This is different from conventional bounded
+ * queues, which either block or reject new elements when full.
+ *
+ * &lt;p&gt;This implementation is based on the
+ * &lt;a href="http://portal.acm.org/citation.cfm?id=6621"&gt;min-max heap&lt;/a&gt;
+ * developed by Atkinson, et al. Unlike many other double-ended priority queues,
+ * it stores elements in a single array, as compact as the traditional heap data
+ * structure used in {@link PriorityQueue}.
+ *
+ * &lt;p&gt;This class is not thread-safe, and does not accept null elements.
+ *
+ * &lt;p&gt;&lt;i&gt;Performance notes:&lt;/i&gt;
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;If you only access one end of the queue, and do use a maximum size,
+ *     this class will perform significantly worse than a {@code PriorityQueue}
+ *     with manual eviction above the maximum size.  In many cases
+ *     {@link Ordering#leastOf} may work for your use case with significantly
+ *     improved (and asymptotically superior) performance.
+ * &lt;li&gt;The retrieval operations {@link #peek}, {@link #peekFirst}, {@link
+ *     #peekLast}, {@link #element}, and {@link #size} are constant-time.
+ * &lt;li&gt;The enqueing and dequeing operations ({@link #offer}, {@link #add}, and
+ *     all the forms of {@link #poll} and {@link #remove()}) run in {@code
+ *     O(log n) time}.
+ * &lt;li&gt;The {@link #remove(Object)} and {@link #contains} operations require
+ *     linear ({@code O(n)}) time.
+ * &lt;li&gt;If you only access one end of the queue, and don't use a maximum size,
+ *     this class is functionally equivalent to {@link PriorityQueue}, but
+ *     significantly slower.
+ * &lt;/ul&gt;
+ *
+ * @author Sverre Sundsdal
+ * @author Torbjorn Gannholm
+ * @since 8.0
+ */</comment>
+<comment type="line">// TODO(kevinb): GWT compatibility</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractQueue</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></super> <block>{
+
+  <comment type="javadoc">/**
+   * Creates a new min-max priority queue with default settings: natural order,
+   * no maximum size, no initial contents, and an initial expected size of 11.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>create</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a new min-max priority queue using natural order, no maximum size,
+   * and initially containing the given elements.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>(
+      <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>initialContents</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name><name>Ordering</name>.<name><name/></name></name>&lt;<name>E</name>&gt;<call><name>natural</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>create</name><argument_list>(<argument><expr><name>initialContents</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates and returns a new builder, configured to build {@code
+   * MinMaxPriorityQueue} instances that use {@code comparator} to determine the
+   * least and greatest elements.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list> <name><name>Builder</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>orderedBy</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates and returns a new builder, configured to build {@code
+   * MinMaxPriorityQueue} instances sized appropriately to hold {@code
+   * expectedSize} elements.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name></type> <name>expectedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>expectedSize</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+        .<call><name>expectedSize</name><argument_list>(<argument><expr><name>expectedSize</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates and returns a new builder, configured to build {@code
+   * MinMaxPriorityQueue} instances that are limited to {@code maximumSize}
+   * elements. Each time a queue grows beyond this bound, it immediately
+   * removes its greatest element (according to its comparator), which might be
+   * the element that was just added.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name></type> <name>maximumSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>maximumSize</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+        .<call><name>maximumSize</name><argument_list>(<argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * The builder class used in creation of min-max priority queues. Instead of
+   * constructing one directly, use {@link
+   * MinMaxPriorityQueue#orderedBy(Comparator)}, {@link
+   * MinMaxPriorityQueue#expectedSize(int)} or {@link
+   * MinMaxPriorityQueue#maximumSize(int)}.
+   *
+   * @param &lt;B&gt; the upper bound on the eventual type that can be produced by
+   *     this builder (for example, a {@code Builder&lt;Number&gt;} can produce a
+   *     {@code Queue&lt;Number&gt;} or {@code Queue&lt;Integer&gt;} but not a {@code
+   *     Queue&lt;Object&gt;}).
+   * @since 8.0
+   */</comment>
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>Builder</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name> <block>{
+    <comment type="block">/*
+     * TODO(kevinb): when the dust settles, see if we still need this or can
+     * just default to DEFAULT_CAPACITY.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>UNSET_EXPECTED_SIZE</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>expectedSize</name> =<init> <expr><name>UNSET_EXPECTED_SIZE</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>maximumSize</name> =<init> <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr></init></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>Builder</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Configures this builder to build min-max priority queues with an initial
+     * expected size of {@code expectedSize}.
+     */</comment>
+    <function><type><specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>expectedSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>expectedSize</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>expectedSize</name> &gt;= 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>expectedSize</name></name> = <name>expectedSize</name></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Configures this builder to build {@code MinMaxPriorityQueue} instances
+     * that are limited to {@code maximumSize} elements. Each time a queue grows
+     * beyond this bound, it immediately removes its greatest element (according
+     * to its comparator), which might be the element that was just added.
+     */</comment>
+    <function><type><specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>maximumSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>maximumSize</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>maximumSize</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>maximumSize</name></name> = <name>maximumSize</name></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Builds a new min-max priority queue using the previously specified
+     * options, and having no initial contents.
+     */</comment>
+    <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>T</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list> <name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name><name>Collections</name>.<name><name/></name></name>&lt;<name>T</name>&gt;<call><name>emptySet</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Builds a new min-max priority queue using the previously specified
+     * options, and having the given initial elements.
+     */</comment>
+    <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>T</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list> <name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>(
+        <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>initialContents</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>queue</name> =<init> <expr>new <call><name><name>MinMaxPriorityQueue</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name><argument_list>(
+          <argument><expr><name>this</name></expr></argument>, <argument><expr><call><name>initialQueueSize</name><argument_list>(<argument><expr><name>expectedSize</name></expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>, <argument><expr><name>initialContents</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>T</name></type> <name>element</name> :<range> <expr><name>initialContents</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><call><name><name>queue</name>.<name>offer</name></name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><name>queue</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// safe "contravariant cast"</comment>
+    <specifier>private</specifier> <argument_list>&lt;<argument><name>T</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list> <name><name>Ordering</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>ordering</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>Ordering</name>.<name>from</name></name><argument_list>(<argument><expr>(<name><name>Comparator</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name>) <name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Heap</name></type> <name>minHeap</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Heap</name></type> <name>maxHeap</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>final</specifier> <name>int</name></type> <name>maximumSize</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>Object</name><index>[]</index></type> <name>queue</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>size</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>modCount</name></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>MinMaxPriorityQueue</name><parameter_list>(<param><decl><type><name><name>Builder</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>builder</name></decl></param>, <param><decl><type><name>int</name></type> <name>queueSize</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>ordering</name> =<init> <expr><call><name><name>builder</name>.<name>ordering</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>minHeap</name></name> = new <call><name>Heap</name><argument_list>(<argument><expr><name>ordering</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>maxHeap</name></name> = new <call><name>Heap</name><argument_list>(<argument><expr><call><name><name>ordering</name>.<name>reverse</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>minHeap</name>.<name>otherHeap</name></name> = <name>maxHeap</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>maxHeap</name>.<name>otherHeap</name></name> = <name>minHeap</name></expr>;</expr_stmt>
+
+    <expr_stmt><expr><name><name>this</name>.<name>maximumSize</name></name> = <name><name>builder</name>.<name>maximumSize</name></name></expr>;</expr_stmt>
+    <comment type="line">// TODO(kevinb): pad?</comment>
+    <expr_stmt><expr><name><name>this</name>.<name>queue</name></name> = new <name><name>Object</name><index>[<expr><name>queueSize</name></expr>]</index></name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>size</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Adds the given element to this queue. If this queue has a maximum size,
+   * after adding {@code element} the queue will automatically evict its
+   * greatest element (according to its comparator), which may be {@code
+   * element} itself.
+   *
+   * @return {@code true} always
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>add</name><parameter_list>(<param><decl><type><name>E</name></type> <name>element</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>offer</name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>addAll</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>newElements</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>boolean</name></type> <name>modified</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>E</name></type> <name>element</name> :<range> <expr><name>newElements</name></expr></range></decl></init>) <block>{
+      <expr_stmt><expr><call><name>offer</name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>modified</name> = true</expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><name>modified</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Adds the given element to this queue. If this queue has a maximum size,
+   * after adding {@code element} the queue will automatically evict its
+   * greatest element (according to its comparator), which may be {@code
+   * element} itself.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>offer</name><parameter_list>(<param><decl><type><name>E</name></type> <name>element</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>insertIndex</name> =<init> <expr><name>size</name>++</expr></init></decl>;</decl_stmt>
+
+    <expr_stmt><expr><call><name>growIfNeeded</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Adds the element to the end of the heap and bubbles it up to the correct</comment>
+    <comment type="line">// position.</comment>
+    <expr_stmt><expr><call><name>heapForIndex</name><argument_list>(<argument><expr><name>insertIndex</name></expr></argument>)</argument_list></call>.<call><name>bubbleUp</name><argument_list>(<argument><expr><name>insertIndex</name></expr></argument>, <argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>size</name> &lt;= <name>maximumSize</name> || <call><name>pollLast</name><argument_list>()</argument_list></call> != <name>element</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>E</name></type> <name>poll</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>isEmpty</name><argument_list>()</argument_list></call> ? <name>null</name> : <call><name>removeAndGet</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// we must carefully only allow Es to get in</comment>
+  <name>E</name></type> <name>elementData</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>(<name>E</name>) <name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>E</name></type> <name>peek</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>isEmpty</name><argument_list>()</argument_list></call> ? <name>null</name> : <call><name>elementData</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the index of the max element.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>int</name></type> <name>getMaxElementIndex</name><parameter_list>()</parameter_list> <block>{
+    <switch>switch <condition>(<expr><name>size</name></expr>)</condition> <block>{
+      <case>case <expr>1</expr>:
+        <return>return <expr>0</expr>;</return> <comment type="line">// The lone element in the queue is the maximum.</comment>
+      </case><case>case <expr>2</expr>:
+        <return>return <expr>1</expr>;</return> <comment type="line">// The lone element in the maxHeap is the maximum.</comment>
+      </case><default>default:
+        <comment type="line">// The max element must sit on the first level of the maxHeap. It is</comment>
+        <comment type="line">// actually the *lesser* of the two from the maxHeap's perspective.</comment>
+        <return>return <expr>(<call><name><name>maxHeap</name>.<name>compareElements</name></name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr>2</expr></argument>)</argument_list></call> &lt;= 0) ? 1 : 2</expr>;</return>
+    </default>}</block></switch>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes and returns the least element of this queue, or returns {@code
+   * null} if the queue is empty.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>pollFirst</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>poll</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes and returns the least element of this queue.
+   *
+   * @throws NoSuchElementException if the queue is empty
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>removeFirst</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>remove</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Retrieves, but does not remove, the least element of this queue, or returns
+   * {@code null} if the queue is empty.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>peekFirst</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>peek</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes and returns the greatest element of this queue, or returns {@code
+   * null} if the queue is empty.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>pollLast</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>isEmpty</name><argument_list>()</argument_list></call> ? <name>null</name> : <call><name>removeAndGet</name><argument_list>(<argument><expr><call><name>getMaxElementIndex</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes and returns the greatest element of this queue.
+   *
+   * @throws NoSuchElementException if the queue is empty
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>removeLast</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name>isEmpty</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>NoSuchElementException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr><call><name>removeAndGet</name><argument_list>(<argument><expr><call><name>getMaxElementIndex</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Retrieves, but does not remove, the greatest element of this queue, or
+   * returns {@code null} if the queue is empty.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>E</name></type> <name>peekLast</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>isEmpty</name><argument_list>()</argument_list></call> ? <name>null</name> : <call><name>elementData</name><argument_list>(<argument><expr><call><name>getMaxElementIndex</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes the element at position {@code index}.
+   *
+   * &lt;p&gt;Normally this method leaves the elements at up to {@code index - 1},
+   * inclusive, untouched.  Under these circumstances, it returns {@code null}.
+   *
+   * &lt;p&gt;Occasionally, in order to maintain the heap invariant, it must swap a
+   * later element of the list with one before {@code index}. Under these
+   * circumstances it returns a pair of elements as a {@link MoveDesc}. The
+   * first one is the element that was previously at the end of the heap and is
+   * now at some position before {@code index}. The second element is the one
+   * that was swapped down to replace the element at {@code index}. This fact is
+   * used by iterator.remove so as to visit elements during a traversal once and
+   * only once.
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>removeAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPositionIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+    <expr_stmt><expr><name>size</name>--</expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>size</name> == <name>index</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name><name>queue</name><index>[<expr><name>size</name></expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>E</name></type> <name>actualLastElement</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>lastElementAt</name> =<init> <expr><call><name>heapForIndex</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call>
+        .<call><name>getCorrectLastElement</name><argument_list>(<argument><expr><name>actualLastElement</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>E</name></type> <name>toTrickle</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>queue</name><index>[<expr><name>size</name></expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>changes</name> =<init> <expr><call><name>fillHole</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>lastElementAt</name> &lt; <name>index</name></expr>)</condition><then> <block>{
+      <comment type="line">// Last element is moved to before index, swapped with trickled element.</comment>
+      <if>if <condition>(<expr><name>changes</name> == <name>null</name></expr>)</condition><then> <block>{
+        <comment type="line">// The trickled element is still after index.</comment>
+        <return>return <expr>new <call><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>actualLastElement</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <block>{
+        <comment type="line">// The trickled element is back before index, but the replaced element</comment>
+        <comment type="line">// has now been moved after index.</comment>
+        <return>return <expr>new <call><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>actualLastElement</name></expr></argument>, <argument><expr><name><name>changes</name>.<name>replaced</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></else></if>
+    }</block></then></if>
+    <comment type="line">// Trickled element was after index to begin with, no adjustment needed.</comment>
+    <return>return <expr><name>changes</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>fillHole</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>E</name></type> <name>toTrickle</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Heap</name></type> <name>heap</name> =<init> <expr><call><name>heapForIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// We consider elementData(index) a "hole", and we want to fill it</comment>
+    <comment type="line">// with the last element of the heap, toTrickle.</comment>
+    <comment type="line">// Since the last element of the heap is from the bottom level, we</comment>
+    <comment type="line">// optimistically fill index position with elements from lower levels,</comment>
+    <comment type="line">// moving the hole down. In most cases this reduces the number of</comment>
+    <comment type="line">// comparisons with toTrickle, but in some cases we will need to bubble it</comment>
+    <comment type="line">// all the way up again.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>vacated</name> =<init> <expr><call><name><name>heap</name>.<name>fillHoleAt</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Try to see if toTrickle can be bubbled up min levels.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>bubbledTo</name> =<init> <expr><call><name><name>heap</name>.<name>bubbleUpAlternatingLevels</name></name><argument_list>(<argument><expr><name>vacated</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>bubbledTo</name> == <name>vacated</name></expr>)</condition><then> <block>{
+      <comment type="line">// Could not bubble toTrickle up min levels, try moving</comment>
+      <comment type="line">// it from min level to max level (or max to min level) and bubble up</comment>
+      <comment type="line">// there.</comment>
+      <return>return <expr><call><name><name>heap</name>.<name>tryCrossOverAndBubbleUp</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>vacated</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr>(<name>bubbledTo</name> &lt; <name>index</name>)
+          ? new <call><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>toTrickle</name></expr></argument>, <argument><expr><call><name>elementData</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>
+          : <name>null</name></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="line">// Returned from removeAt() to iterator.remove()</comment>
+  <class><specifier>static</specifier> class <name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>E</name></type> <name>toTrickle</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>E</name></type> <name>replaced</name></decl>;</decl_stmt>
+
+    <constructor><name>MoveDesc</name><parameter_list>(<param><decl><type><name>E</name></type> <name>toTrickle</name></decl></param>, <param><decl><type><name>E</name></type> <name>replaced</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>toTrickle</name></name> = <name>toTrickle</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>replaced</name></name> = <name>replaced</name></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Removes and returns the value at {@code index}.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>E</name></type> <name>removeAndGet</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>E</name></type> <name>value</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>removeAt</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>value</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>Heap</name></type> <name>heapForIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isEvenLevel</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> ? <name>minHeap</name> : <name>maxHeap</name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>EVEN_POWERS_OF_TWO</name> =<init> <expr>0x55555555</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ODD_POWERS_OF_TWO</name> =<init> <expr>0xaaaaaaaa</expr></init></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <name>boolean</name></type> <name>isEvenLevel</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>oneBased</name> =<init> <expr><name>index</name> + 1</expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>oneBased</name> &gt; 0</expr></argument>, <argument><expr>"negative index"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>oneBased</name> &amp; <name>EVEN_POWERS_OF_TWO</name>) &gt; (<name>oneBased</name> &amp; <name>ODD_POWERS_OF_TWO</name>)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if the MinMax heap structure holds. This is only used
+   * in testing.
+   *
+   * TODO(kevinb): move to the test class?
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <name>boolean</name></type> <name>isIntact</name><parameter_list>()</parameter_list> <block>{
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <if>if <condition>(<expr>!<call><name>heapForIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call>.<call><name>verifyIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Each instance of MinMaxPriortyQueue encapsulates two instances of Heap:
+   * a min-heap and a max-heap. Conceptually, these might each have their own
+   * array for storage, but for efficiency's sake they are stored interleaved on
+   * alternate heap levels in the same array (MMPQ.queue).
+   */</comment>
+  <class><annotation>@<name>WeakOuter</name></annotation>
+  <specifier>private</specifier> class <name>Heap</name> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>ordering</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>Weak</name></annotation> <name>Heap</name></type> <name>otherHeap</name></decl>;</decl_stmt>
+
+    <constructor><name>Heap</name><parameter_list>(<param><decl><type><name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>ordering</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>ordering</name></name> = <name>ordering</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><name>int</name></type> <name>compareElements</name><parameter_list>(<param><decl><type><name>int</name></type> <name>a</name></decl></param>, <param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><call><name>elementData</name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>elementData</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Tries to move {@code toTrickle} from a min to a max level and
+     * bubble up there. If it moved before {@code removeIndex} this method
+     * returns a pair as described in {@link #removeAt}.
+     */</comment>
+    <function><type><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>tryCrossOverAndBubbleUp</name><parameter_list>(
+        <param><decl><type><name>int</name></type> <name>removeIndex</name></decl></param>, <param><decl><type><name>int</name></type> <name>vacated</name></decl></param>, <param><decl><type><name>E</name></type> <name>toTrickle</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>crossOver</name> =<init> <expr><call><name>crossOver</name><argument_list>(<argument><expr><name>vacated</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>crossOver</name> == <name>vacated</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></then></if>
+      <comment type="line">// Successfully crossed over from min to max.</comment>
+      <comment type="line">// Bubble up max levels.</comment>
+      <decl_stmt><decl><type><name>E</name></type> <name>parent</name></decl>;</decl_stmt>
+      <comment type="line">// If toTrickle is moved up to a parent of removeIndex, the parent is</comment>
+      <comment type="line">// placed in removeIndex position. We must return that to the iterator so</comment>
+      <comment type="line">// that it knows to skip it.</comment>
+      <if>if <condition>(<expr><name>crossOver</name> &lt; <name>removeIndex</name></expr>)</condition><then> <block>{
+        <comment type="line">// We crossed over to the parent level in crossOver, so the parent</comment>
+        <comment type="line">// has already been moved.</comment>
+        <expr_stmt><expr><name>parent</name> = <call><name>elementData</name><argument_list>(<argument><expr><name>removeIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>parent</name> = <call><name>elementData</name><argument_list>(<argument><expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>removeIndex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></else></if>
+      <comment type="line">// bubble it up the opposite heap</comment>
+      <if>if <condition>(<expr><call><name><name>otherHeap</name>.<name>bubbleUpAlternatingLevels</name></name><argument_list>(<argument><expr><name>crossOver</name></expr></argument>, <argument><expr><name>toTrickle</name></expr></argument>)</argument_list></call>
+          &lt; <name>removeIndex</name></expr>)</condition><then> <block>{
+        <return>return <expr>new <call><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>toTrickle</name></expr></argument>, <argument><expr><name>parent</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Bubbles a value from {@code index} up the appropriate heap if required.
+     */</comment>
+    <function><type><name>void</name></type> <name>bubbleUp</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>E</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>crossOver</name> =<init> <expr><call><name>crossOverUp</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <decl_stmt><decl><type><name>Heap</name></type> <name>heap</name></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>crossOver</name> == <name>index</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>heap</name> = <name>this</name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>index</name> = <name>crossOver</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>heap</name> = <name>otherHeap</name></expr>;</expr_stmt>
+      }</block></else></if>
+      <expr_stmt><expr><call><name><name>heap</name>.<name>bubbleUpAlternatingLevels</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Bubbles a value from {@code index} up the levels of this heap, and
+     * returns the index the element ended up at.
+     */</comment>
+    <function><type><name>int</name></type> <name>bubbleUpAlternatingLevels</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>E</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+      <while>while <condition>(<expr><name>index</name> &gt; 2</expr>)</condition> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>grandParentIndex</name> =<init> <expr><call><name>getGrandparentIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>E</name></type> <name>e</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>grandParentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call> &lt;= 0</expr>)</condition><then> <block>{
+          <break>break;</break>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <name>e</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>index</name> = <name>grandParentIndex</name></expr>;</expr_stmt>
+      }</block></while>
+      <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <name>x</name></expr>;</expr_stmt>
+      <return>return <expr><name>index</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the index of minimum value between {@code index} and
+     * {@code index + len}, or {@code -1} if {@code index} is greater than
+     * {@code size}.
+     */</comment>
+    <function><type><name>int</name></type> <name>findMin</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>index</name> &gt;= <name>size</name></expr>)</condition><then> <block>{
+        <return>return <expr>-1</expr>;</return>
+      }</block></then></if>
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>index</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>limit</name> =<init> <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>size</name> - <name>len</name></expr></argument>)</argument_list></call> + <name>len</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>minIndex</name> =<init> <expr><name>index</name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>index</name> + 1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>limit</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <if>if <condition>(<expr><call><name>compareElements</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><name>minIndex</name></expr></argument>)</argument_list></call> &lt; 0</expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>minIndex</name> = <name>i</name></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr><name>minIndex</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the minimum child or {@code -1} if no child exists.
+     */</comment>
+    <function><type><name>int</name></type> <name>findMinChild</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>findMin</name><argument_list>(<argument><expr><call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>2</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the minimum grand child or -1 if no grand child exists.
+     */</comment>
+    <function><type><name>int</name></type> <name>findMinGrandChild</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>leftChildIndex</name> =<init> <expr><call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>leftChildIndex</name> &lt; 0</expr>)</condition><then> <block>{
+        <return>return <expr>-1</expr>;</return>
+      }</block></then></if>
+      <return>return <expr><call><name>findMin</name><argument_list>(<argument><expr><call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>leftChildIndex</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>4</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Moves an element one level up from a min level to a max level
+     * (or vice versa).
+     * Returns the new position of the element.
+     */</comment>
+    <function><type><name>int</name></type> <name>crossOverUp</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>E</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>index</name> == 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>queue</name><index>[<expr>0</expr>]</index></name> = <name>x</name></expr>;</expr_stmt>
+        <return>return <expr>0</expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>int</name></type> <name>parentIndex</name> =<init> <expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>E</name></type> <name>parentElement</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>parentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>parentIndex</name> != 0</expr>)</condition><then> <block>{
+        <comment type="line">// This is a guard for the case of the childless uncle.</comment>
+        <comment type="line">// Since the end of the array is actually the middle of the heap,</comment>
+        <comment type="line">// a smaller childless uncle can become a child of x when we</comment>
+        <comment type="line">// bubble up alternate levels, violating the invariant.</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>grandparentIndex</name> =<init> <expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>parentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>uncleIndex</name> =<init> <expr><call><name>getRightChildIndex</name><argument_list>(<argument><expr><name>grandparentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>uncleIndex</name> != <name>parentIndex</name>
+            &amp;&amp; <call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>uncleIndex</name></expr></argument>)</argument_list></call> &gt;= <name>size</name></expr>)</condition><then> <block>{
+          <decl_stmt><decl><type><name>E</name></type> <name>uncleElement</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>uncleIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <if>if <condition>(<expr><call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><name>uncleElement</name></expr></argument>, <argument><expr><name>parentElement</name></expr></argument>)</argument_list></call> &lt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>parentIndex</name> = <name>uncleIndex</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>parentElement</name> = <name>uncleElement</name></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></then></if>
+      }</block></then></if>
+      <if>if <condition>(<expr><call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><name>parentElement</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call> &lt; 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <name>parentElement</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>parentIndex</name></expr>]</index></name> = <name>x</name></expr>;</expr_stmt>
+        <return>return <expr><name>parentIndex</name></expr>;</return>
+      }</block></then></if>
+      <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <name>x</name></expr>;</expr_stmt>
+      <return>return <expr><name>index</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the conceptually correct last element of the heap.
+     *
+     * &lt;p&gt;Since the last element of the array is actually in the
+     * middle of the sorted structure, a childless uncle node could be
+     * smaller, which would corrupt the invariant if this element
+     * becomes the new parent of the uncle. In that case, we first
+     * switch the last element with its uncle, before returning.
+     */</comment>
+    <function><type><name>int</name></type> <name>getCorrectLastElement</name><parameter_list>(<param><decl><type><name>E</name></type> <name>actualLastElement</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>parentIndex</name> =<init> <expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>parentIndex</name> != 0</expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>grandparentIndex</name> =<init> <expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>parentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>uncleIndex</name> =<init> <expr><call><name>getRightChildIndex</name><argument_list>(<argument><expr><name>grandparentIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>uncleIndex</name> != <name>parentIndex</name>
+            &amp;&amp; <call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>uncleIndex</name></expr></argument>)</argument_list></call> &gt;= <name>size</name></expr>)</condition><then> <block>{
+          <decl_stmt><decl><type><name>E</name></type> <name>uncleElement</name> =<init> <expr><call><name>elementData</name><argument_list>(<argument><expr><name>uncleIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <if>if <condition>(<expr><call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><name>uncleElement</name></expr></argument>, <argument><expr><name>actualLastElement</name></expr></argument>)</argument_list></call> &lt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>queue</name><index>[<expr><name>uncleIndex</name></expr>]</index></name> = <name>actualLastElement</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>queue</name><index>[<expr><name>size</name></expr>]</index></name> = <name>uncleElement</name></expr>;</expr_stmt>
+            <return>return <expr><name>uncleIndex</name></expr>;</return>
+          }</block></then></if>
+        }</block></then></if>
+      }</block></then></if>
+      <return>return <expr><name>size</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Crosses an element over to the opposite heap by moving it one level down
+     * (or up if there are no elements below it).
+     *
+     * Returns the new position of the element.
+     */</comment>
+    <function><type><name>int</name></type> <name>crossOver</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>E</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>minChildIndex</name> =<init> <expr><call><name>findMinChild</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <comment type="line">// TODO(kevinb): split the &amp;&amp; into two if's and move crossOverUp so it's</comment>
+      <comment type="line">// only called when there's no child.</comment>
+      <if>if <condition>(<expr>(<name>minChildIndex</name> &gt; 0)
+          &amp;&amp; (<call><name><name>ordering</name>.<name>compare</name></name><argument_list>(<argument><expr><call><name>elementData</name><argument_list>(<argument><expr><name>minChildIndex</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call> &lt; 0)</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <call><name>elementData</name><argument_list>(<argument><expr><name>minChildIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>minChildIndex</name></expr>]</index></name> = <name>x</name></expr>;</expr_stmt>
+        <return>return <expr><name>minChildIndex</name></expr>;</return>
+      }</block></then></if>
+      <return>return <expr><call><name>crossOverUp</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fills the hole at {@code index} by moving in the least of its
+     * grandchildren to this position, then recursively filling the new hole
+     * created.
+     *
+     * @return the position of the new hole (where the lowest grandchild moved
+     *     from, that had no grandchild to replace it)
+     */</comment>
+    <function><type><name>int</name></type> <name>fillHoleAt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>minGrandchildIndex</name></decl>;</decl_stmt>
+      <while>while <condition>(<expr>(<name>minGrandchildIndex</name> = <call><name>findMinGrandChild</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call>) &gt; 0</expr>)</condition> <block>{
+        <expr_stmt><expr><name><name>queue</name><index>[<expr><name>index</name></expr>]</index></name> = <call><name>elementData</name><argument_list>(<argument><expr><name>minGrandchildIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>index</name> = <name>minGrandchildIndex</name></expr>;</expr_stmt>
+      }</block></while>
+      <return>return <expr><name>index</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>verifyIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr>(<call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> &lt; <name>size</name>)
+          &amp;&amp; (<call><name>compareElements</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><call><name>getLeftChildIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &gt; 0)</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr>(<call><name>getRightChildIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> &lt; <name>size</name>)
+          &amp;&amp; (<call><name>compareElements</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><call><name>getRightChildIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &gt; 0)</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr>(<name>i</name> &gt; 0) &amp;&amp; (<call><name>compareElements</name><argument_list>(<argument><expr><name>i</name></expr></argument>, <argument><expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> &gt; 0)</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr>(<name>i</name> &gt; 2) &amp;&amp; (<call><name>compareElements</name><argument_list>(<argument><expr><call><name>getGrandparentIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call> &gt; 0)</expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+      <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <comment type="line">// These would be static if inner classes could have static members.</comment>
+
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>getLeftChildIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>i</name> * 2 + 1</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>getRightChildIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>i</name> * 2 + 2</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>getParentIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>(<name>i</name> - 1) / 2</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>getGrandparentIndex</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>getParentIndex</name><argument_list>(<argument><expr><call><name>getParentIndex</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return> <comment type="line">// (i - 3) / 4</comment>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Iterates the elements of the queue in no particular order.
+   *
+   * If the underlying queue is modified during iteration an exception will be
+   * thrown.
+   */</comment>
+  <class><specifier>private</specifier> class <name>QueueIterator</name> <super><implements>implements <name><name>Iterator</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>cursor</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>expectedModCount</name> =<init> <expr><name>modCount</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>Queue</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>forgetMeNot</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>List</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>skipMe</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>E</name></type> <name>lastFromForgetMeNot</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>canRemove</name></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>hasNext</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkModCount</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>(<call><name>nextNotInSkipMe</name><argument_list>(<argument><expr><name>cursor</name> + 1</expr></argument>)</argument_list></call> &lt; <call><name>size</name><argument_list>()</argument_list></call>)
+          || ((<name>forgetMeNot</name> != <name>null</name>) &amp;&amp; !<call><name><name>forgetMeNot</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>E</name></type> <name>next</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkModCount</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>tempCursor</name> =<init> <expr><call><name>nextNotInSkipMe</name><argument_list>(<argument><expr><name>cursor</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>tempCursor</name> &lt; <call><name>size</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>cursor</name> = <name>tempCursor</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>canRemove</name> = true</expr>;</expr_stmt>
+        <return>return <expr><call><name>elementData</name><argument_list>(<argument><expr><name>cursor</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <if>if <condition>(<expr><name>forgetMeNot</name> != <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>cursor</name> = <call><name>size</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>lastFromForgetMeNot</name> = <call><name><name>forgetMeNot</name>.<name>poll</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>lastFromForgetMeNot</name> != <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>canRemove</name> = true</expr>;</expr_stmt>
+          <return>return <expr><name>lastFromForgetMeNot</name></expr>;</return>
+        }</block></then></if>
+      }</block></then></if></else></if>
+      <throw>throw <expr>new <call><name>NoSuchElementException</name><argument_list>(
+          <argument><expr>"iterator moved past last element in queue."</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>remove</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkRemove</name><argument_list>(<argument><expr><name>canRemove</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkModCount</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>canRemove</name> = false</expr>;</expr_stmt>
+      <expr_stmt><expr><name>expectedModCount</name>++</expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>cursor</name> &lt; <call><name>size</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name><name>MoveDesc</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>moved</name> =<init> <expr><call><name>removeAt</name><argument_list>(<argument><expr><name>cursor</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>moved</name> != <name>null</name></expr>)</condition><then> <block>{
+          <if>if <condition>(<expr><name>forgetMeNot</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>forgetMeNot</name> = new <call><name><name>ArrayDeque</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>skipMe</name> = new <call><name><name>ArrayList</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <expr_stmt><expr><call><name><name>forgetMeNot</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>moved</name>.<name>toTrickle</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><call><name><name>skipMe</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>moved</name>.<name>replaced</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>cursor</name>--</expr>;</expr_stmt>
+      }</block></then> <else>else <block>{ <comment type="line">// we must have set lastFromForgetMeNot in next()</comment>
+        <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><call><name>removeExact</name><argument_list>(<argument><expr><name>lastFromForgetMeNot</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>lastFromForgetMeNot</name> = <name>null</name></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// Finds only this exact instance, not others that are equals()</comment>
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>containsExact</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>, <param><decl><type><name>E</name></type> <name>target</name></decl></param>)</parameter_list> <block>{
+      <for>for (<init><decl><type><name>E</name></type> <name>element</name> :<range> <expr><name>elements</name></expr></range></decl></init>) <block>{
+        <if>if <condition>(<expr><name>element</name> == <name>target</name></expr>)</condition><then> <block>{
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Removes only this exact instance, not others that are equals()</comment>
+    <function><type><name>boolean</name></type> <name>removeExact</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>target</name></decl></param>)</parameter_list> <block>{
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <if>if <condition>(<expr><name><name>queue</name><index>[<expr><name>i</name></expr>]</index></name> == <name>target</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name>removeAt</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>checkModCount</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr><name>modCount</name> != <name>expectedModCount</name></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>ConcurrentModificationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the index of the first element after {@code c} that is not in
+     * {@code skipMe} and returns {@code size()} if there is no such element.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>nextNotInSkipMe</name><parameter_list>(<param><decl><type><name>int</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>skipMe</name> != <name>null</name></expr>)</condition><then> <block>{
+        <while>while <condition>(<expr><name>c</name> &lt; <call><name>size</name><argument_list>()</argument_list></call> &amp;&amp; <call><name>containsExact</name><argument_list>(<argument><expr><name>skipMe</name></expr></argument>, <argument><expr><call><name>elementData</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition> <block>{
+          <expr_stmt><expr><name>c</name>++</expr>;</expr_stmt>
+        }</block></while>
+      }</block></then></if>
+      <return>return <expr><name>c</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns an iterator over the elements contained in this collection,
+   * &lt;i&gt;in no particular order&lt;/i&gt;.
+   *
+   * &lt;p&gt;The iterator is &lt;i&gt;fail-fast&lt;/i&gt;: If the MinMaxPriorityQueue is modified
+   * at any time after the iterator is created, in any way except through the
+   * iterator's own remove method, the iterator will generally throw a
+   * {@link ConcurrentModificationException}. Thus, in the face of concurrent
+   * modification, the iterator fails quickly and cleanly, rather than risking
+   * arbitrary, non-deterministic behavior at an undetermined time in the
+   * future.
+   *
+   * &lt;p&gt;Note that the fail-fast behavior of an iterator cannot be guaranteed
+   * as it is, generally speaking, impossible to make any hard guarantees in the
+   * presence of unsynchronized concurrent modification.  Fail-fast iterators
+   * throw {@code ConcurrentModificationException} on a best-effort basis.
+   * Therefore, it would be wrong to write a program that depended on this
+   * exception for its correctness: &lt;i&gt;the fail-fast behavior of iterators
+   * should be used only to detect bugs.&lt;/i&gt;
+   *
+   * @return an iterator over the elements contained in this collection
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>Iterator</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>iterator</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>QueueIterator</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>()</parameter_list> <block>{
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>queue</name><index>[<expr><name>i</name></expr>]</index></name> = <name>null</name></expr>;</expr_stmt>
+    }</block></for>
+    <expr_stmt><expr><name>size</name> = 0</expr>;</expr_stmt>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Object</name><index>[]</index></type> <name>toArray</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>copyTo</name> =<init> <expr>new <name><name>Object</name><index>[<expr><name>size</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>queue</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>copyTo</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>copyTo</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the comparator used to order the elements in this queue. Obeys the
+   * general contract of {@link PriorityQueue#comparator}, but returns {@link
+   * Ordering#natural} instead of {@code null} to indicate natural ordering.
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>minHeap</name>.<name>ordering</name></name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <name>int</name></type> <name>capacity</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>queue</name>.<name>length</name></name></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Size/capacity-related methods</comment>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_CAPACITY</name> =<init> <expr>11</expr></init></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <name>int</name></type> <name>initialQueueSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>configuredExpectedSize</name></decl></param>,
+      <param><decl><type><name>int</name></type> <name>maximumSize</name></decl></param>, <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>initialContents</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Start with what they said, if they said it, otherwise DEFAULT_CAPACITY</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr>(<name>configuredExpectedSize</name> == <name><name>Builder</name>.<name>UNSET_EXPECTED_SIZE</name></name>)
+        ? <name>DEFAULT_CAPACITY</name>
+        : <name>configuredExpectedSize</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Enlarge to contain initial contents</comment>
+    <if>if <condition>(<expr><name>initialContents</name> <name>instanceof</name> <name>Collection</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>initialSize</name> =<init> <expr>((<name><name>Collection</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>initialContents</name>).<call><name>size</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>result</name> = <call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr><name>initialSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+
+    <comment type="line">// Now cap it at maxSize + 1</comment>
+    <return>return <expr><call><name>capAtMaximumSize</name><argument_list>(<argument><expr><name>result</name></expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>growIfNeeded</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>size</name> &gt; <name><name>queue</name>.<name>length</name></name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>newCapacity</name> =<init> <expr><call><name>calculateNewCapacity</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>newQueue</name> =<init> <expr>new <name><name>Object</name><index>[<expr><name>newCapacity</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>queue</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>newQueue</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>queue</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>queue</name> = <name>newQueue</name></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/** Returns ~2x the old capacity if small; ~1.5x otherwise. */</comment>
+  <function><type><specifier>private</specifier> <name>int</name></type> <name>calculateNewCapacity</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>oldCapacity</name> =<init> <expr><name><name>queue</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>newCapacity</name> =<init> <expr>(<name>oldCapacity</name> &lt; 64)
+        ? (<name>oldCapacity</name> + 1) * 2
+        : <call><name><name>IntMath</name>.<name>checkedMultiply</name></name><argument_list>(<argument><expr><name>oldCapacity</name> / 2</expr></argument>, <argument><expr>3</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>capAtMaximumSize</name><argument_list>(<argument><expr><name>newCapacity</name></expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** There's no reason for the queueSize to ever be more than maxSize + 1 */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>capAtMaximumSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>queueSize</name></decl></param>, <param><decl><type><name>int</name></type> <name>maximumSize</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>queueSize</name> - 1</expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call> + 1</expr>;</return> <comment type="line">// don't overflow</comment>
+  }</block></function>
+}</block></class>
+</unit>

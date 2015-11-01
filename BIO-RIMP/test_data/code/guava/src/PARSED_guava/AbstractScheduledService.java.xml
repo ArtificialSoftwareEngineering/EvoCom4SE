@@ -1,0 +1,572 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\AbstractScheduledService.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>MoreExecutors</name>.<name>directExecutor</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Supplier</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>j2objc</name>.<name>annotations</name>.<name>WeakOuter</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Callable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executor</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executors</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Future</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ScheduledExecutorService</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ThreadFactory</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeoutException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantLock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Base class for services that can implement {@link #startUp} and {@link #shutDown} but while in 
+ * the "running" state need to perform a periodic task.  Subclasses can implement {@link #startUp},
+ * {@link #shutDown} and also a {@link #runOneIteration} method that will be executed periodically.
+ * 
+ * &lt;p&gt;This class uses the {@link ScheduledExecutorService} returned from {@link #executor} to run
+ * the {@link #startUp} and {@link #shutDown} methods and also uses that service to schedule the 
+ * {@link #runOneIteration} that will be executed periodically as specified by its 
+ * {@link Scheduler}. When this service is asked to stop via {@link #stopAsync} it will cancel the 
+ * periodic task (but not interrupt it) and wait for it to stop before running the 
+ * {@link #shutDown} method.  
+ * 
+ * &lt;p&gt;Subclasses are guaranteed that the life cycle methods ({@link #runOneIteration}, {@link 
+ * #startUp} and {@link #shutDown}) will never run concurrently. Notably, if any execution of {@link
+ * #runOneIteration} takes longer than its schedule defines, then subsequent executions may start 
+ * late.  Also, all life cycle methods are executed with a lock held, so subclasses can safely 
+ * modify shared state without additional synchronization necessary for visibility to later 
+ * executions of the life cycle methods.
+ * 
+ * &lt;h3&gt;Usage Example&lt;/h3&gt;
+ * 
+ * &lt;p&gt;Here is a sketch of a service which crawls a website and uses the scheduling capabilities to 
+ * rate limit itself. &lt;pre&gt; {@code
+ * class CrawlingService extends AbstractScheduledService {
+ *   private Set&lt;Uri&gt; visited;
+ *   private Queue&lt;Uri&gt; toCrawl; 
+ *   protected void startUp() throws Exception {
+ *     toCrawl = readStartingUris();
+ *   }
+ * 
+ *   protected void runOneIteration() throws Exception {
+ *     Uri uri = toCrawl.remove();
+ *     Collection&lt;Uri&gt; newUris = crawl(uri);
+ *     visited.add(uri);
+ *     for (Uri newUri : newUris) {
+ *       if (!visited.contains(newUri)) { toCrawl.add(newUri); }
+ *     }
+ *   }
+ *   
+ *   protected void shutDown() throws Exception {
+ *     saveUris(toCrawl);
+ *   }
+ * 
+ *   protected Scheduler scheduler() {
+ *     return Scheduler.newFixedRateSchedule(0, 1, TimeUnit.SECONDS);
+ *   }
+ * }}&lt;/pre&gt;
+ * 
+ * &lt;p&gt;This class uses the life cycle methods to read in a list of starting URIs and save the set of 
+ * outstanding URIs when shutting down.  Also, it takes advantage of the scheduling functionality to
+ * rate limit the number of queries we perform.
+ * 
+ * @author Luke Sandberg
+ * @since 11.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name>AbstractScheduledService</name> <super><implements>implements <name>Service</name></implements></super> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>AbstractScheduledService</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  
+  <comment type="javadoc">/**
+   * A scheduler defines the policy for how the {@link AbstractScheduledService} should run its 
+   * task.
+   * 
+   * &lt;p&gt;Consider using the {@link #newFixedDelaySchedule} and {@link #newFixedRateSchedule} factory 
+   * methods, these provide {@link Scheduler} instances for the common use case of running the 
+   * service with a fixed schedule.  If more flexibility is needed then consider subclassing  
+   * {@link CustomScheduler}. 
+   * 
+   * @author Luke Sandberg
+   * @since 11.0
+   */</comment>
+  <class><specifier>public</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name>Scheduler</name> <block>{
+    <comment type="javadoc">/**
+     * Returns a {@link Scheduler} that schedules the task using the 
+     * {@link ScheduledExecutorService#scheduleWithFixedDelay} method.
+     * 
+     * @param initialDelay the time to delay first execution
+     * @param delay the delay between the termination of one execution and the commencement of the 
+     *        next
+     * @param unit the time unit of the initialDelay and delay parameters
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Scheduler</name></type> <name>newFixedDelaySchedule</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>long</name></type> <name>initialDelay</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>delay</name></decl></param>, 
+        <param><decl><type><specifier>final</specifier> <name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>delay</name> &gt; 0</expr></argument>, <argument><expr>"delay must be &gt; 0, found %s"</expr></argument>, <argument><expr><name>delay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <class><super><name>Scheduler</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>schedule</name><parameter_list>(<param><decl><type><name>AbstractService</name></type> <name>service</name></decl></param>, <param><decl><type><name>ScheduledExecutorService</name></type> <name>executor</name></decl></param>,
+            <param><decl><type><name>Runnable</name></type> <name>task</name></decl></param>)</parameter_list> <block>{
+          <return>return <expr><call><name><name>executor</name>.<name>scheduleWithFixedDelay</name></name><argument_list>(<argument><expr><name>task</name></expr></argument>, <argument><expr><name>initialDelay</name></expr></argument>, <argument><expr><name>delay</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function> 
+      }</block></class></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a {@link Scheduler} that schedules the task using the 
+     * {@link ScheduledExecutorService#scheduleAtFixedRate} method.
+     * 
+     * @param initialDelay the time to delay first execution
+     * @param period the period between successive executions of the task
+     * @param unit the time unit of the initialDelay and period parameters
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Scheduler</name></type> <name>newFixedRateSchedule</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>long</name></type> <name>initialDelay</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>long</name></type> <name>period</name></decl></param>, 
+        <param><decl><type><specifier>final</specifier> <name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>period</name> &gt; 0</expr></argument>, <argument><expr>"period must be &gt; 0, found %s"</expr></argument>, <argument><expr><name>period</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <class><super><name>Scheduler</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>schedule</name><parameter_list>(<param><decl><type><name>AbstractService</name></type> <name>service</name></decl></param>, <param><decl><type><name>ScheduledExecutorService</name></type> <name>executor</name></decl></param>,
+            <param><decl><type><name>Runnable</name></type> <name>task</name></decl></param>)</parameter_list> <block>{
+          <return>return <expr><call><name><name>executor</name>.<name>scheduleAtFixedRate</name></name><argument_list>(<argument><expr><name>task</name></expr></argument>, <argument><expr><name>initialDelay</name></expr></argument>, <argument><expr><name>period</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+      }</block></class></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/** Schedules the task to run on the provided executor on behalf of the service.  */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>schedule</name><parameter_list>(<param><decl><type><name>AbstractService</name></type> <name>service</name></decl></param>, <param><decl><type><name>ScheduledExecutorService</name></type> <name>executor</name></decl></param>, 
+        <param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>)</parameter_list>;</function_decl>
+    
+    <constructor><specifier>private</specifier> <name>Scheduler</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+  }</block></class>
+  
+  <comment type="block">/* use AbstractService for state management */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>AbstractService</name></type> <name>delegate</name> =<init> <expr>new <class><super><name>AbstractService</name></super><argument_list>()</argument_list> <block>{
+    
+    <comment type="line">// A handle to the running task so that we can stop it when a shutdown has been requested.</comment>
+    <comment type="line">// These two fields are volatile because their values will be accessed from multiple threads.</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>runningTask</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>ScheduledExecutorService</name></type> <name>executorService</name></decl>;</decl_stmt>
+    
+    <comment type="line">// This lock protects the task so we can ensure that none of the template methods (startUp, </comment>
+    <comment type="line">// shutDown or runOneIteration) run concurrently with one another.</comment>
+    <comment type="line">// TODO(lukes):  why don't we use ListenableFuture to sequence things?  Then we could drop the</comment>
+    <comment type="line">// lock.</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr>new <call><name>ReentrantLock</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <class><annotation>@<name>WeakOuter</name></annotation>
+    class <name>Task</name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+          <if>if <condition>(<expr><call><name><name>runningTask</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// task may have been cancelled while blocked on the lock.</comment>
+            <return>return;</return>
+          }</block></then></if>
+          <expr_stmt><expr><call><name><name>AbstractScheduledService</name>.<name>this</name>.<name>runOneIteration</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+          <try>try <block>{
+            <expr_stmt><expr><call><name>shutDown</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>ignored</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>WARNING</name></name></expr></argument>,
+                <argument><expr>"Error while attempting to shut down the service after failure."</expr></argument>, <argument><expr><name>ignored</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></catch></try>
+          <expr_stmt><expr><call><name>notifyFailed</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><call><name><name>runningTask</name>.<name>cancel</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>  <comment type="line">// prevent future invocations.</comment>
+        }</block></catch> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+      }</block></function>
+    }</block></class>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Runnable</name></type> <name>task</name> =<init> <expr>new <call><name>Task</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>doStart</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><name>executorService</name> = <call><name><name>MoreExecutors</name>.<name>renamingDecorator</name></name><argument_list>(<argument><expr><call><name>executor</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+          <return>return <expr><call><name>serviceName</name><argument_list>()</argument_list></call> + " " + <call><name>state</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+      }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>executorService</name>.<name>execute</name></name><argument_list>(<argument><expr>new <class><super><name>Runnable</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <try>try <block>{
+            <expr_stmt><expr><call><name>startUp</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>runningTask</name> = <call><name>scheduler</name><argument_list>()</argument_list></call>.<call><name>schedule</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>, <argument><expr><name>executorService</name></expr></argument>, <argument><expr><name>task</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>notifyStarted</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>notifyFailed</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>runningTask</name> != <name>null</name></expr>)</condition><then> <block>{
+              <comment type="line">// prevent the task from running if possible</comment>
+              <expr_stmt><expr><call><name><name>runningTask</name>.<name>cancel</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+          }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></finally></try>
+        }</block></function>
+      }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>doStop</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>runningTask</name>.<name>cancel</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>executorService</name>.<name>execute</name></name><argument_list>(<argument><expr>new <class><super><name>Runnable</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+          <try>try <block>{
+            <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <try>try <block>{
+              <if>if <condition>(<expr><call><name>state</name><argument_list>()</argument_list></call> != <name><name>State</name>.<name>STOPPING</name></name></expr>)</condition><then> <block>{
+                <comment type="line">// This means that the state has changed since we were scheduled.  This implies that</comment>
+                <comment type="line">// an execution of runOneIteration has thrown an exception and we have transitioned</comment>
+                <comment type="line">// to a failed state, also this means that shutDown has already been called, so we</comment>
+                <comment type="line">// do not want to call it again.</comment>
+                <return>return;</return>
+              }</block></then></if>
+              <expr_stmt><expr><call><name>shutDown</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block> <finally>finally <block>{
+              <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></finally></try>
+            <expr_stmt><expr><call><name>notifyStopped</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>notifyFailed</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></catch></try>
+        }</block></function>
+      }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+  
+  <comment type="javadoc">/** Constructor for use by subclasses. */</comment>
+  <constructor><specifier>protected</specifier> <name>AbstractScheduledService</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/** 
+   * Run one iteration of the scheduled task. If any invocation of this method throws an exception, 
+   * the service will transition to the {@link Service.State#FAILED} state and this method will no 
+   * longer be called.
+   */</comment>
+  <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>runOneIteration</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws>;</function_decl>
+
+  <comment type="javadoc">/** 
+   * Start the service.
+   * 
+   * &lt;p&gt;By default this method does nothing.
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>void</name></type> <name>startUp</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{}</block></function>
+
+  <comment type="javadoc">/**
+   * Stop the service. This is guaranteed not to run concurrently with {@link #runOneIteration}.
+   * 
+   * &lt;p&gt;By default this method does nothing. 
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>void</name></type> <name>shutDown</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{}</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the {@link Scheduler} object used to configure this service.  This method will only be
+   * called once. 
+   */</comment>
+  <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>Scheduler</name></type> <name>scheduler</name><parameter_list>()</parameter_list>;</function_decl>
+  
+  <comment type="javadoc">/**
+   * Returns the {@link ScheduledExecutorService} that will be used to execute the {@link #startUp},
+   * {@link #runOneIteration} and {@link #shutDown} methods.  If this method is overridden the 
+   * executor will not be {@linkplain ScheduledExecutorService#shutdown shutdown} when this 
+   * service {@linkplain Service.State#TERMINATED terminates} or 
+   * {@linkplain Service.State#TERMINATED fails}. Subclasses may override this method to supply a 
+   * custom {@link ScheduledExecutorService} instance. This method is guaranteed to only be called 
+   * once.
+   * 
+   * &lt;p&gt;By default this returns a new {@link ScheduledExecutorService} with a single thread thread
+   * pool that sets the name of the thread to the {@linkplain #serviceName() service name}.  
+   * Also, the pool will be {@linkplain ScheduledExecutorService#shutdown() shut down} when the 
+   * service {@linkplain Service.State#TERMINATED terminates} or 
+   * {@linkplain Service.State#TERMINATED fails}.
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>ScheduledExecutorService</name></type> <name>executor</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ScheduledExecutorService</name></type> <name>executor</name> =<init> <expr><call><name><name>Executors</name>.<name>newSingleThreadScheduledExecutor</name></name><argument_list>(
+        <argument><expr>new <class><super><name>ThreadFactory</name></super><argument_list>()</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Thread</name></type> <name>newThread</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>MoreExecutors</name>.<name>newThread</name></name><argument_list>(<argument><expr><call><name>serviceName</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>runnable</name></expr></argument>)</argument_list></call></expr>;</return>
+          }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Add a listener to shutdown the executor after the service is stopped.  This ensures that the</comment>
+    <comment type="line">// JVM shutdown will not be prevented from exiting after this service has stopped or failed.</comment>
+    <comment type="line">// Technically this listener is added after start() was called so it is a little gross, but it</comment>
+    <comment type="line">// is called within doStart() so we know that the service cannot terminate or fail concurrently</comment>
+    <comment type="line">// with adding this listener so it is impossible to miss an event that we are interested in.</comment>
+    <expr_stmt><expr><call><name>addListener</name><argument_list>(<argument><expr>new <class><super><name>Listener</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>terminated</name><parameter_list>(<param><decl><type><name>State</name></type> <name>from</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>executor</name>.<name>shutdown</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>failed</name><parameter_list>(<param><decl><type><name>State</name></type> <name>from</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>failure</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>executor</name>.<name>shutdown</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+    }</block></class></expr></argument>, <argument><expr><call><name>directExecutor</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>executor</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the name of this service. {@link AbstractScheduledService} may include the name in 
+   * debugging output.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>String</name></type> <name>serviceName</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>getClass</name><argument_list>()</argument_list></call>.<call><name>getSimpleName</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+  
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>serviceName</name><argument_list>()</argument_list></call> + " [" + <call><name>state</name><argument_list>()</argument_list></call> + "]"</expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isRunning</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>delegate</name>.<name>isRunning</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>State</name></type> <name>state</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>delegate</name>.<name>state</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 13.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>addListener</name><parameter_list>(<param><decl><type><name>Listener</name></type> <name>listener</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>addListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 14.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>Throwable</name></type> <name>failureCause</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>delegate</name>.<name>failureCause</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>Service</name></type> <name>startAsync</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>startAsync</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>Service</name></type> <name>stopAsync</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>stopAsync</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>awaitRunning</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>awaitRunning</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>awaitRunning</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>TimeoutException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>awaitRunning</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>awaitTerminated</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>awaitTerminated</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * @since 15.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>awaitTerminated</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>TimeoutException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name><name>delegate</name>.<name>awaitTerminated</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+  
+  <comment type="javadoc">/**
+   * A {@link Scheduler} that provides a convenient way for the {@link AbstractScheduledService} to 
+   * use a dynamically changing schedule.  After every execution of the task, assuming it hasn't 
+   * been cancelled, the {@link #getNextSchedule} method will be called.
+   * 
+   * @author Luke Sandberg
+   * @since 11.0
+   */</comment> 
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name>CustomScheduler</name> <super><extends>extends <name>Scheduler</name></extends></super> <block>{
+
+    <comment type="javadoc">/**
+     * A callable class that can reschedule itself using a {@link CustomScheduler}.
+     */</comment>
+    <class><specifier>private</specifier> class <name>ReschedulableCallable</name> <super><extends>extends <name><name>ForwardingFuture</name><argument_list>&lt;<argument><name>Void</name></argument>&gt;</argument_list></name></extends> <implements>implements <name><name>Callable</name><argument_list>&lt;<argument><name>Void</name></argument>&gt;</argument_list></name></implements></super> <block>{
+      
+      <comment type="javadoc">/** The underlying task. */</comment>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Runnable</name></type> <name>wrappedRunnable</name></decl>;</decl_stmt>
+      
+      <comment type="javadoc">/** The executor on which this Callable will be scheduled. */</comment>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ScheduledExecutorService</name></type> <name>executor</name></decl>;</decl_stmt>
+      
+      <comment type="javadoc">/** 
+       * The service that is managing this callable.  This is used so that failure can be 
+       * reported properly.
+       */</comment>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>AbstractService</name></type> <name>service</name></decl>;</decl_stmt>
+      
+      <comment type="javadoc">/**
+       * This lock is used to ensure safe and correct cancellation, it ensures that a new task is 
+       * not scheduled while a cancel is ongoing.  Also it protects the currentFuture variable to 
+       * ensure that it is assigned atomically with being scheduled.
+       */</comment> 
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr>new <call><name>ReentrantLock</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      
+      <comment type="javadoc">/** The future that represents the next execution of this task.*/</comment>
+      <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+      <specifier>private</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>Void</name></argument>&gt;</argument_list></name></type> <name>currentFuture</name></decl>;</decl_stmt>
+      
+      <constructor><name>ReschedulableCallable</name><parameter_list>(<param><decl><type><name>AbstractService</name></type> <name>service</name></decl></param>, <param><decl><type><name>ScheduledExecutorService</name></type> <name>executor</name></decl></param>, 
+          <param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>wrappedRunnable</name></name> = <name>runnable</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>executor</name></name> = <name>executor</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>service</name></name> = <name>service</name></expr>;</expr_stmt>
+      }</block></constructor>
+      
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>Void</name></type> <name>call</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>wrappedRunnable</name>.<name>run</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>reschedule</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></function>
+
+      <comment type="javadoc">/**
+       * Atomically reschedules this task and assigns the new future to {@link #currentFuture}.
+       */</comment>
+      <function><type><specifier>public</specifier> <name>void</name></type> <name>reschedule</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// invoke the callback outside the lock, prevents some shenanigans.</comment>
+        <decl_stmt><decl><type><name>Schedule</name></type> <name>schedule</name></decl>;</decl_stmt>
+        <try>try <block>{
+          <expr_stmt><expr><name>schedule</name> = <call><name><name>CustomScheduler</name>.<name>this</name>.<name>getNextSchedule</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+          <expr_stmt><expr><call><name><name>service</name>.<name>notifyFailed</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <return>return;</return>
+        }</block></catch></try>
+        <comment type="line">// We reschedule ourselves with a lock held for two reasons. 1. we want to make sure that</comment>
+        <comment type="line">// cancel calls cancel on the correct future. 2. we want to make sure that the assignment</comment>
+        <comment type="line">// to currentFuture doesn't race with itself so that currentFuture is assigned in the </comment>
+        <comment type="line">// correct order.</comment>
+        <decl_stmt><decl><type><name>Throwable</name></type> <name>scheduleFailure</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+          <if>if <condition>(<expr><name>currentFuture</name> == <name>null</name> || !<call><name><name>currentFuture</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>currentFuture</name> = <call><name><name>executor</name>.<name>schedule</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name><name>schedule</name>.<name>delay</name></name></expr></argument>, <argument><expr><name><name>schedule</name>.<name>unit</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>) <block>{
+          <comment type="line">// If an exception is thrown by the subclass then we need to make sure that the service</comment>
+          <comment type="line">// notices and transitions to the FAILED state.  We do it by calling notifyFailed directly</comment>
+          <comment type="line">// because the service does not monitor the state of the future so if the exception is not</comment>
+          <comment type="line">// caught and forwarded to the service the task would stop executing but the service would</comment>
+          <comment type="line">// have no idea.</comment>
+          <comment type="line">// TODO(lukes): consider building everything in terms of ListenableScheduledFuture then</comment>
+          <comment type="line">// the AbstractService could monitor the future directly.  Rescheduling is still hard...</comment>
+          <comment type="line">// but it would help with some of these lock ordering issues.</comment>
+          <expr_stmt><expr><name>scheduleFailure</name> = <name>e</name></expr>;</expr_stmt>
+        }</block></catch> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+        <comment type="line">// Call notifyFailed outside the lock to avoid lock ordering issues.</comment>
+        <if>if <condition>(<expr><name>scheduleFailure</name> != <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>service</name>.<name>notifyFailed</name></name><argument_list>(<argument><expr><name>scheduleFailure</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></function>
+      
+      <comment type="line">// N.B. Only protect cancel and isCancelled because those are the only methods that are </comment>
+      <comment type="line">// invoked by the AbstractScheduledService.</comment>
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>boolean</name></type> <name>cancel</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>mayInterruptIfRunning</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Ensure that a task cannot be rescheduled while a cancel is ongoing.</comment>
+        <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+          <return>return <expr><call><name><name>currentFuture</name>.<name>cancel</name></name><argument_list>(<argument><expr><name>mayInterruptIfRunning</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation> 
+      <specifier>public</specifier> <name>boolean</name></type> <name>isCancelled</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+          <return>return <expr><call><name><name>currentFuture</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>protected</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>Void</name></argument>&gt;</argument_list></name></type> <name>delegate</name><parameter_list>()</parameter_list> <block>{
+        <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>(
+            <argument><expr>"Only cancel and isCancelled is supported by this future"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></function>
+    }</block></class>
+    
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>final</specifier> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>schedule</name><parameter_list>(<param><decl><type><name>AbstractService</name></type> <name>service</name></decl></param>, <param><decl><type><name>ScheduledExecutorService</name></type> <name>executor</name></decl></param>, 
+        <param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>ReschedulableCallable</name></type> <name>task</name> =<init> <expr>new <call><name>ReschedulableCallable</name><argument_list>(<argument><expr><name>service</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>, <argument><expr><name>runnable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>task</name>.<name>reschedule</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>task</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * A value object that represents an absolute delay until a task should be invoked.
+     * 
+     * @author Luke Sandberg
+     * @since 11.0
+     */</comment>
+    <class><annotation>@<name>Beta</name></annotation>
+    <specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Schedule</name> <block>{
+      
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>long</name></type> <name>delay</name></decl>;</decl_stmt>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TimeUnit</name></type> <name>unit</name></decl>;</decl_stmt>
+      
+      <comment type="javadoc">/**
+       * @param delay the time from now to delay execution
+       * @param unit the time unit of the delay parameter
+       */</comment>
+      <constructor><specifier>public</specifier> <name>Schedule</name><parameter_list>(<param><decl><type><name>long</name></type> <name>delay</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>delay</name></name> = <name>delay</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>unit</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></constructor>
+    }</block></class>
+    
+    <comment type="javadoc">/**
+     * Calculates the time at which to next invoke the task.
+     * 
+     * &lt;p&gt;This is guaranteed to be called immediately after the task has completed an iteration and
+     * on the same thread as the previous execution of {@link 
+     * AbstractScheduledService#runOneIteration}.
+     * 
+     * @return a schedule that defines the delay before the next execution.
+     */</comment>
+    <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>Schedule</name></type> <name>getNextSchedule</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws>;</function_decl>
+  }</block></class>
+}</block></class>
+</unit>

@@ -1,0 +1,869 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\cache\CacheBuilder.java"><comment type="block">/*
+ * Copyright (C) 2009 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Ascii</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Equivalence</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Supplier</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Suppliers</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Ticker</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name>.<name>AbstractCache</name>.<name>SimpleStatsCounter</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name>.<name>AbstractCache</name>.<name>StatsCounter</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name>.<name>LocalCache</name>.<name>Strength</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>SoftReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ConcurrentModificationException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentHashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>CheckReturnValue</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;A builder of {@link LoadingCache} and {@link Cache} instances having any combination of the
+ * following features:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;automatic loading of entries into the cache
+ * &lt;li&gt;least-recently-used eviction when a maximum size is exceeded
+ * &lt;li&gt;time-based expiration of entries, measured since last access or last write
+ * &lt;li&gt;keys automatically wrapped in {@linkplain WeakReference weak} references
+ * &lt;li&gt;values automatically wrapped in {@linkplain WeakReference weak} or
+ *     {@linkplain SoftReference soft} references
+ * &lt;li&gt;notification of evicted (or otherwise removed) entries
+ * &lt;li&gt;accumulation of cache access statistics
+ * &lt;/ul&gt;
+ *
+ *
+ * &lt;p&gt;These features are all optional; caches can be created using all or none of them. By default
+ * cache instances created by {@code CacheBuilder} will not perform any type of eviction.
+ *
+ * &lt;p&gt;Usage example: &lt;pre&gt;   {@code
+ *
+ *   LoadingCache&lt;Key, Graph&gt; graphs = CacheBuilder.newBuilder()
+ *       .maximumSize(10000)
+ *       .expireAfterWrite(10, TimeUnit.MINUTES)
+ *       .removalListener(MY_LISTENER)
+ *       .build(
+ *           new CacheLoader&lt;Key, Graph&gt;() {
+ *             public Graph load(Key key) throws AnyException {
+ *               return createExpensiveGraph(key);
+ *             }
+ *           });}&lt;/pre&gt;
+ *
+ * &lt;p&gt;Or equivalently, &lt;pre&gt;   {@code
+ *
+ *   // In real life this would come from a command-line flag or config file
+ *   String spec = "maximumSize=10000,expireAfterWrite=10m";
+ *
+ *   LoadingCache&lt;Key, Graph&gt; graphs = CacheBuilder.from(spec)
+ *       .removalListener(MY_LISTENER)
+ *       .build(
+ *           new CacheLoader&lt;Key, Graph&gt;() {
+ *             public Graph load(Key key) throws AnyException {
+ *               return createExpensiveGraph(key);
+ *             }
+ *           });}&lt;/pre&gt;
+ *
+ * &lt;p&gt;The returned cache is implemented as a hash table with similar performance characteristics to
+ * {@link ConcurrentHashMap}. It implements all optional operations of the {@link LoadingCache} and
+ * {@link Cache} interfaces. The {@code asMap} view (and its collection views) have &lt;i&gt;weakly
+ * consistent iterators&lt;/i&gt;. This means that they are safe for concurrent use, but if other threads
+ * modify the cache after the iterator is created, it is undefined which of these changes, if any,
+ * are reflected in that iterator. These iterators never throw {@link
+ * ConcurrentModificationException}.
+ *
+ * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; by default, the returned cache uses equality comparisons (the
+ * {@link Object#equals equals} method) to determine equality for keys or values. However, if
+ * {@link #weakKeys} was specified, the cache uses identity ({@code ==})
+ * comparisons instead for keys. Likewise, if {@link #weakValues} or {@link #softValues} was
+ * specified, the cache uses identity comparisons for values.
+ *
+ * &lt;p&gt;Entries are automatically evicted from the cache when any of
+ * {@linkplain #maximumSize(long) maximumSize}, {@linkplain #maximumWeight(long) maximumWeight},
+ * {@linkplain #expireAfterWrite expireAfterWrite},
+ * {@linkplain #expireAfterAccess expireAfterAccess}, {@linkplain #weakKeys weakKeys},
+ * {@linkplain #weakValues weakValues}, or {@linkplain #softValues softValues} are requested.
+ *
+ * &lt;p&gt;If {@linkplain #maximumSize(long) maximumSize} or
+ * {@linkplain #maximumWeight(long) maximumWeight} is requested entries may be evicted on each cache
+ * modification.
+ *
+ * &lt;p&gt;If {@linkplain #expireAfterWrite expireAfterWrite} or
+ * {@linkplain #expireAfterAccess expireAfterAccess} is requested entries may be evicted on each
+ * cache modification, on occasional cache accesses, or on calls to {@link Cache#cleanUp}. Expired
+ * entries may be counted by {@link Cache#size}, but will never be visible to read or write
+ * operations.
+ *
+ * &lt;p&gt;If {@linkplain #weakKeys weakKeys}, {@linkplain #weakValues weakValues}, or
+ * {@linkplain #softValues softValues} are requested, it is possible for a key or value present in
+ * the cache to be reclaimed by the garbage collector. Entries with reclaimed keys or values may be
+ * removed from the cache on each cache modification, on occasional cache accesses, or on calls to
+ * {@link Cache#cleanUp}; such entries may be counted in {@link Cache#size}, but will never be
+ * visible to read or write operations.
+ *
+ * &lt;p&gt;Certain cache configurations will result in the accrual of periodic maintenance tasks which
+ * will be performed during write operations, or during occasional read operations in the absence of
+ * writes. The {@link Cache#cleanUp} method of the returned cache will also perform maintenance, but
+ * calling it should not be necessary with a high throughput cache. Only caches built with
+ * {@linkplain #removalListener removalListener}, {@linkplain #expireAfterWrite expireAfterWrite},
+ * {@linkplain #expireAfterAccess expireAfterAccess}, {@linkplain #weakKeys weakKeys},
+ * {@linkplain #weakValues weakValues}, or {@linkplain #softValues softValues} perform periodic
+ * maintenance.
+ *
+ * &lt;p&gt;The caches produced by {@code CacheBuilder} are serializable, and the deserialized caches
+ * retain all the configuration properties of the original cache. Note that the serialized form does
+ * &lt;i&gt;not&lt;/i&gt; include cache contents, but only configuration.
+ *
+ * &lt;p&gt;See the Guava User Guide article on &lt;a href=
+ * "https://github.com/google/guava/wiki/CachesExplained"&gt;caching&lt;/a&gt; for a higher-level
+ * explanation.
+ *
+ * @param &lt;K&gt; the base key type for all caches created by this builder
+ * @param &lt;V&gt; the base value type for all caches created by this builder
+ * @author Charles Fry
+ * @author Kevin Bourrillion
+ * @since 10.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_INITIAL_CAPACITY</name> =<init> <expr>16</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_CONCURRENCY_LEVEL</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_EXPIRATION_NANOS</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_REFRESH_NANOS</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>Supplier</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>StatsCounter</name></extends></argument>&gt;</argument_list></name></type> <name>NULL_STATS_COUNTER</name> =<init> <expr><call><name><name>Suppliers</name>.<name>ofInstance</name></name><argument_list>(
+      <argument><expr>new <class><super><name>StatsCounter</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>recordHits</name><parameter_list>(<param><decl><type><name>int</name></type> <name>count</name></decl></param>)</parameter_list> <block>{}</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>recordMisses</name><parameter_list>(<param><decl><type><name>int</name></type> <name>count</name></decl></param>)</parameter_list> <block>{}</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>recordLoadSuccess</name><parameter_list>(<param><decl><type><name>long</name></type> <name>loadTime</name></decl></param>)</parameter_list> <block>{}</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>recordLoadException</name><parameter_list>(<param><decl><type><name>long</name></type> <name>loadTime</name></decl></param>)</parameter_list> <block>{}</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>recordEviction</name><parameter_list>()</parameter_list> <block>{}</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>CacheStats</name></type> <name>snapshot</name><parameter_list>()</parameter_list> <block>{
+          <return>return <expr><name>EMPTY_STATS</name></expr>;</return>
+        }</block></function>
+      }</block></class></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>CacheStats</name></type> <name>EMPTY_STATS</name> =<init> <expr>new <call><name>CacheStats</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>Supplier</name><argument_list>&lt;<argument><name>StatsCounter</name></argument>&gt;</argument_list></name></type> <name>CACHE_STATS_COUNTER</name> =<init>
+      <expr>new <class><super><name><name>Supplier</name><argument_list>&lt;<argument><name>StatsCounter</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>StatsCounter</name></type> <name>get</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name>SimpleStatsCounter</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <enum>enum <name>NullListener</name> <super><implements>implements <name><name>RemovalListener</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <expr_stmt><expr><name>INSTANCE</name></expr>;</expr_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>onRemoval</name><parameter_list>(<param><decl><type><name><name>RemovalNotification</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>notification</name></decl></param>)</parameter_list> <block>{}</block></function>
+  }</block></enum>
+
+  <enum>enum <name>OneWeigher</name> <super><implements>implements <name><name>Weigher</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <expr_stmt><expr><name>INSTANCE</name></expr>;</expr_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>weigh</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>1</expr>;</return>
+    }</block></function>
+  }</block></enum>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Ticker</name></type> <name>NULL_TICKER</name> =<init> <expr>new <class><super><name>Ticker</name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>long</name></type> <name>read</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>0</expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>CacheBuilder</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>UNSET_INT</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>boolean</name></type> <name>strictParsing</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>int</name></type> <name>initialCapacity</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>int</name></type> <name>concurrencyLevel</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>long</name></type> <name>maximumSize</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>long</name></type> <name>maximumWeight</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name><name>Weigher</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <super>super <name>V</name></super></argument>&gt;</argument_list></name></type> <name>weigher</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>Strength</name></type> <name>keyStrength</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>Strength</name></type> <name>valueStrength</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>long</name></type> <name>expireAfterWriteNanos</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>long</name></type> <name>expireAfterAccessNanos</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>long</name></type> <name>refreshNanos</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>keyEquivalence</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>valueEquivalence</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name><name>RemovalListener</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <super>super <name>V</name></super></argument>&gt;</argument_list></name></type> <name>removalListener</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>Ticker</name></type> <name>ticker</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name><name>Supplier</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>StatsCounter</name></extends></argument>&gt;</argument_list></name></type> <name>statsCounterSupplier</name> =<init> <expr><name>NULL_STATS_COUNTER</name></expr></init></decl>;</decl_stmt>
+
+  <comment type="line">// TODO(fry): make constructor private and update tests to use newBuilder</comment>
+  <constructor><name>CacheBuilder</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Constructs a new {@code CacheBuilder} instance with default settings, including strong keys,
+   * strong values, and no automatic eviction of any kind.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>newBuilder</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Constructs a new {@code CacheBuilder} instance with the settings specified in {@code spec}.
+   *
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>from</name><parameter_list>(<param><decl><type><name>CacheBuilderSpec</name></type> <name>spec</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>spec</name>.<name>toCacheBuilder</name></name><argument_list>()</argument_list></call>
+        .<call><name>lenientParsing</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Constructs a new {@code CacheBuilder} instance with the settings specified in {@code spec}.
+   * This is especially useful for command-line configuration of a {@code CacheBuilder}.
+   *
+   * @param spec a String in the format specified by {@link CacheBuilderSpec}
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>from</name><parameter_list>(<param><decl><type><name>String</name></type> <name>spec</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>from</name><argument_list>(<argument><expr><call><name><name>CacheBuilderSpec</name>.<name>parse</name></name><argument_list>(<argument><expr><name>spec</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enables lenient parsing. Useful for tests and spec parsing.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>lenientParsing</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name>strictParsing</name> = false</expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets a custom {@code Equivalence} strategy for comparing keys.
+   *
+   * &lt;p&gt;By default, the cache uses {@link Equivalence#identity} to determine key equality when
+   * {@link #weakKeys} is specified, and {@link Equivalence#equals()} otherwise.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyEquivalence</name><parameter_list>(<param><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>equivalence</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>keyEquivalence</name> == <name>null</name></expr></argument>, <argument><expr>"key equivalence was already set to %s"</expr></argument>, <argument><expr><name>keyEquivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>keyEquivalence</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>equivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>getKeyEquivalence</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>keyEquivalence</name></expr></argument>, <argument><expr><call><name>getKeyStrength</name><argument_list>()</argument_list></call>.<call><name>defaultEquivalence</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets a custom {@code Equivalence} strategy for comparing values.
+   *
+   * &lt;p&gt;By default, the cache uses {@link Equivalence#identity} to determine value equality when
+   * {@link #weakValues} or {@link #softValues} is specified, and {@link Equivalence#equals()}
+   * otherwise.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>valueEquivalence</name><parameter_list>(<param><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>equivalence</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>valueEquivalence</name> == <name>null</name></expr></argument>,
+        <argument><expr>"value equivalence was already set to %s"</expr></argument>, <argument><expr><name>valueEquivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>valueEquivalence</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>equivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>getValueEquivalence</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>valueEquivalence</name></expr></argument>, <argument><expr><call><name>getValueStrength</name><argument_list>()</argument_list></call>.<call><name>defaultEquivalence</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets the minimum total size for the internal hash tables. For example, if the initial capacity
+   * is {@code 60}, and the concurrency level is {@code 8}, then eight segments are created, each
+   * having a hash table of size eight. Providing a large enough estimate at construction time
+   * avoids the need for expensive resizing operations later, but setting this value unnecessarily
+   * high wastes memory.
+   *
+   * @throws IllegalArgumentException if {@code initialCapacity} is negative
+   * @throws IllegalStateException if an initial capacity was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>initialCapacity</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>initialCapacity</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"initial capacity was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>initialCapacity</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>initialCapacity</name> &gt;= 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>initialCapacity</name></name> = <name>initialCapacity</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>int</name></type> <name>getInitialCapacity</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>initialCapacity</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_INITIAL_CAPACITY</name> : <name>initialCapacity</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Guides the allowed concurrency among update operations. Used as a hint for internal sizing. The
+   * table is internally partitioned to try to permit the indicated number of concurrent updates
+   * without contention. Because assignment of entries to these partitions is not necessarily
+   * uniform, the actual concurrency observed may vary. Ideally, you should choose a value to
+   * accommodate as many threads as will ever concurrently modify the table. Using a significantly
+   * higher value than you need can waste space and time, and a significantly lower value can lead
+   * to thread contention. But overestimates and underestimates within an order of magnitude do not
+   * usually have much noticeable impact. A value of one permits only one thread to modify the cache
+   * at a time, but since read operations and cache loading computations can proceed concurrently,
+   * this still yields higher concurrency than full synchronization.
+   *
+   * &lt;p&gt; Defaults to 4. &lt;b&gt;Note:&lt;/b&gt;The default may change in the future. If you care about this
+   * value, you should always choose it explicitly.
+   *
+   * &lt;p&gt;The current implementation uses the concurrency level to create a fixed number of hashtable
+   * segments, each governed by its own write lock. The segment lock is taken once for each explicit
+   * write, and twice for each cache loading computation (once prior to loading the new value,
+   * and once after loading completes). Much internal cache management is performed at the segment
+   * granularity. For example, access queues and write queues are kept per segment when they are
+   * required by the selected eviction algorithm. As such, when writing unit tests it is not
+   * uncommon to specify {@code concurrencyLevel(1)} in order to achieve more deterministic eviction
+   * behavior.
+   *
+   * &lt;p&gt;Note that future implementations may abandon segment locking in favor of more advanced
+   * concurrency controls.
+   *
+   * @throws IllegalArgumentException if {@code concurrencyLevel} is nonpositive
+   * @throws IllegalStateException if a concurrency level was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>concurrencyLevel</name><parameter_list>(<param><decl><type><name>int</name></type> <name>concurrencyLevel</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>concurrencyLevel</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"concurrency level was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>concurrencyLevel</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>concurrencyLevel</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>concurrencyLevel</name></name> = <name>concurrencyLevel</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>int</name></type> <name>getConcurrencyLevel</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>concurrencyLevel</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_CONCURRENCY_LEVEL</name> : <name>concurrencyLevel</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies the maximum number of entries the cache may contain. Note that the cache &lt;b&gt;may evict
+   * an entry before this limit is exceeded&lt;/b&gt;. As the cache size grows close to the maximum, the
+   * cache evicts entries that are less likely to be used again. For example, the cache may evict an
+   * entry because it hasn't been used recently or very often.
+   *
+   * &lt;p&gt;When {@code size} is zero, elements will be evicted immediately after being loaded into the
+   * cache. This can be useful in testing, or to disable caching temporarily without a code change.
+   *
+   * &lt;p&gt;This feature cannot be used in conjunction with {@link #maximumWeight}.
+   *
+   * @param size the maximum size of the cache
+   * @throws IllegalArgumentException if {@code size} is negative
+   * @throws IllegalStateException if a maximum size or weight was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>maximumSize</name><parameter_list>(<param><decl><type><name>long</name></type> <name>size</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumSize</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximum size was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumWeight</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximum weight was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>maximumWeight</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>weigher</name></name> == <name>null</name></expr></argument>, <argument><expr>"maximum size can not be combined with weigher"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>size</name> &gt;= 0</expr></argument>, <argument><expr>"maximum size must not be negative"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>maximumSize</name></name> = <name>size</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies the maximum weight of entries the cache may contain. Weight is determined using the
+   * {@link Weigher} specified with {@link #weigher}, and use of this method requires a
+   * corresponding call to {@link #weigher} prior to calling {@link #build}.
+   *
+   * &lt;p&gt;Note that the cache &lt;b&gt;may evict an entry before this limit is exceeded&lt;/b&gt;. As the cache
+   * size grows close to the maximum, the cache evicts entries that are less likely to be used
+   * again. For example, the cache may evict an entry because it hasn't been used recently or very
+   * often.
+   *
+   * &lt;p&gt;When {@code weight} is zero, elements will be evicted immediately after being loaded into
+   * cache. This can be useful in testing, or to disable caching temporarily without a code
+   * change.
+   *
+   * &lt;p&gt;Note that weight is only used to determine whether the cache is over capacity; it has no
+   * effect on selecting which entry should be evicted next.
+   *
+   * &lt;p&gt;This feature cannot be used in conjunction with {@link #maximumSize}.
+   *
+   * @param weight the maximum total weight of entries the cache may contain
+   * @throws IllegalArgumentException if {@code weight} is negative
+   * @throws IllegalStateException if a maximum weight or size was already set
+   * @since 11.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>maximumWeight</name><parameter_list>(<param><decl><type><name>long</name></type> <name>weight</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumWeight</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximum weight was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>maximumWeight</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumSize</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximum size was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>maximumWeight</name></name> = <name>weight</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>weight</name> &gt;= 0</expr></argument>, <argument><expr>"maximum weight must not be negative"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies the weigher to use in determining the weight of entries. Entry weight is taken
+   * into consideration by {@link #maximumWeight(long)} when determining which entries to evict, and
+   * use of this method requires a corresponding call to {@link #maximumWeight(long)} prior to
+   * calling {@link #build}. Weights are measured and recorded when entries are inserted into the
+   * cache, and are thus effectively static during the lifetime of a cache entry.
+   *
+   * &lt;p&gt;When the weight of an entry is zero it will not be considered for size-based eviction
+   * (though it still may be evicted by other means).
+   *
+   * &lt;p&gt;&lt;b&gt;Important note:&lt;/b&gt; Instead of returning &lt;em&gt;this&lt;/em&gt; as a {@code CacheBuilder}
+   * instance, this method returns {@code CacheBuilder&lt;K1, V1&gt;}. From this point on, either the
+   * original reference or the returned reference may be used to complete configuration and build
+   * the cache, but only the "generic" one is type-safe. That is, it will properly prevent you from
+   * building caches whose key or value types are incompatible with the types accepted by the
+   * weigher already provided; the {@code CacheBuilder} type cannot do this. For best results,
+   * simply use the standard method-chaining idiom, as illustrated in the documentation at top,
+   * configuring a {@code CacheBuilder} and building your {@link Cache} all in a single statement.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; if you ignore the above advice, and use this {@code CacheBuilder} to build
+   * a cache whose key or value type is incompatible with the weigher, you will likely experience
+   * a {@link ClassCastException} at some &lt;i&gt;undefined&lt;/i&gt; point in the future.
+   *
+   * @param weigher the weigher to use in calculating the weight of cache entries
+   * @throws IllegalArgumentException if {@code size} is negative
+   * @throws IllegalStateException if a maximum size was already set
+   * @since 11.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <specifier>public</specifier> <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>weigher</name><parameter_list>(
+      <param><decl><type><name><name>Weigher</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K1</name></super></argument>, <argument><name>?</name> <super>super <name>V1</name></super></argument>&gt;</argument_list></name></type> <name>weigher</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>weigher</name></name> == <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>strictParsing</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumSize</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"weigher can not be combined with maximum size"</expr></argument>,
+          <argument><expr><name><name>this</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+
+    <comment type="line">// safely limiting the kinds of caches this can produce</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>me</name> =<init> <expr>(<name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name>) <name>this</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>me</name>.<name>weigher</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>weigher</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>me</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getMaximumWeight</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>expireAfterWriteNanos</name> == 0 || <name>expireAfterAccessNanos</name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr>0</expr>;</return>
+    }</block></then></if>
+    <return>return <expr>(<name>weigher</name> == <name>null</name>) ? <name>maximumSize</name> : <name>maximumWeight</name></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Make a safe contravariant cast now so we don't have to do it over and over.</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>Weigher</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>getWeigher</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>Weigher</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name>) <call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>weigher</name></expr></argument>, <argument><expr><name><name>OneWeigher</name>.<name>INSTANCE</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each key (not value) stored in the cache should be wrapped in a {@link
+   * WeakReference} (by default, strong references are used).
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; when this method is used, the resulting cache will use identity ({@code ==})
+   * comparison to determine equality of keys.
+   *
+   * &lt;p&gt;Entries with keys that have been garbage collected may be counted in {@link Cache#size},
+   * but will never be visible to read or write operations; such entries are cleaned up as part of
+   * the routine maintenance described in the class javadoc.
+   *
+   * @throws IllegalStateException if the key strength was already set
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.WeakReference")</argument_list></annotation>
+  <specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>weakKeys</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setKeyStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>setKeyStrength</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>keyStrength</name> == <name>null</name></expr></argument>, <argument><expr>"Key strength was already set to %s"</expr></argument>, <argument><expr><name>keyStrength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>keyStrength</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>strength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Strength</name></type> <name>getKeyStrength</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>keyStrength</name></expr></argument>, <argument><expr><name><name>Strength</name>.<name>STRONG</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each value (not key) stored in the cache should be wrapped in a
+   * {@link WeakReference} (by default, strong references are used).
+   *
+   * &lt;p&gt;Weak values will be garbage collected once they are weakly reachable. This makes them a poor
+   * candidate for caching; consider {@link #softValues} instead.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; when this method is used, the resulting cache will use identity ({@code ==})
+   * comparison to determine equality of values.
+   *
+   * &lt;p&gt;Entries with values that have been garbage collected may be counted in {@link Cache#size},
+   * but will never be visible to read or write operations; such entries are cleaned up as part of
+   * the routine maintenance described in the class javadoc.
+   *
+   * @throws IllegalStateException if the value strength was already set
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.WeakReference")</argument_list></annotation>
+  <specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>weakValues</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setValueStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each value (not key) stored in the cache should be wrapped in a
+   * {@link SoftReference} (by default, strong references are used). Softly-referenced objects will
+   * be garbage-collected in a &lt;i&gt;globally&lt;/i&gt; least-recently-used manner, in response to memory
+   * demand.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; in most circumstances it is better to set a per-cache {@linkplain
+   * #maximumSize(long) maximum size} instead of using soft references. You should only use this
+   * method if you are well familiar with the practical consequences of soft references.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; when this method is used, the resulting cache will use identity ({@code ==})
+   * comparison to determine equality of values.
+   *
+   * &lt;p&gt;Entries with values that have been garbage collected may be counted in {@link Cache#size},
+   * but will never be visible to read or write operations; such entries are cleaned up as part of
+   * the routine maintenance described in the class javadoc.
+   *
+   * @throws IllegalStateException if the value strength was already set
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.SoftReference")</argument_list></annotation>
+  <specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>softValues</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setValueStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>SOFT</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>setValueStrength</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>valueStrength</name> == <name>null</name></expr></argument>, <argument><expr>"Value strength was already set to %s"</expr></argument>, <argument><expr><name>valueStrength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>valueStrength</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>strength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Strength</name></type> <name>getValueStrength</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>valueStrength</name></expr></argument>, <argument><expr><name><name>Strength</name>.<name>STRONG</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each entry should be automatically removed from the cache once a fixed duration
+   * has elapsed after the entry's creation, or the most recent replacement of its value.
+   *
+   * &lt;p&gt;When {@code duration} is zero, this method hands off to
+   * {@link #maximumSize(long) maximumSize}{@code (0)}, ignoring any otherwise-specificed maximum
+   * size or weight. This can be useful in testing, or to disable caching temporarily without a code
+   * change.
+   *
+   * &lt;p&gt;Expired entries may be counted in {@link Cache#size}, but will never be visible to read or
+   * write operations. Expired entries are cleaned up as part of the routine maintenance described
+   * in the class javadoc.
+   *
+   * @param duration the length of time after an entry is created that it should be automatically
+   *     removed
+   * @param unit the unit that {@code duration} is expressed in
+   * @throws IllegalArgumentException if {@code duration} is negative
+   * @throws IllegalStateException if the time to live or time to idle was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>expireAfterWrite</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>expireAfterWriteNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"expireAfterWrite was already set to %s ns"</expr></argument>,
+        <argument><expr><name>expireAfterWriteNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>duration</name> &gt;= 0</expr></argument>, <argument><expr>"duration cannot be negative: %s %s"</expr></argument>, <argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>expireAfterWriteNanos</name></name> = <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getExpireAfterWriteNanos</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>expireAfterWriteNanos</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_EXPIRATION_NANOS</name> : <name>expireAfterWriteNanos</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each entry should be automatically removed from the cache once a fixed duration
+   * has elapsed after the entry's creation, the most recent replacement of its value, or its last
+   * access. Access time is reset by all cache read and write operations (including
+   * {@code Cache.asMap().get(Object)} and {@code Cache.asMap().put(K, V)}), but not by operations
+   * on the collection-views of {@link Cache#asMap}.
+   *
+   * &lt;p&gt;When {@code duration} is zero, this method hands off to
+   * {@link #maximumSize(long) maximumSize}{@code (0)}, ignoring any otherwise-specificed maximum
+   * size or weight. This can be useful in testing, or to disable caching temporarily without a code
+   * change.
+   *
+   * &lt;p&gt;Expired entries may be counted in {@link Cache#size}, but will never be visible to read or
+   * write operations. Expired entries are cleaned up as part of the routine maintenance described
+   * in the class javadoc.
+   *
+   * @param duration the length of time after an entry is last accessed that it should be
+   *     automatically removed
+   * @param unit the unit that {@code duration} is expressed in
+   * @throws IllegalArgumentException if {@code duration} is negative
+   * @throws IllegalStateException if the time to idle or time to live was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>expireAfterAccess</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>expireAfterAccessNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"expireAfterAccess was already set to %s ns"</expr></argument>,
+        <argument><expr><name>expireAfterAccessNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>duration</name> &gt;= 0</expr></argument>, <argument><expr>"duration cannot be negative: %s %s"</expr></argument>, <argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>expireAfterAccessNanos</name></name> = <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getExpireAfterAccessNanos</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>expireAfterAccessNanos</name> == <name>UNSET_INT</name>)
+        ? <name>DEFAULT_EXPIRATION_NANOS</name> : <name>expireAfterAccessNanos</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that active entries are eligible for automatic refresh once a fixed duration has
+   * elapsed after the entry's creation, or the most recent replacement of its value. The semantics
+   * of refreshes are specified in {@link LoadingCache#refresh}, and are performed by calling
+   * {@link CacheLoader#reload}.
+   *
+   * &lt;p&gt;As the default implementation of {@link CacheLoader#reload} is synchronous, it is
+   * recommended that users of this method override {@link CacheLoader#reload} with an asynchronous
+   * implementation; otherwise refreshes will be performed during unrelated cache read and write
+   * operations.
+   *
+   * &lt;p&gt;Currently automatic refreshes are performed when the first stale request for an entry
+   * occurs. The request triggering refresh will make a blocking call to {@link CacheLoader#reload}
+   * and immediately return the new value if the returned future is complete, and the old value
+   * otherwise.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; &lt;i&gt;all exceptions thrown during refresh will be logged and then swallowed&lt;/i&gt;.
+   *
+   * @param duration the length of time after an entry is created that it should be considered
+   *     stale, and thus eligible for refresh
+   * @param unit the unit that {@code duration} is expressed in
+   * @throws IllegalArgumentException if {@code duration} is negative
+   * @throws IllegalStateException if the refresh interval was already set
+   * @since 11.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported (synchronously).")</argument_list></annotation>
+  <specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>refreshAfterWrite</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>refreshNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"refresh was already set to %s ns"</expr></argument>, <argument><expr><name>refreshNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>duration</name> &gt; 0</expr></argument>, <argument><expr>"duration must be positive: %s %s"</expr></argument>, <argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>refreshNanos</name></name> = <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getRefreshNanos</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>refreshNanos</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_REFRESH_NANOS</name> : <name>refreshNanos</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies a nanosecond-precision time source for this cache. By default,
+   * {@link System#nanoTime} is used.
+   *
+   * &lt;p&gt;The primary intent of this method is to facilitate testing of caches with a fake or mock
+   * time source.
+   *
+   * @throws IllegalStateException if a ticker was already set
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>ticker</name><parameter_list>(<param><decl><type><name>Ticker</name></type> <name>ticker</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>ticker</name></name> == <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>ticker</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>ticker</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Ticker</name></type> <name>getTicker</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>recordsTime</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>ticker</name> != <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>ticker</name></expr>;</return>
+    }</block></then></if>
+    <return>return <expr><name>recordsTime</name> ? <call><name><name>Ticker</name>.<name>systemTicker</name></name><argument_list>()</argument_list></call> : <name>NULL_TICKER</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies a listener instance that caches should notify each time an entry is removed for any
+   * {@linkplain RemovalCause reason}. Each cache created by this builder will invoke this listener
+   * as part of the routine maintenance described in the class documentation above.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; after invoking this method, do not continue to use &lt;i&gt;this&lt;/i&gt; cache
+   * builder reference; instead use the reference this method &lt;i&gt;returns&lt;/i&gt;. At runtime, these
+   * point to the same instance, but only the returned reference has the correct generic type
+   * information so as to ensure type safety. For best results, use the standard method-chaining
+   * idiom illustrated in the class documentation above, configuring a builder and building your
+   * cache in a single statement. Failure to heed this advice can result in a {@link
+   * ClassCastException} being thrown by a cache operation at some &lt;i&gt;undefined&lt;/i&gt; point in the
+   * future.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; any exception thrown by {@code listener} will &lt;i&gt;not&lt;/i&gt; be propagated to
+   * the {@code Cache} user, only logged via a {@link Logger}.
+   *
+   * @return the cache builder reference that should be used instead of {@code this} for any
+   *     remaining configuration and cache building
+   * @throws IllegalStateException if a removal listener was already set
+   */</comment>
+  <function><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>removalListener</name><parameter_list>(
+      <param><decl><type><name><name>RemovalListener</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K1</name></super></argument>, <argument><name>?</name> <super>super <name>V1</name></super></argument>&gt;</argument_list></name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>removalListener</name></name> == <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// safely limiting the kinds of caches this can produce</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>me</name> =<init> <expr>(<name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name>) <name>this</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>me</name>.<name>removalListener</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>me</name></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Make a safe contravariant cast now so we don't have to do it over and over.</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>RemovalListener</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>getRemovalListener</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>RemovalListener</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name>)
+        <call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>removalListener</name></expr></argument>, <argument><expr><name><name>NullListener</name>.<name>INSTANCE</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enable the accumulation of {@link CacheStats} during the operation of the cache. Without this
+   * {@link Cache#stats} will return zero for all statistics. Note that recording stats requires
+   * bookkeeping to be performed with each operation, and thus imposes a performance penalty on
+   * cache operation.
+   *
+   * @since 12.0 (previously, stats collection was automatic)
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>CacheBuilder</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>recordStats</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name>statsCounterSupplier</name> = <name>CACHE_STATS_COUNTER</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>boolean</name></type> <name>isRecordingStats</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>statsCounterSupplier</name> == <name>CACHE_STATS_COUNTER</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>Supplier</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>StatsCounter</name></extends></argument>&gt;</argument_list></name></type> <name>getStatsCounterSupplier</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>statsCounterSupplier</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Builds a cache, which either returns an already-loaded value for a given key or atomically
+   * computes or retrieves it using the supplied {@code CacheLoader}. If another thread is currently
+   * loading the value for this key, simply waits for that thread to finish and returns its
+   * loaded value. Note that multiple threads can concurrently load values for distinct keys.
+   *
+   * &lt;p&gt;This method does not alter the state of this {@code CacheBuilder} instance, so it can be
+   * invoked again to create multiple independent caches.
+   *
+   * @param loader the cache loader used to obtain new values
+   * @return a cache having the requested features
+   */</comment>
+  <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>LoadingCache</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>build</name><parameter_list>(
+          <param><decl><type><name><name>CacheLoader</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K1</name></super></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>loader</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkWeightWithWeigher</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <call><name><name>LocalCache</name>.<name><name>LocalLoadingCache</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>loader</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Builds a cache which does not automatically load values when keys are requested.
+   *
+   * &lt;p&gt;Consider {@link #build(CacheLoader)} instead, if it is feasible to implement a
+   * {@code CacheLoader}.
+   *
+   * &lt;p&gt;This method does not alter the state of this {@code CacheBuilder} instance, so it can be
+   * invoked again to create multiple independent caches.
+   *
+   * @return a cache having the requested features
+   * @since 11.0
+   */</comment>
+  <function><type><specifier>public</specifier> <argument_list>&lt;<argument><name>K1</name> <extends>extends <name>K</name></extends></argument>, <argument><name>V1</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list> <name><name>Cache</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></type> <name>build</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkWeightWithWeigher</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNonLoadingCache</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <call><name><name>LocalCache</name>.<name><name>LocalManualCache</name><argument_list>&lt;<argument><name>K1</name></argument>, <argument><name>V1</name></argument>&gt;</argument_list></name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>checkNonLoadingCache</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>refreshNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"refreshAfterWrite requires a LoadingCache"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>checkWeightWithWeigher</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>weigher</name> == <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>maximumWeight</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximumWeight requires weigher"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <if>if <condition>(<expr><name>strictParsing</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>maximumWeight</name> != <name>UNSET_INT</name></expr></argument>, <argument><expr>"weigher requires maximumWeight"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <if>if <condition>(<expr><name>maximumWeight</name> == <name>UNSET_INT</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>WARNING</name></name></expr></argument>, <argument><expr>"ignoring weigher specified without maximumWeight"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></else></if>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a string representation for this CacheBuilder instance. The exact form of the returned
+   * string is not specified.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>MoreObjects</name>.<name>ToStringHelper</name></name></type> <name>s</name> =<init> <expr><call><name><name>MoreObjects</name>.<name>toStringHelper</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>initialCapacity</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"initialCapacity"</expr></argument>, <argument><expr><name>initialCapacity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>concurrencyLevel</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"concurrencyLevel"</expr></argument>, <argument><expr><name>concurrencyLevel</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>maximumSize</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"maximumSize"</expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>maximumWeight</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"maximumWeight"</expr></argument>, <argument><expr><name>maximumWeight</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>expireAfterWriteNanos</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"expireAfterWrite"</expr></argument>, <argument><expr><name>expireAfterWriteNanos</name> + "ns"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>expireAfterAccessNanos</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"expireAfterAccess"</expr></argument>, <argument><expr><name>expireAfterAccessNanos</name> + "ns"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>keyStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"keyStrength"</expr></argument>, <argument><expr><call><name><name>Ascii</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><call><name><name>keyStrength</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>valueStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"valueStrength"</expr></argument>, <argument><expr><call><name><name>Ascii</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><call><name><name>valueStrength</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>keyEquivalence</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>addValue</name></name><argument_list>(<argument><expr>"keyEquivalence"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>valueEquivalence</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>addValue</name></name><argument_list>(<argument><expr>"valueEquivalence"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>removalListener</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>addValue</name></name><argument_list>(<argument><expr>"removalListener"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><call><name><name>s</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

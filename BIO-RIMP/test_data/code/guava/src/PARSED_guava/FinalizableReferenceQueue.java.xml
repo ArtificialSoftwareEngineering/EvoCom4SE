@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\base\FinalizableReferenceQueue.java"><comment type="block">/*
+ * Copyright (C) 2007 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name></name>;</package>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Closeable</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileNotFoundException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>PhantomReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>Reference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>ReferenceQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URL</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URLClassLoader</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A reference queue with an associated background thread that dequeues references and invokes
+ * {@link FinalizableReference#finalizeReferent()} on them.
+ *
+ * &lt;p&gt;Keep a strong reference to this object until all of the associated referents have been
+ * finalized. If this object is garbage collected earlier, the backing thread will not invoke {@code
+ * finalizeReferent()} on the remaining references.
+ *
+ * &lt;p&gt;As an example of how this is used, imagine you have a class {@code MyServer} that creates a
+ * a {@link java.net.ServerSocket ServerSocket}, and you would like to ensure that the
+ * {@code ServerSocket} is closed even if the {@code MyServer} object is garbage-collected without
+ * calling its {@code close} method. You &lt;em&gt;could&lt;/em&gt; use a finalizer to accomplish this, but
+ * that has a number of well-known problems. Here is how you might use this class instead:
+ *
+ * &lt;pre&gt;
+ * public class MyServer implements Closeable {
+ *   private static final FinalizableReferenceQueue frq = new FinalizableReferenceQueue();
+ *   // You might also share this between several objects.
+ *
+ *   private static final Set&amp;lt;Reference&amp;lt;?&gt;&gt; references = Sets.newConcurrentHashSet();
+ *   // This ensures that the FinalizablePhantomReference itself is not garbage-collected.
+ *
+ *   private final ServerSocket serverSocket;
+ *
+ *   private MyServer(...) {
+ *     ...
+ *     this.serverSocket = new ServerSocket(...);
+ *     ...
+ *   }
+ *
+ *   public static MyServer create(...) {
+ *     MyServer myServer = new MyServer(...);
+ *     final ServerSocket serverSocket = myServer.serverSocket;
+ *     Reference&amp;lt;?&gt; reference = new FinalizablePhantomReference&amp;lt;MyServer&gt;(myServer, frq) {
+ *       &amp;#64;Override public void finalizeReferent() {
+ *         references.remove(this):
+ *         if (!serverSocket.isClosed()) {
+ *           ...log a message about how nobody called close()...
+ *           try {
+ *             serverSocket.close();
+ *           } catch (IOException e) {
+ *             ...
+ *           }
+ *         }
+ *       }
+ *     };
+ *     references.add(reference);
+ *     return myServer;
+ *   }
+ *
+ *   &amp;#64;Override public void close() {
+ *     serverSocket.close();
+ *   }
+ * }
+ * &lt;/pre&gt;
+ *
+ * @author Bob Lee
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>FinalizableReferenceQueue</name> <super><implements>implements <name>Closeable</name></implements></super> <block>{
+  <comment type="block">/*
+   * The Finalizer thread keeps a phantom reference to this object. When the client (for example, a
+   * map built by MapMaker) no longer has a strong reference to this object, the garbage collector
+   * will reclaim it and enqueue the phantom reference. The enqueued reference will trigger the
+   * Finalizer to stop.
+   *
+   * If this library is loaded in the system class loader, FinalizableReferenceQueue can load
+   * Finalizer directly with no problems.
+   *
+   * If this library is loaded in an application class loader, it's important that Finalizer not
+   * have a strong reference back to the class loader. Otherwise, you could have a graph like this:
+   *
+   * Finalizer Thread runs instance of -&gt; Finalizer.class loaded by -&gt; Application class loader
+   * which loaded -&gt; ReferenceMap.class which has a static -&gt; FinalizableReferenceQueue instance
+   *
+   * Even if no other references to classes from the application class loader remain, the Finalizer
+   * thread keeps an indirect strong reference to the queue in ReferenceMap, which keeps the
+   * Finalizer running, and as a result, the application class loader can never be reclaimed.
+   *
+   * This means that dynamically loaded web applications and OSGi bundles can't be unloaded.
+   *
+   * If the library is loaded in an application class loader, we try to break the cycle by loading
+   * Finalizer in its own independent class loader:
+   *
+   * System class loader -&gt; Application class loader -&gt; ReferenceMap -&gt; FinalizableReferenceQueue
+   * -&gt; etc. -&gt; Decoupled class loader -&gt; Finalizer
+   *
+   * Now, Finalizer no longer keeps an indirect strong reference to the static
+   * FinalizableReferenceQueue field in ReferenceMap. The application class loader can be reclaimed
+   * at which point the Finalizer thread will stop and its decoupled class loader can also be
+   * reclaimed.
+   *
+   * If any of this fails along the way, we fall back to loading Finalizer directly in the
+   * application class loader.
+   */</comment>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>FinalizableReferenceQueue</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>FINALIZER_CLASS_NAME</name> =<init> <expr>"com.google.common.base.internal.Finalizer"</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Reference to Finalizer.startFinalizer(). */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Method</name></type> <name>startFinalizer</name></decl>;</decl_stmt>
+
+  static <block>{
+    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizer</name> =<init>
+        <expr><call><name>loadFinalizer</name><argument_list>(<argument><expr>new <call><name>SystemLoader</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>new <call><name>DecoupledLoader</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>new <call><name>DirectLoader</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name>startFinalizer</name> = <call><name>getStartFinalizer</name><argument_list>(<argument><expr><name>finalizer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block>
+
+  <comment type="javadoc">/**
+   * The actual reference queue that our background thread will poll.
+   */</comment>
+  <decl_stmt><decl><type><specifier>final</specifier> <name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>final</specifier> <name><name>PhantomReference</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>frqRef</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Whether or not the background thread started successfully.
+   */</comment>
+  <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>threadStarted</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Constructs a new queue.
+   */</comment>
+  <constructor><specifier>public</specifier> <name>FinalizableReferenceQueue</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// We could start the finalizer lazily, but I'd rather it blow up early.</comment>
+    <expr_stmt><expr><name>queue</name> = new <call><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>frqRef</name> = new <call><name><name>PhantomReference</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>threadStarted</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <expr_stmt><expr><call><name><name>startFinalizer</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name><name>FinalizableReference</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>queue</name></expr></argument>, <argument><expr><name>frqRef</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>threadStarted</name> = true</expr>;</expr_stmt>
+    }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>impossible</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>impossible</name></expr></argument>)</argument_list></call></expr>;</throw> <comment type="line">// startFinalizer() is public</comment>
+    }</block></catch> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+      <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(
+          <argument><expr><name><name>Level</name>.<name>INFO</name></name></expr></argument>,
+          <argument><expr>"Failed to start reference finalizer thread."
+              + " Reference cleanup will only occur when new references are created."</expr></argument>,
+          <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></catch></try>
+
+    <expr_stmt><expr><name><name>this</name>.<name>threadStarted</name></name> = <name>threadStarted</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>frqRef</name>.<name>enqueue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>cleanUp</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Repeatedly dequeues references from the queue and invokes {@link
+   * FinalizableReference#finalizeReferent()} on them until the queue is empty. This method is a
+   * no-op if the background thread was created successfully.
+   */</comment>
+  <function><type><name>void</name></type> <name>cleanUp</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>threadStarted</name></expr>)</condition><then> <block>{
+      <return>return;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name><name>Reference</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>reference</name></decl>;</decl_stmt>
+    <while>while <condition>(<expr>(<name>reference</name> = <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition> <block>{
+      <comment type="block">/*
+       * This is for the benefit of phantom references. Weak and soft references will have already
+       * been cleared by this point.
+       */</comment>
+      <expr_stmt><expr><call><name><name>reference</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr>((<name>FinalizableReference</name>) <name>reference</name>).<call><name>finalizeReferent</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"Error cleaning up after reference."</expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch></try>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Iterates through the given loaders until it finds one that can load Finalizer.
+   *
+   * @return Finalizer.class
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>loadFinalizer</name><parameter_list>(<param><decl><type><name>FinalizerLoader</name>...</type> <name>loaders</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init><decl><type><name>FinalizerLoader</name></type> <name>loader</name> :<range> <expr><name>loaders</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizer</name> =<init> <expr><call><name><name>loader</name>.<name>loadFinalizer</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>finalizer</name> != <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>finalizer</name></expr>;</return>
+      }</block></then></if>
+    }</block></for>
+
+    <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Loads Finalizer.class.
+   */</comment>
+  <class type="interface">interface <name>FinalizerLoader</name> <block>{
+
+    <comment type="javadoc">/**
+     * Returns Finalizer.class or null if this loader shouldn't or can't load it.
+     *
+     * @throws SecurityException if we don't have the appropriate privileges
+     */</comment>
+    <function_decl><type><annotation>@<name>Nullable</name></annotation>
+    <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>loadFinalizer</name><parameter_list>()</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Tries to load Finalizer from the system class loader. If Finalizer is in the system class path,
+   * we needn't create a separate loader.
+   */</comment>
+  <class><specifier>static</specifier> class <name>SystemLoader</name> <super><implements>implements <name>FinalizerLoader</name></implements></super> <block>{
+    <comment type="line">// This is used by the ClassLoader-leak test in FinalizableReferenceQueueTest to disable</comment>
+    <comment type="line">// finding Finalizer on the system class path even if it is there.</comment>
+    <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <name>boolean</name></type> <name>disabled</name></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>loadFinalizer</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr><name>disabled</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>ClassLoader</name></type> <name>systemLoader</name></decl>;</decl_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><name>systemLoader</name> = <call><name><name>ClassLoader</name>.<name>getSystemClassLoader</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name><name>logger</name>.<name>info</name></name><argument_list>(<argument><expr>"Not allowed to access system class loader."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></catch></try>
+      <if>if <condition>(<expr><name>systemLoader</name> != <name>null</name></expr>)</condition><then> <block>{
+        <try>try <block>{
+          <return>return <expr><call><name><name>systemLoader</name>.<name>loadClass</name></name><argument_list>(<argument><expr><name>FINALIZER_CLASS_NAME</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>ClassNotFoundException</name></type> <name>e</name></decl></param>) <block>{
+          <comment type="line">// Ignore. Finalizer is simply in a child class loader.</comment>
+          <return>return <expr><name>null</name></expr>;</return>
+        }</block></catch></try>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Try to load Finalizer in its own class loader. If Finalizer's thread had a direct reference to
+   * our class loader (which could be that of a dynamically loaded web application or OSGi bundle),
+   * it would prevent our class loader from getting garbage collected.
+   */</comment>
+  <class><specifier>static</specifier> class <name>DecoupledLoader</name> <super><implements>implements <name>FinalizerLoader</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LOADING_ERROR</name> =<init>
+        <expr>"Could not load Finalizer in its own class loader. Loading Finalizer in the current class "
+            + "loader instead. As a result, you will not be able to garbage collect this class "
+            + "loader. To support reclaiming this class loader, either resolve the underlying "
+            + "issue, or move Guava to your system class path."</expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>loadFinalizer</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <comment type="block">/*
+         * We use URLClassLoader because it's the only concrete class loader implementation in the
+         * JDK. If we used our own ClassLoader subclass, Finalizer would indirectly reference this
+         * class loader:
+         *
+         * Finalizer.class -&gt; CustomClassLoader -&gt; CustomClassLoader.class -&gt; This class loader
+         *
+         * System class loader will (and must) be the parent.
+         */</comment>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>finalizerLoader</name> =<init> <expr><call><name>newLoader</name><argument_list>(<argument><expr><call><name>getBaseUrl</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>finalizerLoader</name>.<name>loadClass</name></name><argument_list>(<argument><expr><name>FINALIZER_CLASS_NAME</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>WARNING</name></name></expr></argument>, <argument><expr><name>LOADING_ERROR</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets URL for base of path containing Finalizer.class.
+     */</comment>
+    <function><type><name>URL</name></type> <name>getBaseUrl</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+      <comment type="line">// Find URL pointing to Finalizer.class file.</comment>
+      <decl_stmt><decl><type><name>String</name></type> <name>finalizerPath</name> =<init> <expr><call><name><name>FINALIZER_CLASS_NAME</name>.<name>replace</name></name><argument_list>(<argument><expr>'.'</expr></argument>, <argument><expr>'/'</expr></argument>)</argument_list></call> + ".class"</expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>URL</name></type> <name>finalizerUrl</name> =<init> <expr><call><name>getClass</name><argument_list>()</argument_list></call>.<call><name>getClassLoader</name><argument_list>()</argument_list></call>.<call><name>getResource</name><argument_list>(<argument><expr><name>finalizerPath</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>finalizerUrl</name> == <name>null</name></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>FileNotFoundException</name><argument_list>(<argument><expr><name>finalizerPath</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+
+      <comment type="line">// Find URL pointing to base of class path.</comment>
+      <decl_stmt><decl><type><name>String</name></type> <name>urlString</name> =<init> <expr><call><name><name>finalizerUrl</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<call><name><name>urlString</name>.<name>endsWith</name></name><argument_list>(<argument><expr><name>finalizerPath</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Unsupported path style: " + <name>urlString</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <expr_stmt><expr><name>urlString</name> = <call><name><name>urlString</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><call><name><name>urlString</name>.<name>length</name></name><argument_list>()</argument_list></call> - <call><name><name>finalizerPath</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>new <call><name>URL</name><argument_list>(<argument><expr><name>finalizerUrl</name></expr></argument>, <argument><expr><name>urlString</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Creates a class loader with the given base URL as its classpath. */</comment>
+    <function><type><name>URLClassLoader</name></type> <name>newLoader</name><parameter_list>(<param><decl><type><name>URL</name></type> <name>base</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// We use the bootstrap class loader as the parent because Finalizer by design uses</comment>
+      <comment type="line">// only standard Java classes. That also means that FinalizableReferenceQueueTest</comment>
+      <comment type="line">// doesn't pick up the wrong version of the Finalizer class.</comment>
+      <return>return <expr>new <call><name>URLClassLoader</name><argument_list>(<argument><expr>new <name><name>URL</name><index>[]</index></name> <block>{<expr><name>base</name></expr>}</block></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Loads Finalizer directly using the current class loader. We won't be able to garbage collect
+   * this class loader, but at least the world doesn't end.
+   */</comment>
+  <class><specifier>static</specifier> class <name>DirectLoader</name> <super><implements>implements <name>FinalizerLoader</name></implements></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>loadFinalizer</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <return>return <expr><call><name><name>Class</name>.<name>forName</name></name><argument_list>(<argument><expr><name>FINALIZER_CLASS_NAME</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>ClassNotFoundException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Looks up Finalizer.startFinalizer().
+   */</comment>
+  <function><type><specifier>static</specifier> <name>Method</name></type> <name>getStartFinalizer</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizer</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <return>return <expr><call><name><name>finalizer</name>.<name>getMethod</name></name><argument_list>(
+          <argument><expr>"startFinalizer"</expr></argument>, <argument><expr><name><name>Class</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>ReferenceQueue</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>PhantomReference</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>e</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+}</block></class>
+</unit>

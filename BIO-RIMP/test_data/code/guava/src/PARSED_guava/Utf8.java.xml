@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\base\Utf8.java"><comment type="block">/*
+ * Copyright (C) 2013 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkPositionIndexes</name></name>;</import>
+<import>import static <name><name>java</name>.<name>lang</name>.<name>Character</name>.<name>MAX_SURROGATE</name></name>;</import>
+<import>import static <name><name>java</name>.<name>lang</name>.<name>Character</name>.<name>MIN_SURROGATE</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>CheckReturnValue</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Low-level, high-performance utility methods related to the {@linkplain Charsets#UTF_8 UTF-8}
+ * character encoding. UTF-8 is defined in section D92 of
+ * &lt;a href="http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf"&gt;The Unicode Standard Core
+ * Specification, Chapter 3&lt;/a&gt;.
+ *
+ * &lt;p&gt;The variant of UTF-8 implemented by this class is the restricted definition of UTF-8
+ * introduced in Unicode 3.1. One implication of this is that it rejects
+ * &lt;a href="http://www.unicode.org/versions/corrigendum1.html"&gt;"non-shortest form"&lt;/a&gt; byte
+ * sequences, even though the JDK decoder may accept them.
+ *
+ * @author Martin Buchholz
+ * @author ClÃ©ment Roux
+ * @since 16.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>GwtCompatible</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>Utf8</name> <block>{
+  <comment type="javadoc">/**
+   * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string,
+   * this method is equivalent to {@code string.getBytes(UTF_8).length}, but is more efficient in
+   * both time and space.
+   *
+   * @throws IllegalArgumentException if {@code sequence} contains ill-formed UTF-16 (unpaired
+   *     surrogates)
+   */</comment>
+  <function><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>encodedLength</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>sequence</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Warning to maintainers: this implementation is highly optimized.</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>utf16Length</name> =<init> <expr><call><name><name>sequence</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>utf8Length</name> =<init> <expr><name>utf16Length</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// This loop optimizes for pure ASCII.</comment>
+    <while>while <condition>(<expr><name>i</name> &lt; <name>utf16Length</name> &amp;&amp; <call><name><name>sequence</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> &lt; 0x80</expr>)</condition> <block>{
+      <expr_stmt><expr><name>i</name>++</expr>;</expr_stmt>
+    }</block></while>
+
+    <comment type="line">// This loop optimizes for chars less than 0x800.</comment>
+    <for>for (<init>;</init> <condition><expr><name>i</name> &lt; <name>utf16Length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>sequence</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>c</name> &lt; 0x800</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>utf8Length</name> += ((0x7f - <name>c</name>) &gt;&gt;&gt; 31)</expr>;</expr_stmt> <comment type="line">// branch free!</comment>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>utf8Length</name> += <call><name>encodedLengthGeneral</name><argument_list>(<argument><expr><name>sequence</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <break>break;</break>
+      }</block></else></if>
+    }</block></for>
+
+    <if>if <condition>(<expr><name>utf8Length</name> &lt; <name>utf16Length</name></expr>)</condition><then> <block>{
+      <comment type="line">// Necessary and sufficient condition for overflow because of maximum 3x expansion</comment>
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+          <argument><expr>"UTF-8 length does not fit in int: " + (<name>utf8Length</name> + (1L &lt;&lt; 32))</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr><name>utf8Length</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>encodedLengthGeneral</name><parameter_list>(<param><decl><type><name>CharSequence</name></type> <name>sequence</name></decl></param>, <param><decl><type><name>int</name></type> <name>start</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>utf16Length</name> =<init> <expr><call><name><name>sequence</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>utf8Length</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>start</name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>utf16Length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>sequence</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>c</name> &lt; 0x800</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>utf8Length</name> += (0x7f - <name>c</name>) &gt;&gt;&gt; 31</expr>;</expr_stmt> <comment type="line">// branch free!</comment>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>utf8Length</name> += 2</expr>;</expr_stmt>
+        <comment type="line">// jdk7+: if (Character.isSurrogate(c)) {</comment>
+        <if>if <condition>(<expr><name>MIN_SURROGATE</name> &lt;= <name>c</name> &amp;&amp; <name>c</name> &lt;= <name>MAX_SURROGATE</name></expr>)</condition><then> <block>{
+          <comment type="line">// Check that we have a well-formed surrogate pair.</comment>
+          <if>if <condition>(<expr><call><name><name>Character</name>.<name>codePointAt</name></name><argument_list>(<argument><expr><name>sequence</name></expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call> == <name>c</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><call><name>unpairedSurrogateMsg</name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+          }</block></then></if>
+          <expr_stmt><expr><name>i</name>++</expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></else></if>
+    }</block></for>
+    <return>return <expr><name>utf8Length</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if {@code bytes} is a &lt;i&gt;well-formed&lt;/i&gt; UTF-8 byte sequence according to
+   * Unicode 6.0. Note that this is a stronger criterion than simply whether the bytes can be
+   * decoded. For example, some versions of the JDK decoder will accept "non-shortest form" byte
+   * sequences, but encoding never reproduces these. Such byte sequences are &lt;i&gt;not&lt;/i&gt; considered
+   * well-formed.
+   *
+   * &lt;p&gt;This method returns {@code true} if and only if {@code Arrays.equals(bytes, new
+   * String(bytes, UTF_8).getBytes(UTF_8))} does, but is more efficient in both time and space.
+   */</comment>
+  <function><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isWellFormed</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isWellFormed</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns whether the given byte array slice is a well-formed UTF-8 byte sequence, as defined by
+   * {@link #isWellFormed(byte[])}. Note that this can be false even when {@code
+   * isWellFormed(bytes)} is true.
+   *
+   * @param bytes the input buffer
+   * @param off the offset in the buffer of the first byte to read
+   * @param len the number of bytes to read from the buffer
+   */</comment>
+  <function><type><annotation>@<name>CheckReturnValue</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isWellFormed</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>end</name> =<init> <expr><name>off</name> + <name>len</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkPositionIndexes</name><argument_list>(<argument><expr><name>off</name></expr></argument>, <argument><expr><name>end</name></expr></argument>, <argument><expr><name><name>bytes</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <comment type="line">// Look for the first non-ASCII character.</comment>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>off</name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>end</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <if>if <condition>(<expr><name><name>bytes</name><index>[<expr><name>i</name></expr>]</index></name> &lt; 0</expr>)</condition><then> <block>{
+        <return>return <expr><call><name>isWellFormedSlowPath</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isWellFormedSlowPath</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>bytes</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>end</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>index</name> =<init> <expr><name>off</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>byte1</name></decl>;</decl_stmt>
+
+      <comment type="line">// Optimize for interior runs of ASCII bytes.</comment>
+      <do>do <block>{
+        <if>if <condition>(<expr><name>index</name> &gt;= <name>end</name></expr>)</condition><then> <block>{
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+      }</block> while <condition>(<expr>(<name>byte1</name> = <name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name>) &gt;= 0</expr>)</condition>;</do>
+
+      <if>if <condition>(<expr><name>byte1</name> &lt; (<name>byte</name>) 0xE0</expr>)</condition><then> <block>{
+        <comment type="line">// Two-byte form.</comment>
+        <if>if <condition>(<expr><name>index</name> == <name>end</name></expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <comment type="line">// Simultaneously check for illegal trailing-byte in leading position</comment>
+        <comment type="line">// and overlong 2-byte form.</comment>
+        <if>if <condition>(<expr><name>byte1</name> &lt; (<name>byte</name>) 0xC2 || <name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name> &gt; (<name>byte</name>) 0xBF</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></then> <else>else <if>if <condition>(<expr><name>byte1</name> &lt; (<name>byte</name>) 0xF0</expr>)</condition><then> <block>{
+        <comment type="line">// Three-byte form.</comment>
+        <if>if <condition>(<expr><name>index</name> + 1 &gt;= <name>end</name></expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>byte2</name> =<init> <expr><name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>byte2</name> &gt; (<name>byte</name>) 0xBF
+            <comment type="line">// Overlong? 5 most significant bits must not all be zero.</comment>
+            || (<name>byte1</name> == (<name>byte</name>) 0xE0 &amp;&amp; <name>byte2</name> &lt; (<name>byte</name>) 0xA0)
+            <comment type="line">// Check for illegal surrogate codepoints.</comment>
+            || (<name>byte1</name> == (<name>byte</name>) 0xED &amp;&amp; (<name>byte</name>) 0xA0 &lt;= <name>byte2</name>)
+            <comment type="line">// Third byte trailing-byte test.</comment>
+            || <name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name> &gt; (<name>byte</name>) 0xBF</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></then> <else>else <block>{
+        <comment type="line">// Four-byte form.</comment>
+        <if>if <condition>(<expr><name>index</name> + 2 &gt;= <name>end</name></expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>byte2</name> =<init> <expr><name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>byte2</name> &gt; (<name>byte</name>) 0xBF
+            <comment type="line">// Check that 1 &lt;= plane &lt;= 16. Tricky optimized form of:</comment>
+            <comment type="line">// if (byte1 &gt; (byte) 0xF4</comment>
+            <comment type="line">//     || byte1 == (byte) 0xF0 &amp;&amp; byte2 &lt; (byte) 0x90</comment>
+            <comment type="line">//     || byte1 == (byte) 0xF4 &amp;&amp; byte2 &gt; (byte) 0x8F)</comment>
+            || (((<name>byte1</name> &lt;&lt; 28) + (<name>byte2</name> - (<name>byte</name>) 0x90)) &gt;&gt; 30) != 0
+            <comment type="line">// Third byte trailing-byte test</comment>
+            || <name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name> &gt; (<name>byte</name>) 0xBF
+            <comment type="line">// Fourth byte trailing-byte test</comment>
+            || <name><name>bytes</name><index>[<expr><name>index</name>++</expr>]</index></name> &gt; (<name>byte</name>) 0xBF</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+      }</block></else></if></else></if>
+    }</block></while>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>unpairedSurrogateMsg</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>"Unpaired surrogate at index " + <name>i</name></expr>;</return>
+  }</block></function>
+
+  <constructor><specifier>private</specifier> <name>Utf8</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+}</block></class>
+</unit>

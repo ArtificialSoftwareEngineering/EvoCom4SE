@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\acra\src\main\java\org\acra\CrashReportPersister.java"><comment type="block">/*
+ * java.util.Properties.java modified by Kevin Gaudin to allow usage of enums as keys.
+ * 
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>acra</name></name>;</package>
+
+<import>import <name><name>android</name>.<name>content</name>.<name>Context</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>CollectorUtil</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>CrashReportData</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStreamWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Stores a crash reports data with {@link org.acra.ReportField} enum values as keys.
+ * This is basically the source of {@link java.util.Properties} adapted to extend an
+ * EnumMap instead of Hashtable and with a few tweaks to avoid losing crazy
+ * amounts of android time in the generation of a date comment when storing to
+ * file.
+ */</comment>
+<class><specifier>final</specifier> class <name>CrashReportPersister</name> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>NONE</name> =<init> <expr>0</expr></init>, <name>SLASH</name> =<init> <expr>1</expr></init>, <name>UNICODE</name> =<init> <expr>2</expr></init>, <name>CONTINUE</name> =<init> <expr>3</expr></init>, <name>KEY_DONE</name> =<init> <expr>4</expr></init>, <name>IGNORE</name> =<init> <expr>5</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LINE_SEPARATOR</name> =<init> <expr>"\n"</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Context</name></type> <name>context</name></decl>;</decl_stmt>
+
+    <constructor><name>CrashReportPersister</name><parameter_list>(<param><decl><type><name>Context</name></type> <name>context</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>context</name></name> = <name>context</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Loads properties from the specified {@code InputStream}. The encoding is
+     * ISO8859-1.
+     *
+     * @param fileName  Name of the report file from which to load the CrashData.
+     * @return CrashReportData read from the supplied InputStream.
+     * @throws java.io.IOException if error occurs during reading from the {@code InputStream}.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CrashReportData</name></type> <name>load</name><parameter_list>(<param><decl><type><name>String</name></type> <name>fileName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>FileInputStream</name></type> <name>in</name> =<init> <expr><call><name><name>context</name>.<name>openFileInput</name></name><argument_list>(<argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>in</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid crash report fileName : " + <name>fileName</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <try>try <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>BufferedInputStream</name></type> <name>bis</name> =<init> <expr>new <call><name>BufferedInputStream</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name><name>ACRAConstants</name>.<name>DEFAULT_BUFFER_SIZE_IN_BYTES</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>bis</name>.<name>mark</name></name><argument_list>(<argument><expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>isEbcdic</name> =<init> <expr><call><name>isEbcdic</name><argument_list>(<argument><expr><name>bis</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>bis</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr>!<name>isEbcdic</name></expr>)</condition><then> <block>{
+                <return>return <expr><call><name>load</name><argument_list>(<argument><expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>bis</name></expr></argument>, <argument><expr>"ISO8859-1"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return> <comment type="line">//$NON-NLS-1$</comment>
+            }</block></then> <else>else <block>{
+                <return>return <expr><call><name>load</name><argument_list>(<argument><expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>bis</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return> <comment type="line">//$NON-NLS-1$</comment>
+            }</block></else></if>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>in</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Stores the mappings in this Properties to the specified OutputStream,
+     * putting the specified comment at the beginning. The output from this
+     * method is suitable for being read by the load() method.
+     *
+     * @param crashData    CrashReportData to save.
+     * @param fileName      Name of the file to which to store the CrashReportData.
+     * @throws java.io.IOException if the CrashReportData could not be written to the OutputStream.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>store</name><parameter_list>(<param><decl><type><name>CrashReportData</name></type> <name>crashData</name></decl></param>, <param><decl><type><name>String</name></type> <name>fileName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>OutputStream</name></type> <name>out</name> =<init> <expr><call><name><name>context</name>.<name>openFileOutput</name></name><argument_list>(<argument><expr><name>fileName</name></expr></argument>, <argument><expr><name><name>Context</name>.<name>MODE_PRIVATE</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>StringBuilder</name></type> <name>buffer</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>200</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>OutputStreamWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr>"ISO8859_1"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt> <comment type="line">//$NON-NLS-1$</comment>
+
+            <for>for (<init><decl><type><specifier>final</specifier> <name><name>Map</name>.<name><name>Entry</name><argument_list>&lt;<argument><name>ReportField</name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name></name></type> <name>entry</name> :<range> <expr><call><name><name>crashData</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>key</name> =<init> <expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>dumpString</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'='</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>dumpString</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>LINE_SEPARATOR</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>writer</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>buffer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>setLength</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+            <expr_stmt><expr><call><name><name>writer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>isEbcdic</name><parameter_list>(<param><decl><type><name>BufferedInputStream</name></type> <name>in</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>byte</name></type> <name>b</name></decl>;</decl_stmt>
+        <while>while <condition>(<expr>(<name>b</name> = (<name>byte</name>) <call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call>) != -1</expr>)</condition> <block>{
+            <if>if <condition>(<expr><name>b</name> == 0x23 || <name>b</name> == 0x0a || <name>b</name> == 0x3d</expr>)</condition><then> <block>{<comment type="line">// ascii: newline/#/=</comment>
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>b</name> == 0x15</expr>)</condition><then> <block>{<comment type="line">// EBCDIC newline</comment>
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block></while>
+        <comment type="line">// we found no ascii newline, '#', neither '=', relative safe to</comment>
+        <comment type="line">// consider it</comment>
+        <comment type="line">// as non-ascii, the only exception will be a single line with only</comment>
+        <comment type="line">// key(no value and '=')</comment>
+        <comment type="line">// in this case, it should be no harm to read it in default charset</comment>
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Loads properties from the specified InputStream. The properties are of
+     * the form &lt;code&gt;key=value&lt;/code&gt;, one property per line. It may be not
+     * encode as 'ISO-8859-1'.The {@code Properties} file is interpreted
+     * according to the following rules:
+     * &lt;ul&gt;
+     * &lt;li&gt;Empty lines are ignored.&lt;/li&gt;
+     * &lt;li&gt;Lines starting with either a "#" or a "!" are comment lines and are
+     * ignored.&lt;/li&gt;
+     * &lt;li&gt;A backslash at the end of the line escapes the following newline
+     * character ("\r", "\n", "\r\n"). If there's a whitespace after the
+     * backslash it will just escape that whitespace instead of concatenating
+     * the lines. This does not apply to comment lines.&lt;/li&gt;
+     * &lt;li&gt;A property line consists of the key, the space between the key and
+     * the value, and the value. The key goes up to the first whitespace, "=" or
+     * ":" that is not escaped. The space between the key and the value contains
+     * either one whitespace, one "=" or one ":" and any number of additional
+     * whitespaces before and after that character. The value starts with the
+     * first character after the space between the key and the value.&lt;/li&gt;
+     * &lt;li&gt;Following escape sequences are recognized: "\ ", "\\", "\r", "\n",
+     * "\!", "\#", "\t", "\b", "\f", and "&amp;#92;uXXXX" (unicode character).&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param reader    Reader from which to read the properties of this CrashReportData.
+     * @return CrashReportData read from the supplied Reader.
+     * @throws java.io.IOException if the properties could not be read.
+     * @since 1.6
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>synchronized</specifier> <name>CrashReportData</name></type> <name>load</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>mode</name> =<init> <expr><name>NONE</name></expr></init>, <name>unicode</name> =<init> <expr>0</expr></init>, <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name></type> <name>nextChar</name>, <name><name>buf</name><index>[]</index></name> =<init> <expr>new <name><name>char</name><index>[<expr>40</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr>0</expr></init>, <name>keyLength</name> =<init> <expr>-1</expr></init>, <name>intVal</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>firstChar</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportData</name></type> <name>crashData</name> =<init> <expr>new <call><name>CrashReportData</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>BufferedReader</name></type> <name>br</name> =<init> <expr>new <call><name>BufferedReader</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name><name>ACRAConstants</name>.<name>DEFAULT_BUFFER_SIZE_IN_BYTES</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+            <expr_stmt><expr><name>intVal</name> = <call><name><name>br</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>intVal</name> == -1</expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>nextChar</name> = (<name>char</name>) <name>intVal</name></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name>offset</name> == <name><name>buf</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>char</name><index>[]</index></type> <name>newBuf</name> =<init> <expr>new <name><name>char</name><index>[<expr><name><name>buf</name>.<name>length</name></name> * 2</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>newBuf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>offset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>buf</name> = <name>newBuf</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>mode</name> == <name>UNICODE</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>digit</name> =<init> <expr><call><name><name>Character</name>.<name>digit</name></name><argument_list>(<argument><expr><name>nextChar</name></expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>digit</name> &gt;= 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>unicode</name> = (<name>unicode</name> &lt;&lt; 4) + <name>digit</name></expr>;</expr_stmt>
+                    <if>if <condition>(<expr>++<name>count</name> &lt; 4</expr>)</condition><then> <block>{
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                }</block></then> <else>else <if>if <condition>(<expr><name>count</name> &lt;= 4</expr>)</condition><then> <block>{
+                    <comment type="line">// luni.09=Invalid Unicode sequence: illegal character</comment>
+                    <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"luni.09"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></then></if></else></if>
+                <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>buf</name><index>[<expr><name>offset</name>++</expr>]</index></name> = (<name>char</name>) <name>unicode</name></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>nextChar</name> != '\n' &amp;&amp; <name>nextChar</name> != '\u0085'</expr>)</condition><then> <block>{
+                    <continue>continue;</continue>
+                }</block></then></if>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>mode</name> == <name>SLASH</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+                <switch>switch <condition>(<expr><name>nextChar</name></expr>)</condition> <block>{
+                <case>case <expr>'\r'</expr>:
+                    <expr_stmt><expr><name>mode</name> = <name>CONTINUE</name></expr>;</expr_stmt> <comment type="line">// Look for a following \n</comment>
+                    <continue>continue;</continue>
+                </case><case>case <expr>'\u0085'</expr>:
+                </case><case>case <expr>'\n'</expr>:
+                    <expr_stmt><expr><name>mode</name> = <name>IGNORE</name></expr>;</expr_stmt> <comment type="line">// Ignore whitespace on the next line</comment>
+                    <continue>continue;</continue>
+                </case><case>case <expr>'b'</expr>:
+                    <expr_stmt><expr><name>nextChar</name> = '\b'</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><case>case <expr>'f'</expr>:
+                    <expr_stmt><expr><name>nextChar</name> = '\f'</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><case>case <expr>'n'</expr>:
+                    <expr_stmt><expr><name>nextChar</name> = '\n'</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><case>case <expr>'r'</expr>:
+                    <expr_stmt><expr><name>nextChar</name> = '\r'</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><case>case <expr>'t'</expr>:
+                    <expr_stmt><expr><name>nextChar</name> = '\t'</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><case>case <expr>'u'</expr>:
+                    <expr_stmt><expr><name>mode</name> = <name>UNICODE</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>unicode</name> = <name>count</name> = 0</expr>;</expr_stmt>
+                    <continue>continue;</continue>
+                </case>}</block></switch>
+            }</block></then> <else>else <block>{
+                <switch>switch <condition>(<expr><name>nextChar</name></expr>)</condition> <block>{
+                <case>case <expr>'#'</expr>:
+                </case><case>case <expr>'!'</expr>:
+                    <if>if <condition>(<expr><name>firstChar</name></expr>)</condition><then> <block>{
+                        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+                            <expr_stmt><expr><name>intVal</name> = <call><name><name>br</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><name>intVal</name> == -1</expr>)</condition><then> <block>{
+                                <break>break;</break>
+                            }</block></then></if>
+                            <expr_stmt><expr><name>nextChar</name> = (<name>char</name>) <name>intVal</name></expr>;</expr_stmt> <comment type="line">// &amp; 0xff</comment>
+                                                      <comment type="line">// not</comment>
+                                                      <comment type="line">// required</comment>
+                            <if>if <condition>(<expr><name>nextChar</name> == '\r' || <name>nextChar</name> == '\n' || <name>nextChar</name> == '\u0085'</expr>)</condition><then> <block>{
+                                <break>break;</break>
+                            }</block></then></if>
+                        }</block></while>
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                    <break>break;</break>
+                </case><case>case <expr>'\n'</expr>:
+                    <if>if <condition>(<expr><name>mode</name> == <name>CONTINUE</name></expr>)</condition><then> <block>{ <comment type="line">// Part of a \r\n sequence</comment>
+                        <expr_stmt><expr><name>mode</name> = <name>IGNORE</name></expr>;</expr_stmt> <comment type="line">// Ignore whitespace on the next line</comment>
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                    <comment type="line">// fall into the next case</comment>
+                </case><case>case <expr>'\u0085'</expr>:
+                </case><case>case <expr>'\r'</expr>:
+                    <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>firstChar</name> = true</expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>offset</name> &gt; 0 || (<name>offset</name> == 0 &amp;&amp; <name>keyLength</name> == 0)</expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><name>keyLength</name> == -1</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>keyLength</name> = <name>offset</name></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>temp</name> =<init> <expr>new <call><name>String</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>offset</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name><name>crashData</name>.<name>put</name></name><argument_list>(<argument><expr><call><name><name>Enum</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name><name>ReportField</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><call><name><name>temp</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>keyLength</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>temp</name>.<name>substring</name></name><argument_list>(<argument><expr><name>keyLength</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>keyLength</name> = -1</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>offset</name> = 0</expr>;</expr_stmt>
+                    <continue>continue;</continue>
+                </case><case>case <expr>'\\'</expr>:
+                    <if>if <condition>(<expr><name>mode</name> == <name>KEY_DONE</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>keyLength</name> = <name>offset</name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>mode</name> = <name>SLASH</name></expr>;</expr_stmt>
+                    <continue>continue;</continue>
+                </case><case>case <expr>':'</expr>:
+                </case><case>case <expr>'='</expr>:
+                    <if>if <condition>(<expr><name>keyLength</name> == -1</expr>)</condition><then> <block>{ <comment type="line">// if parsing the key</comment>
+                        <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>keyLength</name> = <name>offset</name></expr>;</expr_stmt>
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                    <break>break;</break>
+                </case>}</block></switch>
+                <if>if <condition>(<expr><call><name><name>Character</name>.<name>isWhitespace</name></name><argument_list>(<argument><expr><name>nextChar</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>mode</name> == <name>CONTINUE</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>mode</name> = <name>IGNORE</name></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <comment type="line">// if key length == 0 or value length == 0</comment>
+                    <if>if <condition>(<expr><name>offset</name> == 0 || <name>offset</name> == <name>keyLength</name> || <name>mode</name> == <name>IGNORE</name></expr>)</condition><then> <block>{
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                    <if>if <condition>(<expr><name>keyLength</name> == -1</expr>)</condition><then> <block>{ <comment type="line">// if parsing the key</comment>
+                        <expr_stmt><expr><name>mode</name> = <name>KEY_DONE</name></expr>;</expr_stmt>
+                        <continue>continue;</continue>
+                    }</block></then></if>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>mode</name> == <name>IGNORE</name> || <name>mode</name> == <name>CONTINUE</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+            <expr_stmt><expr><name>firstChar</name> = false</expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>mode</name> == <name>KEY_DONE</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>keyLength</name> = <name>offset</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>mode</name> = <name>NONE</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name><name>buf</name><index>[<expr><name>offset</name>++</expr>]</index></name> = <name>nextChar</name></expr>;</expr_stmt>
+        }</block></while>
+        <if>if <condition>(<expr><name>mode</name> == <name>UNICODE</name> &amp;&amp; <name>count</name> &lt;= 4</expr>)</condition><then> <block>{
+            <comment type="line">// luni.08=Invalid Unicode sequence: expected format \\uxxxx</comment>
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"luni.08"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>keyLength</name> == -1 &amp;&amp; <name>offset</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>keyLength</name> = <name>offset</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>keyLength</name> &gt;= 0</expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>temp</name> =<init> <expr>new <call><name>String</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>offset</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>ReportField</name></type> <name>key</name> =<init> <expr><call><name><name>Enum</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name><name>ReportField</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><call><name><name>temp</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>keyLength</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr><call><name><name>temp</name>.<name>substring</name></name><argument_list>(<argument><expr><name>keyLength</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>mode</name> == <name>SLASH</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>value</name> += "\u0000"</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>crashData</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <expr_stmt><expr><call><name><name>CollectorUtil</name>.<name>safeClose</name></name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>crashData</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@code Properties} object.
+     *
+     * @param buffer    StringBuilder to populate with the supplied property.
+     * @param string    String to append to the buffer.
+     * @param key       Whether the String is a key value or not.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>dumpString</name><parameter_list>(<param><decl><type><name>StringBuilder</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>String</name></type> <name>string</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<name>key</name> &amp;&amp; <name>i</name> &lt; <call><name><name>string</name>.<name>length</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>string</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> == ' '</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\ "</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+            <expr_stmt><expr><name>i</name>++</expr>;</expr_stmt>
+        }</block></then></if>
+
+        <for>for (<init>;</init> <condition><expr><name>i</name> &lt; <call><name><name>string</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>char</name></type> <name>ch</name> =<init> <expr><call><name><name>string</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <switch>switch <condition>(<expr><name>ch</name></expr>)</condition> <block>{
+            <case>case <expr>'\t'</expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\t"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                <break>break;</break>
+            </case><case>case <expr>'\n'</expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\n"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                <break>break;</break>
+            </case><case>case <expr>'\f'</expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\f"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                <break>break;</break>
+            </case><case>case <expr>'\r'</expr>:
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\r"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                <break>break;</break>
+            </case><default>default:
+                <if>if <condition>(<expr>"\\#!=:".<call><name>indexOf</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call> &gt;= 0 || (<name>key</name> &amp;&amp; <name>ch</name> == ' ')</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>ch</name> &gt;= ' ' &amp;&amp; <name>ch</name> &lt;= '~'</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>hex</name> =<init> <expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"\\u"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                    <for>for (<init><decl><type><name>int</name></type> <name>j</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>j</name> &lt; 4 - <call><name><name>hex</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{
+                        <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"0"</expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">//$NON-NLS-1$</comment>
+                    }</block></for>
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>hex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            </default>}</block></switch>
+        }</block></for>
+    }</block></function>
+}</block></class>
+</unit>

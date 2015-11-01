@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\ListenerCallQueue.java"><comment type="block">/*
+ * Copyright (C) 2014 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Queues</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Queue</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executor</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A special purpose queue/executor that executes listener callbacks serially on a configured
+ * executor.  Each callback task can be enqueued and executed as separate phases.
+ * 
+ * &lt;p&gt;This class is very similar to {@link SerializingExecutor} with the exception that tasks can
+ * be enqueued without necessarily executing immediately.
+ */</comment>
+<class><specifier>final</specifier> class <name><name>ListenerCallQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+  <comment type="line">// TODO(cpovirk): consider using the logger associated with listener.getClass().</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>ListenerCallQueue</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <class><specifier>abstract</specifier> <specifier>static</specifier> class <name><name>Callback</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>methodCall</name></decl>;</decl_stmt>
+
+    <constructor><name>Callback</name><parameter_list>(<param><decl><type><name>String</name></type> <name>methodCall</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>methodCall</name></name> = <name>methodCall</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>call</name><parameter_list>(<param><decl><type><name>L</name></type> <name>listener</name></decl></param>)</parameter_list>;</function_decl>
+    
+    <comment type="javadoc">/** Helper method to add this callback to all the queues. */</comment>
+    <function><type><name>void</name></type> <name>enqueueOn</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name><name>ListenerCallQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>queues</name></decl></param>)</parameter_list> <block>{
+      <for>for (<init><decl><type><name><name>ListenerCallQueue</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>queue</name> :<range> <expr><name>queues</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><call><name><name>queue</name>.<name>add</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></function>
+  }</block></class>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>L</name></type> <name>listener</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Executor</name></type> <name>executor</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("this")</argument_list></annotation> <specifier>private</specifier> <specifier>final</specifier> <name><name>Queue</name><argument_list>&lt;<argument><name><name>Callback</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>waitQueue</name> =<init> <expr><call><name><name>Queues</name>.<name>newArrayDeque</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("this")</argument_list></annotation> <specifier>private</specifier> <name>boolean</name></type> <name>isThreadScheduled</name></decl>;</decl_stmt>
+
+  <constructor><name>ListenerCallQueue</name><parameter_list>(<param><decl><type><name>L</name></type> <name>listener</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>listener</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>executor</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/** Enqueues a task to be run. */</comment>
+  <function><type><specifier>synchronized</specifier> <name>void</name></type> <name>add</name><parameter_list>(<param><decl><type><name><name>Callback</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>callback</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>waitQueue</name>.<name>add</name></name><argument_list>(<argument><expr><name>callback</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/** Executes all listeners {@linkplain #add added} prior to this call, serially and in order.*/</comment>
+  <function><type><name>void</name></type> <name>execute</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>boolean</name></type> <name>scheduleTaskRunner</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+      <if>if <condition>(<expr>!<name>isThreadScheduled</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>isThreadScheduled</name> = true</expr>;</expr_stmt>
+        <expr_stmt><expr><name>scheduleTaskRunner</name> = true</expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></synchronized>
+    <if>if <condition>(<expr><name>scheduleTaskRunner</name></expr>)</condition><then> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>executor</name>.<name>execute</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+        <comment type="line">// reset state in case of an error so that later calls to execute will actually do something</comment>
+        <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+          <expr_stmt><expr><name>isThreadScheduled</name> = false</expr>;</expr_stmt>
+        }</block></synchronized>
+        <comment type="line">// Log it and keep going.</comment>
+        <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>,
+            <argument><expr>"Exception while running callbacks for " + <name>listener</name> + " on " + <name>executor</name></expr></argument>, 
+            <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <throw>throw <expr><name>e</name></expr>;</throw>
+      }</block></catch></try>
+    }</block></then></if>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>boolean</name></type> <name>stillRunning</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <while>while <condition>(<expr>true</expr>)</condition> <block>{
+        <decl_stmt><decl><type><name><name>Callback</name><argument_list>&lt;<argument><name>L</name></argument>&gt;</argument_list></name></type> <name>nextToRun</name></decl>;</decl_stmt>
+        <synchronized>synchronized (<expr><name><name>ListenerCallQueue</name>.<name>this</name></name></expr>) <block>{
+          <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkState</name></name><argument_list>(<argument><expr><name>isThreadScheduled</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>nextToRun</name> = <call><name><name>waitQueue</name>.<name>poll</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <if>if <condition>(<expr><name>nextToRun</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>isThreadScheduled</name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr><name>stillRunning</name> = false</expr>;</expr_stmt>
+            <break>break;</break>
+          }</block></then></if>
+        }</block></synchronized>
+
+        <comment type="line">// Always run while _not_ holding the lock, to avoid deadlocks.</comment>
+        <try>try <block>{
+          <expr_stmt><expr><call><name><name>nextToRun</name>.<name>call</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+          <comment type="line">// Log it and keep going.</comment>
+          <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, 
+              <argument><expr>"Exception while executing callback: " + <name>listener</name> + "." + <name><name>nextToRun</name>.<name>methodCall</name></name></expr></argument>, 
+              <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+      }</block></while>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr><name>stillRunning</name></expr>)</condition><then> <block>{
+        <comment type="line">// An Error is bubbling up, we should mark ourselves as no longer</comment>
+        <comment type="line">// running, that way if anyone tries to keep using us we won't be</comment>
+        <comment type="line">// corrupted.</comment>
+        <synchronized>synchronized (<expr><name><name>ListenerCallQueue</name>.<name>this</name></name></expr>) <block>{
+          <expr_stmt><expr><name>isThreadScheduled</name> = false</expr>;</expr_stmt>
+        }</block></synchronized>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+}</block></class>
+</unit>

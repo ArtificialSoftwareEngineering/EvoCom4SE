@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\cache\Striped64.java"><comment type="block">/*
+ * Written by Doug Lea with assistance from members of JCP JSR-166
+ * Expert Group and released to the public domain, as explained at
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */</comment>
+
+<comment type="block">/*
+ * Source:
+ * http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166/src/jsr166e/Striped64.java?revision=1.9
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>cache</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Random</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A package-local class holding common representation and mechanics
+ * for classes supporting dynamic striping on 64bit values. The class
+ * extends Number so that concrete subclasses must publicly do so.
+ */</comment>
+<class><specifier>abstract</specifier> class <name>Striped64</name> <super><extends>extends <name>Number</name></extends></super> <block>{
+    <comment type="block">/*
+     * This class maintains a lazily-initialized table of atomically
+     * updated variables, plus an extra "base" field. The table size
+     * is a power of two. Indexing uses masked per-thread hash codes.
+     * Nearly all declarations in this class are package-private,
+     * accessed directly by subclasses.
+     *
+     * Table entries are of class Cell; a variant of AtomicLong padded
+     * to reduce cache contention on most processors. Padding is
+     * overkill for most Atomics because they are usually irregularly
+     * scattered in memory and thus don't interfere much with each
+     * other. But Atomic objects residing in arrays will tend to be
+     * placed adjacent to each other, and so will most often share
+     * cache lines (with a huge negative performance impact) without
+     * this precaution.
+     *
+     * In part because Cells are relatively large, we avoid creating
+     * them until they are needed.  When there is no contention, all
+     * updates are made to the base field.  Upon first contention (a
+     * failed CAS on base update), the table is initialized to size 2.
+     * The table size is doubled upon further contention until
+     * reaching the nearest power of two greater than or equal to the
+     * number of CPUS. Table slots remain empty (null) until they are
+     * needed.
+     *
+     * A single spinlock ("busy") is used for initializing and
+     * resizing the table, as well as populating slots with new Cells.
+     * There is no need for a blocking lock; when the lock is not
+     * available, threads try other slots (or the base).  During these
+     * retries, there is increased contention and reduced locality,
+     * which is still better than alternatives.
+     *
+     * Per-thread hash codes are initialized to random values.
+     * Contention and/or table collisions are indicated by failed
+     * CASes when performing an update operation (see method
+     * retryUpdate). Upon a collision, if the table size is less than
+     * the capacity, it is doubled in size unless some other thread
+     * holds the lock. If a hashed slot is empty, and lock is
+     * available, a new Cell is created. Otherwise, if the slot
+     * exists, a CAS is tried.  Retries proceed by "double hashing",
+     * using a secondary hash (Marsaglia XorShift) to try to find a
+     * free slot.
+     *
+     * The table size is capped because, when there are more threads
+     * than CPUs, supposing that each thread were bound to a CPU,
+     * there would exist a perfect hash function mapping threads to
+     * slots that eliminates collisions. When we reach capacity, we
+     * search for this mapping by randomly varying the hash codes of
+     * colliding threads.  Because search is random, and collisions
+     * only become known via CAS failures, convergence can be slow,
+     * and because threads are typically not bound to CPUS forever,
+     * may not occur at all. However, despite these limitations,
+     * observed contention rates are typically low in these cases.
+     *
+     * It is possible for a Cell to become unused when threads that
+     * once hashed to it terminate, as well as in the case where
+     * doubling the table causes no thread to hash to it under
+     * expanded mask.  We do not try to detect or remove such cells,
+     * under the assumption that for long-running instances, observed
+     * contention levels will recur, so the cells will eventually be
+     * needed again; and for short-lived ones, it does not matter.
+     */</comment>
+
+    <comment type="javadoc">/**
+     * Padded variant of AtomicLong supporting only raw accesses plus CAS.
+     * The value field is placed between pads, hoping that the JVM doesn't
+     * reorder them.
+     *
+     * JVM intrinsics note: It would be possible to use a release-only
+     * form of CAS here, if it were provided.
+     */</comment>
+    <class><specifier>static</specifier> <specifier>final</specifier> class <name>Cell</name> <block>{
+        <decl_stmt><decl><type><name>volatile</name> <name>long</name></type> <name>p0</name>, <name>p1</name>, <name>p2</name>, <name>p3</name>, <name>p4</name>, <name>p5</name>, <name>p6</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>volatile</name> <name>long</name></type> <name>value</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>volatile</name> <name>long</name></type> <name>q0</name>, <name>q1</name>, <name>q2</name>, <name>q3</name>, <name>q4</name>, <name>q5</name>, <name>q6</name></decl>;</decl_stmt>
+        <constructor><name>Cell</name><parameter_list>(<param><decl><type><name>long</name></type> <name>x</name></decl></param>)</parameter_list> <block>{ <expr_stmt><expr><name>value</name> = <name>x</name></expr>;</expr_stmt> }</block></constructor>
+
+        <function><type><specifier>final</specifier> <name>boolean</name></type> <name>cas</name><parameter_list>(<param><decl><type><name>long</name></type> <name>cmp</name></decl></param>, <param><decl><type><name>long</name></type> <name>val</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapLong</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>valueOffset</name></expr></argument>, <argument><expr><name>cmp</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="line">// Unsafe mechanics</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>UNSAFE</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>valueOffset</name></decl>;</decl_stmt>
+        static <block>{
+            <try>try <block>{
+                <expr_stmt><expr><name>UNSAFE</name> = <call><name>getUnsafe</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>ak</name> =<init> <expr><name><name>Cell</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>valueOffset</name> = <call><name><name>UNSAFE</name>.<name>objectFieldOffset</name></name>
+                    <argument_list>(<argument><expr><call><name><name>ak</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"value"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+                <throw>throw <expr>new <call><name>Error</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></catch></try>
+        }</block>
+
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * ThreadLocal holding a single-slot int array holding hash code.
+     * Unlike the JDK8 version of this class, we use a suboptimal
+     * int[] representation to avoid introducing a new type that can
+     * impede class-unloading when ThreadLocals are not removed.
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>ThreadLocal</name><argument_list>&lt;<argument><name>int</name><index>[]</index></argument>&gt;</argument_list></name></type> <name>threadHashCode</name> =<init> <expr>new <call><name><name>ThreadLocal</name><argument_list>&lt;<argument><name><name>int</name><index>[]</index></name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Generator of new random hash codes
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Random</name></type> <name>rng</name> =<init> <expr>new <call><name>Random</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Number of CPUS, to place bound on table size */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>NCPU</name> =<init> <expr><call><name><name>Runtime</name>.<name>getRuntime</name></name><argument_list>()</argument_list></call>.<call><name>availableProcessors</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Table of cells. When non-null, size is a power of 2.
+     */</comment>
+    <decl_stmt><decl><type><name>transient</name> <name>volatile</name> <name>Cell</name><index>[]</index></type> <name>cells</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Base value, used mainly when there is no contention, but also as
+     * a fallback during table initialization races. Updated via CAS.
+     */</comment>
+    <decl_stmt><decl><type><name>transient</name> <name>volatile</name> <name>long</name></type> <name>base</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Spinlock (locked via CAS) used when resizing and/or creating Cells.
+     */</comment>
+    <decl_stmt><decl><type><name>transient</name> <name>volatile</name> <name>int</name></type> <name>busy</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Package-private default constructor
+     */</comment>
+    <constructor><name>Striped64</name><parameter_list>()</parameter_list> <block>{
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * CASes the base field.
+     */</comment>
+    <function><type><specifier>final</specifier> <name>boolean</name></type> <name>casBase</name><parameter_list>(<param><decl><type><name>long</name></type> <name>cmp</name></decl></param>, <param><decl><type><name>long</name></type> <name>val</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapLong</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>baseOffset</name></expr></argument>, <argument><expr><name>cmp</name></expr></argument>, <argument><expr><name>val</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * CASes the busy field from 0 to 1 to acquire lock.
+     */</comment>
+    <function><type><specifier>final</specifier> <name>boolean</name></type> <name>casBusy</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapInt</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>busyOffset</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>1</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Computes the function of current and new value. Subclasses
+     * should open-code this update function for most uses, but the
+     * virtualized form is needed within retryUpdate.
+     *
+     * @param currentValue the current value (of either base or a cell)
+     * @param newValue the argument from a user update call
+     * @return result of the update function
+     */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>long</name></type> <name>fn</name><parameter_list>(<param><decl><type><name>long</name></type> <name>currentValue</name></decl></param>, <param><decl><type><name>long</name></type> <name>newValue</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Handles cases of updates involving initialization, resizing,
+     * creating new Cells, and/or contention. See above for
+     * explanation. This method suffers the usual non-modularity
+     * problems of optimistic retry code, relying on rechecked sets of
+     * reads.
+     *
+     * @param x the value
+     * @param hc the hash code holder
+     * @param wasUncontended false if CAS failed before call
+     */</comment>
+    <function><type><specifier>final</specifier> <name>void</name></type> <name>retryUpdate</name><parameter_list>(<param><decl><type><name>long</name></type> <name>x</name></decl></param>, <param><decl><type><name><name>int</name><index>[]</index></name></type> <name>hc</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>wasUncontended</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>h</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>hc</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>threadHashCode</name>.<name>set</name></name><argument_list>(<argument><expr><name>hc</name> = new <name><name>int</name><index>[<expr>1</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// Initialize randomly</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>r</name> =<init> <expr><call><name><name>rng</name>.<name>nextInt</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt> <comment type="line">// Avoid zero to allow xorShift rehash</comment>
+            <expr_stmt><expr><name>h</name> = <name><name>hc</name><index>[<expr>0</expr>]</index></name> = (<name>r</name> == 0) ? 1 : <name>r</name></expr>;</expr_stmt>
+        }</block></then>
+        <else>else
+            <expr_stmt><expr><name>h</name> = <name><name>hc</name><index>[<expr>0</expr>]</index></name></expr>;</expr_stmt></else></if>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>collide</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>                <comment type="line">// True if last slot nonempty</comment>
+        <for>for (<init>;</init><condition>;</condition><incr/>) <block>{
+            <decl_stmt><decl><type><name>Cell</name><index>[]</index></type> <name>as</name></decl>;</decl_stmt> <decl_stmt><decl><type><name>Cell</name></type> <name>a</name></decl>;</decl_stmt> <decl_stmt><decl><type><name>int</name></type> <name>n</name></decl>;</decl_stmt> <decl_stmt><decl><type><name>long</name></type> <name>v</name></decl>;</decl_stmt>
+            <if>if <condition>(<expr>(<name>as</name> = <name>cells</name>) != <name>null</name> &amp;&amp; (<name>n</name> = <name><name>as</name>.<name>length</name></name>) &gt; 0</expr>)</condition><then> <block>{
+                <if>if <condition>(<expr>(<name>a</name> = <name><name>as</name><index>[<expr>(<name>n</name> - 1) &amp; <name>h</name></expr>]</index></name>) == <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>busy</name> == 0</expr>)</condition><then> <block>{            <comment type="line">// Try to attach new Cell</comment>
+                        <decl_stmt><decl><type><name>Cell</name></type> <name>r</name> =<init> <expr>new <call><name>Cell</name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>   <comment type="line">// Optimistically create</comment>
+                        <if>if <condition>(<expr><name>busy</name> == 0 &amp;&amp; <call><name>casBusy</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <decl_stmt><decl><type><name>boolean</name></type> <name>created</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+                            <try>try <block>{               <comment type="line">// Recheck under lock</comment>
+                                <decl_stmt><decl><type><name>Cell</name><index>[]</index></type> <name>rs</name></decl>;</decl_stmt> <decl_stmt><decl><type><name>int</name></type> <name>m</name>, <name>j</name></decl>;</decl_stmt>
+                                <if>if <condition>(<expr>(<name>rs</name> = <name>cells</name>) != <name>null</name> &amp;&amp;
+                                    (<name>m</name> = <name><name>rs</name>.<name>length</name></name>) &gt; 0 &amp;&amp;
+                                    <name><name>rs</name><index>[<expr><name>j</name> = (<name>m</name> - 1) &amp; <name>h</name></expr>]</index></name> == <name>null</name></expr>)</condition><then> <block>{
+                                    <expr_stmt><expr><name><name>rs</name><index>[<expr><name>j</name></expr>]</index></name> = <name>r</name></expr>;</expr_stmt>
+                                    <expr_stmt><expr><name>created</name> = true</expr>;</expr_stmt>
+                                }</block></then></if>
+                            }</block> <finally>finally <block>{
+                                <expr_stmt><expr><name>busy</name> = 0</expr>;</expr_stmt>
+                            }</block></finally></try>
+                            <if>if <condition>(<expr><name>created</name></expr>)</condition><then>
+                                <break>break;</break></then></if>
+                            <continue>continue;</continue>           <comment type="line">// Slot is now non-empty</comment>
+                        }</block></then></if>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>collide</name> = false</expr>;</expr_stmt>
+                }</block></then>
+                <else>else <if>if <condition>(<expr>!<name>wasUncontended</name></expr>)</condition><then>       <comment type="line">// CAS already known to fail</comment>
+                    <expr_stmt><expr><name>wasUncontended</name> = true</expr>;</expr_stmt></then>      <comment type="line">// Continue after rehash</comment>
+                <else>else <if>if <condition>(<expr><call><name><name>a</name>.<name>cas</name></name><argument_list>(<argument><expr><name>v</name> = <name><name>a</name>.<name>value</name></name></expr></argument>, <argument><expr><call><name>fn</name><argument_list>(<argument><expr><name>v</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then>
+                    <break>break;</break></then>
+                <else>else <if>if <condition>(<expr><name>n</name> &gt;= <name>NCPU</name> || <name>cells</name> != <name>as</name></expr>)</condition><then>
+                    <expr_stmt><expr><name>collide</name> = false</expr>;</expr_stmt></then>            <comment type="line">// At max size or stale</comment>
+                <else>else <if>if <condition>(<expr>!<name>collide</name></expr>)</condition><then>
+                    <expr_stmt><expr><name>collide</name> = true</expr>;</expr_stmt></then>
+                <else>else <if>if <condition>(<expr><name>busy</name> == 0 &amp;&amp; <call><name>casBusy</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <try>try <block>{
+                        <if>if <condition>(<expr><name>cells</name> == <name>as</name></expr>)</condition><then> <block>{      <comment type="line">// Expand table unless stale</comment>
+                            <decl_stmt><decl><type><name>Cell</name><index>[]</index></type> <name>rs</name> =<init> <expr>new <name><name>Cell</name><index>[<expr><name>n</name> &lt;&lt; 1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>n</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>)
+                                <expr_stmt><expr><name><name>rs</name><index>[<expr><name>i</name></expr>]</index></name> = <name><name>as</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></for>
+                            <expr_stmt><expr><name>cells</name> = <name>rs</name></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block> <finally>finally <block>{
+                        <expr_stmt><expr><name>busy</name> = 0</expr>;</expr_stmt>
+                    }</block></finally></try>
+                    <expr_stmt><expr><name>collide</name> = false</expr>;</expr_stmt>
+                    <continue>continue;</continue>                   <comment type="line">// Retry with expanded table</comment>
+                }</block></then></if></else></if></else></if></else></if></else></if></else></if>
+                <expr_stmt><expr><name>h</name> ^= <name>h</name> &lt;&lt; 13</expr>;</expr_stmt>                   <comment type="line">// Rehash</comment>
+                <expr_stmt><expr><name>h</name> ^= <name>h</name> &gt;&gt;&gt; 17</expr>;</expr_stmt>
+                <expr_stmt><expr><name>h</name> ^= <name>h</name> &lt;&lt; 5</expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>hc</name><index>[<expr>0</expr>]</index></name> = <name>h</name></expr>;</expr_stmt>                      <comment type="line">// Record index for next time</comment>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><name>busy</name> == 0 &amp;&amp; <name>cells</name> == <name>as</name> &amp;&amp; <call><name>casBusy</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>boolean</name></type> <name>init</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+                <try>try <block>{                           <comment type="line">// Initialize table</comment>
+                    <if>if <condition>(<expr><name>cells</name> == <name>as</name></expr>)</condition><then> <block>{
+                        <decl_stmt><decl><type><name>Cell</name><index>[]</index></type> <name>rs</name> =<init> <expr>new <name><name>Cell</name><index>[<expr>2</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><name><name>rs</name><index>[<expr><name>h</name> &amp; 1</expr>]</index></name> = new <call><name>Cell</name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>cells</name> = <name>rs</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>init</name> = true</expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block> <finally>finally <block>{
+                    <expr_stmt><expr><name>busy</name> = 0</expr>;</expr_stmt>
+                }</block></finally></try>
+                <if>if <condition>(<expr><name>init</name></expr>)</condition><then>
+                    <break>break;</break></then></if>
+            }</block></then>
+            <else>else <if>if <condition>(<expr><call><name>casBase</name><argument_list>(<argument><expr><name>v</name> = <name>base</name></expr></argument>, <argument><expr><call><name>fn</name><argument_list>(<argument><expr><name>v</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then>
+                <break>break;</break></then></if></else></if></else></if>                          <comment type="line">// Fall back on using base</comment>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets base and all cells to the given value.
+     */</comment>
+    <function><type><specifier>final</specifier> <name>void</name></type> <name>internalReset</name><parameter_list>(<param><decl><type><name>long</name></type> <name>initialValue</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Cell</name><index>[]</index></type> <name>as</name> =<init> <expr><name>cells</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>base</name> = <name>initialValue</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>as</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr><name><name>as</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>n</name></expr>;</condition> <incr><expr>++<name>i</name></expr></incr>) <block>{
+                <decl_stmt><decl><type><name>Cell</name></type> <name>a</name> =<init> <expr><name><name>as</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>a</name> != <name>null</name></expr>)</condition><then>
+                    <expr_stmt><expr><name><name>a</name>.<name>value</name></name> = <name>initialValue</name></expr>;</expr_stmt></then></if>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="line">// Unsafe mechanics</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>UNSAFE</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>baseOffset</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>busyOffset</name></decl>;</decl_stmt>
+    static <block>{
+        <try>try <block>{
+            <expr_stmt><expr><name>UNSAFE</name> = <call><name>getUnsafe</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>sk</name> =<init> <expr><name><name>Striped64</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>baseOffset</name> = <call><name><name>UNSAFE</name>.<name>objectFieldOffset</name></name>
+                <argument_list>(<argument><expr><call><name><name>sk</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"base"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>busyOffset</name> = <call><name><name>UNSAFE</name>.<name>objectFieldOffset</name></name>
+                <argument_list>(<argument><expr><call><name><name>sk</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"busy"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>Error</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block>
+
+    <comment type="javadoc">/**
+     * Returns a sun.misc.Unsafe.  Suitable for use in a 3rd party package.
+     * Replace with a simple call to Unsafe.getUnsafe when integrating
+     * into a jdk.
+     *
+     * @return a sun.misc.Unsafe
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>getUnsafe</name><parameter_list>()</parameter_list> <block>{
+        <try>try <block>{
+            <return>return <expr><call><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name>.<name>getUnsafe</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>tryReflectionInstead</name></decl></param>) <block>{}</block></catch></try>
+        <try>try <block>{
+            <return>return <expr><call><name><name>java</name>.<name>security</name>.<name>AccessController</name>.<name>doPrivileged</name></name>
+            <argument_list>(<argument><expr>new <class><super><name><name>java</name>.<name>security</name>.<name><name>PrivilegedExceptionAction</name><argument_list>&lt;<argument><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></argument>&gt;</argument_list></name></name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>run</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+                    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></argument>&gt;</argument_list></name></type> <name>k</name> =<init> <expr><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+                    <for>for (<init><decl><type><name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name></type> <name>f</name> :<range> <expr><call><name><name>k</name>.<name>getDeclaredFields</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+                        <expr_stmt><expr><call><name><name>f</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <decl_stmt><decl><type><name>Object</name></type> <name>x</name> =<init> <expr><call><name><name>f</name>.<name>get</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr><call><name><name>k</name>.<name>isInstance</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+                            <return>return <expr><call><name><name>k</name>.<name>cast</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return></then></if>
+                    }</block></for>
+                    <throw>throw <expr>new <call><name>NoSuchFieldError</name><argument_list>(<argument><expr>"the Unsafe"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></function>}</block></class></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name><name>java</name>.<name>security</name>.<name>PrivilegedActionException</name></name></type> <name>e</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"Could not initialize intrinsics"</expr></argument>,
+                                       <argument><expr><call><name><name>e</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+}</block></class>
+</unit>

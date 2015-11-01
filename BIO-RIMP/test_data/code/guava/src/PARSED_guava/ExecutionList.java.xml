@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\ExecutionList.java"><comment type="block">/*
+ * Copyright (C) 2007 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executor</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A support class for {@code ListenableFuture} implementations to manage their listeners. An
+ * instance contains a list of listeners, each with an associated {@code Executor}, and guarantees
+ * that every {@code Runnable} that is {@linkplain #add added} will be executed after {@link
+ * #execute()} is called. Any {@code Runnable} added after the call to {@code execute} is still
+ * guaranteed to execute. There is no guarantee, however, that listeners will be executed in the
+ * order that they are added.
+ *
+ * &lt;p&gt;Exceptions thrown by a listener will be propagated up to the executor. Any exception thrown
+ * during {@code Executor.execute} (e.g., a {@code RejectedExecutionException} or an exception
+ * thrown by {@linkplain MoreExecutors#directExecutor direct execution}) will be caught and logged.
+ *
+ * @author Nishant Thakkar
+ * @author Sven Mawson
+ * @since 1.0
+ */</comment>
+<class><specifier>public</specifier> <specifier>final</specifier> class <name>ExecutionList</name> <block>{
+  <comment type="line">// Logger to log exceptions caught when running runnables.</comment>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>log</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>ExecutionList</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The runnable, executor pairs to execute.  This acts as a stack threaded through the {@link
+   * RunnableExecutorPair#next} field.
+   */</comment>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("this")</argument_list></annotation>
+  <specifier>private</specifier> <name>RunnableExecutorPair</name></type> <name>runnables</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("this")</argument_list></annotation>
+  <specifier>private</specifier> <name>boolean</name></type> <name>executed</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Creates a new, empty {@link ExecutionList}. */</comment>
+  <constructor><specifier>public</specifier> <name>ExecutionList</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Adds the {@code Runnable} and accompanying {@code Executor} to the list of listeners to
+   * execute. If execution has already begun, the listener is executed immediately.
+   *
+   * &lt;p&gt;When selecting an executor, note that {@code directExecutor} is dangerous in some cases. See
+   * the discussion in the {@link ListenableFuture#addListener ListenableFuture.addListener}
+   * documentation.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>add</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Fail fast on a null.  We throw NPE here because the contract of Executor states that it</comment>
+    <comment type="line">// throws NPE on null listener, so we propagate that contract up into the add method as well.</comment>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>runnable</name></expr></argument>, <argument><expr>"Runnable was null."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>executor</name></expr></argument>, <argument><expr>"Executor was null."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Lock while we check state.  We must maintain the lock while adding the new pair so that</comment>
+    <comment type="line">// another thread can't run the list out from under us. We only add to the list if we have not</comment>
+    <comment type="line">// yet started execution.</comment>
+    <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+      <if>if <condition>(<expr>!<name>executed</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>runnables</name> = new <call><name>RunnableExecutorPair</name><argument_list>(<argument><expr><name>runnable</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>, <argument><expr><name>runnables</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return;</return>
+      }</block></then></if>
+    }</block></synchronized>
+    <comment type="line">// Execute the runnable immediately. Because of scheduling this may end up getting called before</comment>
+    <comment type="line">// some of the previously added runnables, but we're OK with that.  If we want to change the</comment>
+    <comment type="line">// contract to guarantee ordering among runnables we'd have to modify the logic here to allow</comment>
+    <comment type="line">// it.</comment>
+    <expr_stmt><expr><call><name>executeListener</name><argument_list>(<argument><expr><name>runnable</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Runs this execution list, executing all existing pairs in the order they were added. However,
+   * note that listeners added after this point may be executed before those previously added, and
+   * note that the execution order of all listeners is ultimately chosen by the implementations of
+   * the supplied executors.
+   *
+   * &lt;p&gt;This method is idempotent. Calling it several times in parallel is semantically equivalent
+   * to calling it exactly once.
+   *
+   * @since 10.0 (present in 1.0 as {@code run})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>execute</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// Lock while we update our state so the add method above will finish adding any listeners</comment>
+    <comment type="line">// before we start to run them.</comment>
+    <decl_stmt><decl><type><name>RunnableExecutorPair</name></type> <name>list</name></decl>;</decl_stmt>
+    <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+      <if>if <condition>(<expr><name>executed</name></expr>)</condition><then> <block>{
+        <return>return;</return>
+      }</block></then></if>
+      <expr_stmt><expr><name>executed</name> = true</expr>;</expr_stmt>
+      <expr_stmt><expr><name>list</name> = <name>runnables</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>runnables</name> = <name>null</name></expr>;</expr_stmt>  <comment type="line">// allow GC to free listeners even if this stays around for a while.</comment>
+    }</block></synchronized>
+    <comment type="line">// If we succeeded then list holds all the runnables we to execute.  The pairs in the stack are</comment>
+    <comment type="line">// in the opposite order from how they were added so we need to reverse the list to fulfill our</comment>
+    <comment type="line">// contract.</comment>
+    <comment type="line">// This is somewhat annoying, but turns out to be very fast in practice.  Alternatively, we</comment>
+    <comment type="line">// could drop the contract on the method that enforces this queue like behavior since depending</comment>
+    <comment type="line">// on it is likely to be a bug anyway.</comment>
+    
+    <comment type="line">// N.B. All writes to the list and the next pointers must have happened before the above</comment>
+    <comment type="line">// synchronized block, so we can iterate the list without the lock held here.</comment>
+    <decl_stmt><decl><type><name>RunnableExecutorPair</name></type> <name>reversedList</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>list</name> != <name>null</name></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>RunnableExecutorPair</name></type> <name>tmp</name> =<init> <expr><name>list</name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>list</name> = <name><name>list</name>.<name>next</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>tmp</name>.<name>next</name></name> = <name>reversedList</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>reversedList</name> = <name>tmp</name></expr>;</expr_stmt>
+    }</block></while>
+    <while>while <condition>(<expr><name>reversedList</name> != <name>null</name></expr>)</condition> <block>{
+      <expr_stmt><expr><call><name>executeListener</name><argument_list>(<argument><expr><name><name>reversedList</name>.<name>runnable</name></name></expr></argument>, <argument><expr><name><name>reversedList</name>.<name>executor</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>reversedList</name> = <name><name>reversedList</name>.<name>next</name></name></expr>;</expr_stmt>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Submits the given runnable to the given {@link Executor} catching and logging all {@linkplain
+   * RuntimeException runtime exceptions} thrown by the executor.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>executeListener</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <expr_stmt><expr><call><name><name>executor</name>.<name>execute</name></name><argument_list>(<argument><expr><name>runnable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+      <comment type="line">// Log it and keep going, bad runnable and/or executor.  Don't punish the other runnables if</comment>
+      <comment type="line">// we're given a bad one.  We only catch RuntimeException because we want Errors to propagate</comment>
+      <comment type="line">// up.</comment>
+      <expr_stmt><expr><call><name><name>log</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"RuntimeException while executing runnable "
+          + <name>runnable</name> + " with executor " + <name>executor</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></catch></try>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>RunnableExecutorPair</name> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Runnable</name></type> <name>runnable</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Executor</name></type> <name>executor</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>Nullable</name></annotation> <name>RunnableExecutorPair</name></type> <name>next</name></decl>;</decl_stmt>
+
+    <constructor><name>RunnableExecutorPair</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>, <param><decl><type><name>RunnableExecutorPair</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>runnable</name></name> = <name>runnable</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>executor</name></name> = <name>executor</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>next</name></name> = <name>next</name></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+}</block></class>
+</unit>

@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\base\internal\Finalizer.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>internal</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>PhantomReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>Reference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>ReferenceQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Thread that finalizes referents. All references should implement
+ * {@code com.google.common.base.FinalizableReference}.
+ *
+ * &lt;p&gt;While this class is public, we consider it to be *internal* and not part
+ * of our published API. It is public so we can access it reflectively across
+ * class loaders in secure environments.
+ *
+ * &lt;p&gt;This class can't depend on other Guava code. If we were
+ * to load this class in the same class loader as the rest of
+ * Guava, this thread would keep an indirect strong reference
+ * to the class loader and prevent it from being garbage collected. This
+ * poses a problem for environments where you want to throw away the class
+ * loader. For example, dynamically reloading a web application or unloading
+ * an OSGi bundle.
+ *
+ * &lt;p&gt;{@code com.google.common.base.FinalizableReferenceQueue} loads this class
+ * in its own class loader. That way, this class doesn't prevent the main
+ * class loader from getting garbage collected, and this class can detect when
+ * the main class loader has been garbage collected and stop itself.
+ */</comment>
+<class><specifier>public</specifier> class <name>Finalizer</name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>Finalizer</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Name of FinalizableReference.class. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>FINALIZABLE_REFERENCE</name> =<init> <expr>"com.google.common.base.FinalizableReference"</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Starts the Finalizer thread. FinalizableReferenceQueue calls this method
+   * reflectively.
+   *
+   * @param finalizableReferenceClass FinalizableReference.class.
+   * @param queue a reference queue that the thread will poll.
+   * @param frqReference a phantom reference to the FinalizableReferenceQueue, which will be
+   * queued either when the FinalizableReferenceQueue is no longer referenced anywhere, or when
+   * its close() method is called.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>startFinalizer</name><parameter_list>(
+      <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizableReferenceClass</name></decl></param>,
+      <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>,
+      <param><decl><type><name><name>PhantomReference</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>frqReference</name></decl></param>)</parameter_list> <block>{
+    <comment type="block">/*
+     * We use FinalizableReference.class for two things:
+     *
+     * 1) To invoke FinalizableReference.finalizeReferent()
+     *
+     * 2) To detect when FinalizableReference's class loader has to be garbage
+     * collected, at which point, Finalizer can stop running
+     */</comment>
+    <if>if <condition>(<expr>!<call><name><name>finalizableReferenceClass</name>.<name>getName</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><name>FINALIZABLE_REFERENCE</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Expected " + <name>FINALIZABLE_REFERENCE</name> + "."</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>Finalizer</name></type> <name>finalizer</name> =<init> <expr>new <call><name>Finalizer</name><argument_list>(<argument><expr><name>finalizableReferenceClass</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>, <argument><expr><name>frqReference</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Thread</name></type> <name>thread</name> =<init> <expr>new <call><name>Thread</name><argument_list>(<argument><expr><name>finalizer</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>thread</name>.<name>setName</name></name><argument_list>(<argument><expr><name><name>Finalizer</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>thread</name>.<name>setDaemon</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <try>try <block>{
+      <if>if <condition>(<expr><name>inheritableThreadLocals</name> != <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>inheritableThreadLocals</name>.<name>set</name></name><argument_list>(<argument><expr><name>thread</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+      <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(
+          <argument><expr><name><name>Level</name>.<name>INFO</name></name></expr></argument>,
+          <argument><expr>"Failed to clear thread local values inherited by reference finalizer thread."</expr></argument>,
+          <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></catch></try>
+
+    <expr_stmt><expr><call><name><name>thread</name>.<name>start</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>WeakReference</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>finalizableReferenceClassReference</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>PhantomReference</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>frqReference</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Field</name></type> <name>inheritableThreadLocals</name> =<init> <expr><call><name>getInheritableThreadLocalsField</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Constructs a new finalizer thread. */</comment>
+  <constructor><specifier>private</specifier> <name>Finalizer</name><parameter_list>(
+      <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizableReferenceClass</name></decl></param>,
+      <param><decl><type><name><name>ReferenceQueue</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>queue</name></decl></param>,
+      <param><decl><type><name><name>PhantomReference</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>frqReference</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>queue</name></name> = <name>queue</name></expr>;</expr_stmt>
+
+    <expr_stmt><expr><name><name>this</name>.<name>finalizableReferenceClassReference</name></name> =
+        new <call><name><name>WeakReference</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>finalizableReferenceClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Keep track of the FRQ that started us so we know when to stop.</comment>
+    <expr_stmt><expr><name><name>this</name>.<name>frqReference</name></name> = <name>frqReference</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Loops continuously, pulling references off the queue and cleaning them up.
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("InfiniteLoopStatement")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+    <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <try>try <block>{
+        <if>if <condition>(<expr>!<call><name>cleanUp</name><argument_list>(<argument><expr><call><name><name>queue</name>.<name>remove</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <break>break;</break>
+        }</block></then></if>
+      }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>e</name></decl></param>) <block>{
+        <comment type="line">// ignore</comment>
+      }</block></catch></try>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Cleans up a single reference. Catches and logs all throwables.
+   * @return true if the caller should continue, false if the associated FinalizableReferenceQueue
+   * is no longer referenced.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>cleanUp</name><parameter_list>(<param><decl><type><name><name>Reference</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>reference</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Method</name></type> <name>finalizeReferentMethod</name> =<init> <expr><call><name>getFinalizeReferentMethod</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>finalizeReferentMethod</name> == <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+    <do>do <block>{
+      <comment type="block">/*
+       * This is for the benefit of phantom references. Weak and soft
+       * references will have already been cleared by this point.
+       */</comment>
+      <expr_stmt><expr><call><name><name>reference</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+      <if>if <condition>(<expr><name>reference</name> == <name>frqReference</name></expr>)</condition><then> <block>{
+        <comment type="block">/*
+         * The client no longer has a reference to the
+         * FinalizableReferenceQueue. We can stop.
+         */</comment>
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>finalizeReferentMethod</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>reference</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"Error cleaning up after reference."</expr></argument>, <argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch></try>
+
+      <comment type="block">/*
+       * Loop as long as we have references available so as not to waste
+       * CPU looking up the Method over and over again.
+       */</comment>
+    }</block> while <condition>(<expr>(<name>reference</name> = <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition>;</do>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Looks up FinalizableReference.finalizeReferent() method.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>Method</name></type> <name>getFinalizeReferentMethod</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>finalizableReferenceClass</name> =<init> <expr><call><name><name>finalizableReferenceClassReference</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>finalizableReferenceClass</name> == <name>null</name></expr>)</condition><then> <block>{
+      <comment type="block">/*
+       * FinalizableReference's class loader was reclaimed. While there's a
+       * chance that other finalizable references could be enqueued
+       * subsequently (at which point the class loader would be resurrected
+       * by virtue of us having a strong reference to it), we should pretty
+       * much just shut down and make sure we don't keep it alive any longer
+       * than necessary.
+       */</comment>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <try>try <block>{
+      <return>return <expr><call><name><name>finalizableReferenceClass</name>.<name>getMethod</name></name><argument_list>(<argument><expr>"finalizeReferent"</expr></argument>)</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>e</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Field</name></type> <name>getInheritableThreadLocalsField</name><parameter_list>()</parameter_list> <block>{
+    <try>try <block>{
+      <decl_stmt><decl><type><name>Field</name></type> <name>inheritableThreadLocals</name> =<init> <expr><name><name>Thread</name>.<name><name/></name></name>class.<call><name>getDeclaredField</name><argument_list>(<argument><expr>"inheritableThreadLocals"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>inheritableThreadLocals</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>inheritableThreadLocals</name></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+      <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(
+          <argument><expr><name><name>Level</name>.<name>INFO</name></name></expr></argument>,
+          <argument><expr>"Couldn't access Thread.inheritableThreadLocals. Reference finalizer threads will "
+              + "inherit thread local values."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></catch></try>
+  }</block></function>
+}</block></class>
+</unit>

@@ -1,0 +1,1109 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\antapache\src\main\org\apache\tools\zip\ZipOutputStream.java"><comment type="block">/*
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>tools</name>.<name>zip</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FilterOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>RandomAccessFile</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>ByteBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>LinkedList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>CRC32</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>Deflater</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>zip</name>.<name>ZipException</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Reimplementation of {@link java.util.zip.ZipOutputStream
+ * java.util.zip.ZipOutputStream} that does handle the extended
+ * functionality of this package, especially internal/external file
+ * attributes and extra fields with different layouts for local file
+ * data and central directory entries.
+ *
+ * &lt;p&gt;This class will try to use {@link java.io.RandomAccessFile
+ * RandomAccessFile} when you know that the output is going to go to a
+ * file.&lt;/p&gt;
+ *
+ * &lt;p&gt;If RandomAccessFile cannot be used, this implementation will use
+ * a Data Descriptor to store size and CRC information for {@link
+ * #DEFLATED DEFLATED} entries, this means, you don't need to
+ * calculate them yourself.  Unfortunately this is not possible for
+ * the {@link #STORED STORED} method, here setting the CRC and
+ * uncompressed size information is required before {@link
+ * #putNextEntry putNextEntry} can be called.&lt;/p&gt;
+ *
+ */</comment>
+<class><specifier>public</specifier> class <name>ZipOutputStream</name> <super><extends>extends <name>FilterOutputStream</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>BYTE_MASK</name> =<init> <expr>0xFF</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SHORT</name> =<init> <expr>2</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>WORD</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>BUFFER_SIZE</name> =<init> <expr>512</expr></init></decl>;</decl_stmt>
+    <comment type="block">/* 
+     * Apparently Deflater.setInput gets slowed down a lot on Sun JVMs
+     * when it gets handed a really big buffer.  See
+     * https://issues.apache.org/bugzilla/show_bug.cgi?id=45396
+     *
+     * Using a buffer size of 8 kB proved to be a good compromise
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFLATER_BLOCK_SIZE</name> =<init> <expr>8192</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Compression method for deflated entries.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFLATED</name> =<init> <expr><name><name>java</name>.<name>util</name>.<name>zip</name>.<name>ZipEntry</name>.<name>DEFLATED</name></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Default compression level for deflated entries.
+     *
+     * @since Ant 1.7
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_COMPRESSION</name> =<init> <expr><name><name>Deflater</name>.<name>DEFAULT_COMPRESSION</name></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Compression method for stored entries.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>STORED</name> =<init> <expr><name><name>java</name>.<name>util</name>.<name>zip</name>.<name>ZipEntry</name>.<name>STORED</name></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * default encoding for file names and comment.
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>DEFAULT_ENCODING</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * General purpose flag, which indicates that filenames are
+     * written in utf-8.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>UFT8_NAMES_FLAG</name> =<init> <expr>1 &lt;&lt; 11</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * General purpose flag, which indicates that filenames are
+     * written in utf-8.
+     * @deprecated use {@link #UFT8_NAMES_FLAG} instead
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>EFS_FLAG</name> =<init> <expr><name>UFT8_NAMES_FLAG</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Current entry.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ZipEntry</name></type> <name>entry</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The file comment.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>comment</name> =<init> <expr>""</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Compression level for next entry.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>level</name> =<init> <expr><name>DEFAULT_COMPRESSION</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Has the compression level changed when compared to the last
+     * entry?
+     *
+     * @since 1.5
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>hasCompressionLevelChanged</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Default compression method for next entry.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>method</name> =<init> <expr><name><name>java</name>.<name>util</name>.<name>zip</name>.<name>ZipEntry</name>.<name>DEFLATED</name></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * List of ZipEntries written so far.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>List</name></type> <name>entries</name> =<init> <expr>new <call><name>LinkedList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * CRC instance to avoid parsing DEFLATED data twice.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CRC32</name></type> <name>crc</name> =<init> <expr>new <call><name>CRC32</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Count the bytes written to out.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>written</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Data for local header data
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>dataStart</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Offset for CRC entry in the local file header data for the
+     * current entry starts here.
+     *
+     * @since 1.15
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>localDataStart</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Start of central directory.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>cdOffset</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Length of central directory.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>long</name></type> <name>cdLength</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Helper, a 0 as ZipShort.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>ZERO</name> =<init> <expr><block>{<expr>0</expr>, <expr>0</expr>}</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Helper, a 0 as ZipLong.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>LZERO</name> =<init> <expr><block>{<expr>0</expr>, <expr>0</expr>, <expr>0</expr>, <expr>0</expr>}</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Holds the offsets of the LFH starts for each entry.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Map</name></type> <name>offsets</name> =<init> <expr>new <call><name>HashMap</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The encoding to use for filenames and the file comment.
+     *
+     * &lt;p&gt;For a list of possible values see &lt;a
+     * href="http://java.sun.com/j2se/1.5.0/docs/guide/intl/encoding.doc.html"&gt;http://java.sun.com/j2se/1.5.0/docs/guide/intl/encoding.doc.html&lt;/a&gt;.
+     * Defaults to the platform's default character encoding.&lt;/p&gt;
+     *
+     * @since 1.3
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>encoding</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The zip encoding to use for filenames and the file comment.
+     *
+     * This field is of internal use and will be set in {@link
+     * #setEncoding(String)}.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ZipEncoding</name></type> <name>zipEncoding</name> =<init>
+        <expr><call><name><name>ZipEncodingHelper</name>.<name>getZipEncoding</name></name><argument_list>(<argument><expr><name>DEFAULT_ENCODING</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+   <comment type="line">// CheckStyle:VisibilityModifier OFF - bc</comment>
+
+    <comment type="javadoc">/**
+     * This Deflater object is used for output.
+     *
+     * &lt;p&gt;This attribute is only protected to provide a level of API
+     * backwards compatibility.  This class used to extend {@link
+     * java.util.zip.DeflaterOutputStream DeflaterOutputStream} up to
+     * Revision 1.13.&lt;/p&gt;
+     *
+     * @since 1.14
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>Deflater</name></type> <name>def</name> =<init> <expr>new <call><name>Deflater</name><argument_list>(<argument><expr><name>level</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This buffer servers as a Deflater.
+     *
+     * &lt;p&gt;This attribute is only protected to provide a level of API
+     * backwards compatibility.  This class used to extend {@link
+     * java.util.zip.DeflaterOutputStream DeflaterOutputStream} up to
+     * Revision 1.13.&lt;/p&gt;
+     *
+     * @since 1.14
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>byte</name><index>[]</index></type> <name>buf</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>BUFFER_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// CheckStyle:VisibilityModifier ON</comment>
+
+    <comment type="javadoc">/**
+     * Optional random access output.
+     *
+     * @since 1.14
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>RandomAccessFile</name></type> <name>raf</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * whether to use the general purpose bit flag when writing UTF-8
+     * filenames or not.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>useUTF8Flag</name> =<init> <expr>true</expr></init></decl>;</decl_stmt> 
+
+    <comment type="javadoc">/**
+     * Whether to encode non-encodable file names as UTF-8.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>fallbackToUTF8</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * whether to create UnicodePathExtraField-s for each entry.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>UnicodeExtraFieldPolicy</name></type> <name>createUnicodeExtraFields</name> =<init>
+        <expr><name><name>UnicodeExtraFieldPolicy</name>.<name>NEVER</name></name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates a new ZIP OutputStream filtering the underlying stream.
+     * @param out the outputstream to zip
+     * @since 1.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ZipOutputStream</name><parameter_list>(<param><decl><type><name>OutputStream</name></type> <name>out</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new ZIP OutputStream writing to a File.  Will use
+     * random access if possible.
+     * @param file the file to zip to
+     * @since 1.14
+     * @throws IOException on error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ZipOutputStream</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><name>raf</name> = new <call><name>RandomAccessFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr>"rw"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>raf</name>.<name>setLength</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+            <if>if <condition>(<expr><name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>raf</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>inner</name></decl></param>) <block>{
+                    <comment type="line">// ignore</comment>
+                }</block></catch></try>
+                <expr_stmt><expr><name>raf</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name>out</name> = new <call><name>FileOutputStream</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * This method indicates whether this archive is writing to a
+     * seekable stream (i.e., to a random access file).
+     *
+     * &lt;p&gt;For seekable streams, you don't need to calculate the CRC or
+     * uncompressed size for {@link #STORED} entries before
+     * invoking {@link #putNextEntry}.
+     * @return true if seekable
+     * @since 1.17
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isSeekable</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>raf</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The encoding to use for filenames and the file comment.
+     *
+     * &lt;p&gt;For a list of possible values see &lt;a
+     * href="http://java.sun.com/j2se/1.5.0/docs/guide/intl/encoding.doc.html"&gt;http://java.sun.com/j2se/1.5.0/docs/guide/intl/encoding.doc.html&lt;/a&gt;.
+     * Defaults to the platform's default character encoding.&lt;/p&gt;
+     * @param encoding the encoding value
+     * @since 1.3
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setEncoding</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>encoding</name></name> = <name>encoding</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>zipEncoding</name></name> = <call><name><name>ZipEncodingHelper</name>.<name>getZipEncoding</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>useUTF8Flag</name> &amp;= <call><name><name>ZipEncodingHelper</name>.<name>isUTF8</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The encoding to use for filenames and the file comment.
+     *
+     * @return null if using the platform's default character encoding.
+     *
+     * @since 1.3
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getEncoding</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>encoding</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Whether to set the language encoding flag if the file name
+     * encoding is UTF-8.
+     *
+     * &lt;p&gt;Defaults to true.&lt;/p&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setUseLanguageEncodingFlag</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>useUTF8Flag</name> = <name>b</name> &amp;&amp; <call><name><name>ZipEncodingHelper</name>.<name>isUTF8</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Whether to create Unicode Extra Fields.
+     *
+     * &lt;p&gt;Defaults to NEVER.&lt;/p&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setCreateUnicodeExtraFields</name><parameter_list>(<param><decl><type><name>UnicodeExtraFieldPolicy</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>createUnicodeExtraFields</name> = <name>b</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Whether to fall back to UTF and the language encoding flag if
+     * the file name cannot be encoded using the specified encoding.
+     *
+     * &lt;p&gt;Defaults to false.&lt;/p&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setFallbackToUTF8</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>fallbackToUTF8</name> = <name>b</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Finishs writing the contents and closes this as well as the
+     * underlying stream.
+     *
+     * @since 1.1
+     * @throws IOException on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>finish</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>closeEntry</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>cdOffset</name> = <name>written</name></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>i</name> =<init> <expr><call><name><name>entries</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>i</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr/>) <block>{
+            <expr_stmt><expr><call><name>writeCentralFileHeader</name><argument_list>(<argument><expr>(<name>ZipEntry</name>) <call><name><name>i</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><name>cdLength</name> = <name>written</name> - <name>cdOffset</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeCentralDirectoryEnd</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>offsets</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>entries</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes all necessary data for this entry.
+     *
+     * @since 1.1
+     * @throws IOException on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>closeEntry</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>entry</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>long</name></type> <name>realCrc</name> =<init> <expr><call><name><name>crc</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>crc</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> == <name>DEFLATED</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>def</name>.<name>finish</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <while>while <condition>(<expr>!<call><name><name>def</name>.<name>finished</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name>deflate</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setSize</name></name><argument_list>(<argument><expr><call><name>adjustToLong</name><argument_list>(<argument><expr><call><name><name>def</name>.<name>getTotalIn</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setCompressedSize</name></name><argument_list>(<argument><expr><call><name>adjustToLong</name><argument_list>(<argument><expr><call><name><name>def</name>.<name>getTotalOut</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setCrc</name></name><argument_list>(<argument><expr><name>realCrc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name><name>def</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>written</name> += <call><name><name>entry</name>.<name>getCompressedSize</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>raf</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>getCrc</name></name><argument_list>()</argument_list></call> != <name>realCrc</name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>ZipException</name><argument_list>(<argument><expr>"bad CRC checksum for entry "
+                                       + <call><name><name>entry</name>.<name>getName</name></name><argument_list>()</argument_list></call> + ": "
+                                       + <call><name><name>Long</name>.<name>toHexString</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getCrc</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+                                       + " instead of "
+                                       + <call><name><name>Long</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>realCrc</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call> != <name>written</name> - <name>dataStart</name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>ZipException</name><argument_list>(<argument><expr>"bad size for entry "
+                                       + <call><name><name>entry</name>.<name>getName</name></name><argument_list>()</argument_list></call> + ": "
+                                       + <call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call>
+                                       + " instead of "
+                                       + (<name>written</name> - <name>dataStart</name>)</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+        }</block></then> <else>else <block>{ <comment type="block">/* method is STORED and we used RandomAccessFile */</comment>
+            <decl_stmt><decl><type><name>long</name></type> <name>size</name> =<init> <expr><name>written</name> - <name>dataStart</name></expr></init></decl>;</decl_stmt>
+
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setSize</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setCompressedSize</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setCrc</name></name><argument_list>(<argument><expr><name>realCrc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if>
+
+        <comment type="line">// If random access output, write the local file header containing</comment>
+        <comment type="line">// the correct CRC and compressed/uncompressed sizes</comment>
+        <if>if <condition>(<expr><name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>long</name></type> <name>save</name> =<init> <expr><call><name><name>raf</name>.<name>getFilePointer</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <expr_stmt><expr><call><name><name>raf</name>.<name>seek</name></name><argument_list>(<argument><expr><name>localDataStart</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getCrc</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getCompressedSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>raf</name>.<name>seek</name></name><argument_list>(<argument><expr><name>save</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name>writeDataDescriptor</name><argument_list>(<argument><expr><name>entry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>entry</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Begin writing next entry.
+     * @param ze the entry to write
+     * @since 1.1
+     * @throws IOException on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>putNextEntry</name><parameter_list>(<param><decl><type><name>ZipEntry</name></type> <name>ze</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>closeEntry</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>entry</name> = <name>ze</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>entries</name>.<name>add</name></name><argument_list>(<argument><expr><name>entry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> == -1</expr>)</condition><then> <block>{ <comment type="line">// not specified</comment>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setMethod</name></name><argument_list>(<argument><expr><name>method</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getTime</name></name><argument_list>()</argument_list></call> == -1</expr>)</condition><then> <block>{ <comment type="line">// not specified</comment>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setTime</name></name><argument_list>(<argument><expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Size/CRC not required if RandomAccessFile is used</comment>
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> == <name>STORED</name> &amp;&amp; <name>raf</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call> == -1</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>ZipException</name><argument_list>(<argument><expr>"uncompressed size is required for"
+                                       + " STORED method when not writing to a"
+                                       + " file"</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>getCrc</name></name><argument_list>()</argument_list></call> == -1</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>ZipException</name><argument_list>(<argument><expr>"crc checksum is required for STORED"
+                                       + " method when not writing to a file"</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>entry</name>.<name>setCompressedSize</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> == <name>DEFLATED</name> &amp;&amp; <name>hasCompressionLevelChanged</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>def</name>.<name>setLevel</name></name><argument_list>(<argument><expr><name>level</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>hasCompressionLevelChanged</name> = false</expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>writeLocalFileHeader</name><argument_list>(<argument><expr><name>entry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Set the file comment.
+     * @param comment the comment
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setComment</name><parameter_list>(<param><decl><type><name>String</name></type> <name>comment</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>comment</name></name> = <name>comment</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the compression level for subsequent entries.
+     *
+     * &lt;p&gt;Default is Deflater.DEFAULT_COMPRESSION.&lt;/p&gt;
+     * @param level the compression level.
+     * @throws IllegalArgumentException if an invalid compression
+     * level is specified.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setLevel</name><parameter_list>(<param><decl><type><name>int</name></type> <name>level</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>level</name> &lt; <name><name>Deflater</name>.<name>DEFAULT_COMPRESSION</name></name>
+            || <name>level</name> &gt; <name><name>Deflater</name>.<name>BEST_COMPRESSION</name></name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid compression level: "
+                                               + <name>level</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name>hasCompressionLevelChanged</name> = (<name><name>this</name>.<name>level</name></name> != <name>level</name>)</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>level</name></name> = <name>level</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the default compression method for subsequent entries.
+     *
+     * &lt;p&gt;Default is DEFLATED.&lt;/p&gt;
+     * @param method an &lt;code&gt;int&lt;/code&gt; from java.util.zip.ZipEntry
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setMethod</name><parameter_list>(<param><decl><type><name>int</name></type> <name>method</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>method</name></name> = <name>method</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes bytes to ZIP entry.
+     * @param b the byte array to write
+     * @param offset the start position to write from
+     * @param length the number of bytes to write
+     * @throws IOException on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> == <name>DEFLATED</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>length</name> &gt; 0</expr>)</condition><then> <block>{
+                <if>if <condition>(<expr>!<call><name><name>def</name>.<name>finished</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>length</name> &lt;= <name>DEFLATER_BLOCK_SIZE</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>def</name>.<name>setInput</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>deflateUntilInputIsNeeded</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>fullblocks</name> =<init> <expr><name>length</name> / <name>DEFLATER_BLOCK_SIZE</name></expr></init></decl>;</decl_stmt>
+                        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>fullblocks</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                            <expr_stmt><expr><call><name><name>def</name>.<name>setInput</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>offset</name> + <name>i</name> * <name>DEFLATER_BLOCK_SIZE</name></expr></argument>,
+                                         <argument><expr><name>DEFLATER_BLOCK_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>deflateUntilInputIsNeeded</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        }</block></for>
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>done</name> =<init> <expr><name>fullblocks</name> * <name>DEFLATER_BLOCK_SIZE</name></expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr><name>done</name> &lt; <name>length</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>def</name>.<name>setInput</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>offset</name> + <name>done</name></expr></argument>, <argument><expr><name>length</name> - <name>done</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>deflateUntilInputIsNeeded</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></else></if>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>written</name> += <name>length</name></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name><name>crc</name>.<name>update</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes a single byte to ZIP entry.
+     *
+     * &lt;p&gt;Delegates to the three arg method.&lt;/p&gt;
+     * @param b the byte to write
+     * @since 1.14
+     * @throws IOException on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buff</name> =<init> <expr>new <name><name>byte</name><index>[<expr>1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>buff</name><index>[<expr>0</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr><name>b</name> &amp; <name>BYTE_MASK</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>buff</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Closes this output stream and releases any system resources
+     * associated with the stream.
+     *
+     * @exception  IOException  if an I/O error occurs.
+     * @since 1.14
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>finish</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>raf</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>out</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Flushes this output stream and forces any buffered output bytes
+     * to be written out to the stream.
+     *
+     * @exception  IOException  if an I/O error occurs.
+     * @since 1.14
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>out</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="block">/*
+     * Various ZIP constants
+     */</comment>
+    <comment type="javadoc">/**
+     * local file header signature
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>LFH_SIG</name> =<init> <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr>0X04034B50L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * data descriptor signature
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>DD_SIG</name> =<init> <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr>0X08074B50L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * central file header signature
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>CFH_SIG</name> =<init> <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr>0X02014B50L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * end of central dir signature
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>EOCD_SIG</name> =<init> <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr>0X06054B50L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Writes next block of compressed data to the output stream.
+     * @throws IOException on error
+     *
+     * @since 1.14
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>deflate</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>len</name> =<init> <expr><call><name><name>def</name>.<name>deflate</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buf</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>len</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the local file header entry
+     * @param ze the entry to write
+     * @throws IOException on error
+     *
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>writeLocalFileHeader</name><parameter_list>(<param><decl><type><name>ZipEntry</name></type> <name>ze</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <decl_stmt><decl><type><name>boolean</name></type> <name>encodable</name> =<init> <expr><call><name><name>zipEncoding</name>.<name>canEncode</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><specifier>final</specifier> <name>ZipEncoding</name></type> <name>entryEncoding</name></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr>!<name>encodable</name> &amp;&amp; <name>fallbackToUTF8</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>entryEncoding</name> = <name><name>ZipEncodingHelper</name>.<name>UTF8_ZIP_ENCODING</name></name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>entryEncoding</name> = <name>zipEncoding</name></expr>;</expr_stmt>
+        }</block></else></if>
+        
+        <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>name</name> =<init> <expr><call><name><name>entryEncoding</name>.<name>encode</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>        
+
+        <if>if <condition>(<expr><name>createUnicodeExtraFields</name> != <name><name>UnicodeExtraFieldPolicy</name>.<name>NEVER</name></name></expr>)</condition><then> <block>{
+
+            <if>if <condition>(<expr><name>createUnicodeExtraFields</name> == <name><name>UnicodeExtraFieldPolicy</name>.<name>ALWAYS</name></name>
+                || !<name>encodable</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ze</name>.<name>addExtraField</name></name><argument_list>(<argument><expr>new <call><name>UnicodePathExtraField</name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                                           <argument><expr><call><name><name>name</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                                           <argument><expr><call><name><name>name</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                                           <argument><expr><call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <decl_stmt><decl><type><name>String</name></type> <name>comm</name> =<init> <expr><call><name><name>ze</name>.<name>getComment</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>comm</name> != <name>null</name> &amp;&amp; !"".<call><name>equals</name><argument_list>(<argument><expr><name>comm</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+
+                <decl_stmt><decl><type><name>boolean</name></type> <name>commentEncodable</name> =<init> <expr><call><name><name>this</name>.<name>zipEncoding</name>.<name>canEncode</name></name><argument_list>(<argument><expr><name>comm</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <if>if <condition>(<expr><name>createUnicodeExtraFields</name> == <name><name>UnicodeExtraFieldPolicy</name>.<name>ALWAYS</name></name>
+                    || !<name>commentEncodable</name></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>commentB</name> =<init> <expr><call><name><name>entryEncoding</name>.<name>encode</name></name><argument_list>(<argument><expr><name>comm</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>ze</name>.<name>addExtraField</name></name><argument_list>(<argument><expr>new <call><name>UnicodeCommentExtraField</name><argument_list>(<argument><expr><name>comm</name></expr></argument>,
+                                                                  <argument><expr><call><name><name>commentB</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                                                  <argument><expr><call><name><name>commentB</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>,
+                                                                  <argument><expr><call><name><name>commentB</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>
+                                     )</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>offsets</name>.<name>put</name></name><argument_list>(<argument><expr><name>ze</name></expr></argument>, <argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>written</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>LFH_SIG</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">//store method in local variable to prevent multiple method calls</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>zipMethod</name> =<init> <expr><call><name><name>ze</name>.<name>getMethod</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name>writeVersionNeededToExtractAndGeneralPurposeBits</name><argument_list>(<argument><expr><name>zipMethod</name></expr></argument>,
+                                                         <argument><expr>!<name>encodable</name>
+                                                         &amp;&amp; <name>fallbackToUTF8</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// compression method</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>zipMethod</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// last mod. time and date</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name>toDosTime</name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// CRC</comment>
+        <comment type="line">// compressed length</comment>
+        <comment type="line">// uncompressed length</comment>
+        <expr_stmt><expr><name>localDataStart</name> = <name>written</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>zipMethod</name> == <name>DEFLATED</name> || <name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>LZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>LZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>LZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getCrc</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <comment type="line">// CheckStyle:MagicNumber OFF</comment>
+        <expr_stmt><expr><name>written</name> += 12</expr>;</expr_stmt>
+        <comment type="line">// CheckStyle:MagicNumber ON</comment>
+
+        <comment type="line">// file name length</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// extra field length</comment>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>extra</name> =<init> <expr><call><name><name>ze</name>.<name>getLocalFileDataExtra</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name><name>extra</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// file name</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>name</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>name</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// extra field</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>extra</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name><name>extra</name>.<name>length</name></name></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>dataStart</name> = <name>written</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the data descriptor entry.
+     * @param ze the entry to write
+     * @throws IOException on error
+     *
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>writeDataDescriptor</name><parameter_list>(<param><decl><type><name>ZipEntry</name></type> <name>ze</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name><name>ze</name>.<name>getMethod</name></name><argument_list>()</argument_list></call> != <name>DEFLATED</name> || <name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>DD_SIG</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getCrc</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getCompressedSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// CheckStyle:MagicNumber OFF</comment>
+        <expr_stmt><expr><name>written</name> += 16</expr>;</expr_stmt>
+        <comment type="line">// CheckStyle:MagicNumber ON</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the central file header entry.
+     * @param ze the entry to write
+     * @throws IOException on error
+     *
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>writeCentralFileHeader</name><parameter_list>(<param><decl><type><name>ZipEntry</name></type> <name>ze</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>CFH_SIG</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// version made by</comment>
+        <comment type="line">// CheckStyle:MagicNumber OFF</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr>(<call><name><name>ze</name>.<name>getPlatform</name></name><argument_list>()</argument_list></call> &lt;&lt; 8) | 20</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>zipMethod</name> =<init> <expr><call><name><name>ze</name>.<name>getMethod</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>encodable</name> =<init> <expr><call><name><name>zipEncoding</name>.<name>canEncode</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>writeVersionNeededToExtractAndGeneralPurposeBits</name><argument_list>(<argument><expr><name>zipMethod</name></expr></argument>,
+                                                         <argument><expr>!<name>encodable</name>
+                                                         &amp;&amp; <name>fallbackToUTF8</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// compression method</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>zipMethod</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// last mod. time and date</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name>toDosTime</name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// CRC</comment>
+        <comment type="line">// compressed length</comment>
+        <comment type="line">// uncompressed length</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getCrc</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getCompressedSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getSize</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// CheckStyle:MagicNumber OFF</comment>
+        <expr_stmt><expr><name>written</name> += 12</expr>;</expr_stmt>
+        <comment type="line">// CheckStyle:MagicNumber ON</comment>
+
+        <comment type="line">// file name length</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>ZipEncoding</name></type> <name>entryEncoding</name></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr>!<name>encodable</name> &amp;&amp; <name>fallbackToUTF8</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>entryEncoding</name> = <name><name>ZipEncodingHelper</name>.<name>UTF8_ZIP_ENCODING</name></name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>entryEncoding</name> = <name>zipEncoding</name></expr>;</expr_stmt>
+        }</block></else></if>
+        
+        <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>name</name> =<init> <expr><call><name><name>entryEncoding</name>.<name>encode</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>        
+
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// extra field length</comment>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>extra</name> =<init> <expr><call><name><name>ze</name>.<name>getCentralDirectoryExtra</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name><name>extra</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// file comment length</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>comm</name> =<init> <expr><call><name><name>ze</name>.<name>getComment</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>comm</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comm</name> = ""</expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>commentB</name> =<init> <expr><call><name><name>entryEncoding</name>.<name>encode</name></name><argument_list>(<argument><expr><name>comm</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>commentB</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// disk number start</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>ZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// internal file attributes</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getInternalAttributes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>SHORT</name></expr>;</expr_stmt>
+
+        <comment type="line">// external file attributes</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>ze</name>.<name>getExternalAttributes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// relative offset of LFH</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr>(<name><name>byte</name><index>[]</index></name>) <call><name><name>offsets</name>.<name>get</name></name><argument_list>(<argument><expr><name>ze</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name>WORD</name></expr>;</expr_stmt>
+
+        <comment type="line">// file name</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>name</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>name</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <call><name><name>name</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// extra field</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>extra</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <name><name>extra</name>.<name>length</name></name></expr>;</expr_stmt>
+
+        <comment type="line">// file comment</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>commentB</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>commentB</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>commentB</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>written</name> += <call><name><name>commentB</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the &amp;quot;End of central dir record&amp;quot;.
+     * @throws IOException on error
+     *
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>writeCentralDirectoryEnd</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>EOCD_SIG</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// disk numbers</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>ZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>ZERO</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// number of entries</comment>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>num</name> =<init> <expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>entries</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>num</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>num</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// length and location of CD</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>cdLength</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>cdOffset</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// ZIP file comment</comment>
+        <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>data</name> =<init> <expr><call><name><name>this</name>.<name>zipEncoding</name>.<name>encode</name></name><argument_list>(<argument><expr><name>comment</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><call><name><name>data</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>data</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>data</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>data</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Smallest date/time ZIP can handle.
+     *
+     * @since 1.1
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>DOS_TIME_MIN</name> =<init> <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr>0x00002100L</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Convert a Date object to a DOS date/time field.
+     * @param time the &lt;code&gt;Date&lt;/code&gt; to convert
+     * @return the date as a &lt;code&gt;ZipLong&lt;/code&gt;
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>ZipLong</name></type> <name>toDosTime</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>time</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>ZipLong</name><argument_list>(<argument><expr><call><name>toDosTime</name><argument_list>(<argument><expr><call><name><name>time</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convert a Date object to a DOS date/time field.
+     *
+     * &lt;p&gt;Stolen from InfoZip's &lt;code&gt;fileio.c&lt;/code&gt;&lt;/p&gt;
+     * @param t number of milliseconds since the epoch
+     * @return the date as a byte array
+     * @since 1.26
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>byte</name><index>[]</index></type> <name>toDosTime</name><parameter_list>(<param><decl><type><name>long</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Date</name></type> <name>time</name> =<init> <expr>new <call><name>Date</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="line">// CheckStyle:MagicNumberCheck OFF - I do not think that using constants</comment>
+        <comment type="line">//                                   here will improve the readablity</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>year</name> =<init> <expr><call><name><name>time</name>.<name>getYear</name></name><argument_list>()</argument_list></call> + 1900</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>year</name> &lt; 1980</expr>)</condition><then> <block>{
+            <return>return <expr><name>DOS_TIME_MIN</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>month</name> =<init> <expr><call><name><name>time</name>.<name>getMonth</name></name><argument_list>()</argument_list></call> + 1</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>value</name> =<init>  <expr>((<name>year</name> - 1980) &lt;&lt; 25)
+            |         (<name>month</name> &lt;&lt; 21)
+            |         (<call><name><name>time</name>.<name>getDate</name></name><argument_list>()</argument_list></call> &lt;&lt; 16)
+            |         (<call><name><name>time</name>.<name>getHours</name></name><argument_list>()</argument_list></call> &lt;&lt; 11)
+            |         (<call><name><name>time</name>.<name>getMinutes</name></name><argument_list>()</argument_list></call> &lt;&lt; 5)
+            |         (<call><name><name>time</name>.<name>getSeconds</name></name><argument_list>()</argument_list></call> &gt;&gt; 1)</expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>ZipLong</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+        <comment type="line">// CheckStyle:MagicNumberCheck ON</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Retrieve the bytes for the given String in the encoding set for
+     * this Stream.
+     * @param name the string to get bytes from
+     * @return the bytes as a byte array
+     * @throws ZipException on error
+     *
+     * @since 1.3
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>byte</name><index>[]</index></type> <name>getBytes</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ZipException</name></expr></argument></throws> <block>{
+        <try>try <block>{
+            <decl_stmt><decl><type><name>ByteBuffer</name></type> <name>b</name> =<init>
+                <expr><call><name><name>ZipEncodingHelper</name>.<name>getZipEncoding</name></name><argument_list>(<argument><expr><name>encoding</name></expr></argument>)</argument_list></call>.<call><name>encode</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>result</name> =<init> <expr>new <name><name>byte</name><index>[<expr><call><name><name>b</name>.<name>limit</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><call><name><name>b</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>b</name>.<name>arrayOffset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>result</name></expr></argument>, <argument><expr>0</expr></argument>,
+                             <argument><expr><name><name>result</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name>result</name></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ex</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>ZipException</name><argument_list>(<argument><expr>"Failed to encode name: " + <call><name><name>ex</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write bytes to output or random access file.
+     * @param data the byte array to write
+     * @throws IOException on error
+     *
+     * @since 1.14
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>writeOut</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>data</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>data</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write bytes to output or random access file.
+     * @param data the byte array to write
+     * @param offset the start position to write from
+     * @param length the number of bytes to write
+     * @throws IOException on error
+     *
+     * @since 1.14
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>writeOut</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>data</name></decl></param>, <param><decl><type><name>int</name></type> <name>offset</name></decl></param>, <param><decl><type><name>int</name></type> <name>length</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>raf</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>raf</name>.<name>write</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>, <argument><expr><name>offset</name></expr></argument>, <argument><expr><name>length</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Assumes a negative integer really is a positive integer that
+     * has wrapped around and re-creates the original value.
+     * @param i the value to treat as unsigned int.
+     * @return the unsigned int as a long.
+     * @since 1.34
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>long</name></type> <name>adjustToLong</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>i</name> &lt; 0</expr>)</condition><then> <block>{
+            <return>return <expr>2 * ((<name>long</name>) <name><name>Integer</name>.<name>MAX_VALUE</name></name>) + 2 + <name>i</name></expr>;</return>
+        }</block></then> <else>else <block>{
+            <return>return <expr><name>i</name></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>deflateUntilInputIsNeeded</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <while>while <condition>(<expr>!<call><name><name>def</name>.<name>needsInput</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name>deflate</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeVersionNeededToExtractAndGeneralPurposeBits</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>int</name></type>
+                                                                  <name>zipMethod</name></decl></param>,
+                                                                  <param><decl><type><specifier>final</specifier> <name>boolean</name></type>
+                                                                  <name>utfFallback</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+
+        <comment type="line">// CheckStyle:MagicNumber OFF</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>versionNeededToExtract</name> =<init> <expr>10</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>generalPurposeFlag</name> =<init> <expr>(<name>useUTF8Flag</name> || <name>utfFallback</name>) ? <name>UFT8_NAMES_FLAG</name> : 0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>zipMethod</name> == <name>DEFLATED</name> &amp;&amp; <name>raf</name> == <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// requires version 2 as we are going to store length info</comment>
+            <comment type="line">// in the data descriptor</comment>
+            <expr_stmt><expr><name>versionNeededToExtract</name> =  20</expr>;</expr_stmt>
+            <comment type="line">// bit3 set to signal, we use a data descriptor</comment>
+            <expr_stmt><expr><name>generalPurposeFlag</name> |= 8</expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// CheckStyle:MagicNumber ON</comment>
+
+        <comment type="line">// version needed to extract</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>versionNeededToExtract</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// general purpose bit flag</comment>
+        <expr_stmt><expr><call><name>writeOut</name><argument_list>(<argument><expr><call><name><name>ZipShort</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name>generalPurposeFlag</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * enum that represents the possible policies for creating Unicode
+     * extra fields.
+     */</comment>
+    <class><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>UnicodeExtraFieldPolicy</name> <block>{
+        <comment type="javadoc">/**
+         * Always create Unicode extra fields.
+         */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>UnicodeExtraFieldPolicy</name></type> <name>ALWAYS</name> =<init>
+            <expr>new <call><name>UnicodeExtraFieldPolicy</name><argument_list>(<argument><expr>"always"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="javadoc">/**
+         * Never create Unicode extra fields.
+         */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>UnicodeExtraFieldPolicy</name></type> <name>NEVER</name> =<init>
+            <expr>new <call><name>UnicodeExtraFieldPolicy</name><argument_list>(<argument><expr>"never"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="javadoc">/**
+         * Create Unicode extra fields for filenames that cannot be
+         * encoded using the specified encoding.
+         */</comment>
+        <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>UnicodeExtraFieldPolicy</name></type> <name>NOT_ENCODEABLE</name> =<init>
+            <expr>new <call><name>UnicodeExtraFieldPolicy</name><argument_list>(<argument><expr>"not encodeable"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>name</name></decl>;</decl_stmt>
+        <constructor><specifier>private</specifier> <name>UnicodeExtraFieldPolicy</name><parameter_list>(<param><decl><type><name>String</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>name</name> = <name>n</name></expr>;</expr_stmt>
+        }</block></constructor>
+        <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>name</name></expr>;</return>
+        }</block></function>
+    }</block></class>
+}</block></class>
+</unit>

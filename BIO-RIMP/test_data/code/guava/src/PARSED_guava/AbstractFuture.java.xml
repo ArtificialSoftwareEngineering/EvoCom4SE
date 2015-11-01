@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\AbstractFuture.java"><comment type="block">/*
+ * Copyright (C) 2007 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>MoreExecutors</name>.<name>directExecutor</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceFieldUpdater</name>.<name>newUpdater</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Throwables</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>errorprone</name>.<name>annotations</name>.<name>ForOverride</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>security</name>.<name>AccessController</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>PrivilegedActionException</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>PrivilegedExceptionAction</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>CancellationException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ExecutionException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Executor</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Future</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeoutException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicReferenceFieldUpdater</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>LockSupport</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * An abstract implementation of {@link ListenableFuture}, intended for advanced users only. More
+ * common ways to create a {@code ListenableFuture} include instantiating a {@link SettableFuture},
+ * submitting a task to a {@link ListeningExecutorService}, and deriving a {@code Future} from an
+ * existing one, typically using methods like {@link Futures#transform(ListenableFuture, Function)
+ * Futures.transform} and {@link Futures#catching(ListenableFuture, Class, Function)
+ * Futures.catching}.
+ *
+ * &lt;p&gt;This class implements all methods in {@code ListenableFuture}. Subclasses should provide a way
+ * to set the result of the computation through the protected methods {@link #set(Object)}, {@link
+ * #setFuture(ListenableFuture)} and {@link #setException(Throwable)}. Subclasses may also override
+ * {@link #interruptTask()}, which will be invoked automatically if a call to {@link
+ * #cancel(boolean) cancel(true)} succeeds in canceling the future. Subclasses should rarely
+ * override other methods.
+ *
+ * @author Sven Mawson
+ * @author Luke Sandberg
+ * @since 1.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name><name>AbstractFuture</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name> <super><implements>implements <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></implements></super> <block>{
+
+  <comment type="javadoc">/**
+   * A less abstract subclass of AbstractFuture.  This can be used to optimize setFuture by ensuring
+   * that {@link #get} calls exactly the implementation of {@link AbstractFuture#get}.
+   */</comment>
+  <class><specifier>abstract</specifier> <specifier>static</specifier> class <name><name>TrustedFuture</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractFuture</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <comment type="line">// N.B. cancel is not overridden to be final, because many future utilities need to override</comment>
+    <comment type="line">// cancel in order to propagate cancellation to other futures.</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>V</name></type> <name>get</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument>, <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+      <return>return <expr><call><name><name>super</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>V</name></type> <name>get</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>InterruptedException</name></expr></argument>, <argument><expr><name>ExecutionException</name></expr></argument>, <argument><expr><name>TimeoutException</name></expr></argument></throws> <block>{
+      <return>return <expr><call><name><name>super</name>.<name>get</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isDone</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>super</name>.<name>isDone</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isCancelled</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>super</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>addListener</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>listener</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>super</name>.<name>addListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">// Logger to log exceptions caught when running listeners.</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>log</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>AbstractFuture</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="line">// A heuristic for timed gets.  If the remaining timeout is less than this, spin instead of</comment>
+  <comment type="line">// blocking.  This value is what AbstractQueuedSynchronizer uses.</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>SPIN_THRESHOLD_NANOS</name> =<init> <expr>1000L</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>AtomicHelper</name></type> <name>ATOMIC_HELPER</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>Waiter</name></argument>, <argument><name>Thread</name></argument>&gt;</argument_list></name></type> <name>WAITER_THREAD_UPDATER</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>Waiter</name></argument>, <argument><name>Waiter</name></argument>&gt;</argument_list></name></type> <name>WAITER_NEXT_UPDATER</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>AbstractFuture</name></argument>, <argument><name>Waiter</name></argument>&gt;</argument_list></name></type> <name>WAITERS_UPDATER</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>AbstractFuture</name></argument>, <argument><name>Listener</name></argument>&gt;</argument_list></name></type> <name>LISTENERS_UPDATER</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>AtomicReferenceFieldUpdater</name><argument_list>&lt;<argument><name>AbstractFuture</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>VALUE_UPDATER</name></decl>;</decl_stmt>
+
+  static <block>{
+    <decl_stmt><decl><type><name>AtomicHelper</name></type> <name>helper</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <expr_stmt><expr><name>helper</name> = new <call><name>UnsafeAtomicHelper</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>) <block>{
+      <comment type="line">// catch absolutely everything and fall through</comment>
+    }</block></catch></try>
+    <if>if <condition>(<expr><name>helper</name> == <name>null</name></expr>)</condition><then> <block>{
+      <comment type="line">// The access control checks that ARFU does means the caller class has to be AbstractFuture</comment>
+      <comment type="line">// instead of SafeAtomicHelper, so we annoyingly define these here</comment>
+      <expr_stmt><expr><name>WAITER_THREAD_UPDATER</name> = <call><name>newUpdater</name><argument_list>(<argument><expr><name><name>Waiter</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>Thread</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"thread"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>WAITER_NEXT_UPDATER</name> = <call><name>newUpdater</name><argument_list>(<argument><expr><name><name>Waiter</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>Waiter</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"next"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>WAITERS_UPDATER</name> = <call><name>newUpdater</name><argument_list>(<argument><expr><name><name>AbstractFuture</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>Waiter</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"waiters"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>LISTENERS_UPDATER</name> = <call><name>newUpdater</name><argument_list>(<argument><expr><name><name>AbstractFuture</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>Listener</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"listeners"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>VALUE_UPDATER</name> = <call><name>newUpdater</name><argument_list>(<argument><expr><name><name>AbstractFuture</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name><name>Object</name>.<name><name/></name></name>class</expr></argument>, <argument><expr>"value"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>helper</name> = new <call><name>SafeAtomicHelper</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <expr_stmt><expr><name>WAITER_THREAD_UPDATER</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>WAITER_NEXT_UPDATER</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>WAITERS_UPDATER</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>LISTENERS_UPDATER</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>VALUE_UPDATER</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></else></if>
+    <expr_stmt><expr><name>ATOMIC_HELPER</name> = <name>helper</name></expr>;</expr_stmt>
+
+    <comment type="line">// Prevent rare disastrous classloading in first call to LockSupport.park.</comment>
+    <comment type="line">// See: https://bugs.openjdk.java.net/browse/JDK-8074773</comment>
+    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>ensureLoaded</name> =<init> <expr><name><name>LockSupport</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+  }</block>
+
+  <comment type="javadoc">/**
+   * Waiter links form a Treiber stack, in the {@link #waiters} field.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Waiter</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Waiter</name></type> <name>TOMBSTONE</name> =<init> <expr>new <call><name>Waiter</name><argument_list>(<argument><expr>false</expr></argument> <comment type="block">/* ignored param */</comment>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><annotation>@<name>Nullable</name></annotation> <name>volatile</name> <name>Thread</name></type> <name>thread</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>Nullable</name></annotation> <name>volatile</name> <name>Waiter</name></type> <name>next</name></decl>;</decl_stmt>
+
+    <comment type="line">// Constructor for the TOMBSTONE, avoids use of ATOMIC_HELPER in case this class is loaded</comment>
+    <comment type="line">// before the ATOMIC_HELPER.  Apparently this is possible on some android platforms.</comment>
+    <constructor><name>Waiter</name><parameter_list>(<param><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation> <name>boolean</name></type> <name>ignored</name></decl></param>)</parameter_list> <block>{}</block></constructor>
+
+    <constructor><name>Waiter</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// avoid volatile write, write is made visible by subsequent CAS on waiters field</comment>
+      <expr_stmt><expr><call><name><name>ATOMIC_HELPER</name>.<name>putThread</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">// non-volatile write to the next field. Should be made visible by subsequent CAS on waiters</comment>
+    <comment type="line">// field.</comment>
+    <function><type><name>void</name></type> <name>setNext</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>ATOMIC_HELPER</name>.<name>putNext</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>unpark</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// This is racy with removeWaiter.  The consequence of the race is that we may spuriously</comment>
+      <comment type="line">// call unpark even though the thread has already removed itself from the list.  But even if</comment>
+      <comment type="line">// we did use a CAS, that race would still exist (it would just be ever so slightly smaller).</comment>
+      <decl_stmt><decl><type><name>Thread</name></type> <name>w</name> =<init> <expr><name>thread</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>w</name> != <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>thread</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>LockSupport</name>.<name>unpark</name></name><argument_list>(<argument><expr><name>w</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Marks the given node as 'deleted' (null waiter) and then scans the list to unlink all deleted
+   * nodes.  This is an O(n) operation in the common case (and O(n^2) in the worst), but we are
+   * saved by two things.
+   * &lt;ul&gt;
+   *   &lt;li&gt;This is only called when a waiting thread times out or is interrupted.  Both of which
+   *       should be rare.
+   *   &lt;li&gt;The waiters list should be very short.
+   * &lt;/ul&gt;
+   */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>removeWaiter</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>node</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>node</name>.<name>thread</name></name> = <name>null</name></expr>;</expr_stmt>  <comment type="line">// mark as 'deleted'</comment>
+    <label><name>restart</name>:</label> <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>Waiter</name></type> <name>pred</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>Waiter</name></type> <name>curr</name> =<init> <expr><name>waiters</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>curr</name> == <name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr>)</condition><then> <block>{
+        <return>return;</return>  <comment type="line">// give up if someone is calling complete</comment>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>Waiter</name></type> <name>succ</name></decl>;</decl_stmt>
+      <while>while <condition>(<expr><name>curr</name> != <name>null</name></expr>)</condition> <block>{
+        <expr_stmt><expr><name>succ</name> = <name><name>curr</name>.<name>next</name></name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name><name>curr</name>.<name>thread</name></name> != <name>null</name></expr>)</condition><then> <block>{  <comment type="line">// we aren't unlinking this node, update pred.</comment>
+          <expr_stmt><expr><name>pred</name> = <name>curr</name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>pred</name> != <name>null</name></expr>)</condition><then> <block>{ <comment type="line">// We are unlinking this node and it has a predecessor.</comment>
+          <expr_stmt><expr><name><name>pred</name>.<name>next</name></name> = <name>succ</name></expr>;</expr_stmt>
+          <if>if <condition>(<expr><name><name>pred</name>.<name>thread</name></name> == <name>null</name></expr>)</condition><then> <block>{  <comment type="line">// We raced with another node that unlinked pred. Restart.</comment>
+            <continue>continue restart;</continue>
+          }</block></then></if>
+        }</block></then> <else>else <if>if <condition>(<expr>!<call><name><name>ATOMIC_HELPER</name>.<name>casWaiters</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>curr</name></expr></argument>, <argument><expr><name>succ</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{  <comment type="line">// We are unlinking head</comment>
+          <continue>continue restart;</continue>  <comment type="line">// We raced with an add or complete</comment>
+        }</block></then></if></else></if></else></if>
+        <expr_stmt><expr><name>curr</name> = <name>succ</name></expr>;</expr_stmt>
+      }</block></while>
+      <break>break;</break>
+    }</block></while>
+  }</block></function>
+
+  <comment type="javadoc">/** Listeners also form a stack through the {@link #listeners} field. */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Listener</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Listener</name></type> <name>TOMBSTONE</name> =<init> <expr>new <call><name>Listener</name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Runnable</name></type> <name>task</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Executor</name></type> <name>executor</name></decl>;</decl_stmt>
+
+    <comment type="line">// writes to next are made visible by subsequent CAS's on the listeners field</comment>
+    <decl_stmt><decl><type><annotation>@<name>Nullable</name></annotation> <name>Listener</name></type> <name>next</name></decl>;</decl_stmt>
+
+    <constructor><name>Listener</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>task</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>task</name></name> = <name>task</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>executor</name></name> = <name>executor</name></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/** A special value to represent {@code null}. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Object</name></type> <name>NULL</name> =<init> <expr>new <call><name>Object</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** A special value to represent failure, when {@link #setException} is called successfully. */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Failure</name> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>Failure</name></type> <name>FALLBACK_INSTANCE</name> =<init> <expr>new <call><name>Failure</name><argument_list>(
+        <argument><expr>new <class><super><name>Throwable</name></super><argument_list>(<argument><expr>"Failure occurred while trying to finish a future."</expr></argument>)</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>synchronized</specifier> <name>Throwable</name></type> <name>fillInStackTrace</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>this</name></expr>;</return>  <comment type="line">// no stack trace</comment>
+          }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Throwable</name></type> <name>exception</name></decl>;</decl_stmt>
+
+    <constructor><name>Failure</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>exception</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>exception</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>exception</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/** A special value to represent cancellation and the 'wasInterrupted' bit. */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Cancellation</name> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>wasInterrupted</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Throwable</name></type> <name>cause</name></decl>;</decl_stmt>
+
+    <constructor><name>Cancellation</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>wasInterrupted</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>cause</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>wasInterrupted</name></name> = <name>wasInterrupted</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>cause</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>cause</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/** A special value that encodes the 'setFuture' state. */</comment>
+  <class><specifier>private</specifier> <specifier>final</specifier> class <name>SetFuture</name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>future</name></decl>;</decl_stmt>
+
+    <constructor><name>SetFuture</name><parameter_list>(<param><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>future</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>future</name></name> = <name>future</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr><name>value</name> != <name>this</name></expr>)</condition><then> <block>{
+        <comment type="line">// nothing to do, we must have been cancelled</comment>
+        <return>return;</return>
+      }</block></then></if>
+      <expr_stmt><expr><call><name>completeWithFuture</name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">// TODO(lukes): investigate using the @Contended annotation on these fields when jdk8 is</comment>
+  <comment type="line">// available.</comment>
+  <comment type="javadoc">/**
+   * This field encodes the current state of the future.
+   *
+   * &lt;p&gt;The valid values are:
+   * &lt;ul&gt;
+   *   &lt;li&gt;{@code null} initial state, nothing has happened.
+   *   &lt;li&gt;{@link Cancellation} terminal state, {@code cancel} was called.
+   *   &lt;li&gt;{@link Failure} terminal state, {@code setException} was called.
+   *   &lt;li&gt;{@link SetFuture} intermediate state, {@code setFuture} was called.
+   *   &lt;li&gt;{@link #NULL} terminal state, {@code set(null)} was called.
+   *   &lt;li&gt;Any other non-null value, terminal state, {@code set} was called with a non-null
+   *       argument.
+   * &lt;/ul&gt;
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>Object</name></type> <name>value</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** All listeners. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>Listener</name></type> <name>listeners</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** All waiting threads. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>Waiter</name></type> <name>waiters</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Constructor for use by subclasses.
+   */</comment>
+  <constructor><specifier>protected</specifier> <name>AbstractFuture</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="block">/*
+   * Improve the documentation of when InterruptedException is thrown. Our
+   * behavior matches the JDK's, but the JDK's documentation is misleading.
+   */</comment>
+
+  <comment type="line">// Gets and Timed Gets</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// * Be responsive to interruption</comment>
+  <comment type="line">// * Don't create Waiter nodes if you aren't going to park, this helps reduce contention on the</comment>
+  <comment type="line">//   waiters field.</comment>
+  <comment type="line">// * Future completion is defined by when #value becomes non-null/non SetFuture</comment>
+  <comment type="line">// * Future completion can be observed if the waiters field contains a TOMBSTONE</comment>
+
+  <comment type="line">// Timed Get</comment>
+  <comment type="line">// There are a few design constraints to consider</comment>
+  <comment type="line">// * We want to be responsive to small timeouts, unpark() has non trivial latency overheads (I</comment>
+  <comment type="line">//   have observed 12 micros on 64 bit linux systems to wake up a parked thread).  So if the</comment>
+  <comment type="line">//   timeout is small we shouldn't park().  This needs to be traded off with the cpu overhead of</comment>
+  <comment type="line">//   spinning, so we use SPIN_THRESHOLD_NANOS which is what AbstractQueuedSynchronizer uses for</comment>
+  <comment type="line">//   similar purposes.</comment>
+  <comment type="line">// * We want to behave reasonably for timeouts of 0</comment>
+  <comment type="line">// * We are more responsive to completion than timeouts.  This is because parkNanos depends on</comment>
+  <comment type="line">//   system scheduling and as such we could either miss our deadline, or unpark() could be delayed</comment>
+  <comment type="line">//   so that it looks like we timed out even though we didn't.  For comparison FutureTask respects</comment>
+  <comment type="line">//   completion preferably and AQS is non-deterministic (depends on where in the queue the waiter</comment>
+  <comment type="line">//   is).  If we wanted to be strict about it, we could store the unpark() time in the Waiter</comment>
+  <comment type="line">//   node and we could use that to make a decision about whether or not we timed out prior to</comment>
+  <comment type="line">//   being unparked.</comment>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;The default {@link AbstractFuture} implementation throws {@code
+   * InterruptedException} if the current thread is interrupted before or during
+   * the call, even if the value is already available.
+   *
+   * @throws InterruptedException if the current thread was interrupted before
+   *     or during the call (optional but recommended).
+   * @throws CancellationException {@inheritDoc}
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>InterruptedException</name></expr></argument>, <argument><expr><name>TimeoutException</name></expr></argument>, <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+    <comment type="line">// NOTE: if timeout &lt; 0, remainingNanos will be &lt; 0 and we will fall into the while(true) loop</comment>
+    <comment type="line">// at the bottom and throw a timeoutexception.</comment>
+    <decl_stmt><decl><type><name>long</name></type> <name>remainingNanos</name> =<init> <expr><call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt> <comment type="line">// we rely on the implicit null check on unit.</comment>
+    <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>localValue</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// we delay calling nanoTime until we know we will need to either park or spin</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>endNanos</name> =<init> <expr><name>remainingNanos</name> &gt; 0 ? <call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call> + <name>remainingNanos</name> : 0</expr></init></decl>;</decl_stmt>
+    <label><name>long_wait_loop</name>:</label> <if>if <condition>(<expr><name>remainingNanos</name> &gt;= <name>SPIN_THRESHOLD_NANOS</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>Waiter</name></type> <name>oldHead</name> =<init> <expr><name>waiters</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>oldHead</name> != <name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>Waiter</name></type> <name>node</name> =<init> <expr>new <call><name>Waiter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <do>do <block>{
+          <expr_stmt><expr><call><name><name>node</name>.<name>setNext</name></name><argument_list>(<argument><expr><name>oldHead</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casWaiters</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>oldHead</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <while>while <condition>(<expr>true</expr>)</condition> <block>{
+              <expr_stmt><expr><call><name><name>LockSupport</name>.<name>parkNanos</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>remainingNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              <comment type="line">// Check interruption first, if we woke up due to interruption we need to honor that.</comment>
+              <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>removeWaiter</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+              }</block></then></if>
+
+              <comment type="line">// Otherwise re-read and check doneness.  If we loop then it must have been a spurious</comment>
+              <comment type="line">// wakeup</comment>
+              <expr_stmt><expr><name>localValue</name> = <name>value</name></expr>;</expr_stmt>
+              <if>if <condition>(<expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>)</condition><then> <block>{
+                <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>localValue</name></expr></argument>)</argument_list></call></expr>;</return>
+              }</block></then></if>
+
+              <comment type="line">// timed out?</comment>
+              <expr_stmt><expr><name>remainingNanos</name> = <name>endNanos</name> - <call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+              <if>if <condition>(<expr><name>remainingNanos</name> &lt; <name>SPIN_THRESHOLD_NANOS</name></expr>)</condition><then> <block>{
+                <comment type="line">// Remove the waiter, one way or another we are done parking this thread.</comment>
+                <expr_stmt><expr><call><name>removeWaiter</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break long_wait_loop;</break>  <comment type="line">// jump down to the busy wait loop</comment>
+              }</block></then></if>
+            }</block></while>
+          }</block></then></if>
+          <expr_stmt><expr><name>oldHead</name> = <name>waiters</name></expr>;</expr_stmt>  <comment type="line">// re-read and loop.</comment>
+        }</block> while <condition>(<expr><name>oldHead</name> != <name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr>)</condition>;</do>
+      }</block></then></if>
+      <comment type="line">// re-read value, if we get here then we must have observed a TOMBSTONE while trying to add a</comment>
+      <comment type="line">// waiter.</comment>
+      <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// If we get here then we have remainingNanos &lt; SPIN_THRESHOLD_NANOS and there is no node on the</comment>
+    <comment type="line">// waiters list</comment>
+    <while>while <condition>(<expr><name>remainingNanos</name> &gt; 0</expr>)</condition> <block>{
+      <expr_stmt><expr><name>localValue</name> = <name>value</name></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>)</condition><then> <block>{
+        <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>localValue</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <expr_stmt><expr><name>remainingNanos</name> = <name>endNanos</name> - <call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+    <throw>throw <expr>new <call><name>TimeoutException</name><argument_list>()</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="block">/*
+   * Improve the documentation of when InterruptedException is thrown. Our
+   * behavior matches the JDK's, but the JDK's documentation is misleading.
+   */</comment>
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;The default {@link AbstractFuture} implementation throws {@code
+   * InterruptedException} if the current thread is interrupted before or during
+   * the call, even if the value is already available.
+   *
+   * @throws InterruptedException if the current thread was interrupted before
+   *     or during the call (optional but recommended).
+   * @throws CancellationException {@inheritDoc}
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument>, <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>localValue</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>Waiter</name></type> <name>oldHead</name> =<init> <expr><name>waiters</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>oldHead</name> != <name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>Waiter</name></type> <name>node</name> =<init> <expr>new <call><name>Waiter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <do>do <block>{
+        <expr_stmt><expr><call><name><name>node</name>.<name>setNext</name></name><argument_list>(<argument><expr><name>oldHead</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casWaiters</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>oldHead</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <comment type="line">// we are on the stack, now wait for completion.</comment>
+          <while>while <condition>(<expr>true</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>LockSupport</name>.<name>park</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// Check interruption first, if we woke up due to interruption we need to honor that.</comment>
+            <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+              <expr_stmt><expr><call><name>removeWaiter</name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <comment type="line">// Otherwise re-read and check doneness.  If we loop then it must have been a spurious</comment>
+            <comment type="line">// wakeup</comment>
+            <expr_stmt><expr><name>localValue</name> = <name>value</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>)</condition><then> <block>{
+              <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>localValue</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+          }</block></while>
+        }</block></then></if>
+        <expr_stmt><expr><name>oldHead</name> = <name>waiters</name></expr>;</expr_stmt>  <comment type="line">// re-read and loop.</comment>
+      }</block> while <condition>(<expr><name>oldHead</name> != <name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr>)</condition>;</do>
+    }</block></then></if>
+    <comment type="line">// re-read value, if we get here then we must have observed a TOMBSTONE while trying to add a</comment>
+    <comment type="line">// waiter.</comment>
+    <return>return <expr><call><name>getDoneValue</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Unboxes {@code obj}.  Assumes that obj is not {@code null} or a {@link SetFuture}.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>V</name></type> <name>getDoneValue</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ExecutionException</name></expr></argument></throws> <block>{
+    <comment type="line">// While this seems like it might be too branch-y, simple benchmarking proves it to be</comment>
+    <comment type="line">// unmeasurable (comparing done AbstractFutures with immediateFuture)</comment>
+    <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Cancellation</name></expr>)</condition><then> <block>{
+      <throw>throw <expr><call><name>cancellationExceptionWithCause</name><argument_list>(<argument><expr>"Task was cancelled."</expr></argument>, <argument><expr>((<name>Cancellation</name>) <name>obj</name>).<name>cause</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then> <else>else <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Failure</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>ExecutionException</name><argument_list>(<argument><expr>((<name>Failure</name>) <name>obj</name>).<name>exception</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then> <else>else <if>if <condition>(<expr><name>obj</name> == <name>NULL</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>  <comment type="line">// this is the only other option</comment>
+      <name>V</name></type> <name>asV</name> =<init> <expr>(<name>V</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><name>asV</name></expr>;</return>
+    }</block></else></if></else></if></else></if>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>isDone</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>localValue</name> != <name>null</name> &amp; !(<name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name>)</expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>isCancelled</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>localValue</name> <name>instanceof</name> <name>Cancellation</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;If a cancellation attempt succeeds on a {@code Future} that had previously been {@linkplain
+   * #setFuture set asynchronously}, then the cancellation will also be propagated to the delegate
+   * {@code Future} that was supplied in the {@code setFuture} call.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>cancel</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>mayInterruptIfRunning</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>localValue</name> == <name>null</name> | <name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name></expr>)</condition><then> <block>{
+      <comment type="line">// Try to delay allocating the exception.  At this point we may still lose the CAS, but it is</comment>
+      <comment type="line">// certainly less likely.</comment>
+      <comment type="line">// TODO(lukes): this exception actually makes cancellation significantly more expensive :(</comment>
+      <comment type="line">// I wonder if we should consider removing it or providing a mechanism to not do it.</comment>
+      <decl_stmt><decl><type><name>Object</name></type> <name>valueToSet</name> =<init> <expr>new <call><name>Cancellation</name><argument_list>(<argument><expr><name>mayInterruptIfRunning</name></expr></argument>, <argument><expr><call><name>newCancellationCause</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <do>do <block>{
+        <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>localValue</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <comment type="line">// We call interuptTask before calling complete(), first which is consistent with</comment>
+          <comment type="line">// FutureTask</comment>
+          <if>if <condition>(<expr><name>mayInterruptIfRunning</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>interruptTask</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <expr_stmt><expr><call><name>complete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <if>if <condition>(<expr><name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// propagate cancellation to the future set in setfuture, this is racy, and we don't</comment>
+            <comment type="line">// care if we are successful or not.</comment>
+            <expr_stmt><expr>((<name><name><name>AbstractFuture</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>.<name>SetFuture</name></name>) <name>localValue</name>).<call><name><name>future</name>.<name>cancel</name></name><argument_list>(<argument><expr><name>mayInterruptIfRunning</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <comment type="line">// obj changed, reread</comment>
+        <expr_stmt><expr><name>localValue</name> = <name>value</name></expr>;</expr_stmt>
+        <comment type="line">// obj cannot be null at this point, because value can only change from null to non-null. So</comment>
+        <comment type="line">// if value changed (and it did since we lost the CAS), then it cannot be null.</comment>
+      }</block> while <condition>(<expr><name>localValue</name> <name>instanceof</name> <name><name>AbstractFuture</name>.<name>SetFuture</name></name></expr>)</condition>;</do>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an exception to be used as the cause of the CancellationException thrown by
+   * {@link #get}.
+   *
+   * &lt;p&gt;Note: this method may be called speculatively.  There is no guarantee that the future will
+   * be cancelled if this method is called.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><annotation>@<name>Beta</name></annotation>
+  <specifier>protected</specifier> <name>Throwable</name></type> <name>newCancellationCause</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>CancellationException</name><argument_list>(<argument><expr>"Future.cancel() was called."</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Subclasses can override this method to implement interruption of the
+   * future's computation. The method is invoked automatically by a successful
+   * call to {@link #cancel(boolean) cancel(true)}.
+   *
+   * &lt;p&gt;The default implementation does nothing.
+   *
+   * @since 10.0
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>void</name></type> <name>interruptTask</name><parameter_list>()</parameter_list> <block>{
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this future was cancelled with {@code
+   * mayInterruptIfRunning} set to {@code true}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>wasInterrupted</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name>localValue</name> <name>instanceof</name> <name>Cancellation</name>) &amp;&amp; ((<name>Cancellation</name>) <name>localValue</name>).<name>wasInterrupted</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * @since 10.0
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>void</name></type> <name>addListener</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>listener</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>listener</name></expr></argument>, <argument><expr>"Runnable was null."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>executor</name></expr></argument>, <argument><expr>"Executor was null."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>Listener</name></type> <name>oldHead</name> =<init> <expr><name>listeners</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>oldHead</name> != <name><name>Listener</name>.<name>TOMBSTONE</name></name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>Listener</name></type> <name>newNode</name> =<init> <expr>new <call><name>Listener</name><argument_list>(<argument><expr><name>listener</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <do>do <block>{
+        <expr_stmt><expr><name><name>newNode</name>.<name>next</name></name> = <name>oldHead</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casListeners</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>oldHead</name></expr></argument>, <argument><expr><name>newNode</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>oldHead</name> = <name>listeners</name></expr>;</expr_stmt>  <comment type="line">// re-read</comment>
+      }</block> while <condition>(<expr><name>oldHead</name> != <name><name>Listener</name>.<name>TOMBSTONE</name></name></expr>)</condition>;</do>
+    }</block></then></if>
+    <comment type="line">// If we get here then the Listener TOMBSTONE was set, which means the future is done, call</comment>
+    <comment type="line">// the listener.</comment>
+    <expr_stmt><expr><call><name>executeListener</name><argument_list>(<argument><expr><name>listener</name></expr></argument>, <argument><expr><name>executor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets the result of this {@code Future} unless this {@code Future} has already been cancelled or
+   * set (including {@linkplain #setFuture set asynchronously}). When a call to this method returns,
+   * the {@code Future} is guaranteed to be {@linkplain #isDone done} &lt;b&gt;only if&lt;/b&gt; the call was
+   * accepted (in which case it returns {@code true}). If it returns {@code false}, the {@code
+   * Future} may have previously been set asynchronously, in which case its result may not be known
+   * yet. That result, though not yet known, cannot by overridden by a call to a {@code set*}
+   * method, only by a call to {@link #cancel}.
+   *
+   * @param value the value to be used as the result
+   * @return true if the attempt was accepted, completing the {@code Future}
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>set</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name></type> <name>valueToSet</name> =<init> <expr><name>value</name> == <name>null</name> ? <name>NULL</name> : <name>value</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>complete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets the failed result of this {@code Future} unless this {@code Future} has already been
+   * cancelled or set (including {@linkplain #setFuture set asynchronously}). When a call to this
+   * method returns, the {@code Future} is guaranteed to be {@linkplain #isDone done} &lt;b&gt;only if&lt;/b&gt;
+   * the call was accepted (in which case it returns {@code true}). If it returns {@code false}, the
+   * {@code Future} may have previously been set asynchronously, in which case its result may not be
+   * known yet. That result, though not yet known, cannot by overridden by a call to a {@code set*}
+   * method, only by a call to {@link #cancel}.
+   *
+   * @param throwable the exception to be used as the failed result
+   * @return true if the attempt was accepted, completing the {@code Future}
+   */</comment>
+  <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>setException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name></type> <name>valueToSet</name> =<init> <expr>new <call><name>Failure</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>complete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets the result of this {@code Future} to match the supplied input {@code Future} once the
+   * supplied {@code Future} is done, unless this {@code Future} has already been cancelled or set
+   * (including "set asynchronously," defined below).
+   *
+   * &lt;p&gt;If the supplied future is {@linkplain #isDone done} when this method is called and the call
+   * is accepted, then this future is guaranteed to have been completed with the supplied future by
+   * the time this method returns. If the supplied future is not done and the call is accepted, then
+   * the future will be &lt;i&gt;set asynchronously&lt;/i&gt;. Note that such a result, though not yet known,
+   * cannot by overridden by a call to a {@code set*} method, only by a call to {@link #cancel}.
+   *
+   * &lt;p&gt;If the call {@code setFuture(delegate)} is accepted and this {@code Future} is later
+   * cancelled, cancellation will be propagated to {@code delegate}. Additionally, any call to
+   * {@code setFuture} after any cancellation will propagate cancellation to the supplied {@code
+   * Future}.
+   *
+   * @param future the future to delegate to
+   * @return true if the attempt was accepted, indicating that the {@code Future} was not previously
+   *     cancelled or set.
+   * @since 19.0
+   */</comment>
+  <function><type><annotation>@<name>Beta</name></annotation> <specifier>protected</specifier> <name>boolean</name></type> <name>setFuture</name><parameter_list>(<param><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>future</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>future</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>Object</name></type> <name>localValue</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>localValue</name> == <name>null</name></expr>)</condition><then> <block>{
+      <if>if <condition>(<expr><call><name><name>future</name>.<name>isDone</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><call><name>completeWithFuture</name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>SetFuture</name></type> <name>valueToSet</name> =<init> <expr>new <call><name>SetFuture</name><argument_list>(<argument><expr><name>future</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <comment type="line">// the listener is responsible for calling completeWithFuture, directExecutor is appropriate</comment>
+        <comment type="line">// since all we are doing is unpacking a completed future which should be fast.</comment>
+        <try>try <block>{
+          <expr_stmt><expr><call><name><name>future</name>.<name>addListener</name></name><argument_list>(<argument><expr><name>valueToSet</name></expr></argument>, <argument><expr><call><name>directExecutor</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+          <comment type="line">// addListener has thrown an exception!  SetFuture.run can't throw any exceptions so this</comment>
+          <comment type="line">// must have been caused by addListener itself.  The most likely explanation is a</comment>
+          <comment type="line">// misconfigured mock.  Try to switch to Failure.</comment>
+          <decl_stmt><decl><type><name>Failure</name></type> <name>failure</name></decl>;</decl_stmt>
+          <try>try <block>{
+            <expr_stmt><expr><name>failure</name> = new <call><name>Failure</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>oomMostLikely</name></decl></param>) <block>{
+            <expr_stmt><expr><name>failure</name> = <name><name>Failure</name>.<name>FALLBACK_INSTANCE</name></name></expr>;</expr_stmt>
+          }</block></catch></try>
+          <comment type="line">// Note: The only way this CAS could fail is if cancel() has raced with us. That is ok.</comment>
+          <expr_stmt><expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>, <argument><expr><name>failure</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+        <return>return <expr>true</expr>;</return>
+      }</block></then></if>
+      <expr_stmt><expr><name>localValue</name> = <name>value</name></expr>;</expr_stmt>  <comment type="line">// we lost the cas, fall through and maybe cancel</comment>
+    }</block></then></if>
+    <comment type="line">// The future has already been set to something.  If it is cancellation we should cancel the</comment>
+    <comment type="line">// incoming future.</comment>
+    <if>if <condition>(<expr><name>localValue</name> <name>instanceof</name> <name>Cancellation</name></expr>)</condition><then> <block>{
+      <comment type="line">// we don't care if it fails, this is best-effort.</comment>
+      <expr_stmt><expr><call><name><name>future</name>.<name>cancel</name></name><argument_list>(<argument><expr>((<name>Cancellation</name>) <name>localValue</name>).<name>wasInterrupted</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Called when a future passed via setFuture has completed.
+   *
+   * @param future the done future to complete this future with.
+   * @param expected the expected value of the {@link #value} field.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>completeWithFuture</name><parameter_list>(<param><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>future</name></decl></param>, <param><decl><type><name>Object</name></type> <name>expected</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name></type> <name>valueToSet</name></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>future</name> <name>instanceof</name> <name>TrustedFuture</name></expr>)</condition><then> <block>{
+      <comment type="line">// Break encapsulation for TrustedFuture instances since we know that subclasses cannot</comment>
+      <comment type="line">// override .get() (since it is final) and therefore this is equivalent to calling .get()</comment>
+      <comment type="line">// and unpacking the exceptions like we do below (just much faster because it is a single</comment>
+      <comment type="line">// field read instead of a read, several branches and possibly creating exceptions).</comment>
+      <expr_stmt><expr><name>valueToSet</name> = ((<name><name>AbstractFuture</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>future</name>).<name>value</name></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <comment type="line">// Otherwise calculate valueToSet by calling .get()</comment>
+      <try>try <block>{
+        <decl_stmt><decl><type><name>V</name></type> <name>v</name> =<init> <expr><call><name><name>Uninterruptibles</name>.<name>getUninterruptibly</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>valueToSet</name> = <name>v</name> == <name>null</name> ? <name>NULL</name> : <name>v</name></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>ExecutionException</name></type> <name>exception</name></decl></param>) <block>{
+        <expr_stmt><expr><name>valueToSet</name> = new <call><name>Failure</name><argument_list>(<argument><expr><call><name><name>exception</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch> <catch>catch (<param><decl><type><name>CancellationException</name></type> <name>cancellation</name></decl></param>) <block>{
+        <expr_stmt><expr><name>valueToSet</name> = new <call><name>Cancellation</name><argument_list>(<argument><expr>false</expr></argument>, <argument><expr><name>cancellation</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <expr_stmt><expr><name>valueToSet</name> = new <call><name>Failure</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch></try>
+    }</block></else></if>
+    <comment type="line">// The only way this can fail is if we raced with another thread calling cancel(). If we lost</comment>
+    <comment type="line">// that race then there is nothing to do.</comment>
+    <if>if <condition>(<expr><call><name><name>ATOMIC_HELPER</name>.<name>casValue</name></name><argument_list>(<argument><expr><name><name>AbstractFuture</name>.<name>this</name></name></expr></argument>, <argument><expr><name>expected</name></expr></argument>, <argument><expr><name>valueToSet</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>complete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Unblocks all threads and runs all listeners. */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>complete</name><parameter_list>()</parameter_list> <block>{
+    <for>for (<init><decl><type><name>Waiter</name></type> <name>currentWaiter</name> =<init> <expr><call><name>clearWaiters</name><argument_list>()</argument_list></call></expr></init></decl>;</init>
+        <condition><expr><name>currentWaiter</name> != <name>null</name></expr>;</condition>
+        <incr><expr><name>currentWaiter</name> = <name><name>currentWaiter</name>.<name>next</name></name></expr></incr>) <block>{
+      <expr_stmt><expr><call><name><name>currentWaiter</name>.<name>unpark</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <comment type="line">// We need to reverse the list to handle buggy listeners that depend on ordering.</comment>
+    <decl_stmt><decl><type><name>Listener</name></type> <name>currentListener</name> =<init> <expr><call><name>clearListeners</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Listener</name></type> <name>reversedList</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr><name>currentListener</name> != <name>null</name></expr>)</condition> <block>{
+      <decl_stmt><decl><type><name>Listener</name></type> <name>tmp</name> =<init> <expr><name>currentListener</name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>currentListener</name> = <name><name>currentListener</name>.<name>next</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>tmp</name>.<name>next</name></name> = <name>reversedList</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>reversedList</name> = <name>tmp</name></expr>;</expr_stmt>
+    }</block></while>
+    <for>for (<init>;</init> <condition><expr><name>reversedList</name> != <name>null</name></expr>;</condition> <incr><expr><name>reversedList</name> = <name><name>reversedList</name>.<name>next</name></name></expr></incr>) <block>{
+      <expr_stmt><expr><call><name>executeListener</name><argument_list>(<argument><expr><name><name>reversedList</name>.<name>task</name></name></expr></argument>, <argument><expr><name><name>reversedList</name>.<name>executor</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <comment type="line">// We call this after the listeners on the theory that done() will only be used for 'cleanup'</comment>
+    <comment type="line">// oriented tasks (e.g. clearing fields) and so can wait behind listeners which may be executing</comment>
+    <comment type="line">// more important work.  A counter argument would be that done() is trusted code and therefore</comment>
+    <comment type="line">// it would be safe to run before potentially slow or poorly behaved listeners.  Reevaluate this</comment>
+    <comment type="line">// once we have more examples of done() implementations.</comment>
+    <expr_stmt><expr><call><name>done</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Callback method that is called immediately after the future is completed.
+   *
+   * &lt;p&gt;This is called exactly once, after all listeners have executed.  By default it does nothing.
+   */</comment>
+  <comment type="line">// TODO(cpovirk): @ForOverride if https://github.com/google/error-prone/issues/342 permits</comment>
+  <function><type><name>void</name></type> <name>done</name><parameter_list>()</parameter_list> <block>{}</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the exception that this {@code Future} completed with. This includes completion through
+   * a call to {@link setException} or {@link setFuture}{@code (failedFuture)} but not cancellation.
+   *
+   * @throws RuntimeException if the {@code Future} has not failed
+   */</comment>
+  <function><type><specifier>final</specifier> <name>Throwable</name></type> <name>trustedGetException</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>((<name>Failure</name>) <name>value</name>).<name>exception</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * If this future has been cancelled (and possibly interrupted), cancels (and possibly interrupts)
+   * the given future (if available).
+   *
+   * &lt;p&gt;This method should be used only when this future is completed. It is designed to be called
+   * from {@code done}.
+   */</comment>
+  <function><type><specifier>final</specifier> <name>void</name></type> <name>maybePropagateCancellation</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name><name>Future</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>related</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>related</name> != <name>null</name> &amp; <call><name>isCancelled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>related</name>.<name>cancel</name></name><argument_list>(<argument><expr><call><name>wasInterrupted</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/** Clears the {@link #waiters} list and returns the most recently added value. */</comment>
+  <function><type><specifier>private</specifier> <name>Waiter</name></type> <name>clearWaiters</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Waiter</name></type> <name>head</name></decl>;</decl_stmt>
+    <do>do <block>{
+      <expr_stmt><expr><name>head</name> = <name>waiters</name></expr>;</expr_stmt>
+    }</block> while <condition>(<expr>!<call><name><name>ATOMIC_HELPER</name>.<name>casWaiters</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>head</name></expr></argument>, <argument><expr><name><name>Waiter</name>.<name>TOMBSTONE</name></name></expr></argument>)</argument_list></call></expr>)</condition>;</do>
+    <return>return <expr><name>head</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Clears the {@link #listeners} list and returns the most recently added value. */</comment>
+  <function><type><specifier>private</specifier> <name>Listener</name></type> <name>clearListeners</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Listener</name></type> <name>head</name></decl>;</decl_stmt>
+    <do>do <block>{
+      <expr_stmt><expr><name>head</name> = <name>listeners</name></expr>;</expr_stmt>
+    }</block> while <condition>(<expr>!<call><name><name>ATOMIC_HELPER</name>.<name>casListeners</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>head</name></expr></argument>, <argument><expr><name><name>Listener</name>.<name>TOMBSTONE</name></name></expr></argument>)</argument_list></call></expr>)</condition>;</do>
+    <return>return <expr><name>head</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Submits the given runnable to the given {@link Executor} catching and logging all
+   * {@linkplain RuntimeException runtime exceptions} thrown by the executor.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>executeListener</name><parameter_list>(<param><decl><type><name>Runnable</name></type> <name>runnable</name></decl></param>, <param><decl><type><name>Executor</name></type> <name>executor</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <expr_stmt><expr><call><name><name>executor</name>.<name>execute</name></name><argument_list>(<argument><expr><name>runnable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+      <comment type="line">// Log it and keep going, bad runnable and/or executor.  Don't</comment>
+      <comment type="line">// punish the other runnables if we're given a bad one.  We only</comment>
+      <comment type="line">// catch RuntimeException because we want Errors to propagate up.</comment>
+      <expr_stmt><expr><call><name><name>log</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"RuntimeException while executing runnable "
+          + <name>runnable</name> + " with executor " + <name>executor</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></catch></try>
+  }</block></function>
+
+  <function><type><specifier>static</specifier> <specifier>final</specifier> <name>CancellationException</name></type> <name>cancellationExceptionWithCause</name><parameter_list>(
+      <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>String</name></type> <name>message</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Throwable</name></type> <name>cause</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>CancellationException</name></type> <name>exception</name> =<init> <expr>new <call><name>CancellationException</name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>exception</name>.<name>initCause</name></name><argument_list>(<argument><expr><name>cause</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>exception</name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name>AtomicHelper</name> <block>{
+    <comment type="javadoc">/** Non volatile write of the thread to the {@link Waiter#thread} field. */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>putThread</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Thread</name></type> <name>thread</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/** Non volatile write of the waiter to the {@link Waiter#next} field. */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>putNext</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #waiters} field. */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>boolean</name></type> <name>casWaiters</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #listeners} field. */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>boolean</name></type> <name>casListeners</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>next</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #value} field. */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>boolean</name></type> <name>casValue</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Object</name></type> <name>expected</name></decl></param>, <param><decl><type><name>Object</name></type> <name>v</name></decl></param>)</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * {@link AtomicHelper} based on {@link sun.misc.Unsafe}.
+   *
+   * &lt;p&gt;Static initialization of this class will fail if the {@link sun.misc.Unsafe} object cannot
+   * be accessed.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>UnsafeAtomicHelper</name> <super><extends>extends <name>AtomicHelper</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>UNSAFE</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>LISTENERS_OFFSET</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>WAITERS_OFFSET</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>VALUE_OFFSET</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>WAITER_THREAD_OFFSET</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>WAITER_NEXT_OFFSET</name></decl>;</decl_stmt>
+
+    static <block>{
+      <decl_stmt><decl><type><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>unsafe</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><name>unsafe</name> = <call><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name>.<name>getUnsafe</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>tryReflectionInstead</name></decl></param>) <block>{
+        <try>try <block>{
+          <expr_stmt><expr><name>unsafe</name> = <call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+              <argument><expr>new <class><super><name><name>PrivilegedExceptionAction</name><argument_list>&lt;<argument><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+                <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></type> <name>run</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+                  <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name></name></argument>&gt;</argument_list></name></type> <name>k</name> =<init> <expr><name><name>sun</name>.<name>misc</name>.<name>Unsafe</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+                  <for>for (<init><decl><type><name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name></type> <name>f</name> :<range> <expr><call><name><name>k</name>.<name>getDeclaredFields</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+                    <expr_stmt><expr><call><name><name>f</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><name>Object</name></type> <name>x</name> =<init> <expr><call><name><name>f</name>.<name>get</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><call><name><name>k</name>.<name>isInstance</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                      <return>return <expr><call><name><name>k</name>.<name>cast</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></then></if>
+                  }</block></for>
+                  <throw>throw <expr>new <call><name>NoSuchFieldError</name><argument_list>(<argument><expr>"the Unsafe"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></function>
+              }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>PrivilegedActionException</name></type> <name>e</name></decl></param>) <block>{
+          <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"Could not initialize intrinsics"</expr></argument>, <argument><expr><call><name><name>e</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+      }</block></catch></try>
+      <try>try <block>{
+        <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>abstractFuture</name> =<init> <expr><name><name>AbstractFuture</name>.<name><name/></name></name>class</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>WAITERS_OFFSET</name> = <call><name><name>unsafe</name>.<name>objectFieldOffset</name></name><argument_list>(<argument><expr><call><name><name>abstractFuture</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"waiters"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>LISTENERS_OFFSET</name> = <call><name><name>unsafe</name>.<name>objectFieldOffset</name></name><argument_list>(<argument><expr><call><name><name>abstractFuture</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"listeners"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>VALUE_OFFSET</name> = <call><name><name>unsafe</name>.<name>objectFieldOffset</name></name><argument_list>(<argument><expr><call><name><name>abstractFuture</name>.<name>getDeclaredField</name></name><argument_list>(<argument><expr>"value"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>WAITER_THREAD_OFFSET</name> = <call><name><name>unsafe</name>.<name>objectFieldOffset</name></name><argument_list>(<argument><expr><name><name>Waiter</name>.<name><name/></name></name>class.<call><name>getDeclaredField</name><argument_list>(<argument><expr>"thread"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>WAITER_NEXT_OFFSET</name> = <call><name><name>unsafe</name>.<name>objectFieldOffset</name></name><argument_list>(<argument><expr><name><name>Waiter</name>.<name><name/></name></name>class.<call><name>getDeclaredField</name><argument_list>(<argument><expr>"next"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>UNSAFE</name> = <name>unsafe</name></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr><call><name><name>Throwables</name>.<name>propagate</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>putThread</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Thread</name></type> <name>thread</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>UNSAFE</name>.<name>putObject</name></name><argument_list>(<argument><expr><name>waiter</name></expr></argument>, <argument><expr><name>WAITER_THREAD_OFFSET</name></expr></argument>, <argument><expr><name>thread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>putNext</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>UNSAFE</name>.<name>putObject</name></name><argument_list>(<argument><expr><name>waiter</name></expr></argument>, <argument><expr><name>WAITER_NEXT_OFFSET</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #waiters} field. */</comment>
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casWaiters</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapObject</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>WAITERS_OFFSET</name></expr></argument>, <argument><expr><name>curr</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #listeners} field. */</comment>
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casListeners</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapObject</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>LISTENERS_OFFSET</name></expr></argument>, <argument><expr><name>curr</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Performs a CAS operation on the {@link #value} field. */</comment>
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casValue</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Object</name></type> <name>expected</name></decl></param>, <param><decl><type><name>Object</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>UNSAFE</name>.<name>compareAndSwapObject</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>VALUE_OFFSET</name></expr></argument>, <argument><expr><name>expected</name></expr></argument>, <argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** {@link AtomicHelper} based on {@link AtomicReferenceFieldUpdater}. */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>SafeAtomicHelper</name> <super><extends>extends <name>AtomicHelper</name></extends></super> <block>{
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>putThread</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Thread</name></type> <name>thread</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>WAITER_THREAD_UPDATER</name>.<name>lazySet</name></name><argument_list>(<argument><expr><name>waiter</name></expr></argument>, <argument><expr><name>thread</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>putNext</name><parameter_list>(<param><decl><type><name>Waiter</name></type> <name>waiter</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>WAITER_NEXT_UPDATER</name>.<name>lazySet</name></name><argument_list>(<argument><expr><name>waiter</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casWaiters</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Waiter</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>WAITERS_UPDATER</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>curr</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casListeners</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>curr</name></decl></param>, <param><decl><type><name>Listener</name></type> <name>next</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>LISTENERS_UPDATER</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>curr</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>boolean</name></type> <name>casValue</name><parameter_list>(<param><decl><type><name>AbstractFuture</name></type> <name>future</name></decl></param>, <param><decl><type><name>Object</name></type> <name>expected</name></decl></param>, <param><decl><type><name>Object</name></type> <name>v</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>VALUE_UPDATER</name>.<name>compareAndSet</name></name><argument_list>(<argument><expr><name>future</name></expr></argument>, <argument><expr><name>expected</name></expr></argument>, <argument><expr><name>v</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

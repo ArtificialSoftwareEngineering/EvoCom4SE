@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\joda\src\main\java\org\joda\beans\ser\bin\JodaBeanBinWriter.java"><comment type="block">/*
+ *  Copyright 2001-2014 Stephen Colebourne
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>bin</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>Bean</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>MetaProperty</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>JodaBeanSer</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>SerCategory</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>SerIterator</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>SerOptional</name></name>;</import>
+<import>import <name><name>org</name>.<name>joda</name>.<name>beans</name>.<name>ser</name>.<name>SerTypeMapper</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Provides the ability for a Joda-Bean to be written to a binary format.
+ * &lt;p&gt;
+ * This class contains mutable state and cannot be used from multiple threads.
+ * &lt;p&gt;
+ * The binary format is based on MessagePack v2.0.
+ * Each bean is output as a map using the property name.
+ * &lt;p&gt;
+ * Most simple types, defined by Joda-Convert, are output as MessagePack strings.
+ * However, MessagePack nil, boolean, float, integral and bin types are also used
+ * for null, byte[] and the Java numeric primitive types (excluding char).
+ * &lt;p&gt;
+ * Beans are output using MessagePack maps where the key is the property name.
+ * Collections are output using MessagePack maps or arrays.
+ * Multisets are output as a map of value to count.
+ * &lt;p&gt;
+ * If a collection contains a collection then addition meta-type information is
+ * written to aid with deserialization.
+ * At this level, the data read back may not be identical to that written.
+ * &lt;p&gt;
+ * Where necessary, the Java type is sent using an 'ext' entity.
+ * Three 'ext' types are used, one each for beans, meta-type and simple.
+ * The class name is passed as the 'ext' data.
+ * The 'ext' value is sent as an additional key-value pair for beans, with the
+ * 'ext' as the key and 'nil' as the value. Where the additional type information
+ * is not about a bean, a tuple is written using a size 1 map where the key is the
+ * 'ext' data and the value is the data being annotated.
+ * &lt;p&gt;
+ * Type names are shortened by the package of the root type if possible.
+ * Certain basic types are also handled, such as String, Integer, File and URI.
+ *
+ * @author Stephen Colebourne
+ */</comment>
+<class><specifier>public</specifier> class <name>JodaBeanBinWriter</name> <block>{
+    <comment type="line">// this binary design is not the smallest possible</comment>
+    <comment type="line">// however, placing the 'ext' for the additional type info within</comment>
+    <comment type="line">// the bean data is much more friendly for dynamic languages using</comment>
+    <comment type="line">// a standalone MessagePack parser</comment>
+
+    <comment type="javadoc">/**
+     * The settings to use.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>JodaBeanSer</name></type> <name>settings</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The output stream.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>MsgPackOutput</name></type> <name>output</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The base package including the trailing dot.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>basePackage</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The known types.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>Map</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name></type> <name>knownTypes</name> =<init> <expr>new <call><name><name>HashMap</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates an instance.
+     * 
+     * @param settings  the settings to use, not null
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JodaBeanBinWriter</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>JodaBeanSer</name></type> <name>settings</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>settings</name></name> = <name>settings</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Writes the bean to an array of bytes.
+     * &lt;p&gt;
+     * The type of the bean will be set in the message.
+     * 
+     * @param bean  the bean to output, not null
+     * @return the binary data, not null
+     */</comment>
+    <function><type><specifier>public</specifier> <name>byte</name><index>[]</index></type> <name>write</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>write</name><argument_list>(<argument><expr><name>bean</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the bean to an array of bytes.
+     * 
+     * @param bean  the bean to output, not null
+     * @param rootType  true to output the root type
+     * @return the binary data, not null
+     */</comment>
+    <function><type><specifier>public</specifier> <name>byte</name><index>[]</index></type> <name>write</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>rootType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>baos</name> =<init> <expr>new <call><name>ByteArrayOutputStream</name><argument_list>(<argument><expr>1024</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>bean</name></expr></argument>, <argument><expr><name>rootType</name></expr></argument>, <argument><expr><name>baos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ex</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+        <return>return <expr><call><name><name>baos</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the bean to the {@code OutputStream}.
+     * &lt;p&gt;
+     * The type of the bean will be set in the message.
+     * 
+     * @param bean  the bean to output, not null
+     * @param output  the output stream, not null
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>bean</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Writes the bean to the {@code OutputStream}.
+     * 
+     * @param bean  the bean to output, not null
+     * @param rootType  true to output the root type
+     * @param output  the output stream, not null
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>rootType</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>bean</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"bean"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>output</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"output"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>output</name></name> = new <call><name>MsgPackOutput</name><argument_list>(<argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>writeRoot</name><argument_list>(<argument><expr><name>bean</name></expr></argument>, <argument><expr><name>rootType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeRoot</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>rootType</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr>2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>  <comment type="line">// version 1</comment>
+        <expr_stmt><expr><call><name>writeBean</name><argument_list>(<argument><expr><name>bean</name></expr></argument>, <argument><expr><call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>rootType</name> ? <name><name>RootType</name>.<name>ROOT_WITH_TYPE</name></name> : <name><name>RootType</name>.<name>ROOT_WITHOUT_TYPE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeBean</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Bean</name></type> <name>bean</name></decl></param>, <param><decl><type><specifier>final</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>declaredType</name></decl></param>, <param><decl><type><name>RootType</name></type> <name>rootTypeFlag</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr><call><name><name>bean</name>.<name>metaBean</name></name><argument_list>()</argument_list></call>.<call><name>metaPropertyCount</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name><name>MetaProperty</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name><index>[]</index></type> <name>props</name> =<init> <expr>new <name><name><name>MetaProperty</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name><index>[<expr><name>count</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>values</name> =<init> <expr>new <name><name>Object</name><index>[<expr><name>count</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>size</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name><name>MetaProperty</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>prop</name> :<range> <expr><call><name><name>bean</name>.<name>metaBean</name></name><argument_list>()</argument_list></call>.<call><name>metaPropertyIterable</name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><call><name><name>prop</name>.<name>style</name></name><argument_list>()</argument_list></call>.<call><name>isSerializable</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Object</name></type> <name>value</name> =<init> <expr><call><name><name>SerOptional</name>.<name>extractValue</name></name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><name>bean</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>value</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>props</name><index>[<expr><name>size</name></expr>]</index></name> = <name>prop</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>values</name><index>[<expr><name>size</name>++</expr>]</index></name> = <name>value</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></for>
+        <if>if <condition>(<expr><name>rootTypeFlag</name> == <name><name>RootType</name>.<name>ROOT_WITH_TYPE</name></name> || (<name>rootTypeFlag</name> == <name><name>RootType</name>.<name>NOT_ROOT</name></name> &amp;&amp; <call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call> != <name>declaredType</name>)</expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>typeStr</name> =<init> <expr><call><name><name>SerTypeMapper</name>.<name>encodeType</name></name><argument_list>(<argument><expr><call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>settings</name></expr></argument>, <argument><expr><name>basePackage</name></expr></argument>, <argument><expr><name>knownTypes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>rootTypeFlag</name> == <name><name>RootType</name>.<name>ROOT_WITH_TYPE</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>basePackage</name> = <call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getPackage</name><argument_list>()</argument_list></call>.<call><name>getName</name><argument_list>()</argument_list></call> + "."</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr><name>size</name> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeExtensionString</name></name><argument_list>(<argument><expr><name><name>MsgPack</name>.<name>JODA_TYPE_BEAN</name></name></expr></argument>, <argument><expr><name>typeStr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeNil</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name><name>MetaProperty</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>prop</name> =<init> <expr><name><name>props</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Object</name></type> <name>value</name> =<init> <expr><name><name>values</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeString</name></name><argument_list>(<argument><expr><call><name><name>prop</name>.<name>name</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>propType</name> =<init> <expr><call><name><name>SerOptional</name>.<name>extractType</name></name><argument_list>(<argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>value</name> <name>instanceof</name> <name>Bean</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>isConvertible</name><argument_list>(<argument><expr><call><name><name>value</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>writeSimple</name><argument_list>(<argument><expr><name>propType</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>writeBean</name><argument_list>(<argument><expr>(<name>Bean</name>) <name>value</name></expr></argument>, <argument><expr><name>propType</name></expr></argument>, <argument><expr><name><name>RootType</name>.<name>NOT_ROOT</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then> <else>else <block>{
+                <decl_stmt><decl><type><name>SerIterator</name></type> <name>itemIterator</name> =<init> <expr><call><name><name>settings</name>.<name>getIteratorFactory</name></name><argument_list>()</argument_list></call>.<call><name>create</name><argument_list>(<argument><expr><name>value</name></expr></argument>, <argument><expr><name>prop</name></expr></argument>, <argument><expr><call><name><name>bean</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>itemIterator</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>writeElements</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>writeSimple</name><argument_list>(<argument><expr><name>propType</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeElements</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>metaTypeRequired</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeExtensionString</name></name><argument_list>(<argument><expr><name><name>MsgPack</name>.<name>JODA_TYPE_META</name></name></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>metaTypeName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>category</name></name><argument_list>()</argument_list></call> == <name><name>SerCategory</name>.<name>MAP</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeMap</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>category</name></name><argument_list>()</argument_list></call> == <name><name>SerCategory</name>.<name>COUNTED</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeCounted</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>category</name></name><argument_list>()</argument_list></call> == <name><name>SerCategory</name>.<name>TABLE</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeTable</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>category</name></name><argument_list>()</argument_list></call> == <name><name>SerCategory</name>.<name>GRID</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeGrid</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>writeArray</name><argument_list>(<argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if></else></if></else></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeArray</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>itemIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>itemIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeMap</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>itemIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>itemIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr><call><name><name>itemIterator</name>.<name>key</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>key</name> == <name>null</name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Unable to write map key as it cannot be null: " + <name>key</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>keyType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>key</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeTable</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>itemIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>itemIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>keyType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>key</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>columnType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>column</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeGrid</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>rows</name> =<init> <expr><call><name><name>itemIterator</name>.<name>dimensionSize</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>columns</name> =<init> <expr><call><name><name>itemIterator</name>.<name>dimensionSize</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>totalSize</name> =<init> <expr><name>rows</name> * <name>columns</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call> &lt; (<name>totalSize</name> / 4)</expr>)</condition><then> <block>{
+            <comment type="line">// sparse</comment>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call> + 2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><name>rows</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><name>columns</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <while>while <condition>(<expr><call><name><name>itemIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name><name>itemIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>(<name>Integer</name>) <call><name><name>itemIterator</name>.<name>key</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>(<name>Integer</name>) <call><name><name>itemIterator</name>.<name>column</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+        }</block></then> <else>else <block>{
+            <comment type="line">// dense</comment>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeArrayHeader</name></name><argument_list>(<argument><expr><name>totalSize</name> + 2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><name>rows</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><name>columns</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>row</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>row</name> &lt; <name>rows</name></expr>;</condition> <incr><expr><name>row</name>++</expr></incr>) <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>columns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                    <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>(<argument><expr><name>row</name></expr></argument>, <argument><expr><name>column</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+            }</block></for>
+        }</block></else></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeCounted</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>SerIterator</name></type> <name>itemIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>itemIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>itemIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>writeObject</name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>valueType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>itemIterator</name>.<name>value</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>itemIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr><call><name><name>itemIterator</name>.<name>count</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>declaredType</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>Object</name></type> <name>obj</name></decl></param>, <param><decl><type><name>SerIterator</name></type> <name>parentIterator</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>obj</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeNil</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>isConvertible</name><argument_list>(<argument><expr><call><name><name>obj</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeSimple</name><argument_list>(<argument><expr><name>declaredType</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Bean</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>writeBean</name><argument_list>(<argument><expr>(<name>Bean</name>) <name>obj</name></expr></argument>, <argument><expr><name>declaredType</name></expr></argument>, <argument><expr><name><name>RootType</name>.<name>NOT_ROOT</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>parentIterator</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>SerIterator</name></type> <name>childIterator</name> =<init> <expr><call><name><name>settings</name>.<name>getIteratorFactory</name></name><argument_list>()</argument_list></call>.<call><name>createChild</name><argument_list>(<argument><expr><name>obj</name></expr></argument>, <argument><expr><name>parentIterator</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>childIterator</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>writeElements</name><argument_list>(<argument><expr><name>childIterator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>writeSimple</name><argument_list>(<argument><expr><name>declaredType</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>writeSimple</name><argument_list>(<argument><expr><name>declaredType</name></expr></argument>, <argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if></else></if></else></if></else></if>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeSimple</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>declaredType</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// simple types have no need to write a type object</comment>
+        <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>realType</name> =<init> <expr><call><name><name>value</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>realType</name> == <name><name>Integer</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>((<name>Integer</name>) <name>value</name>).<call><name>intValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>Double</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeDouble</name></name><argument_list>(<argument><expr>((<name>Double</name>) <name>value</name>).<call><name>doubleValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>Float</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeFloat</name></name><argument_list>(<argument><expr>((<name>Float</name>) <name>value</name>).<call><name>floatValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>Boolean</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeBoolean</name></name><argument_list>(<argument><expr>((<name>Boolean</name>) <name>value</name>).<call><name>booleanValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if></else></if></else></if></else></if>
+        
+        <comment type="line">// handle no declared type and subclasses</comment>
+        <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>effectiveType</name> =<init> <expr><name>declaredType</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>declaredType</name> == <name><name>Object</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>realType</name> != <name><name>String</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>effectiveType</name> = <call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>findTypedConverter</name><argument_list>(<argument><expr><name>realType</name></expr></argument>)</argument_list></call>.<call><name>getEffectiveType</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>typeStr</name> =<init> <expr><call><name><name>SerTypeMapper</name>.<name>encodeType</name></name><argument_list>(<argument><expr><name>effectiveType</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>, <argument><expr><name>basePackage</name></expr></argument>, <argument><expr><name>knownTypes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>output</name>.<name>writeExtensionString</name></name><argument_list>(<argument><expr><name><name>MsgPack</name>.<name>JODA_TYPE_DATA</name></name></expr></argument>, <argument><expr><name>typeStr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>effectiveType</name> = <name>realType</name></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>isConvertible</name><argument_list>(<argument><expr><name>declaredType</name></expr></argument>)</argument_list></call> == false</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>effectiveType</name> = <call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>findTypedConverter</name><argument_list>(<argument><expr><name>realType</name></expr></argument>)</argument_list></call>.<call><name>getEffectiveType</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>typeStr</name> =<init> <expr><call><name><name>SerTypeMapper</name>.<name>encodeType</name></name><argument_list>(<argument><expr><name>effectiveType</name></expr></argument>, <argument><expr><name>settings</name></expr></argument>, <argument><expr><name>basePackage</name></expr></argument>, <argument><expr><name>knownTypes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeMapHeader</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeExtensionString</name></name><argument_list>(<argument><expr><name><name>MsgPack</name>.<name>JODA_TYPE_DATA</name></name></expr></argument>, <argument><expr><name>typeStr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        
+        <comment type="line">// long/short/byte only processed now to ensure that a distinction can be made between Integer and Long</comment>
+        <if>if <condition>(<expr><name>realType</name> == <name><name>Long</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeLong</name></name><argument_list>(<argument><expr>((<name>Long</name>) <name>value</name>).<call><name>longValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>Short</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>((<name>Short</name>) <name>value</name>).<call><name>shortValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>Byte</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeInt</name></name><argument_list>(<argument><expr>((<name>Byte</name>) <name>value</name>).<call><name>byteValue</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>realType</name> == <name><name>byte</name><index>[]</index></name>.class</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeBytes</name></name><argument_list>(<argument><expr>(<name><name>byte</name><index>[]</index></name>) <name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if></else></if></else></if></else></if>
+        
+        <comment type="line">// write as a string</comment>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>converted</name> =<init> <expr><call><name><name>settings</name>.<name>getConverter</name></name><argument_list>()</argument_list></call>.<call><name>convertToString</name><argument_list>(<argument><expr><name>effectiveType</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>converted</name> == <name>null</name></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Unable to write because converter returned a null string: " + <name>value</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>output</name>.<name>writeString</name></name><argument_list>(<argument><expr><name>converted</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>ex</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Unable to convert type " + <call><name><name>effectiveType</name>.<name>getName</name></name><argument_list>()</argument_list></call> + " declared as " + <call><name><name>declaredType</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>ex</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <enum><specifier>static</specifier> enum <name>RootType</name> <block>{
+        <expr><name>ROOT_WITH_TYPE</name></expr>,
+        <expr><name>ROOT_WITHOUT_TYPE</name></expr>,
+        <expr><name>NOT_ROOT</name></expr>,
+    }</block></enum>
+
+}</block></class>
+</unit>

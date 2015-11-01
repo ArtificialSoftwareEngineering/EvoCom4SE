@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\reflect\MemberUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>reflect</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>AccessibleObject</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Member</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Modifier</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ArrayUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ClassUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>SystemUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Contains common code for working with Methods/Constructors, extracted and
+ * refactored from &lt;code&gt;MethodUtils&lt;/code&gt; when it was imported from Commons
+ * BeanUtils.
+ *
+ * @author Apache Software Foundation
+ * @author Steve Cohen
+ * @author Matt Benson
+ * @since 2.5
+ * @version $Id: MemberUtils.java 1057013 2011-01-09 20:04:16Z niallp $
+ */</comment>
+<class><specifier>abstract</specifier> class <name>MemberUtils</name> <block>{
+    <comment type="line">// TODO extract an interface to implement compareParameterSets(...)?</comment>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ACCESS_TEST</name> =<init> <expr><name><name>Modifier</name>.<name>PUBLIC</name></name> | <name><name>Modifier</name>.<name>PROTECTED</name></name> | <name><name>Modifier</name>.<name>PRIVATE</name></name></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Method</name></type> <name>IS_SYNTHETIC</name></decl>;</decl_stmt>
+    static <block>{
+        <decl_stmt><decl><type><name>Method</name></type> <name>isSynthetic</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>SystemUtils</name>.<name>isJavaVersionAtLeast</name></name><argument_list>(<argument><expr>1.5f</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// cannot call synthetic methods:</comment>
+            <try>try <block>{
+                <expr_stmt><expr><name>isSynthetic</name> = <name><name>Member</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"isSynthetic"</expr></argument>,
+                        <argument><expr><name><name>ArrayUtils</name>.<name>EMPTY_CLASS_ARRAY</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            }</block></catch></try>
+        }</block></then></if>
+        <expr_stmt><expr><name>IS_SYNTHETIC</name> = <name>isSynthetic</name></expr>;</expr_stmt>
+    }</block>
+
+    <comment type="javadoc">/** Array of primitive number types ordered by "promotability" */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Class</name><index>[]</index></type> <name>ORDERED_PRIMITIVE_TYPES</name> =<init> <expr><block>{ <expr><name><name>Byte</name>.<name>TYPE</name></name></expr>, <expr><name><name>Short</name>.<name>TYPE</name></name></expr>,
+            <expr><name><name>Character</name>.<name>TYPE</name></name></expr>, <expr><name><name>Integer</name>.<name>TYPE</name></name></expr>, <expr><name><name>Long</name>.<name>TYPE</name></name></expr>, <expr><name><name>Float</name>.<name>TYPE</name></name></expr>, <expr><name><name>Double</name>.<name>TYPE</name></name></expr> }</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * XXX Default access superclass workaround
+     *
+     * When a public class has a default access superclass with public members,
+     * these members are accessible. Calling them from compiled code works fine.
+     * Unfortunately, on some JVMs, using reflection to invoke these members
+     * seems to (wrongly) to prevent access even when the modifer is public.
+     * Calling setAccessible(true) solves the problem but will only work from
+     * sufficiently privileged code. Better workarounds would be gratefully
+     * accepted.
+     * @param o the AccessibleObject to set as accessible
+     */</comment>
+    <function><type><specifier>static</specifier> <name>void</name></type> <name>setAccessibleWorkaround</name><parameter_list>(<param><decl><type><name>AccessibleObject</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>o</name> == <name>null</name> || <call><name><name>o</name>.<name>isAccessible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Member</name></type> <name>m</name> =<init> <expr>(<name>Member</name>) <name>o</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>Modifier</name>.<name>isPublic</name></name><argument_list>(<argument><expr><call><name><name>m</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+                &amp;&amp; <call><name>isPackageAccess</name><argument_list>(<argument><expr><call><name><name>m</name>.<name>getDeclaringClass</name></name><argument_list>()</argument_list></call>.<call><name>getModifiers</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name><name>o</name>.<name>setAccessible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">// ignore in favor of subsequent IllegalAccessException</comment>
+            }</block></catch></try>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Learn whether a given set of modifiers implies package access.
+     * @param modifiers to test
+     * @return true unless package/protected/private modifier detected
+     */</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isPackageAccess</name><parameter_list>(<param><decl><type><name>int</name></type> <name>modifiers</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>modifiers</name> &amp; <name>ACCESS_TEST</name>) == 0</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Check a Member for basic accessibility.
+     * @param m Member to check
+     * @return true if &lt;code&gt;m&lt;/code&gt; is accessible
+     */</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isAccessible</name><parameter_list>(<param><decl><type><name>Member</name></type> <name>m</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name>m</name> != <name>null</name> &amp;&amp; <call><name><name>Modifier</name>.<name>isPublic</name></name><argument_list>(<argument><expr><call><name><name>m</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> &amp;&amp; !<call><name>isSynthetic</name><argument_list>(<argument><expr><name>m</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Try to learn whether a given member, on JDK &gt;= 1.5, is synthetic.
+     * @param m Member to check
+     * @return true if &lt;code&gt;m&lt;/code&gt; was introduced by the compiler.
+     */</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isSynthetic</name><parameter_list>(<param><decl><type><name>Member</name></type> <name>m</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>IS_SYNTHETIC</name> != <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <return>return <expr>((<name>Boolean</name>) <call><name><name>IS_SYNTHETIC</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>m</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call>).<call><name>booleanValue</name><argument_list>()</argument_list></call></expr>;</return>
+            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Compare the relative fitness of two sets of parameter types in terms of
+     * matching a third set of runtime parameter types, such that a list ordered
+     * by the results of the comparison would return the best match first
+     * (least).
+     *
+     * @param left the "left" parameter set
+     * @param right the "right" parameter set
+     * @param actual the runtime parameter types to match against
+     * &lt;code&gt;left&lt;/code&gt;/&lt;code&gt;right&lt;/code&gt;
+     * @return int consistent with &lt;code&gt;compare&lt;/code&gt; semantics
+     */</comment>
+    <function><type><specifier>static</specifier> <name>int</name></type> <name>compareParameterTypes</name><parameter_list>(<param><decl><type><name><name>Class</name><index>[]</index></name></type> <name>left</name></decl></param>, <param><decl><type><name><name>Class</name><index>[]</index></name></type> <name>right</name></decl></param>, <param><decl><type><name><name>Class</name><index>[]</index></name></type> <name>actual</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>float</name></type> <name>leftCost</name> =<init> <expr><call><name>getTotalTransformationCost</name><argument_list>(<argument><expr><name>actual</name></expr></argument>, <argument><expr><name>left</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>rightCost</name> =<init> <expr><call><name>getTotalTransformationCost</name><argument_list>(<argument><expr><name>actual</name></expr></argument>, <argument><expr><name>right</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>leftCost</name> &lt; <name>rightCost</name> ? -1 : <name>rightCost</name> &lt; <name>leftCost</name> ? 1 : 0</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the sum of the object transformation cost for each class in the
+     * source argument list.
+     * @param srcArgs The source arguments
+     * @param destArgs The destination arguments
+     * @return The total transformation cost
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>float</name></type> <name>getTotalTransformationCost</name><parameter_list>(<param><decl><type><name><name>Class</name><index>[]</index></name></type> <name>srcArgs</name></decl></param>, <param><decl><type><name><name>Class</name><index>[]</index></name></type> <name>destArgs</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>float</name></type> <name>totalCost</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>srcArgs</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>Class</name></type> <name>srcClass</name>, <name>destClass</name></decl>;</decl_stmt>
+            <expr_stmt><expr><name>srcClass</name> = <name><name>srcArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>destClass</name> = <name><name>destArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>totalCost</name> += <call><name>getObjectTransformationCost</name><argument_list>(<argument><expr><name>srcClass</name></expr></argument>, <argument><expr><name>destClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>totalCost</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the number of steps required needed to turn the source class into
+     * the destination class. This represents the number of steps in the object
+     * hierarchy graph.
+     * @param srcClass The source class
+     * @param destClass The destination class
+     * @return The cost of transforming an object
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>float</name></type> <name>getObjectTransformationCost</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>srcClass</name></decl></param>, <param><decl><type><name>Class</name></type> <name>destClass</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>destClass</name>.<name>isPrimitive</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>getPrimitivePromotionCost</name><argument_list>(<argument><expr><name>srcClass</name></expr></argument>, <argument><expr><name>destClass</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>float</name></type> <name>cost</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>srcClass</name> != <name>null</name> &amp;&amp; !<call><name><name>destClass</name>.<name>equals</name></name><argument_list>(<argument><expr><name>srcClass</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{
+            <if>if <condition>(<expr><call><name><name>destClass</name>.<name>isInterface</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>ClassUtils</name>.<name>isAssignable</name></name><argument_list>(<argument><expr><name>srcClass</name></expr></argument>, <argument><expr><name>destClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// slight penalty for interface match.</comment>
+                <comment type="line">// we still want an exact match to override an interface match,</comment>
+                <comment type="line">// but</comment>
+                <comment type="line">// an interface match should override anything where we have to</comment>
+                <comment type="line">// get a superclass.</comment>
+                <expr_stmt><expr><name>cost</name> += 0.25f</expr>;</expr_stmt>
+                <break>break;</break>
+            }</block></then></if>
+            <expr_stmt><expr><name>cost</name>++</expr>;</expr_stmt>
+            <expr_stmt><expr><name>srcClass</name> = <call><name><name>srcClass</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <comment type="block">/*
+         * If the destination class is null, we've travelled all the way up to
+         * an Object match. We'll penalize this by adding 1.5 to the cost.
+         */</comment>
+        <if>if <condition>(<expr><name>srcClass</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>cost</name> += 1.5f</expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>cost</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Get the number of steps required to promote a primitive number to another
+     * type.
+     * @param srcClass the (primitive) source class
+     * @param destClass the (primitive) destination class
+     * @return The cost of promoting the primitive
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>float</name></type> <name>getPrimitivePromotionCost</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>Class</name></type> <name>srcClass</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>Class</name></type> <name>destClass</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>float</name></type> <name>cost</name> =<init> <expr>0.0f</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><name>srcClass</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>cls</name>.<name>isPrimitive</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// slight unwrapping penalty</comment>
+            <expr_stmt><expr><name>cost</name> += 0.1f</expr>;</expr_stmt>
+            <expr_stmt><expr><name>cls</name> = <call><name><name>ClassUtils</name>.<name>wrapperToPrimitive</name></name><argument_list>(<argument><expr><name>cls</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>cls</name> != <name>destClass</name> &amp;&amp; <name>i</name> &lt; <name><name>ORDERED_PRIMITIVE_TYPES</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><name>cls</name> == <name><name>ORDERED_PRIMITIVE_TYPES</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>cost</name> += 0.1f</expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>i</name> &lt; <name><name>ORDERED_PRIMITIVE_TYPES</name>.<name>length</name></name> - 1</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>cls</name> = <name><name>ORDERED_PRIMITIVE_TYPES</name><index>[<expr><name>i</name> + 1</expr>]</index></name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>cost</name></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

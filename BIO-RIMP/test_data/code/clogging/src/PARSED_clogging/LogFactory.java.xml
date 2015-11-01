@@ -1,0 +1,1748 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clogging\src\main\java\org\apache\commons\logging\LogFactory.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>PrintStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>InvocationTargetException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URL</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URLConnection</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>AccessController</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>PrivilegedAction</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Enumeration</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Hashtable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Properties</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Factory for creating {@link Log} instances, with discovery and
+ * configuration features similar to that employed by standard Java APIs
+ * such as JAXP.
+ * &lt;p&gt;
+ * &lt;strong&gt;IMPLEMENTATION NOTE&lt;/strong&gt; - This implementation is heavily
+ * based on the SAXParserFactory and DocumentBuilderFactory implementations
+ * (corresponding to the JAXP pluggability APIs) found in Apache Xerces.
+ *
+ * @version $Id: LogFactory.java 1449064 2013-02-22 14:49:22Z tn $
+ */</comment>
+<class><specifier>public</specifier> <specifier>abstract</specifier> class <name>LogFactory</name> <block>{
+    <comment type="line">// Implementation note re AccessController usage</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// It is important to keep code invoked via an AccessController to small</comment>
+    <comment type="line">// auditable blocks. Such code must carefully evaluate all user input</comment>
+    <comment type="line">// (parameters, system properties, config file contents, etc). As an</comment>
+    <comment type="line">// example, a Log implementation should not write to its logfile</comment>
+    <comment type="line">// with an AccessController anywhere in the call stack, otherwise an</comment>
+    <comment type="line">// insecure application could configure the log implementation to write</comment>
+    <comment type="line">// to a protected file using the privileges granted to JCL rather than</comment>
+    <comment type="line">// to the calling application.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// Under no circumstance should a non-private method return data that is</comment>
+    <comment type="line">// retrieved via an AccessController. That would allow an insecure app</comment>
+    <comment type="line">// to invoke that method and obtain data that it is not permitted to have.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// Invoking user-supplied code with an AccessController set is not a major</comment>
+    <comment type="line">// issue (eg invoking the constructor of the class specified by</comment>
+    <comment type="line">// HASHTABLE_IMPLEMENTATION_PROPERTY). That class will be in a different</comment>
+    <comment type="line">// trust domain, and therefore must have permissions to do whatever it</comment>
+    <comment type="line">// is trying to do regardless of the permissions granted to JCL. There is</comment>
+    <comment type="line">// a slight issue in that untrusted code may point that environment var</comment>
+    <comment type="line">// to another trusted library, in which case the code runs if both that</comment>
+    <comment type="line">// lib and JCL have the necessary permissions even when the untrusted</comment>
+    <comment type="line">// caller does not. That's a pretty hard route to exploit though.</comment>
+
+    <comment type="line">// ----------------------------------------------------- Manifest Constants</comment>
+
+    <comment type="javadoc">/**
+     * The name (&lt;code&gt;priority&lt;/code&gt;) of the key in the config file used to
+     * specify the priority of that particular config file. The associated value
+     * is a floating-point number; higher values take priority over lower values.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>PRIORITY_KEY</name> =<init> <expr>"priority"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The name (&lt;code&gt;use_tccl&lt;/code&gt;) of the key in the config file used
+     * to specify whether logging classes should be loaded via the thread
+     * context class loader (TCCL), or not. By default, the TCCL is used.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>TCCL_KEY</name> =<init> <expr>"use_tccl"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The name (&lt;code&gt;org.apache.commons.logging.LogFactory&lt;/code&gt;) of the property
+     * used to identify the LogFactory implementation
+     * class name. This can be used as a system property, or as an entry in a
+     * configuration properties file.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>FACTORY_PROPERTY</name> =<init> <expr>"org.apache.commons.logging.LogFactory"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The fully qualified class name of the fallback &lt;code&gt;LogFactory&lt;/code&gt;
+     * implementation class to use, if no other can be found.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>FACTORY_DEFAULT</name> =<init> <expr>"org.apache.commons.logging.impl.LogFactoryImpl"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The name (&lt;code&gt;commons-logging.properties&lt;/code&gt;) of the properties file to search for.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>FACTORY_PROPERTIES</name> =<init> <expr>"commons-logging.properties"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * JDK1.3+ &lt;a href="http://java.sun.com/j2se/1.3/docs/guide/jar/jar.html#Service%20Provider"&gt;
+     * 'Service Provider' specification&lt;/a&gt;.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>SERVICE_ID</name> =<init>
+        <expr>"META-INF/services/org.apache.commons.logging.LogFactory"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The name (&lt;code&gt;org.apache.commons.logging.diagnostics.dest&lt;/code&gt;)
+     * of the property used to enable internal commons-logging
+     * diagnostic output, in order to get information on what logging
+     * implementations are being discovered, what classloaders they
+     * are loaded through, etc.
+     * &lt;p&gt;
+     * If a system property of this name is set then the value is
+     * assumed to be the name of a file. The special strings
+     * STDOUT or STDERR (case-sensitive) indicate output to
+     * System.out and System.err respectively.
+     * &lt;p&gt;
+     * Diagnostic logging should be used only to debug problematic
+     * configurations and should not be set in normal production use.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>DIAGNOSTICS_DEST_PROPERTY</name> =<init>
+        <expr>"org.apache.commons.logging.diagnostics.dest"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * When null (the usual case), no diagnostic output will be
+     * generated by LogFactory or LogFactoryImpl. When non-null,
+     * interesting events will be written to the specified object.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>PrintStream</name></type> <name>diagnosticsStream</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * A string that gets prefixed to every message output by the
+     * logDiagnostic method, so that users can clearly see which
+     * LogFactory class is generating the output.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>diagnosticPrefix</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Setting this system property
+     * (&lt;code&gt;org.apache.commons.logging.LogFactory.HashtableImpl&lt;/code&gt;)
+     * value allows the &lt;code&gt;Hashtable&lt;/code&gt; used to store
+     * classloaders to be substituted by an alternative implementation.
+     * &lt;p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; &lt;code&gt;LogFactory&lt;/code&gt; will print:
+     * &lt;code&gt;&lt;pre&gt;
+     * [ERROR] LogFactory: Load of custom hashtable failed&lt;/em&gt;
+     * &lt;/pre&gt;&lt;/code&gt;
+     * to system error and then continue using a standard Hashtable.
+     * &lt;p&gt;
+     * &lt;strong&gt;Usage:&lt;/strong&gt; Set this property when Java is invoked
+     * and &lt;code&gt;LogFactory&lt;/code&gt; will attempt to load a new instance
+     * of the given implementation class.
+     * For example, running the following ant scriplet:
+     * &lt;code&gt;&lt;pre&gt;
+     *  &amp;lt;java classname="${test.runner}" fork="yes" failonerror="${test.failonerror}"&amp;gt;
+     *     ...
+     *     &amp;lt;sysproperty
+     *        key="org.apache.commons.logging.LogFactory.HashtableImpl"
+     *        value="org.apache.commons.logging.AltHashtable"/&amp;gt;
+     *  &amp;lt;/java&amp;gt;
+     * &lt;/pre&gt;&lt;/code&gt;
+     * will mean that &lt;code&gt;LogFactory&lt;/code&gt; will load an instance of
+     * &lt;code&gt;org.apache.commons.logging.AltHashtable&lt;/code&gt;.
+     * &lt;p&gt;
+     * A typical use case is to allow a custom
+     * Hashtable implementation using weak references to be substituted.
+     * This will allow classloaders to be garbage collected without
+     * the need to release them (on 1.3+ JVMs only, of course ;).
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>HASHTABLE_IMPLEMENTATION_PROPERTY</name> =<init>
+        <expr>"org.apache.commons.logging.LogFactory.HashtableImpl"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Name used to load the weak hashtable implementation by names. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>WEAK_HASHTABLE_CLASSNAME</name> =<init>
+        <expr>"org.apache.commons.logging.impl.WeakHashtable"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * A reference to the classloader that loaded this class. This is the
+     * same as LogFactory.class.getClassLoader(). However computing this
+     * value isn't quite as simple as that, as we potentially need to use
+     * AccessControllers etc. It's more efficient to compute it once and
+     * cache it here.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>ClassLoader</name></type> <name>thisClassLoader</name></decl>;</decl_stmt>
+
+    <comment type="line">// ----------------------------------------------------------- Constructors</comment>
+
+    <comment type="javadoc">/**
+     * Protected constructor that is not available for public use.
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>LogFactory</name><parameter_list>()</parameter_list> <block>{
+    }</block></constructor>
+
+    <comment type="line">// --------------------------------------------------------- Public Methods</comment>
+
+    <comment type="javadoc">/**
+     * Return the configuration attribute with the specified name (if any),
+     * or &lt;code&gt;null&lt;/code&gt; if there is no such attribute.
+     *
+     * @param name Name of the attribute to return
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>Object</name></type> <name>getAttribute</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Return an array containing the names of all currently defined
+     * configuration attributes.  If there are no such attributes, a zero
+     * length array is returned.
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>String</name><index>[]</index></type> <name>getAttributeNames</name><parameter_list>()</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Convenience method to derive a name from the specified class and
+     * call &lt;code&gt;getInstance(String)&lt;/code&gt; with it.
+     *
+     * @param clazz Class for which a suitable Log name will be derived
+     * @throws LogConfigurationException if a suitable &lt;code&gt;Log&lt;/code&gt;
+     *  instance cannot be returned
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>Log</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Construct (if necessary) and return a &lt;code&gt;Log&lt;/code&gt; instance,
+     * using the factory's current set of configuration attributes.
+     * &lt;p&gt;
+     * &lt;strong&gt;NOTE&lt;/strong&gt; - Depending upon the implementation of
+     * the &lt;code&gt;LogFactory&lt;/code&gt; you are using, the &lt;code&gt;Log&lt;/code&gt;
+     * instance you are returned may or may not be local to the current
+     * application, and may or may not be returned again on a subsequent
+     * call with the same name argument.
+     *
+     * @param name Logical name of the &lt;code&gt;Log&lt;/code&gt; instance to be
+     *  returned (the meaning of this name is only known to the underlying
+     *  logging implementation that is being wrapped)
+     * @throws LogConfigurationException if a suitable &lt;code&gt;Log&lt;/code&gt;
+     *  instance cannot be returned
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>Log</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Release any internal references to previously created {@link Log}
+     * instances returned by this factory.  This is useful in environments
+     * like servlet containers, which implement application reloading by
+     * throwing away a ClassLoader.  Dangling references to objects in that
+     * class loader would prevent garbage collection.
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>release</name><parameter_list>()</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Remove any configuration attribute associated with the specified name.
+     * If there is no such attribute, no action is taken.
+     *
+     * @param name Name of the attribute to remove
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>removeAttribute</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+     * Set the configuration attribute with the specified name.  Calling
+     * this with a &lt;code&gt;null&lt;/code&gt; value is equivalent to calling
+     * &lt;code&gt;removeAttribute(name)&lt;/code&gt;.
+     *
+     * @param name Name of the attribute to set
+     * @param value Value of the attribute to set, or &lt;code&gt;null&lt;/code&gt;
+     *  to remove any setting for this attribute
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>void</name></type> <name>setAttribute</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="line">// ------------------------------------------------------- Static Variables</comment>
+
+    <comment type="javadoc">/**
+     * The previously constructed &lt;code&gt;LogFactory&lt;/code&gt; instances, keyed by
+     * the &lt;code&gt;ClassLoader&lt;/code&gt; with which it was created.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <name>Hashtable</name></type> <name>factories</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Previously constructed &lt;code&gt;LogFactory&lt;/code&gt; instance as in the
+     * &lt;code&gt;factories&lt;/code&gt; map, but for the case where
+     * &lt;code&gt;getClassLoader&lt;/code&gt; returns &lt;code&gt;null&lt;/code&gt;.
+     * This can happen when:
+     * &lt;ul&gt;
+     * &lt;li&gt;using JDK1.1 and the calling code is loaded via the system
+     *  classloader (very common)&lt;/li&gt;
+     * &lt;li&gt;using JDK1.2+ and the calling code is loaded via the boot
+     *  classloader (only likely for embedded systems work).&lt;/li&gt;
+     * &lt;/ul&gt;
+     * Note that &lt;code&gt;factories&lt;/code&gt; is a &lt;i&gt;Hashtable&lt;/i&gt; (not a HashMap),
+     * and hashtables don't allow null as a key.
+     * @deprecated since 1.1.2
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <specifier>static</specifier> <name>volatile</name> <name>LogFactory</name></type> <name>nullClassLoaderFactory</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Create the hashtable which will be used to store a map of
+     * (context-classloader -&gt; logfactory-object). Version 1.2+ of Java
+     * supports "weak references", allowing a custom Hashtable class
+     * to be used which uses only weak references to its keys. Using weak
+     * references can fix memory leaks on webapp unload in some cases (though
+     * not all). Version 1.1 of Java does not support weak references, so we
+     * must dynamically determine which we are using. And just for fun, this
+     * code also supports the ability for a system property to specify an
+     * arbitrary Hashtable implementation name.
+     * &lt;p&gt;
+     * Note that the correct way to ensure no memory leaks occur is to ensure
+     * that LogFactory.release(contextClassLoader) is called whenever a
+     * webapp is undeployed.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Hashtable</name></type> <name>createFactoryStore</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Hashtable</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>storeImplementationClass</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>storeImplementationClass</name> = <call><name>getSystemProperty</name><argument_list>(<argument><expr><name>HASHTABLE_IMPLEMENTATION_PROPERTY</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <comment type="line">// Permissions don't allow this to be accessed. Default to the "modern"</comment>
+            <comment type="line">// weak hashtable implementation if it is available.</comment>
+            <expr_stmt><expr><name>storeImplementationClass</name> = <name>null</name></expr>;</expr_stmt>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><name>storeImplementationClass</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>storeImplementationClass</name> = <name>WEAK_HASHTABLE_CLASSNAME</name></expr>;</expr_stmt>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>Class</name></type> <name>implementationClass</name> =<init> <expr><call><name><name>Class</name>.<name>forName</name></name><argument_list>(<argument><expr><name>storeImplementationClass</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>result</name> = (<name>Hashtable</name>) <call><name><name>implementationClass</name>.<name>newInstance</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>handleThrowable</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// may re-throw t</comment>
+
+            <comment type="line">// ignore</comment>
+            <if>if <condition>(<expr>!<call><name><name>WEAK_HASHTABLE_CLASSNAME</name>.<name>equals</name></name><argument_list>(<argument><expr><name>storeImplementationClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// if the user's trying to set up a custom implementation, give a clue</comment>
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <comment type="line">// use internal logging to issue the warning</comment>
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ERROR] LogFactory: Load of custom hashtable failed"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// we *really* want this output, even if diagnostics weren't</comment>
+                    <comment type="line">// explicitly enabled by the user.</comment>
+                    <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"[ERROR] LogFactory: Load of custom hashtable failed"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block></catch></try>
+        <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = new <call><name>Hashtable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// --------------------------------------------------------- Static Methods</comment>
+
+    <comment type="javadoc">/** Utility method to safely trim a string. */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>trim</name><parameter_list>(<param><decl><type><name>String</name></type> <name>src</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>src</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>src</name>.<name>trim</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Checks whether the supplied Throwable is one that needs to be
+     * re-thrown and ignores all others.
+     *
+     * The following errors are re-thrown:
+     * &lt;ul&gt;
+     *   &lt;li&gt;ThreadDeath&lt;/li&gt;
+     *   &lt;li&gt;VirtualMachineError&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param t the Throwable to check
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>void</name></type> <name>handleThrowable</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>t</name> <name>instanceof</name> <name>ThreadDeath</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>(<name>ThreadDeath</name>) <name>t</name></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>t</name> <name>instanceof</name> <name>VirtualMachineError</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>(<name>VirtualMachineError</name>) <name>t</name></expr>;</throw>
+        }</block></then></if>
+        <comment type="line">// All other instances of Throwable will be silently ignored</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Construct (if necessary) and return a &lt;code&gt;LogFactory&lt;/code&gt;
+     * instance, using the following ordered lookup procedure to determine
+     * the name of the implementation class to be loaded.
+     * &lt;p&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt;The &lt;code&gt;org.apache.commons.logging.LogFactory&lt;/code&gt; system
+     *     property.&lt;/li&gt;
+     * &lt;li&gt;The JDK 1.3 Service Discovery mechanism&lt;/li&gt;
+     * &lt;li&gt;Use the properties file &lt;code&gt;commons-logging.properties&lt;/code&gt;
+     *     file, if found in the class path of this class.  The configuration
+     *     file is in standard &lt;code&gt;java.util.Properties&lt;/code&gt; format and
+     *     contains the fully qualified name of the implementation class
+     *     with the key being the system property defined above.&lt;/li&gt;
+     * &lt;li&gt;Fall back to a default implementation class
+     *     (&lt;code&gt;org.apache.commons.logging.impl.LogFactoryImpl&lt;/code&gt;).&lt;/li&gt;
+     * &lt;/ul&gt;
+     * &lt;p&gt;
+     * &lt;em&gt;NOTE&lt;/em&gt; - If the properties file method of identifying the
+     * &lt;code&gt;LogFactory&lt;/code&gt; implementation class is utilized, all of the
+     * properties defined in this file will be set as configuration attributes
+     * on the corresponding &lt;code&gt;LogFactory&lt;/code&gt; instance.
+     * &lt;p&gt;
+     * &lt;em&gt;NOTE&lt;/em&gt; - In a multi-threaded environment it is possible
+     * that two different instances will be returned for the same
+     * classloader environment.
+     *
+     * @throws LogConfigurationException if the implementation class is not
+     *  available or cannot be instantiated.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>LogFactory</name></type> <name>getFactory</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <comment type="line">// Identify the class loader we will be using</comment>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>contextClassLoader</name> =<init> <expr><call><name>getContextClassLoaderInternal</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>contextClassLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// This is an odd enough situation to report about. This</comment>
+            <comment type="line">// output will be a nuisance on JDK1.1, as the system</comment>
+            <comment type="line">// classloader is null in that environment.</comment>
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Context classloader is null."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// Return any previously registered factory for this class loader</comment>
+        <decl_stmt><decl><type><name>LogFactory</name></type> <name>factory</name> =<init> <expr><call><name>getCachedFactory</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>factory</name> != <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>factory</name></expr>;</return>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(
+                    <argument><expr>"[LOOKUP] LogFactory implementation requested for the first time for context classloader " +
+                    <call><name>objectId</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>logHierarchy</name><argument_list>(<argument><expr>"[LOOKUP] "</expr></argument>, <argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Load properties file.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// If the properties file exists, then its contents are used as</comment>
+        <comment type="line">// "attributes" on the LogFactory implementation class. One particular</comment>
+        <comment type="line">// property may also control which LogFactory concrete subclass is</comment>
+        <comment type="line">// used, but only if other discovery mechanisms fail..</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// As the properties file (if it exists) will be used one way or</comment>
+        <comment type="line">// another in the end we may as well look for it first.</comment>
+
+        <decl_stmt><decl><type><name>Properties</name></type> <name>props</name> =<init> <expr><call><name>getConfigurationFile</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>, <argument><expr><name>FACTORY_PROPERTIES</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Determine whether we will be using the thread context class loader to</comment>
+        <comment type="line">// load logging classes or not by checking the loaded properties file (if any).</comment>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>baseClassLoader</name> =<init> <expr><name>contextClassLoader</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>props</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>useTCCLStr</name> =<init> <expr><call><name><name>props</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>TCCL_KEY</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>useTCCLStr</name> != <name>null</name></expr>)</condition><then> <block>{
+                <comment type="line">// The Boolean.valueOf(useTCCLStr).booleanValue() formulation</comment>
+                <comment type="line">// is required for Java 1.2 compatibility.</comment>
+                <if>if <condition>(<expr><call><name><name>Boolean</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>useTCCLStr</name></expr></argument>)</argument_list></call>.<call><name>booleanValue</name><argument_list>()</argument_list></call> == false</expr>)</condition><then> <block>{
+                    <comment type="line">// Don't use current context classloader when locating any</comment>
+                    <comment type="line">// LogFactory or Log classes, just use the class that loaded</comment>
+                    <comment type="line">// this abstract class. When this class is deployed in a shared</comment>
+                    <comment type="line">// classpath of a container, it means webapps cannot deploy their</comment>
+                    <comment type="line">// own logging implementations. It also means that it is up to the</comment>
+                    <comment type="line">// implementation whether to load library-specific config files</comment>
+                    <comment type="line">// from the TCCL or not.</comment>
+                    <expr_stmt><expr><name>baseClassLoader</name> = <name>thisClassLoader</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// Determine which concrete LogFactory subclass to use.</comment>
+        <comment type="line">// First, try a global system property</comment>
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Looking for system property [" + <name>FACTORY_PROPERTY</name> +
+                          "] to define the LogFactory subclass to use..."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>factoryClass</name> =<init> <expr><call><name>getSystemProperty</name><argument_list>(<argument><expr><name>FACTORY_PROPERTY</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>factoryClass</name> != <name>null</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Creating an instance of LogFactory class '" + <name>factoryClass</name> +
+                                  "' as specified by system property " + <name>FACTORY_PROPERTY</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name>factory</name> = <call><name>newFactory</name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>, <argument><expr><name>baseClassLoader</name></expr></argument>, <argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] No system property [" + <name>FACTORY_PROPERTY</name> + "] defined."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] A security exception occurred while trying to create an" +
+                              " instance of the custom factory class" + ": [" + <call><name>trim</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> +
+                              "]. Trying alternative implementations..."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <comment type="line">// ignore</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+            <comment type="line">// This is not consistent with the behaviour when a bad LogFactory class is</comment>
+            <comment type="line">// specified in a services file.</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// One possible exception that can occur here is a ClassCastException when</comment>
+            <comment type="line">// the specified class wasn't castable to this LogFactory type.</comment>
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] An exception occurred while trying to create an" +
+                              " instance of the custom factory class" + ": [" +
+                              <call><name>trim</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> +
+                              "] as specified by a system property."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <throw>throw <expr><name>e</name></expr>;</throw>
+        }</block></catch></try>
+
+        <comment type="line">// Second, try to find a service by using the JDK1.3 class</comment>
+        <comment type="line">// discovery mechanism, which involves putting a file with the name</comment>
+        <comment type="line">// of an interface class in the META-INF/services directory, where the</comment>
+        <comment type="line">// contents of the file is a single line specifying a concrete class</comment>
+        <comment type="line">// that implements the desired interface.</comment>
+
+        <if>if <condition>(<expr><name>factory</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Looking for a resource file of name [" + <name>SERVICE_ID</name> +
+                              "] to define the LogFactory subclass to use..."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <try>try <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>InputStream</name></type> <name>is</name> =<init> <expr><call><name>getResourceAsStream</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>, <argument><expr><name>SERVICE_ID</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <if>if<condition>( <expr><name>is</name> != <name>null</name></expr> )</condition><then> <block>{
+                    <comment type="line">// This code is needed by EBCDIC and other strange systems.</comment>
+                    <comment type="line">// It's a fix for bugs reported in xerces</comment>
+                    <decl_stmt><decl><type><name>BufferedReader</name></type> <name>rd</name></decl>;</decl_stmt>
+                    <try>try <block>{
+                        <expr_stmt><expr><name>rd</name> = new <call><name>BufferedReader</name><argument_list>(<argument><expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>is</name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block> <catch>catch (<param><decl><type><name><name>java</name>.<name>io</name>.<name>UnsupportedEncodingException</name></name></type> <name>e</name></decl></param>) <block>{
+                        <expr_stmt><expr><name>rd</name> = new <call><name>BufferedReader</name><argument_list>(<argument><expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></catch></try>
+
+                    <decl_stmt><decl><type><name>String</name></type> <name>factoryClassName</name> =<init> <expr><call><name><name>rd</name>.<name>readLine</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>rd</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                    <if>if <condition>(<expr><name>factoryClassName</name> != <name>null</name> &amp;&amp; ! "".<call><name>equals</name><argument_list>(<argument><expr><name>factoryClassName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP]  Creating an instance of LogFactory class " +
+                                          <name>factoryClassName</name> +
+                                          " as specified by file '" + <name>SERVICE_ID</name> +
+                                          "' which was present in the path of the context classloader."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <expr_stmt><expr><name>factory</name> = <call><name>newFactory</name><argument_list>(<argument><expr><name>factoryClassName</name></expr></argument>, <argument><expr><name>baseClassLoader</name></expr></argument>, <argument><expr><name>contextClassLoader</name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// is == null</comment>
+                    <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] No resource file with name '" + <name>SERVICE_ID</name> + "' found."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// note: if the specified LogFactory class wasn't compatible with LogFactory</comment>
+                <comment type="line">// for some reason, a ClassCastException will be caught here, and attempts will</comment>
+                <comment type="line">// continue to find a compatible class.</comment>
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(
+                        <argument><expr>"[LOOKUP] A security exception occurred while trying to create an" +
+                        " instance of the custom factory class" +
+                        ": [" + <call><name>trim</name><argument_list>(<argument><expr><call><name><name>ex</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> +
+                        "]. Trying alternative implementations..."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <comment type="line">// ignore</comment>
+            }</block></catch></try>
+        }</block></then></if>
+
+        <comment type="line">// Third try looking into the properties file read earlier (if found)</comment>
+
+        <if>if <condition>(<expr><name>factory</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>props</name> != <name>null</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(
+                        <argument><expr>"[LOOKUP] Looking in properties file for entry with key '" + <name>FACTORY_PROPERTY</name> +
+                        "' to define the LogFactory subclass to use..."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <decl_stmt><decl><type><name>String</name></type> <name>factoryClass</name> =<init> <expr><call><name><name>props</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>FACTORY_PROPERTY</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>factoryClass</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(
+                            <argument><expr>"[LOOKUP] Properties file specifies LogFactory subclass '" + <name>factoryClass</name> + "'"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>factory</name> = <call><name>newFactory</name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>, <argument><expr><name>baseClassLoader</name></expr></argument>, <argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    <comment type="line">// TODO: think about whether we need to handle exceptions from newFactory</comment>
+                }</block></then> <else>else <block>{
+                    <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Properties file has no entry specifying LogFactory subclass."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+            }</block></then> <else>else <block>{
+                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] No properties file available to determine" + " LogFactory subclass from.."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></then></if>
+
+        <comment type="line">// Fourth, try the fallback implementation class</comment>
+
+        <if>if <condition>(<expr><name>factory</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(
+                    <argument><expr>"[LOOKUP] Loading the default LogFactory implementation '" + <name>FACTORY_DEFAULT</name> +
+                    "' via the same classloader that loaded this LogFactory" +
+                    " class (ie not looking in the context classloader)."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// Note: unlike the above code which can try to load custom LogFactory</comment>
+            <comment type="line">// implementations via the TCCL, we don't try to load the default LogFactory</comment>
+            <comment type="line">// implementation via the context classloader because:</comment>
+            <comment type="line">// * that can cause problems (see comments in newFactory method)</comment>
+            <comment type="line">// * no-one should be customising the code of the default class</comment>
+            <comment type="line">// Yes, we do give up the ability for the child to ship a newer</comment>
+            <comment type="line">// version of the LogFactoryImpl class and have it used dynamically</comment>
+            <comment type="line">// by an old LogFactory class in the parent, but that isn't</comment>
+            <comment type="line">// necessarily a good idea anyway.</comment>
+            <expr_stmt><expr><name>factory</name> = <call><name>newFactory</name><argument_list>(<argument><expr><name>FACTORY_DEFAULT</name></expr></argument>, <argument><expr><name>thisClassLoader</name></expr></argument>, <argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>factory</name> != <name>null</name></expr>)</condition><then> <block>{
+            <comment type="javadoc">/**
+             * Always cache using context class loader.
+             */</comment>
+            <expr_stmt><expr><call><name>cacheFactory</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>, <argument><expr><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name>props</name> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Enumeration</name></type> <name>names</name> =<init> <expr><call><name><name>props</name>.<name>propertyNames</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <while>while <condition>(<expr><call><name><name>names</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                    <decl_stmt><decl><type><name>String</name></type> <name>name</name> =<init> <expr>(<name>String</name>) <call><name><name>names</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr><call><name><name>props</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>factory</name>.<name>setAttribute</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></while>
+            }</block></then></if>
+        }</block></then></if>
+
+        <return>return <expr><name>factory</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convenience method to return a named logger, without the application
+     * having to care about factories.
+     *
+     * @param clazz Class from which a log name will be derived
+     * @throws LogConfigurationException if a suitable &lt;code&gt;Log&lt;/code&gt;
+     *  instance cannot be returned
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Log</name></type> <name>getLog</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>getFactory</name><argument_list>()</argument_list></call>.<call><name>getInstance</name><argument_list>(<argument><expr><name>clazz</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Convenience method to return a named logger, without the application
+     * having to care about factories.
+     *
+     * @param name Logical name of the &lt;code&gt;Log&lt;/code&gt; instance to be
+     *  returned (the meaning of this name is only known to the underlying
+     *  logging implementation that is being wrapped)
+     * @throws LogConfigurationException if a suitable &lt;code&gt;Log&lt;/code&gt;
+     *  instance cannot be returned
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Log</name></type> <name>getLog</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>getFactory</name><argument_list>()</argument_list></call>.<call><name>getInstance</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Release any internal references to previously created {@link LogFactory}
+     * instances that have been associated with the specified class loader
+     * (if any), after calling the instance method &lt;code&gt;release()&lt;/code&gt; on
+     * each of them.
+     *
+     * @param classLoader ClassLoader for which to release the LogFactory
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>release</name><parameter_list>(<param><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Releasing factory for classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// factories is not final and could be replaced in this block.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Hashtable</name></type> <name>factories</name> =<init> <expr><name><name>LogFactory</name>.<name>factories</name></name></expr></init></decl>;</decl_stmt>
+        <synchronized>synchronized (<expr><name>factories</name></expr>) <block>{
+            <if>if <condition>(<expr><name>classLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>nullClassLoaderFactory</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>nullClassLoaderFactory</name>.<name>release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>nullClassLoaderFactory</name> = <name>null</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then> <else>else <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>LogFactory</name></type> <name>factory</name> =<init> <expr>(<name>LogFactory</name>) <call><name><name>factories</name>.<name>get</name></name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>factory</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>factory</name>.<name>release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>factories</name>.<name>remove</name></name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Release any internal references to previously created {@link LogFactory}
+     * instances, after calling the instance method &lt;code&gt;release()&lt;/code&gt; on
+     * each of them.  This is useful in environments like servlet containers,
+     * which implement application reloading by throwing away a ClassLoader.
+     * Dangling references to objects in that class loader would prevent
+     * garbage collection.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>releaseAll</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Releasing factory for all classloaders."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <comment type="line">// factories is not final and could be replaced in this block.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Hashtable</name></type> <name>factories</name> =<init> <expr><name><name>LogFactory</name>.<name>factories</name></name></expr></init></decl>;</decl_stmt>
+        <synchronized>synchronized (<expr><name>factories</name></expr>) <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Enumeration</name></type> <name>elements</name> =<init> <expr><call><name><name>factories</name>.<name>elements</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><call><name><name>elements</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <decl_stmt><decl><type><name>LogFactory</name></type> <name>element</name> =<init> <expr>(<name>LogFactory</name>) <call><name><name>elements</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>element</name>.<name>release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <expr_stmt><expr><call><name><name>factories</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name>nullClassLoaderFactory</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>nullClassLoaderFactory</name>.<name>release</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>nullClassLoaderFactory</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="line">// ------------------------------------------------------ Protected Methods</comment>
+
+    <comment type="javadoc">/**
+     * Safely get access to the classloader for the specified class.
+     * &lt;p&gt;
+     * Theoretically, calling getClassLoader can throw a security exception,
+     * and so should be done under an AccessController in order to provide
+     * maximum flexibility. However in practice people don't appear to use
+     * security policies that forbid getClassLoader calls. So for the moment
+     * all code is written to call this method rather than Class.getClassLoader,
+     * so that we could put AccessController stuff in this method without any
+     * disruption later if we need to.
+     * &lt;p&gt;
+     * Even when using an AccessController, however, this method can still
+     * throw SecurityException. Commons-logging basically relies on the
+     * ability to access classloaders, ie a policy that forbids all
+     * classloader access will also prevent commons-logging from working:
+     * currently this method will throw an exception preventing the entire app
+     * from starting up. Maybe it would be good to detect this situation and
+     * just disable all commons-logging? Not high priority though - as stated
+     * above, security policies that prevent classloader access aren't common.
+     * &lt;p&gt;
+     * Note that returning an object fetched via an AccessController would
+     * technically be a security flaw anyway; untrusted code that has access
+     * to a trusted JCL library could use it to fetch the classloader for
+     * a class even when forbidden to do so directly.
+     *
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>ClassLoader</name></type> <name>getClassLoader</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+        <try>try <block>{
+            <return>return <expr><call><name><name>clazz</name>.<name>getClassLoader</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to get classloader for class '" + <name>clazz</name> +
+                              "' due to security restrictions - " + <call><name><name>ex</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <throw>throw <expr><name>ex</name></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the current context classloader.
+     * &lt;p&gt;
+     * In versions prior to 1.1, this method did not use an AccessController.
+     * In version 1.1, an AccessController wrapper was incorrectly added to
+     * this method, causing a minor security flaw.
+     * &lt;p&gt;
+     * In version 1.1.1 this change was reverted; this method no longer uses
+     * an AccessController. User code wishing to obtain the context classloader
+     * must invoke this method via AccessController.doPrivileged if it needs
+     * support for that.
+     *
+     * @return the context classloader associated with the current thread,
+     *  or null if security doesn't allow it.
+     * @throws LogConfigurationException if there was some weird error while
+     *  attempting to get the context classloader.
+     * @throws SecurityException if the current java security policy doesn't
+     *  allow this class to access the context classloader.
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>ClassLoader</name></type> <name>getContextClassLoader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>directGetContextClassLoader</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Calls LogFactory.directGetContextClassLoader under the control of an
+     * AccessController class. This means that java code running under a
+     * security manager that forbids access to ClassLoaders will still work
+     * if this class is given appropriate privileges, even when the caller
+     * doesn't have such privileges. Without using an AccessController, the
+     * the entire call stack must have the privilege before the call is
+     * allowed.
+     *
+     * @return the context classloader associated with the current thread,
+     *  or null if security doesn't allow it.
+     * @throws LogConfigurationException if there was some weird error while
+     *  attempting to get the context classloader.
+     * @throws SecurityException if the current java security policy doesn't
+     *  allow this class to access the context classloader.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>ClassLoader</name></type> <name>getContextClassLoaderInternal</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <return>return <expr>(<name>ClassLoader</name>)<call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+            <argument><expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <return>return <expr><call><name>directGetContextClassLoader</name><argument_list>()</argument_list></call></expr>;</return>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the thread context class loader if available; otherwise return null.
+     * &lt;p&gt;
+     * Most/all code should call getContextClassLoaderInternal rather than
+     * calling this method directly.
+     * &lt;p&gt;
+     * The thread context class loader is available for JDK 1.2
+     * or later, if certain security conditions are met.
+     * &lt;p&gt;
+     * Note that no internal logging is done within this method because
+     * this method is called every time LogFactory.getLogger() is called,
+     * and we don't want too much output generated here.
+     *
+     * @throws LogConfigurationException if a suitable class loader
+     *  cannot be identified.
+     * @throws SecurityException if the java security policy forbids
+     *  access to the context classloader from one of the classes in the
+     *  current call stack.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>ClassLoader</name></type> <name>directGetContextClassLoader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>classLoader</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <comment type="line">// Are we running on a JDK 1.2 or later system?</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Method</name></type> <name>method</name> =<init> <expr><name><name>Thread</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"getContextClassLoader"</expr></argument>, <argument><expr>(<name><name>Class</name><index>[]</index></name>) <name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// Get the thread context class loader (if there is one)</comment>
+            <try>try <block>{
+                <expr_stmt><expr><name>classLoader</name> = (<name>ClassLoader</name>)<call><name><name>method</name>.<name>invoke</name></name><argument_list>(<argument><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>(<name><name>Object</name><index>[]</index></name>) <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>e</name></decl></param>) <block>{
+                <throw>throw <expr>new <call><name>LogConfigurationException</name>
+                    <argument_list>(<argument><expr>"Unexpected IllegalAccessException"</expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></catch> <catch>catch (<param><decl><type><name>InvocationTargetException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="javadoc">/**
+                 * InvocationTargetException is thrown by 'invoke' when
+                 * the method being invoked (getContextClassLoader) throws
+                 * an exception.
+                 *
+                 * getContextClassLoader() throws SecurityException when
+                 * the context class loader isn't an ancestor of the
+                 * calling class's class loader, or if security
+                 * permissions are restricted.
+                 *
+                 * In the first case (not related), we want to ignore and
+                 * keep going.  We cannot help but also ignore the second
+                 * with the logic below, but other calls elsewhere (to
+                 * obtain a class loader) will trigger this exception where
+                 * we can make a distinction.
+                 */</comment>
+                <if>if <condition>(<expr><call><name><name>e</name>.<name>getTargetException</name></name><argument_list>()</argument_list></call> <name>instanceof</name> <name>SecurityException</name></expr>)</condition><then> <block>{
+                    <comment type="line">// ignore</comment>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// Capture 'e.getTargetException()' exception for details</comment>
+                    <comment type="line">// alternate: log 'e.getTargetException()', and pass back 'e'.</comment>
+                    <throw>throw <expr>new <call><name>LogConfigurationException</name><argument_list>(<argument><expr>"Unexpected InvocationTargetException"</expr></argument>, <argument><expr><call><name><name>e</name>.<name>getTargetException</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></else></if>
+            }</block></catch></try>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>e</name></decl></param>) <block>{
+            <comment type="line">// Assume we are running on JDK 1.1</comment>
+            <expr_stmt><expr><name>classLoader</name> = <call><name>getClassLoader</name><argument_list>(<argument><expr><name><name>LogFactory</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// We deliberately don't log a message here to outputStream;</comment>
+            <comment type="line">// this message would be output for every call to LogFactory.getLog()</comment>
+            <comment type="line">// when running on JDK1.1</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// if (outputStream != null) {</comment>
+            <comment type="line">//    outputStream.println(</comment>
+            <comment type="line">//        "Method Thread.getContextClassLoader does not exist;"</comment>
+            <comment type="line">//         + " assuming this is JDK 1.1, and that the context"</comment>
+            <comment type="line">//         + " classloader is the same as the class that loaded"</comment>
+            <comment type="line">//         + " the concrete LogFactory class.");</comment>
+            <comment type="line">// }</comment>
+        }</block></catch></try>
+
+        <comment type="line">// Return the selected class loader</comment>
+        <return>return <expr><name>classLoader</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Check cached factories (keyed by contextClassLoader)
+     *
+     * @param contextClassLoader is the context classloader associated
+     * with the current thread. This allows separate LogFactory objects
+     * per component within a container, provided each component has
+     * a distinct context classloader set. This parameter may be null
+     * in JDK1.1, and in embedded systems where jcl-using code is
+     * placed in the bootclasspath.
+     *
+     * @return the factory associated with the specified classloader if
+     *  one has previously been created, or null if this is the first time
+     *  we have seen this particular classloader.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>LogFactory</name></type> <name>getCachedFactory</name><parameter_list>(<param><decl><type><name>ClassLoader</name></type> <name>contextClassLoader</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>contextClassLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// We have to handle this specially, as factories is a Hashtable</comment>
+            <comment type="line">// and those don't accept null as a key value.</comment>
+            <comment type="line">//</comment>
+            <comment type="line">// nb: nullClassLoaderFactory might be null. That's ok.</comment>
+            <return>return <expr><name>nullClassLoaderFactory</name></expr>;</return>
+        }</block></then> <else>else <block>{
+            <return>return <expr>(<name>LogFactory</name>) <call><name><name>factories</name>.<name>get</name></name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Remember this factory, so later calls to LogFactory.getCachedFactory
+     * can return the previously created object (together with all its
+     * cached Log objects).
+     *
+     * @param classLoader should be the current context classloader. Note that
+     *  this can be null under some circumstances; this is ok.
+     * @param factory should be the factory to cache. This should never be null.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>cacheFactory</name><parameter_list>(<param><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl></param>, <param><decl><type><name>LogFactory</name></type> <name>factory</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Ideally we would assert(factory != null) here. However reporting</comment>
+        <comment type="line">// errors from within a logging implementation is a little tricky!</comment>
+
+        <if>if <condition>(<expr><name>factory</name> != <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>classLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>nullClassLoaderFactory</name> = <name>factory</name></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>factories</name>.<name>put</name></name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>, <argument><expr><name>factory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return a new instance of the specified &lt;code&gt;LogFactory&lt;/code&gt;
+     * implementation class, loaded by the specified class loader.
+     * If that fails, try the class loader used to load this
+     * (abstract) LogFactory.
+     * &lt;p&gt;
+     * &lt;h2&gt;ClassLoader conflicts&lt;/h2&gt;
+     * Note that there can be problems if the specified ClassLoader is not the
+     * same as the classloader that loaded this class, ie when loading a
+     * concrete LogFactory subclass via a context classloader.
+     * &lt;p&gt;
+     * The problem is the same one that can occur when loading a concrete Log
+     * subclass via a context classloader.
+     * &lt;p&gt;
+     * The problem occurs when code running in the context classloader calls
+     * class X which was loaded via a parent classloader, and class X then calls
+     * LogFactory.getFactory (either directly or via LogFactory.getLog). Because
+     * class X was loaded via the parent, it binds to LogFactory loaded via
+     * the parent. When the code in this method finds some LogFactoryYYYY
+     * class in the child (context) classloader, and there also happens to be a
+     * LogFactory class defined in the child classloader, then LogFactoryYYYY
+     * will be bound to LogFactory@childloader. It cannot be cast to
+     * LogFactory@parentloader, ie this method cannot return the object as
+     * the desired type. Note that it doesn't matter if the LogFactory class
+     * in the child classloader is identical to the LogFactory class in the
+     * parent classloader, they are not compatible.
+     * &lt;p&gt;
+     * The solution taken here is to simply print out an error message when
+     * this occurs then throw an exception. The deployer of the application
+     * must ensure they remove all occurrences of the LogFactory class from
+     * the child classloader in order to resolve the issue. Note that they
+     * do not have to move the custom LogFactory subclass; that is ok as
+     * long as the only LogFactory class it can find to bind to is in the
+     * parent classloader.
+     *
+     * @param factoryClass Fully qualified name of the &lt;code&gt;LogFactory&lt;/code&gt;
+     *  implementation class
+     * @param classLoader ClassLoader from which to load this class
+     * @param contextClassLoader is the context that this new factory will
+     *  manage logging for.
+     * @throws LogConfigurationException if a suitable instance
+     *  cannot be created
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>LogFactory</name></type> <name>newFactory</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>String</name></type> <name>factoryClass</name></decl></param>,
+                                           <param><decl><type><specifier>final</specifier> <name>ClassLoader</name></type> <name>classLoader</name></decl></param>,
+                                           <param><decl><type><specifier>final</specifier> <name>ClassLoader</name></type> <name>contextClassLoader</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>LogConfigurationException</name></expr></argument></throws> <block>{
+        <comment type="line">// Note that any unchecked exceptions thrown by the createFactory</comment>
+        <comment type="line">// method will propagate out of this method; in particular a</comment>
+        <comment type="line">// ClassCastException can be thrown.</comment>
+        <decl_stmt><decl><type><name>Object</name></type> <name>result</name> =<init> <expr><call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+            <argument><expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <return>return <expr><call><name>createFactory</name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>, <argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr>;</return>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>result</name> <name>instanceof</name> <name>LogConfigurationException</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>LogConfigurationException</name></type> <name>ex</name> =<init> <expr>(<name>LogConfigurationException</name>) <name>result</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"An error occurred while loading the factory class:" + <call><name><name>ex</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <throw>throw <expr><name>ex</name></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Created object " + <call><name>objectId</name><argument_list>(<argument><expr><name>result</name></expr></argument>)</argument_list></call> + " to manage classloader " +
+                          <call><name>objectId</name><argument_list>(<argument><expr><name>contextClassLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr>(<name>LogFactory</name>)<name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Method provided for backwards compatibility; see newFactory version that
+     * takes 3 parameters.
+     * &lt;p&gt;
+     * This method would only ever be called in some rather odd situation.
+     * Note that this method is static, so overriding in a subclass doesn't
+     * have any effect unless this method is called from a method in that
+     * subclass. However this method only makes sense to use from the
+     * getFactory method, and as that is almost always invoked via
+     * LogFactory.getFactory, any custom definition in a subclass would be
+     * pointless. Only a class with a custom getFactory method, then invoked
+     * directly via CustomFactoryImpl.getFactory or similar would ever call
+     * this. Anyway, it's here just in case, though the "managed class loader"
+     * value output to the diagnostics will not report the correct value.
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>LogFactory</name></type> <name>newFactory</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>String</name></type> <name>factoryClass</name></decl></param>,
+                                           <param><decl><type><specifier>final</specifier> <name>ClassLoader</name></type> <name>classLoader</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>newFactory</name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>, <argument><expr><name>classLoader</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Implements the operations described in the javadoc for newFactory.
+     *
+     * @param factoryClass
+     * @param classLoader used to load the specified factory class. This is
+     *  expected to be either the TCCL or the classloader which loaded this
+     *  class. Note that the classloader which loaded this class might be
+     *  "null" (ie the bootloader) for embedded systems.
+     * @return either a LogFactory object or a LogConfigurationException object.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>Object</name></type> <name>createFactory</name><parameter_list>(<param><decl><type><name>String</name></type> <name>factoryClass</name></decl></param>, <param><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// This will be used to diagnose bad configurations</comment>
+        <comment type="line">// and allow a useful message to be sent to the user</comment>
+        <decl_stmt><decl><type><name>Class</name></type> <name>logFactoryClass</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <if>if <condition>(<expr><name>classLoader</name> != <name>null</name></expr>)</condition><then> <block>{
+                <try>try <block>{
+                    <comment type="line">// First the given class loader param (thread class loader)</comment>
+
+                    <comment type="line">// Warning: must typecast here &amp; allow exception</comment>
+                    <comment type="line">// to be generated/caught &amp; recast properly.</comment>
+                    <expr_stmt><expr><name>logFactoryClass</name> = <call><name><name>classLoader</name>.<name>loadClass</name></name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name><name>LogFactory</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><name>logFactoryClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Loaded class " + <call><name><name>logFactoryClass</name>.<name>getName</name></name><argument_list>()</argument_list></call> +
+                                          " from classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></then> <else>else <block>{
+                        <comment type="line">//</comment>
+                        <comment type="line">// This indicates a problem with the ClassLoader tree.</comment>
+                        <comment type="line">// An incompatible ClassLoader was used to load the</comment>
+                        <comment type="line">// implementation.</comment>
+                        <comment type="line">// As the same classes</comment>
+                        <comment type="line">// must be available in multiple class loaders,</comment>
+                        <comment type="line">// it is very likely that multiple JCL jars are present.</comment>
+                        <comment type="line">// The most likely fix for this</comment>
+                        <comment type="line">// problem is to remove the extra JCL jars from the</comment>
+                        <comment type="line">// ClassLoader hierarchy.</comment>
+                        <comment type="line">//</comment>
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Factory class " + <call><name><name>logFactoryClass</name>.<name>getName</name></name><argument_list>()</argument_list></call> +
+                                          " loaded from classloader " + <call><name>objectId</name><argument_list>(<argument><expr><call><name><name>logFactoryClass</name>.<name>getClassLoader</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> +
+                                          " does not extend '" + <name><name>LogFactory</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call> +
+                                          "' as loaded by this classloader."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>logHierarchy</name><argument_list>(<argument><expr>"[BAD CL TREE] "</expr></argument>, <argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></else></if>
+
+                    <return>return <expr>(<name>LogFactory</name>) <call><name><name>logFactoryClass</name>.<name>newInstance</name></name><argument_list>()</argument_list></call></expr>;</return>
+
+                }</block> <catch>catch (<param><decl><type><name>ClassNotFoundException</name></type> <name>ex</name></decl></param>) <block>{
+                    <if>if <condition>(<expr><name>classLoader</name> == <name>thisClassLoader</name></expr>)</condition><then> <block>{
+                        <comment type="line">// Nothing more to try, onwards.</comment>
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to locate any class called '" + <name>factoryClass</name> +
+                                          "' via classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <throw>throw <expr><name>ex</name></expr>;</throw>
+                    }</block></then></if>
+                    <comment type="line">// ignore exception, continue</comment>
+                }</block></catch> <catch>catch (<param><decl><type><name>NoClassDefFoundError</name></type> <name>e</name></decl></param>) <block>{
+                    <if>if <condition>(<expr><name>classLoader</name> == <name>thisClassLoader</name></expr>)</condition><then> <block>{
+                        <comment type="line">// Nothing more to try, onwards.</comment>
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Class '" + <name>factoryClass</name> + "' cannot be loaded" +
+                                          " via classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call> +
+                                          " - it depends on some other class that cannot be found."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <throw>throw <expr><name>e</name></expr>;</throw>
+                    }</block></then></if>
+                    <comment type="line">// ignore exception, continue</comment>
+                }</block></catch> <catch>catch (<param><decl><type><name>ClassCastException</name></type> <name>e</name></decl></param>) <block>{
+                    <if>if <condition>(<expr><name>classLoader</name> == <name>thisClassLoader</name></expr>)</condition><then> <block>{
+                        <comment type="line">// There's no point in falling through to the code below that</comment>
+                        <comment type="line">// tries again with thisClassLoader, because we've just tried</comment>
+                        <comment type="line">// loading with that loader (not the TCCL). Just throw an</comment>
+                        <comment type="line">// appropriate exception here.</comment>
+
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>implementsLogFactory</name> =<init> <expr><call><name>implementsLogFactory</name><argument_list>(<argument><expr><name>logFactoryClass</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                        <comment type="line">//</comment>
+                        <comment type="line">// Construct a good message: users may not actual expect that a custom implementation</comment>
+                        <comment type="line">// has been specified. Several well known containers use this mechanism to adapt JCL</comment>
+                        <comment type="line">// to their native logging system.</comment>
+                        <comment type="line">//</comment>
+                        <decl_stmt><decl><type><specifier>final</specifier> <name>StringBuffer</name></type> <name>msg</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"The application has specified that a custom LogFactory implementation "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"should be used but Class '"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"' cannot be converted to '"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>LogFactory</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"'. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>implementsLogFactory</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"The conflict is caused by the presence of multiple LogFactory classes "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"in incompatible classloaders. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"Background can be found in http://commons.apache.org/logging/tech.html. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"If you have not explicitly specified a custom LogFactory then it is likely "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"that the container has set one without your knowledge. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"In this case, consider using the commons-logging-adapters.jar file or "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"specifying the standard LogFactory from the command line. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"Please check the custom implementation. "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                        <expr_stmt><expr><call><name><name>msg</name>.<name>append</name></name><argument_list>(<argument><expr>"Help can be found @http://commons.apache.org/logging/troubleshooting.html."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr><call><name><name>msg</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+
+                        <throw>throw <expr>new <call><name>ClassCastException</name><argument_list>(<argument><expr><call><name><name>msg</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+                    }</block></then></if>
+
+                    <comment type="line">// Ignore exception, continue. Presumably the classloader was the</comment>
+                    <comment type="line">// TCCL; the code below will try to load the class via thisClassLoader.</comment>
+                    <comment type="line">// This will handle the case where the original calling class is in</comment>
+                    <comment type="line">// a shared classpath but the TCCL has a copy of LogFactory and the</comment>
+                    <comment type="line">// specified LogFactory implementation; we will fall back to using the</comment>
+                    <comment type="line">// LogFactory implementation from the same classloader as this class.</comment>
+                    <comment type="line">//</comment>
+                    <comment type="line">// Issue: this doesn't handle the reverse case, where this LogFactory</comment>
+                    <comment type="line">// is in the webapp, and the specified LogFactory implementation is</comment>
+                    <comment type="line">// in a shared classpath. In that case:</comment>
+                    <comment type="line">// (a) the class really does implement LogFactory (bad log msg above)</comment>
+                    <comment type="line">// (b) the fallback code will result in exactly the same problem.</comment>
+                }</block></catch></try>
+            }</block></then></if>
+
+            <comment type="block">/* At this point, either classLoader == null, OR
+             * classLoader was unable to load factoryClass.
+             *
+             * In either case, we call Class.forName, which is equivalent
+             * to LogFactory.class.getClassLoader().load(name), ie we ignore
+             * the classloader parameter the caller passed, and fall back
+             * to trying the classloader associated with this class. See the
+             * javadoc for the newFactory method for more info on the
+             * consequences of this.
+             *
+             * Notes:
+             * * LogFactory.class.getClassLoader() may return 'null'
+             *   if LogFactory is loaded by the bootstrap classloader.
+             */</comment>
+            <comment type="line">// Warning: must typecast here &amp; allow exception</comment>
+            <comment type="line">// to be generated/caught &amp; recast properly.</comment>
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to load factory class via classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call> +
+                              " - trying the classloader associated with this LogFactory."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name>logFactoryClass</name> = <call><name><name>Class</name>.<name>forName</name></name><argument_list>(<argument><expr><name>factoryClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr>(<name>LogFactory</name>) <call><name><name>logFactoryClass</name>.<name>newInstance</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <comment type="line">// Check to see if we've got a bad configuration</comment>
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to create LogFactory instance."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>logFactoryClass</name> != <name>null</name> &amp;&amp; !<name><name>LogFactory</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><name>logFactoryClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>new <call><name>LogConfigurationException</name><argument_list>(
+                    <argument><expr>"The chosen LogFactory implementation does not extend LogFactory." +
+                    " Please check your configuration."</expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+            <return>return <expr>new <call><name>LogConfigurationException</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Determines whether the given class actually implements &lt;code&gt;LogFactory&lt;/code&gt;.
+     * Diagnostic information is also logged.
+     * &lt;p&gt;
+     * &lt;strong&gt;Usage:&lt;/strong&gt; to diagnose whether a classloader conflict is the cause
+     * of incompatibility. The test used is whether the class is assignable from
+     * the &lt;code&gt;LogFactory&lt;/code&gt; class loaded by the class's classloader.
+     * @param logFactoryClass &lt;code&gt;Class&lt;/code&gt; which may implement &lt;code&gt;LogFactory&lt;/code&gt;
+     * @return true if the &lt;code&gt;logFactoryClass&lt;/code&gt; does extend
+     * &lt;code&gt;LogFactory&lt;/code&gt; when that class is loaded via the same
+     * classloader that loaded the &lt;code&gt;logFactoryClass&lt;/code&gt;.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>implementsLogFactory</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>logFactoryClass</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>implementsLogFactory</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>logFactoryClass</name> != <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <decl_stmt><decl><type><name>ClassLoader</name></type> <name>logFactoryClassLoader</name> =<init> <expr><call><name><name>logFactoryClass</name>.<name>getClassLoader</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>logFactoryClassLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] was loaded by the boot classloader"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>logHierarchy</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] "</expr></argument>, <argument><expr><name>logFactoryClassLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><name>Class</name></type> <name>factoryFromCustomLoader</name>
+                        =<init> <expr><call><name><name>Class</name>.<name>forName</name></name><argument_list>(<argument><expr>"org.apache.commons.logging.LogFactory"</expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>logFactoryClassLoader</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><name>implementsLogFactory</name> = <call><name><name>factoryFromCustomLoader</name>.<name>isAssignableFrom</name></name><argument_list>(<argument><expr><name>logFactoryClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>implementsLogFactory</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] " + <call><name><name>logFactoryClass</name>.<name>getName</name></name><argument_list>()</argument_list></call> +
+                                      " implements LogFactory but was loaded by an incompatible classloader."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] " + <call><name><name>logFactoryClass</name>.<name>getName</name></name><argument_list>()</argument_list></call> +
+                                      " does not implement LogFactory."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></else></if>
+            }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">//</comment>
+                <comment type="line">// The application is running within a hostile security environment.</comment>
+                <comment type="line">// This will make it very hard to diagnose issues with JCL.</comment>
+                <comment type="line">// Consider running less securely whilst debugging this issue.</comment>
+                <comment type="line">//</comment>
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] SecurityException thrown whilst trying to determine whether " +
+                              "the compatibility was caused by a classloader conflict: " + <call><name><name>e</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch> <catch>catch (<param><decl><type><name>LinkageError</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">//</comment>
+                <comment type="line">// This should be an unusual circumstance.</comment>
+                <comment type="line">// LinkageError's usually indicate that a dependent class has incompatibly changed.</comment>
+                <comment type="line">// Another possibility may be an exception thrown by an initializer.</comment>
+                <comment type="line">// Time for a clean rebuild?</comment>
+                <comment type="line">//</comment>
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] LinkageError thrown whilst trying to determine whether " +
+                              "the compatibility was caused by a classloader conflict: " + <call><name><name>e</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch> <catch>catch (<param><decl><type><name>ClassNotFoundException</name></type> <name>e</name></decl></param>) <block>{
+                <comment type="line">//</comment>
+                <comment type="line">// LogFactory cannot be loaded by the classloader which loaded the custom factory implementation.</comment>
+                <comment type="line">// The custom implementation is not viable until this is corrected.</comment>
+                <comment type="line">// Ensure that the JCL jar and the custom class are available from the same classloader.</comment>
+                <comment type="line">// Running with diagnostics on should give information about the classloaders used</comment>
+                <comment type="line">// to load the custom factory.</comment>
+                <comment type="line">//</comment>
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[CUSTOM LOG FACTORY] LogFactory class cannot be loaded by classloader which loaded " +
+                              "the custom LogFactory implementation. Is the custom factory in the right classloader?"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>implementsLogFactory</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Applets may run in an environment where accessing resources of a loader is
+     * a secure operation, but where the commons-logging library has explicitly
+     * been granted permission for that operation. In this case, we need to
+     * run the operation using an AccessController.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>InputStream</name></type> <name>getResourceAsStream</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>ClassLoader</name></type> <name>loader</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>InputStream</name>)<call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+            <argument><expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <if>if <condition>(<expr><name>loader</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <return>return <expr><call><name><name>loader</name>.<name>getResourceAsStream</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></then> <else>else <block>{
+                        <return>return <expr><call><name><name>ClassLoader</name>.<name>getSystemResourceAsStream</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></else></if>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Given a filename, return an enumeration of URLs pointing to
+     * all the occurrences of that filename in the classpath.
+     * &lt;p&gt;
+     * This is just like ClassLoader.getResources except that the
+     * operation is done under an AccessController so that this method will
+     * succeed when this jarfile is privileged but the caller is not.
+     * This method must therefore remain private to avoid security issues.
+     * &lt;p&gt;
+     * If no instances are found, an Enumeration is returned whose
+     * hasMoreElements method returns false (ie an "empty" enumeration).
+     * If resources could not be listed for some reason, null is returned.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Enumeration</name></type> <name>getResources</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>ClassLoader</name></type> <name>loader</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>PrivilegedAction</name></type> <name>action</name> =<init>
+            <expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <try>try <block>{
+                        <if>if <condition>(<expr><name>loader</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <return>return <expr><call><name><name>loader</name>.<name>getResources</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                        }</block></then> <else>else <block>{
+                            <return>return <expr><call><name><name>ClassLoader</name>.<name>getSystemResources</name></name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</return>
+                        }</block></else></if>
+                    }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Exception while trying to find configuration file " +
+                                          <name>name</name> + ":" + <call><name><name>e</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <return>return <expr><name>null</name></expr>;</return>
+                    }</block></catch> <catch>catch (<param><decl><type><name>NoSuchMethodError</name></type> <name>e</name></decl></param>) <block>{
+                        <comment type="line">// we must be running on a 1.1 JVM which doesn't support</comment>
+                        <comment type="line">// ClassLoader.getSystemResources; just return null in</comment>
+                        <comment type="line">// this case.</comment>
+                        <return>return <expr><name>null</name></expr>;</return>
+                    }</block></catch></try>
+                }</block></function>
+            }</block></class></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Object</name></type> <name>result</name> =<init> <expr><call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(<argument><expr><name>action</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>Enumeration</name>) <name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Given a URL that refers to a .properties file, load that file.
+     * This is done under an AccessController so that this method will
+     * succeed when this jarfile is privileged but the caller is not.
+     * This method must therefore remain private to avoid security issues.
+     * &lt;p&gt;
+     * {@code Null} is returned if the URL cannot be opened.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Properties</name></type> <name>getProperties</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>URL</name></type> <name>url</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>PrivilegedAction</name></type> <name>action</name> =<init>
+            <expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <decl_stmt><decl><type><name>InputStream</name></type> <name>stream</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+                    <try>try <block>{
+                        <comment type="line">// We must ensure that useCaches is set to false, as the</comment>
+                        <comment type="line">// default behaviour of java is to cache file handles, and</comment>
+                        <comment type="line">// this "locks" files, preventing hot-redeploy on windows.</comment>
+                        <decl_stmt><decl><type><name>URLConnection</name></type> <name>connection</name> =<init> <expr><call><name><name>url</name>.<name>openConnection</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name><name>connection</name>.<name>setUseCaches</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>stream</name> = <call><name><name>connection</name>.<name>getInputStream</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>stream</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <decl_stmt><decl><type><name>Properties</name></type> <name>props</name> =<init> <expr>new <call><name>Properties</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                            <expr_stmt><expr><call><name><name>props</name>.<name>load</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name><name>stream</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>stream</name> = <name>null</name></expr>;</expr_stmt>
+                            <return>return <expr><name>props</name></expr>;</return>
+                        }</block></then></if>
+                    }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to read URL " + <name>url</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></catch> <finally>finally <block>{
+                        <if>if <condition>(<expr><name>stream</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <try>try <block>{
+                                <expr_stmt><expr><call><name><name>stream</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+                                <comment type="line">// ignore exception; this should not happen</comment>
+                                <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                                    <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"Unable to close stream for URL " + <name>url</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                }</block></then></if>
+                            }</block></catch></try>
+                        }</block></then></if>
+                    }</block></finally></try>
+
+                    <return>return <expr><name>null</name></expr>;</return>
+                }</block></function>
+            }</block></class></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>Properties</name>) <call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(<argument><expr><name>action</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Locate a user-provided configuration file.
+     * &lt;p&gt;
+     * The classpath of the specified classLoader (usually the context classloader)
+     * is searched for properties files of the specified name. If none is found,
+     * null is returned. If more than one is found, then the file with the greatest
+     * value for its PRIORITY property is returned. If multiple files have the
+     * same PRIORITY value then the first in the classpath is returned.
+     * &lt;p&gt;
+     * This differs from the 1.0.x releases; those always use the first one found.
+     * However as the priority is a new field, this change is backwards compatible.
+     * &lt;p&gt;
+     * The purpose of the priority field is to allow a webserver administrator to
+     * override logging settings in all webapps by placing a commons-logging.properties
+     * file in a shared classpath location with a priority &gt; 0; this overrides any
+     * commons-logging.properties files without priorities which are in the
+     * webapps. Webapps can also use explicit priorities to override a configuration
+     * file in the shared classpath if needed.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Properties</name></type> <name>getConfigurationFile</name><parameter_list>(<param><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl></param>, <param><decl><type><name>String</name></type> <name>fileName</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Properties</name></type> <name>props</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>priority</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>URL</name></type> <name>propsUrl</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>Enumeration</name></type> <name>urls</name> =<init> <expr><call><name>getResources</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>, <argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name>urls</name> == <name>null</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></then></if>
+
+            <while>while <condition>(<expr><call><name><name>urls</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <decl_stmt><decl><type><name>URL</name></type> <name>url</name> =<init> <expr>(<name>URL</name>) <call><name><name>urls</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <decl_stmt><decl><type><name>Properties</name></type> <name>newProps</name> =<init> <expr><call><name>getProperties</name><argument_list>(<argument><expr><name>url</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>newProps</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>props</name> == <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>propsUrl</name> = <name>url</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>props</name> = <name>newProps</name></expr>;</expr_stmt>
+                        <decl_stmt><decl><type><name>String</name></type> <name>priorityStr</name> =<init> <expr><call><name><name>props</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>PRIORITY_KEY</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><name>priority</name> = 0.0</expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>priorityStr</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>priority</name> = <call><name><name>Double</name>.<name>parseDouble</name></name><argument_list>(<argument><expr><name>priorityStr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+
+                        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Properties file found at '" + <name>url</name> + "'" +
+                                          " with priority " + <name>priority</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></then> <else>else <block>{
+                        <decl_stmt><decl><type><name>String</name></type> <name>newPriorityStr</name> =<init> <expr><call><name><name>newProps</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>PRIORITY_KEY</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <decl_stmt><decl><type><name>double</name></type> <name>newPriority</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr><name>newPriorityStr</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>newPriority</name> = <call><name><name>Double</name>.<name>parseDouble</name></name><argument_list>(<argument><expr><name>newPriorityStr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+
+                        <if>if <condition>(<expr><name>newPriority</name> &gt; <name>priority</name></expr>)</condition><then> <block>{
+                            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Properties file at '" + <name>url</name> + "'" +
+                                              " with priority " + <name>newPriority</name> +
+                                              " overrides file at '" + <name>propsUrl</name> + "'" +
+                                              " with priority " + <name>priority</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+
+                            <expr_stmt><expr><name>propsUrl</name> = <name>url</name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>props</name> = <name>newProps</name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>priority</name> = <name>newPriority</name></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Properties file at '" + <name>url</name> + "'" +
+                                              " with priority " + <name>newPriority</name> +
+                                              " does not override file at '" + <name>propsUrl</name> + "'" +
+                                              " with priority " + <name>priority</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+                        }</block></else></if>
+                    }</block></else></if>
+
+                }</block></then></if>
+            }</block></while>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+            <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"SecurityException thrown while trying to find/read config files."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>props</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] No properties file of name '" + <name>fileName</name> + "' found."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[LOOKUP] Properties file of name '" + <name>fileName</name> + "' found at '" + <name>propsUrl</name> + '"'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+
+        <return>return <expr><name>props</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the specified system property, using an AccessController so that
+     * the property can be read if JCL has been granted the appropriate
+     * security rights even if the calling code has not.
+     * &lt;p&gt;
+     * Take care not to expose the value returned by this method to the
+     * calling application in any way; otherwise the calling app can use that
+     * info to access data that should not be available to it.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getSystemProperty</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>String</name></type> <name>key</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>def</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>SecurityException</name></expr></argument></throws> <block>{
+        <return>return <expr>(<name>String</name>) <call><name><name>AccessController</name>.<name>doPrivileged</name></name><argument_list>(
+                <argument><expr>new <class><super><name>PrivilegedAction</name></super><argument_list>()</argument_list> <block>{
+                    <function><type><specifier>public</specifier> <name>Object</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                        <return>return <expr><call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>def</name></expr></argument>)</argument_list></call></expr>;</return>
+                    }</block></function>
+                }</block></class></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Determines whether the user wants internal diagnostic output. If so,
+     * returns an appropriate writer object. Users can enable diagnostic
+     * output by setting the system property named {@link #DIAGNOSTICS_DEST_PROPERTY} to
+     * a filename, or the special values STDOUT or STDERR.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>PrintStream</name></type> <name>initDiagnostics</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>dest</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>dest</name> = <call><name>getSystemProperty</name><argument_list>(<argument><expr><name>DIAGNOSTICS_DEST_PROPERTY</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>dest</name> == <name>null</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></then></if>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <comment type="line">// We must be running in some very secure environment.</comment>
+            <comment type="line">// We just have to assume output is not wanted..</comment>
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><call><name><name>dest</name>.<name>equals</name></name><argument_list>(<argument><expr>"STDOUT"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><name><name>System</name>.<name>out</name></name></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>dest</name>.<name>equals</name></name><argument_list>(<argument><expr>"STDERR"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><name><name>System</name>.<name>err</name></name></expr>;</return>
+        }</block></then> <else>else <block>{
+            <try>try <block>{
+                <comment type="line">// open the file in append mode</comment>
+                <decl_stmt><decl><type><name>FileOutputStream</name></type> <name>fos</name> =<init> <expr>new <call><name>FileOutputStream</name><argument_list>(<argument><expr><name>dest</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <return>return <expr>new <call><name>PrintStream</name><argument_list>(<argument><expr><name>fos</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ex</name></decl></param>) <block>{
+                <comment type="line">// We should report this to the user - but how?</comment>
+                <return>return <expr><name>null</name></expr>;</return>
+            }</block></catch></try>
+        }</block></else></if></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Indicates true if the user has enabled internal logging.
+     * &lt;p&gt;
+     * By the way, sorry for the incorrect grammar, but calling this method
+     * areDiagnosticsEnabled just isn't java beans style.
+     *
+     * @return true if calls to logDiagnostic will have any effect.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isDiagnosticsEnabled</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>diagnosticsStream</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the specified message to the internal logging destination.
+     * &lt;p&gt;
+     * Note that this method is private; concrete subclasses of this class
+     * should not call it because the diagnosticPrefix string this
+     * method puts in front of all its messages is LogFactory@....,
+     * while subclasses should put SomeSubClass@...
+     * &lt;p&gt;
+     * Subclasses should instead compute their own prefix, then call
+     * logRawDiagnostic. Note that calling isDiagnosticsEnabled is
+     * fine for subclasses.
+     * &lt;p&gt;
+     * Note that it is safe to call this method before initDiagnostics
+     * is called; any output will just be ignored (as isDiagnosticsEnabled
+     * will return false).
+     *
+     * @param msg is the diagnostic message to be output.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>void</name></type> <name>logDiagnostic</name><parameter_list>(<param><decl><type><name>String</name></type> <name>msg</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>diagnosticsStream</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>diagnosticsStream</name>.<name>print</name></name><argument_list>(<argument><expr><name>diagnosticPrefix</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>diagnosticsStream</name>.<name>println</name></name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>diagnosticsStream</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the specified message to the internal logging destination.
+     *
+     * @param msg is the diagnostic message to be output.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>void</name></type> <name>logRawDiagnostic</name><parameter_list>(<param><decl><type><name>String</name></type> <name>msg</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>diagnosticsStream</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>diagnosticsStream</name>.<name>println</name></name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>diagnosticsStream</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Generate useful diagnostics regarding the classloader tree for
+     * the specified class.
+     * &lt;p&gt;
+     * As an example, if the specified class was loaded via a webapp's
+     * classloader, then you may get the following output:
+     * &lt;pre&gt;
+     * Class com.acme.Foo was loaded via classloader 11111
+     * ClassLoader tree: 11111 -&gt; 22222 (SYSTEM) -&gt; 33333 -&gt; BOOT
+     * &lt;/pre&gt;
+     * &lt;p&gt;
+     * This method returns immediately if isDiagnosticsEnabled()
+     * returns false.
+     *
+     * @param clazz is the class whose classloader + tree are to be
+     * output.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>logClassLoaderEnvironment</name><parameter_list>(<param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr>!<call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+
+        <try>try <block>{
+            <comment type="line">// Deliberately use System.getProperty here instead of getSystemProperty; if</comment>
+            <comment type="line">// the overall security policy for the calling application forbids access to</comment>
+            <comment type="line">// these variables then we do not want to output them to the diagnostic stream.</comment>
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ENV] Extension directories (java.ext.dir): " + <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"java.ext.dir"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ENV] Application classpath (java.class.path): " + <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"java.class.path"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ENV] Security setting prevent interrogation of system classpaths."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>className</name> =<init> <expr><call><name><name>clazz</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><name>classLoader</name> = <call><name>getClassLoader</name><argument_list>(<argument><expr><name>clazz</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <comment type="line">// not much useful diagnostics we can print here!</comment>
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ENV] Security forbids determining the classloader for " + <name>className</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></catch></try>
+
+        <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"[ENV] Class " + <name>className</name> + " was loaded via classloader " + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>logHierarchy</name><argument_list>(<argument><expr>"[ENV] Ancestry of classloader which loaded " + <name>className</name> + " is "</expr></argument>, <argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Logs diagnostic messages about the given classloader
+     * and it's hierarchy. The prefix is prepended to the message
+     * and is intended to make it easier to understand the logs.
+     * @param prefix
+     * @param classLoader
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>logHierarchy</name><parameter_list>(<param><decl><type><name>String</name></type> <name>prefix</name></decl></param>, <param><decl><type><name>ClassLoader</name></type> <name>classLoader</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr>!<call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>ClassLoader</name></type> <name>systemClassLoader</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>classLoader</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>classLoaderString</name> =<init> <expr><call><name><name>classLoader</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr><name>prefix</name> + <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call> + " == '" + <name>classLoaderString</name> + "'"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <try>try <block>{
+            <expr_stmt><expr><name>systemClassLoader</name> = <call><name><name>ClassLoader</name>.<name>getSystemClassLoader</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr><name>prefix</name> + "Security forbids determining the system classloader."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></catch></try>
+        <if>if <condition>(<expr><name>classLoader</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>StringBuffer</name></type> <name>buf</name> =<init> <expr>new <call><name>StringBuffer</name><argument_list>(<argument><expr><name>prefix</name> + "ClassLoader tree:"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <for>for(<init>;</init><condition>;</condition><incr/>) <block>{
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>classLoader</name> == <name>systemClassLoader</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>" (SYSTEM) "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <try>try <block>{
+                    <expr_stmt><expr><name>classLoader</name> = <call><name><name>classLoader</name>.<name>getParent</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ex</name></decl></param>) <block>{
+                    <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>" --&gt; SECRET"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <break>break;</break>
+                }</block></catch></try>
+
+                <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>" --&gt; "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>classLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>"BOOT"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <break>break;</break>
+                }</block></then></if>
+            }</block></for>
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr><call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a string that uniquely identifies the specified object, including
+     * its class.
+     * &lt;p&gt;
+     * The returned string is of form "classname@hashcode", ie is the same as
+     * the return value of the Object.toString() method, but works even when
+     * the specified object's class has overidden the toString method.
+     *
+     * @param o may be null.
+     * @return a string of form classname@hashcode, or "null" if param o is null.
+     * @since 1.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>objectId</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>o</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>"null"</expr>;</return>
+        }</block></then> <else>else <block>{
+            <return>return <expr><call><name><name>o</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getName</name><argument_list>()</argument_list></call> + "@" + <call><name><name>System</name>.<name>identityHashCode</name></name><argument_list>(<argument><expr><name>o</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------------</comment>
+    <comment type="line">// Static initialiser block to perform initialisation at class load time.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// We can't do this in the class constructor, as there are many</comment>
+    <comment type="line">// static methods on this class that can be called before any</comment>
+    <comment type="line">// LogFactory instances are created, and they depend upon this</comment>
+    <comment type="line">// stuff having been set up.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// Note that this block must come after any variable declarations used</comment>
+    <comment type="line">// by any methods called from this block, as we want any static initialiser</comment>
+    <comment type="line">// associated with the variable to run first. If static initialisers for</comment>
+    <comment type="line">// variables run after this code, then (a) their value might be needed</comment>
+    <comment type="line">// by methods called from here, and (b) they might *override* any value</comment>
+    <comment type="line">// computed here!</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// So the wisest thing to do is just to place this code at the very end</comment>
+    <comment type="line">// of the class file.</comment>
+    <comment type="line">// ----------------------------------------------------------------------</comment>
+
+    static <block>{
+        <comment type="line">// note: it's safe to call methods before initDiagnostics (though</comment>
+        <comment type="line">// diagnostic output gets discarded).</comment>
+        <expr_stmt><expr><name>thisClassLoader</name> = <call><name>getClassLoader</name><argument_list>(<argument><expr><name><name>LogFactory</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// In order to avoid confusion where multiple instances of JCL are</comment>
+        <comment type="line">// being used via different classloaders within the same app, we</comment>
+        <comment type="line">// ensure each logged message has a prefix of form</comment>
+        <comment type="line">// [LogFactory from classloader OID]</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// Note that this prefix should be kept consistent with that</comment>
+        <comment type="line">// in LogFactoryImpl. However here we don't need to output info</comment>
+        <comment type="line">// about the actual *instance* of LogFactory, as all methods that</comment>
+        <comment type="line">// output diagnostics from this class are static.</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>classLoaderName</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>ClassLoader</name></type> <name>classLoader</name> =<init> <expr><name>thisClassLoader</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>thisClassLoader</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>classLoaderName</name> = "BOOTLOADER"</expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>classLoaderName</name> = <call><name>objectId</name><argument_list>(<argument><expr><name>classLoader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>e</name></decl></param>) <block>{
+            <expr_stmt><expr><name>classLoaderName</name> = "UNKNOWN"</expr>;</expr_stmt>
+        }</block></catch></try>
+        <expr_stmt><expr><name>diagnosticPrefix</name> = "[LogFactory from " + <name>classLoaderName</name> + "] "</expr>;</expr_stmt>
+        <expr_stmt><expr><name>diagnosticsStream</name> = <call><name>initDiagnostics</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>logClassLoaderEnvironment</name><argument_list>(<argument><expr><name><name>LogFactory</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>factories</name> = <call><name>createFactoryStore</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name>isDiagnosticsEnabled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>logDiagnostic</name><argument_list>(<argument><expr>"BOOTSTRAP COMPLETED"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block>
+}</block></class>
+</unit>

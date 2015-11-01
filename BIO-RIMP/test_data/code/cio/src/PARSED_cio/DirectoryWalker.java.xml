@@ -1,0 +1,638 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\DirectoryWalker.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileFilter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>filefilter</name>.<name>FileFilterUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>filefilter</name>.<name>IOFileFilter</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>filefilter</name>.<name>TrueFileFilter</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Abstract class that walks through a directory hierarchy and provides
+ * subclasses with convenient hooks to add specific behaviour.
+ * &lt;p&gt;
+ * This class operates with a {@link FileFilter} and maximum depth to
+ * limit the files and direcories visited.
+ * Commons IO supplies many common filter implementations in the 
+ * &lt;a href="filefilter/package-summary.html"&gt; filefilter&lt;/a&gt; package.
+ * &lt;p&gt;
+ * The following sections describe:
+ *   &lt;ul&gt;
+ *      &lt;li&gt;&lt;a href="#example"&gt;1. Example Implementation&lt;/a&gt; - example
+ *          &lt;code&gt;FileCleaner&lt;/code&gt; implementation.&lt;/li&gt;
+ *      &lt;li&gt;&lt;a href="#filter"&gt;2. Filter Example&lt;/a&gt; - using 
+ *          {@link FileFilter}(s) with &lt;code&gt;DirectoryWalker&lt;/code&gt;.&lt;/li&gt;
+ *      &lt;li&gt;&lt;a href="#cancel"&gt;3. Cancellation&lt;/a&gt; - how to implement cancellation
+ *          behaviour.&lt;/li&gt;
+ *   &lt;/ul&gt;
+ *
+ * &lt;a name="example"&gt;&lt;/a&gt;
+ * &lt;h3&gt;1. Example Implementation&lt;/h3&gt;
+ *
+ * There are many possible extensions, for example, to delete all
+ * files and '.svn' directories, and return a list of deleted files:
+ * &lt;pre&gt;
+ *  public class FileCleaner extends DirectoryWalker {
+ *
+ *    public FileCleaner() {
+ *      super();
+ *    }
+ *
+ *    public List clean(File startDirectory) {
+ *      List results = new ArrayList();
+ *      walk(startDirectory, results);
+ *      return results;
+ *    }
+ *
+ *    protected boolean handleDirectory(File directory, int depth, Collection results) {
+ *      // delete svn directories and then skip
+ *      if (".svn".equals(directory.getName())) {
+ *        directory.delete();
+ *        return false;
+ *      } else {
+ *        return true;
+ *      }
+ *
+ *    }
+ *
+ *    protected void handleFile(File file, int depth, Collection results) {
+ *      // delete file and add to list of deleted
+ *      file.delete();
+ *      results.add(file);
+ *    }
+ *  }
+ * &lt;/pre&gt;
+ *
+ * &lt;a name="filter"&gt;&lt;/a&gt;
+ * &lt;h3&gt;2. Filter Example&lt;/h3&gt;
+ *
+ * Choosing which directories and files to process can be a key aspect
+ * of using this class. This information can be setup in three ways,
+ * via three different constructors.
+ * &lt;p&gt;
+ * The first option is to visit all directories and files.
+ * This is achieved via the no-args constructor.
+ * &lt;p&gt;
+ * The second constructor option is to supply a single {@link FileFilter}
+ * that describes the files and directories to visit. Care must be taken
+ * with this option as the same filter is used for both directories
+ * and files.
+ * &lt;p&gt;
+ * For example, if you wanted all directories which are not hidden
+ * and files which end in ".txt":
+ * &lt;pre&gt;
+ *  public class FooDirectoryWalker extends DirectoryWalker {
+ *    public FooDirectoryWalker(FileFilter filter) {
+ *      super(filter, -1);
+ *    }
+ *  }
+ *  
+ *  // Build up the filters and create the walker
+ *    // Create a filter for Non-hidden directories
+ *    IOFileFilter fooDirFilter = 
+ *        FileFilterUtils.andFileFilter(FileFilterUtils.directoryFileFilter,
+ *                                      HiddenFileFilter.VISIBLE);
+ *
+ *    // Create a filter for Files ending in ".txt"
+ *    IOFileFilter fooFileFilter = 
+ *        FileFilterUtils.andFileFilter(FileFilterUtils.fileFileFilter,
+ *                                      FileFilterUtils.suffixFileFilter(".txt"));
+ *
+ *    // Combine the directory and file filters using an OR condition
+ *    java.io.FileFilter fooFilter = 
+ *        FileFilterUtils.orFileFilter(fooDirFilter, fooFileFilter);
+ *
+ *    // Use the filter to construct a DirectoryWalker implementation
+ *    FooDirectoryWalker walker = new FooDirectoryWalker(fooFilter);
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * The third constructor option is to specify separate filters, one for
+ * directories and one for files. These are combined internally to form
+ * the correct &lt;code&gt;FileFilter&lt;/code&gt;, something which is very easy to
+ * get wrong when attempted manually, particularly when trying to
+ * express constructs like 'any file in directories named docs'.
+ * &lt;p&gt;
+ * For example, if you wanted all directories which are not hidden
+ * and files which end in ".txt":
+ * &lt;pre&gt;
+ *  public class FooDirectoryWalker extends DirectoryWalker {
+ *    public FooDirectoryWalker(IOFileFilter dirFilter, IOFileFilter fileFilter) {
+ *      super(dirFilter, fileFilter, -1);
+ *    }
+ *  }
+ *  
+ *  // Use the filters to construct the walker
+ *  FooDirectoryWalker walker = new FooDirectoryWalker(
+ *    HiddenFileFilter.VISIBLE,
+ *    FileFilterUtils.suffixFileFilter(".txt"),
+ *  );
+ * &lt;/pre&gt;
+ * This is much simpler than the previous example, and is why it is the preferred
+ * option for filtering.
+ *
+ * &lt;a name="cancel"&gt;&lt;/a&gt;
+ * &lt;h3&gt;3. Cancellation&lt;/h3&gt;
+ *
+ * The DirectoryWalker contains some of the logic required for cancel processing.
+ * Subclasses must complete the implementation.
+ * &lt;p&gt;
+ * What &lt;code&gt;DirectoryWalker&lt;/code&gt; does provide for cancellation is:
+ * &lt;ul&gt;
+ *    &lt;li&gt;{@link CancelException} which can be thrown in any of the
+ *        &lt;i&gt;lifecycle&lt;/i&gt; methods to stop processing.&lt;/li&gt;
+ *    &lt;li&gt;The &lt;code&gt;walk()&lt;/code&gt; method traps thrown {@link CancelException}
+ *        and calls the &lt;code&gt;handleCancelled()&lt;/code&gt; method, providing
+ *        a place for custom cancel processing.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * Implementations need to provide:
+ * &lt;ul&gt;
+ *    &lt;li&gt;The decision logic on whether to cancel processing or not.&lt;/li&gt;
+ *    &lt;li&gt;Constructing and throwing a {@link CancelException}.&lt;/li&gt;
+ *    &lt;li&gt;Custom cancel processing in the &lt;code&gt;handleCancelled()&lt;/code&gt; method.
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * Two possible scenarios are envisaged for cancellation:
+ * &lt;ul&gt;
+ *    &lt;li&gt;&lt;a href="#external"&gt;3.1 External / Mult-threaded&lt;/a&gt; - cancellation being
+ *        decided/initiated by an external process.&lt;/li&gt;
+ *    &lt;li&gt;&lt;a href="#internal"&gt;3.2 Internal&lt;/a&gt; - cancellation being decided/initiated 
+ *        from within a DirectoryWalker implementation.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * The following sections provide example implementations for these two different
+ * scenarios.
+ *
+ * &lt;a name="external"&gt;&lt;/a&gt;
+ * &lt;h4&gt;3.1 External / Multi-threaded&lt;/h4&gt;
+ *
+ * This example provides a public &lt;code&gt;cancel()&lt;/code&gt; method that can be
+ * called by another thread to stop the processing. A typical example use-case
+ * would be a cancel button on a GUI. Calling this method sets a
+ * &lt;a href="http://java.sun.com/docs/books/jls/second_edition/html/classes.doc.html#36930"&gt;
+ * volatile&lt;/a&gt; flag to ensure it will work properly in a multi-threaded environment.
+ * The flag is returned by the &lt;code&gt;handleIsCancelled()&lt;/code&gt; method, which
+ * will cause the walk to stop immediately. The &lt;code&gt;handleCancelled()&lt;/code&gt;
+ * method will be the next, and last, callback method received once cancellation
+ * has occurred.
+ *
+ * &lt;pre&gt;
+ *  public class FooDirectoryWalker extends DirectoryWalker {
+ *
+ *    private volatile boolean cancelled = false;
+ *
+ *    public void cancel() {
+ *        cancelled = true;
+ *    }
+ *
+ *    private void handleIsCancelled(File file, int depth, Collection results) {
+ *        return cancelled;
+ *    }
+ *
+ *    protected void handleCancelled(File startDirectory, Collection results, CancelException cancel) {
+ *        // implement processing required when a cancellation occurs
+ *    }
+ *  }
+ * &lt;/pre&gt;
+ *
+ * &lt;a name="internal"&gt;&lt;/a&gt;
+ * &lt;h4&gt;3.2 Internal&lt;/h4&gt;
+ *
+ * This shows an example of how internal cancellation processing could be implemented.
+ * &lt;b&gt;Note&lt;/b&gt; the decision logic and throwing a {@link CancelException} could be implemented
+ * in any of the &lt;i&gt;lifecycle&lt;/i&gt; methods. 
+ *
+ * &lt;pre&gt;
+ *  public class BarDirectoryWalker extends DirectoryWalker {
+ *
+ *    protected boolean handleDirectory(File directory, int depth, Collection results) throws IOException {
+ *        // cancel if hidden directory
+ *        if (directory.isHidden()) {
+ *            throw new CancelException(file, depth);
+ *        }
+ *        return true;
+ *    }
+ *
+ *    protected void handleFile(File file, int depth, Collection results) throws IOException {
+ *        // cancel if read-only file
+ *        if (!file.canWrite()) {
+ *            throw new CancelException(file, depth);
+ *        }
+ *        results.add(file);
+ *    }
+ *
+ *    protected void handleCancelled(File startDirectory, Collection results, CancelException cancel) {
+ *        // implement processing required when a cancellation occurs
+ *    }
+ *  }
+ * &lt;/pre&gt;
+ *
+ * @since 1.3
+ * @version $Id: DirectoryWalker.java 1304052 2012-03-22 20:55:29Z ggregory $
+ */</comment>
+<class><specifier>public</specifier> <specifier>abstract</specifier> class <name><name>DirectoryWalker</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name> <block>{
+
+    <comment type="javadoc">/**
+     * The file filter to use to filter files and directories.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>FileFilter</name></type> <name>filter</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The limit on the directory depth to walk.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>depthLimit</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Construct an instance with no filtering and unlimited &lt;i&gt;depth&lt;/i&gt;.
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>DirectoryWalker</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>null</name></expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an instance with a filter and limit the &lt;i&gt;depth&lt;/i&gt; navigated to.
+     * &lt;p&gt;
+     * The filter controls which files and directories will be navigated to as
+     * part of the walk. The {@link FileFilterUtils} class is useful for combining
+     * various filters together. A &lt;code&gt;null&lt;/code&gt; filter means that no
+     * filtering should occur and all files and directories will be visited.
+     *
+     * @param filter  the filter to apply, null means visit all files
+     * @param depthLimit  controls how &lt;i&gt;deep&lt;/i&gt; the hierarchy is
+     *  navigated to (less than 0 means unlimited)
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>DirectoryWalker</name><parameter_list>(<param><decl><type><name>FileFilter</name></type> <name>filter</name></decl></param>, <param><decl><type><name>int</name></type> <name>depthLimit</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>filter</name></name> = <name>filter</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>depthLimit</name></name> = <name>depthLimit</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an instance with a directory and a file filter and an optional
+     * limit on the &lt;i&gt;depth&lt;/i&gt; navigated to.
+     * &lt;p&gt;
+     * The filters control which files and directories will be navigated to as part
+     * of the walk. This constructor uses {@link FileFilterUtils#makeDirectoryOnly(IOFileFilter)}
+     * and {@link FileFilterUtils#makeFileOnly(IOFileFilter)} internally to combine the filters.
+     * A &lt;code&gt;null&lt;/code&gt; filter means that no filtering should occur.
+     *
+     * @param directoryFilter  the filter to apply to directories, null means visit all directories
+     * @param fileFilter  the filter to apply to files, null means visit all files
+     * @param depthLimit  controls how &lt;i&gt;deep&lt;/i&gt; the hierarchy is
+     *  navigated to (less than 0 means unlimited)
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>DirectoryWalker</name><parameter_list>(<param><decl><type><name>IOFileFilter</name></type> <name>directoryFilter</name></decl></param>, <param><decl><type><name>IOFileFilter</name></type> <name>fileFilter</name></decl></param>, <param><decl><type><name>int</name></type> <name>depthLimit</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>directoryFilter</name> == <name>null</name> &amp;&amp; <name>fileFilter</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>filter</name></name> = <name>null</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>directoryFilter</name> = <name>directoryFilter</name> != <name>null</name> ? <name>directoryFilter</name> : <name><name>TrueFileFilter</name>.<name>TRUE</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fileFilter</name> = <name>fileFilter</name> != <name>null</name> ? <name>fileFilter</name> : <name><name>TrueFileFilter</name>.<name>TRUE</name></name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>directoryFilter</name> = <call><name><name>FileFilterUtils</name>.<name>makeDirectoryOnly</name></name><argument_list>(<argument><expr><name>directoryFilter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fileFilter</name> = <call><name><name>FileFilterUtils</name>.<name>makeFileOnly</name></name><argument_list>(<argument><expr><name>fileFilter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>filter</name></name> = <call><name><name>FileFilterUtils</name>.<name>or</name></name><argument_list>(<argument><expr><name>directoryFilter</name></expr></argument>, <argument><expr><name>fileFilter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><name><name>this</name>.<name>depthLimit</name></name> = <name>depthLimit</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Internal method that walks the directory hierarchy in a depth-first manner.
+     * &lt;p&gt;
+     * Users of this class do not need to call this method. This method will
+     * be called automatically by another (public) method on the specific subclass.
+     * &lt;p&gt;
+     * Writers of subclasses should call this method to start the directory walk.
+     * Once called, this method will emit events as it walks the hierarchy.
+     * The event methods have the prefix &lt;code&gt;handle&lt;/code&gt;.
+     *
+     * @param startDirectory  the directory to start from, not null
+     * @param results  the collection of result objects, may be updated
+     * @throws NullPointerException if the start directory is null
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>walk</name><parameter_list>(<param><decl><type><name>File</name></type> <name>startDirectory</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>startDirectory</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"Start Directory is null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>handleStart</name><argument_list>(<argument><expr><name>startDirectory</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>walk</name><argument_list>(<argument><expr><name>startDirectory</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>handleEnd</name><argument_list>(<argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch(<param><decl><type><name>CancelException</name></type> <name>cancel</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>handleCancelled</name><argument_list>(<argument><expr><name>startDirectory</name></expr></argument>, <argument><expr><name>results</name></expr></argument>, <argument><expr><name>cancel</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Main recursive method to examine the directory hierarchy.
+     *
+     * @param directory  the directory to examine, not null
+     * @param depth  the directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>walk</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>checkIfCancelled</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name>handleDirectory</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>handleDirectoryStart</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>childDepth</name> =<init> <expr><name>depth</name> + 1</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>depthLimit</name> &lt; 0 || <name>childDepth</name> &lt;= <name>depthLimit</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>checkIfCancelled</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>File</name><index>[]</index></type> <name>childFiles</name> =<init> <expr><name>filter</name> == <name>null</name> ? <call><name><name>directory</name>.<name>listFiles</name></name><argument_list>()</argument_list></call> : <call><name><name>directory</name>.<name>listFiles</name></name><argument_list>(<argument><expr><name>filter</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>childFiles</name> = <call><name>filterDirectoryContents</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>childFiles</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>childFiles</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>handleRestricted</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>childDepth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <for>for (<init><decl><type><name>File</name></type> <name>childFile</name> :<range> <expr><name>childFiles</name></expr></range></decl></init>) <block>{
+                        <if>if <condition>(<expr><call><name><name>childFile</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name>walk</name><argument_list>(<argument><expr><name>childFile</name></expr></argument>, <argument><expr><name>childDepth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name>checkIfCancelled</name><argument_list>(<argument><expr><name>childFile</name></expr></argument>, <argument><expr><name>childDepth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>handleFile</name><argument_list>(<argument><expr><name>childFile</name></expr></argument>, <argument><expr><name>childDepth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><call><name>checkIfCancelled</name><argument_list>(<argument><expr><name>childFile</name></expr></argument>, <argument><expr><name>childDepth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                    }</block></for>
+                }</block></else></if>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>handleDirectoryEnd</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>checkIfCancelled</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Checks whether the walk has been cancelled by calling {@link #handleIsCancelled},
+     * throwing a &lt;code&gt;CancelException&lt;/code&gt; if it has.
+     * &lt;p&gt;
+     * Writers of subclasses should not normally call this method as it is called
+     * automatically by the walk of the tree. However, sometimes a single method,
+     * typically {@link #handleFile}, may take a long time to run. In that case,
+     * you may wish to check for cancellation by calling this method.
+     * 
+     * @param file  the current file being processed
+     * @param depth  the current file level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>checkIfCancelled</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name>handleIsCancelled</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>, <argument><expr><name>results</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>CancelException</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked to determine if the entire walk
+     * operation should be immediately cancelled.
+     * &lt;p&gt;
+     * This method should be implemented by those subclasses that want to
+     * provide a public &lt;code&gt;cancel()&lt;/code&gt; method available from another
+     * thread. The design pattern for the subclass should be as follows:
+     * &lt;pre&gt;
+     *  public class FooDirectoryWalker extends DirectoryWalker {
+     *    private volatile boolean cancelled = false;
+     *
+     *    public void cancel() {
+     *        cancelled = true;
+     *    }
+     *    private void handleIsCancelled(File file, int depth, Collection results) {
+     *        return cancelled;
+     *    }
+     *    protected void handleCancelled(File startDirectory,
+     *              Collection results, CancelException cancel) {
+     *        // implement processing required when a cancellation occurs
+     *    }
+     *  }
+     * &lt;/pre&gt;
+     * &lt;p&gt;
+     * If this method returns true, then the directory walk is immediately
+     * cancelled. The next callback method will be {@link #handleCancelled}.
+     * &lt;p&gt;
+     * This implementation returns false.
+     *
+     * @param file  the file or directory being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @return true if the walk has been cancelled
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>handleIsCancelled</name><parameter_list>(
+            <param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+        <return>return <expr>false</expr>;</return>  <comment type="line">// not cancelled</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked when the operation is cancelled.
+     * The file being processed when the cancellation occurred can be
+     * obtained from the exception.
+     * &lt;p&gt;
+     * This implementation just re-throws the {@link CancelException}.
+     *
+     * @param startDirectory  the directory that the walk started from
+     * @param results  the collection of result objects, may be updated
+     * @param cancel  the exception throw to cancel further processing
+     * containing details at the point of cancellation. 
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleCancelled</name><parameter_list>(<param><decl><type><name>File</name></type> <name>startDirectory</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>,
+                       <param><decl><type><name>CancelException</name></type> <name>cancel</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// re-throw exception - overridable by subclass</comment>
+        <throw>throw <expr><name>cancel</name></expr>;</throw>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Overridable callback method invoked at the start of processing.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param startDirectory  the directory to start from
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleStart</name><parameter_list>(<param><decl><type><name>File</name></type> <name>startDirectory</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked to determine if a directory should be processed.
+     * &lt;p&gt;
+     * This method returns a boolean to indicate if the directory should be examined or not.
+     * If you return false, the entire directory and any subdirectories will be skipped.
+     * Note that this functionality is in addition to the filtering by file filter.
+     * &lt;p&gt;
+     * This implementation does nothing and returns true.
+     *
+     * @param directory  the current directory being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @return true to process this directory, false to skip this directory
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>handleDirectory</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+        <return>return <expr>true</expr>;</return>  <comment type="line">// process directory</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked at the start of processing each directory.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param directory  the current directory being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleDirectoryStart</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked with the contents of each directory.
+     * &lt;p&gt;
+     * This implementation returns the files unchanged
+     *
+     * @param directory  the current directory being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param files the files (possibly filtered) in the directory
+     * @return the filtered list of files
+     * @throws IOException if an I/O Error occurs
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>File</name><index>[]</index></type> <name>filterDirectoryContents</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>File</name><index>[]</index></name></type> <name>files</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><name>files</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked for each (non-directory) file.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param file  the current file being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleFile</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked for each restricted directory.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param directory  the restricted directory
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleRestricted</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws>  <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked at the end of processing each directory.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param directory  the directory being processed
+     * @param depth  the current directory level (starting directory = 0)
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleDirectoryEnd</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Overridable callback method invoked at the end of processing.
+     * &lt;p&gt;
+     * This implementation does nothing.
+     *
+     * @param results  the collection of result objects, may be updated
+     * @throws IOException if an I/O Error occurs
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>handleEnd</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>results</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// do nothing - overridable by subclass</comment>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * CancelException is thrown in DirectoryWalker to cancel the current
+     * processing.
+     */</comment>
+    <class><specifier>public</specifier> <specifier>static</specifier> class <name>CancelException</name> <super><extends>extends <name>IOException</name></extends></super> <block>{
+
+        <comment type="javadoc">/** Serialization id. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>1347339620135041008L</expr></init></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/** The file being processed when the exception was thrown. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>File</name></type> <name>file</name></decl>;</decl_stmt>
+        <comment type="javadoc">/** The file depth when the exception was thrown. */</comment>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>depth</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs a &lt;code&gt;CancelException&lt;/code&gt; with
+         * the file and depth when cancellation occurred.
+         *
+         * @param file  the file when the operation was cancelled, may be null
+         * @param depth  the depth when the operation was cancelled, may be null
+         */</comment>
+        <constructor><specifier>public</specifier> <name>CancelException</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>"Operation Cancelled"</expr></argument>, <argument><expr><name>file</name></expr></argument>, <argument><expr><name>depth</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Constructs a &lt;code&gt;CancelException&lt;/code&gt; with
+         * an appropriate message and the file and depth when
+         * cancellation occurred.
+         *
+         * @param message  the detail message
+         * @param file  the file when the operation was cancelled
+         * @param depth  the depth when the operation was cancelled
+         */</comment>
+        <constructor><specifier>public</specifier> <name>CancelException</name><parameter_list>(<param><decl><type><name>String</name></type> <name>message</name></decl></param>, <param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>int</name></type> <name>depth</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>file</name></name> = <name>file</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>depth</name></name> = <name>depth</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * Return the file when the operation was cancelled.
+         *
+         * @return the file when the operation was cancelled
+         */</comment>
+        <function><type><specifier>public</specifier> <name>File</name></type> <name>getFile</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>file</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Return the depth when the operation was cancelled.
+         *
+         * @return the depth when the operation was cancelled
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>getDepth</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>depth</name></expr>;</return>
+        }</block></function>
+    }</block></class>
+}</block></class>
+</unit>

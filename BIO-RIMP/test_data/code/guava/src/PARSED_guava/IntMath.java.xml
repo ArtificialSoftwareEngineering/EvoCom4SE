@@ -1,0 +1,586 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\math\IntMath.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>MathPreconditions</name>.<name>checkNoOverflow</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>MathPreconditions</name>.<name>checkNonNegative</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>MathPreconditions</name>.<name>checkPositive</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>math</name>.<name>MathPreconditions</name>.<name>checkRoundingUnnecessary</name></name>;</import>
+<import>import static <name><name>java</name>.<name>lang</name>.<name>Math</name>.<name>abs</name></name>;</import>
+<import>import static <name><name>java</name>.<name>lang</name>.<name>Math</name>.<name>min</name></name>;</import>
+<import>import static <name><name>java</name>.<name>math</name>.<name>RoundingMode</name>.<name>HALF_EVEN</name></name>;</import>
+<import>import static <name><name>java</name>.<name>math</name>.<name>RoundingMode</name>.<name>HALF_UP</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>math</name>.<name>BigInteger</name></name>;</import>
+<import>import <name><name>java</name>.<name>math</name>.<name>RoundingMode</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A class for arithmetic on values of type {@code int}. Where possible, methods are defined and
+ * named analogously to their {@code BigInteger} counterparts.
+ *
+ * &lt;p&gt;The implementations of many methods in this class are based on material from Henry S. Warren,
+ * Jr.'s &lt;i&gt;Hacker's Delight&lt;/i&gt;, (Addison Wesley, 2002).
+ *
+ * &lt;p&gt;Similar functionality for {@code long} and for {@link BigInteger} can be found in
+ * {@link LongMath} and {@link BigIntegerMath} respectively.  For other common operations on
+ * {@code int} values, see {@link com.google.common.primitives.Ints}.
+ *
+ * @author Louis Wasserman
+ * @since 11.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>IntMath</name> <block>{
+  <comment type="line">// NOTE: Whenever both tests are cheap and functional, it's faster to use &amp;, | instead of &amp;&amp;, ||</comment>
+
+  <comment type="javadoc">/**
+   * Returns {@code true} if {@code x} represents a power of two.
+   *
+   * &lt;p&gt;This differs from {@code Integer.bitCount(x) == 1}, because
+   * {@code Integer.bitCount(Integer.MIN_VALUE) == 1}, but {@link Integer#MIN_VALUE} is not a power
+   * of two.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isPowerOfTwo</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><name>x</name> &gt; 0 &amp; (<name>x</name> &amp; (<name>x</name> - 1)) == 0</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns 1 if {@code x &lt; y} as unsigned integers, and 0 otherwise. Assumes that x - y fits into
+   * a signed int. The implementation is branch-free, and benchmarks suggest it is measurably (if
+   * narrowly) faster than the straightforward ternary expression.
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>static</specifier> <name>int</name></type> <name>lessThanBranchFree</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// The double negation is optimized away by normal Java, but is necessary for GWT</comment>
+    <comment type="line">// to make sure bit twiddling works as expected.</comment>
+    <return>return <expr>~~(<name>x</name> - <name>y</name>) &gt;&gt;&gt; (<name><name>Integer</name>.<name>SIZE</name></name> - 1)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the base-2 logarithm of {@code x}, rounded according to the specified rounding mode.
+   *
+   * @throws IllegalArgumentException if {@code x &lt;= 0}
+   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and {@code x}
+   *         is not a power of two
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("fallthrough")</argument_list></annotation>
+  <comment type="line">// TODO(kevinb): remove after this warning is disabled globally</comment>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>log2</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>RoundingMode</name></type> <name>mode</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPositive</name><argument_list>(<argument><expr>"x"</expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <switch>switch <condition>(<expr><name>mode</name></expr>)</condition> <block>{
+      <case>case <expr><name>UNNECESSARY</name></expr>:
+        <expr_stmt><expr><call><name>checkRoundingUnnecessary</name><argument_list>(<argument><expr><call><name>isPowerOfTwo</name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// fall through</comment>
+      </case><case>case <expr><name>DOWN</name></expr>:
+      </case><case>case <expr><name>FLOOR</name></expr>:
+        <return>return <expr>(<name><name>Integer</name>.<name>SIZE</name></name> - 1) - <call><name><name>Integer</name>.<name>numberOfLeadingZeros</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+
+      </case><case>case <expr><name>UP</name></expr>:
+      </case><case>case <expr><name>CEILING</name></expr>:
+        <return>return <expr><name><name>Integer</name>.<name>SIZE</name></name> - <call><name><name>Integer</name>.<name>numberOfLeadingZeros</name></name><argument_list>(<argument><expr><name>x</name> - 1</expr></argument>)</argument_list></call></expr>;</return>
+
+      </case><case>case <expr><name>HALF_DOWN</name></expr>:
+      </case><case>case <expr><name>HALF_UP</name></expr>:
+      </case><case>case <expr><name>HALF_EVEN</name></expr>:
+        <comment type="line">// Since sqrt(2) is irrational, log2(x) - logFloor cannot be exactly 0.5</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>leadingZeros</name> =<init> <expr><call><name><name>Integer</name>.<name>numberOfLeadingZeros</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>cmp</name> =<init> <expr><name>MAX_POWER_OF_SQRT2_UNSIGNED</name> &gt;&gt;&gt; <name>leadingZeros</name></expr></init></decl>;</decl_stmt>
+          <comment type="line">// floor(2^(logFloor + 0.5))</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>logFloor</name> =<init> <expr>(<name><name>Integer</name>.<name>SIZE</name></name> - 1) - <name>leadingZeros</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>logFloor</name> + <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name>cmp</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+  }</block></function>
+
+  <comment type="javadoc">/** The biggest half power of two that can fit in an unsigned int. */</comment>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>MAX_POWER_OF_SQRT2_UNSIGNED</name> =<init> <expr>0xB504F333</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns the base-10 logarithm of {@code x}, rounded according to the specified rounding mode.
+   *
+   * @throws IllegalArgumentException if {@code x &lt;= 0}
+   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and {@code x}
+   *         is not a power of ten
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("need BigIntegerMath to adequately test")</argument_list></annotation>
+  <annotation>@<name>SuppressWarnings</name><argument_list>("fallthrough")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>log10</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>RoundingMode</name></type> <name>mode</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPositive</name><argument_list>(<argument><expr>"x"</expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>logFloor</name> =<init> <expr><call><name>log10Floor</name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>floorPow</name> =<init> <expr><name><name>powersOf10</name><index>[<expr><name>logFloor</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <switch>switch <condition>(<expr><name>mode</name></expr>)</condition> <block>{
+      <case>case <expr><name>UNNECESSARY</name></expr>:
+        <expr_stmt><expr><call><name>checkRoundingUnnecessary</name><argument_list>(<argument><expr><name>x</name> == <name>floorPow</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// fall through</comment>
+      </case><case>case <expr><name>FLOOR</name></expr>:
+      </case><case>case <expr><name>DOWN</name></expr>:
+        <return>return <expr><name>logFloor</name></expr>;</return>
+      </case><case>case <expr><name>CEILING</name></expr>:
+      </case><case>case <expr><name>UP</name></expr>:
+        <return>return <expr><name>logFloor</name> + <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name>floorPow</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><case>case <expr><name>HALF_DOWN</name></expr>:
+      </case><case>case <expr><name>HALF_UP</name></expr>:
+      </case><case>case <expr><name>HALF_EVEN</name></expr>:
+        <comment type="line">// sqrt(10) is irrational, so log10(x) - logFloor is never exactly 0.5</comment>
+        <return>return <expr><name>logFloor</name> + <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name><name>halfPowersOf10</name><index>[<expr><name>logFloor</name></expr>]</index></name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>log10Floor</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+    <comment type="block">/*
+     * Based on Hacker's Delight Fig. 11-5, the two-table-lookup, branch-free implementation.
+     *
+     * The key idea is that based on the number of leading zeros (equivalently, floor(log2(x))),
+     * we can narrow the possible floor(log10(x)) values to two.  For example, if floor(log2(x))
+     * is 6, then 64 &lt;= x &lt; 128, so floor(log10(x)) is either 1 or 2.
+     */</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>y</name> =<init> <expr><name><name>maxLog10ForLeadingZeros</name><index>[<expr><call><name><name>Integer</name>.<name>numberOfLeadingZeros</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <comment type="block">/*
+     * y is the higher of the two possible values of floor(log10(x)). If x &lt; 10^y, then we want the
+     * lower of the two possible values, or y - 1, otherwise, we want y.
+     */</comment>
+    <return>return <expr><name>y</name> - <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><name><name>powersOf10</name><index>[<expr><name>y</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// maxLog10ForLeadingZeros[i] == floor(log10(2^(Long.SIZE - i)))</comment>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>maxLog10ForLeadingZeros</name> =<init> <expr><block>{<expr>9</expr>, <expr>9</expr>, <expr>9</expr>, <expr>8</expr>, <expr>8</expr>, <expr>8</expr>,
+    <expr>7</expr>, <expr>7</expr>, <expr>7</expr>, <expr>6</expr>, <expr>6</expr>, <expr>6</expr>, <expr>6</expr>, <expr>5</expr>, <expr>5</expr>, <expr>5</expr>, <expr>4</expr>, <expr>4</expr>, <expr>4</expr>, <expr>3</expr>, <expr>3</expr>, <expr>3</expr>, <expr>3</expr>, <expr>2</expr>, <expr>2</expr>, <expr>2</expr>, <expr>1</expr>, <expr>1</expr>, <expr>1</expr>, <expr>0</expr>, <expr>0</expr>, <expr>0</expr>, <expr>0</expr>}</block></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>int</name><index>[]</index></type> <name>powersOf10</name> =<init> <expr><block>{<expr>1</expr>, <expr>10</expr>, <expr>100</expr>, <expr>1000</expr>, <expr>10000</expr>,
+    <expr>100000</expr>, <expr>1000000</expr>, <expr>10000000</expr>, <expr>100000000</expr>, <expr>1000000000</expr>}</block></expr></init></decl>;</decl_stmt>
+
+  <comment type="line">// halfPowersOf10[i] = largest int less than 10^(i + 0.5)</comment>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>int</name><index>[]</index></type> <name>halfPowersOf10</name> =<init>
+      <expr><block>{<expr>3</expr>, <expr>31</expr>, <expr>316</expr>, <expr>3162</expr>, <expr>31622</expr>, <expr>316227</expr>, <expr>3162277</expr>, <expr>31622776</expr>, <expr>316227766</expr>, <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns {@code b} to the {@code k}th power. Even if the result overflows, it will be equal to
+   * {@code BigInteger.valueOf(b).pow(k).intValue()}. This implementation runs in {@code O(log k)}
+   * time.
+   *
+   * &lt;p&gt;Compare {@link #checkedPow}, which throws an {@link ArithmeticException} upon overflow.
+   *
+   * @throws IllegalArgumentException if {@code k &lt; 0}
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("failing tests")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>pow</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>k</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"exponent"</expr></argument>, <argument><expr><name>k</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <switch>switch <condition>(<expr><name>b</name></expr>)</condition> <block>{
+      <case>case <expr>0</expr>:
+        <return>return <expr>(<name>k</name> == 0) ? 1 : 0</expr>;</return>
+      </case><case>case <expr>1</expr>:
+        <return>return <expr>1</expr>;</return>
+      </case><case>case <expr>(-1)</expr>:
+        <return>return <expr>((<name>k</name> &amp; 1) == 0) ? 1 : -1</expr>;</return>
+      </case><case>case <expr>2</expr>:
+        <return>return <expr>(<name>k</name> &lt; <name><name>Integer</name>.<name>SIZE</name></name>) ? (1 &lt;&lt; <name>k</name>) : 0</expr>;</return>
+      </case><case>case <expr>(-2)</expr>:
+        <if>if <condition>(<expr><name>k</name> &lt; <name><name>Integer</name>.<name>SIZE</name></name></expr>)</condition><then> <block>{
+          <return>return <expr>((<name>k</name> &amp; 1) == 0) ? (1 &lt;&lt; <name>k</name>) : -(1 &lt;&lt; <name>k</name>)</expr>;</return>
+        }</block></then> <else>else <block>{
+          <return>return <expr>0</expr>;</return>
+        }</block></else></if>
+      </case><default>default:
+        <comment type="line">// continue below to handle the general case</comment>
+    </default>}</block></switch>
+    <for>for (<init><decl><type><name>int</name></type> <name>accum</name> =<init> <expr>1</expr></init></decl>;</init><condition>;</condition> <incr><expr><name>k</name> &gt;&gt;= 1</expr></incr>) <block>{
+      <switch>switch <condition>(<expr><name>k</name></expr>)</condition> <block>{
+        <case>case <expr>0</expr>:
+          <return>return <expr><name>accum</name></expr>;</return>
+        </case><case>case <expr>1</expr>:
+          <return>return <expr><name>b</name> * <name>accum</name></expr>;</return>
+        </case><default>default:
+          <expr_stmt><expr><name>accum</name> *= ((<name>k</name> &amp; 1) == 0) ? 1 : <name>b</name></expr>;</expr_stmt>
+          <expr_stmt><expr><name>b</name> *= <name>b</name></expr>;</expr_stmt>
+      </default>}</block></switch>
+    }</block></for>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the square root of {@code x}, rounded with the specified rounding mode.
+   *
+   * @throws IllegalArgumentException if {@code x &lt; 0}
+   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and
+   *         {@code sqrt(x)} is not an integer
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("need BigIntegerMath to adequately test")</argument_list></annotation>
+  <annotation>@<name>SuppressWarnings</name><argument_list>("fallthrough")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>sqrt</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>RoundingMode</name></type> <name>mode</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"x"</expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>sqrtFloor</name> =<init> <expr><call><name>sqrtFloor</name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <switch>switch <condition>(<expr><name>mode</name></expr>)</condition> <block>{
+      <case>case <expr><name>UNNECESSARY</name></expr>:
+        <expr_stmt><expr><call><name>checkRoundingUnnecessary</name><argument_list>(<argument><expr><name>sqrtFloor</name> * <name>sqrtFloor</name> == <name>x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// fall through</comment>
+      </case><case>case <expr><name>FLOOR</name></expr>:
+      </case><case>case <expr><name>DOWN</name></expr>:
+        <return>return <expr><name>sqrtFloor</name></expr>;</return>
+      </case><case>case <expr><name>CEILING</name></expr>:
+      </case><case>case <expr><name>UP</name></expr>:
+        <return>return <expr><name>sqrtFloor</name> + <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name>sqrtFloor</name> * <name>sqrtFloor</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><case>case <expr><name>HALF_DOWN</name></expr>:
+      </case><case>case <expr><name>HALF_UP</name></expr>:
+      </case><case>case <expr><name>HALF_EVEN</name></expr>:
+        <decl_stmt><decl><type><name>int</name></type> <name>halfSquare</name> =<init> <expr><name>sqrtFloor</name> * <name>sqrtFloor</name> + <name>sqrtFloor</name></expr></init></decl>;</decl_stmt>
+        <comment type="block">/*
+         * We wish to test whether or not x &lt;= (sqrtFloor + 0.5)^2 = halfSquare + 0.25. Since both
+         * x and halfSquare are integers, this is equivalent to testing whether or not x &lt;=
+         * halfSquare. (We have to deal with overflow, though.)
+         *
+         * If we treat halfSquare as an unsigned int, we know that
+         *            sqrtFloor^2 &lt;= x &lt; (sqrtFloor + 1)^2
+         * halfSquare - sqrtFloor &lt;= x &lt; halfSquare + sqrtFloor + 1
+         * so |x - halfSquare| &lt;= sqrtFloor.  Therefore, it's safe to treat x - halfSquare as a
+         * signed int, so lessThanBranchFree is safe for use.
+         */</comment>
+        <return>return <expr><name>sqrtFloor</name> + <call><name>lessThanBranchFree</name><argument_list>(<argument><expr><name>halfSquare</name></expr></argument>, <argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>sqrtFloor</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// There is no loss of precision in converting an int to a double, according to</comment>
+    <comment type="line">// http://java.sun.com/docs/books/jls/third_edition/html/conversions.html#5.1.2</comment>
+    <return>return <expr>(<name>int</name>) <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the result of dividing {@code p} by {@code q}, rounding using the specified
+   * {@code RoundingMode}.
+   *
+   * @throws ArithmeticException if {@code q == 0}, or if {@code mode == UNNECESSARY} and {@code a}
+   *         is not an integer multiple of {@code b}
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("fallthrough")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>divide</name><parameter_list>(<param><decl><type><name>int</name></type> <name>p</name></decl></param>, <param><decl><type><name>int</name></type> <name>q</name></decl></param>, <param><decl><type><name>RoundingMode</name></type> <name>mode</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>mode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>q</name> == 0</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>ArithmeticException</name><argument_list>(<argument><expr>"/ by zero"</expr></argument>)</argument_list></call></expr>;</throw> <comment type="line">// for GWT</comment>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>int</name></type> <name>div</name> =<init> <expr><name>p</name> / <name>q</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>rem</name> =<init> <expr><name>p</name> - <name>q</name> * <name>div</name></expr></init></decl>;</decl_stmt> <comment type="line">// equal to p % q</comment>
+
+    <if>if <condition>(<expr><name>rem</name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>div</name></expr>;</return>
+    }</block></then></if>
+
+    <comment type="block">/*
+     * Normal Java division rounds towards 0, consistently with RoundingMode.DOWN. We just have to
+     * deal with the cases where rounding towards 0 is wrong, which typically depends on the sign of
+     * p / q.
+     *
+     * signum is 1 if p and q are both nonnegative or both negative, and -1 otherwise.
+     */</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>signum</name> =<init> <expr>1 | ((<name>p</name> ^ <name>q</name>) &gt;&gt; (<name><name>Integer</name>.<name>SIZE</name></name> - 1))</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>increment</name></decl>;</decl_stmt>
+    <switch>switch <condition>(<expr><name>mode</name></expr>)</condition> <block>{
+      <case>case <expr><name>UNNECESSARY</name></expr>:
+        <expr_stmt><expr><call><name>checkRoundingUnnecessary</name><argument_list>(<argument><expr><name>rem</name> == 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// fall through</comment>
+      </case><case>case <expr><name>DOWN</name></expr>:
+        <expr_stmt><expr><name>increment</name> = false</expr>;</expr_stmt>
+        <break>break;</break>
+      </case><case>case <expr><name>UP</name></expr>:
+        <expr_stmt><expr><name>increment</name> = true</expr>;</expr_stmt>
+        <break>break;</break>
+      </case><case>case <expr><name>CEILING</name></expr>:
+        <expr_stmt><expr><name>increment</name> = <name>signum</name> &gt; 0</expr>;</expr_stmt>
+        <break>break;</break>
+      </case><case>case <expr><name>FLOOR</name></expr>:
+        <expr_stmt><expr><name>increment</name> = <name>signum</name> &lt; 0</expr>;</expr_stmt>
+        <break>break;</break>
+      </case><case>case <expr><name>HALF_EVEN</name></expr>:
+      </case><case>case <expr><name>HALF_DOWN</name></expr>:
+      </case><case>case <expr><name>HALF_UP</name></expr>:
+        <decl_stmt><decl><type><name>int</name></type> <name>absRem</name> =<init> <expr><call><name>abs</name><argument_list>(<argument><expr><name>rem</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>cmpRemToHalfDivisor</name> =<init> <expr><name>absRem</name> - (<call><name>abs</name><argument_list>(<argument><expr><name>q</name></expr></argument>)</argument_list></call> - <name>absRem</name>)</expr></init></decl>;</decl_stmt>
+        <comment type="line">// subtracting two nonnegative ints can't overflow</comment>
+        <comment type="line">// cmpRemToHalfDivisor has the same sign as compare(abs(rem), abs(q) / 2).</comment>
+        <if>if <condition>(<expr><name>cmpRemToHalfDivisor</name> == 0</expr>)</condition><then> <block>{ <comment type="line">// exactly on the half mark</comment>
+          <expr_stmt><expr><name>increment</name> = (<name>mode</name> == <name>HALF_UP</name> || (<name>mode</name> == <name>HALF_EVEN</name> &amp; (<name>div</name> &amp; 1) != 0))</expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+          <expr_stmt><expr><name>increment</name> = <name>cmpRemToHalfDivisor</name> &gt; 0</expr>;</expr_stmt> <comment type="line">// closer to the UP value</comment>
+        }</block></else></if>
+        <break>break;</break>
+      </case><default>default:
+        <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    </default>}</block></switch>
+    <return>return <expr><name>increment</name> ? <name>div</name> + <name>signum</name> : <name>div</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns {@code x mod m}, a non-negative value less than {@code m}.
+   * This differs from {@code x % m}, which might be negative.
+   *
+   * &lt;p&gt;For example:&lt;pre&gt; {@code
+   *
+   * mod(7, 4) == 3
+   * mod(-7, 4) == 1
+   * mod(-1, 4) == 3
+   * mod(-8, 4) == 0
+   * mod(8, 4) == 0}&lt;/pre&gt;
+   *
+   * @throws ArithmeticException if {@code m &lt;= 0}
+   * @see &lt;a href="http://docs.oracle.com/javase/specs/jls/se7/html/jls-15.html#jls-15.17.3"&gt;
+   *      Remainder Operator&lt;/a&gt;
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>mod</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>m</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>m</name> &lt;= 0</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>ArithmeticException</name><argument_list>(<argument><expr>"Modulus " + <name>m</name> + " must be &gt; 0"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr><name>x</name> % <name>m</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name>result</name> &gt;= 0) ? <name>result</name> : <name>result</name> + <name>m</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the greatest common divisor of {@code a, b}. Returns {@code 0} if
+   * {@code a == 0 &amp;&amp; b == 0}.
+   *
+   * @throws IllegalArgumentException if {@code a &lt; 0} or {@code b &lt; 0}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>gcd</name><parameter_list>(<param><decl><type><name>int</name></type> <name>a</name></decl></param>, <param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <comment type="block">/*
+     * The reason we require both arguments to be &gt;= 0 is because otherwise, what do you return on
+     * gcd(0, Integer.MIN_VALUE)? BigInteger.gcd would return positive 2^31, but positive 2^31
+     * isn't an int.
+     */</comment>
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"a"</expr></argument>, <argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"b"</expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>a</name> == 0</expr>)</condition><then> <block>{
+      <comment type="line">// 0 % b == 0, so b divides a, but the converse doesn't hold.</comment>
+      <comment type="line">// BigInteger.gcd is consistent with this decision.</comment>
+      <return>return <expr><name>b</name></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>b</name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr><name>a</name></expr>;</return> <comment type="line">// similar logic</comment>
+    }</block></then></if></else></if>
+    <comment type="block">/*
+     * Uses the binary GCD algorithm; see http://en.wikipedia.org/wiki/Binary_GCD_algorithm.
+     * This is &gt;40% faster than the Euclidean algorithm in benchmarks.
+     */</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>aTwos</name> =<init> <expr><call><name><name>Integer</name>.<name>numberOfTrailingZeros</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name>a</name> &gt;&gt;= <name>aTwos</name></expr>;</expr_stmt> <comment type="line">// divide out all 2s</comment>
+    <decl_stmt><decl><type><name>int</name></type> <name>bTwos</name> =<init> <expr><call><name><name>Integer</name>.<name>numberOfTrailingZeros</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name>b</name> &gt;&gt;= <name>bTwos</name></expr>;</expr_stmt> <comment type="line">// divide out all 2s</comment>
+    <while>while <condition>(<expr><name>a</name> != <name>b</name></expr>)</condition> <block>{ <comment type="line">// both a, b are odd</comment>
+      <comment type="line">// The key to the binary GCD algorithm is as follows:</comment>
+      <comment type="line">// Both a and b are odd.  Assume a &gt; b; then gcd(a - b, b) = gcd(a, b).</comment>
+      <comment type="line">// But in gcd(a - b, b), a - b is even and b is odd, so we can divide out powers of two.</comment>
+
+      <comment type="line">// We bend over backwards to avoid branching, adapting a technique from</comment>
+      <comment type="line">// http://graphics.stanford.edu/~seander/bithacks.html#IntegerMinOrMax</comment>
+
+      <decl_stmt><decl><type><name>int</name></type> <name>delta</name> =<init> <expr><name>a</name> - <name>b</name></expr></init></decl>;</decl_stmt> <comment type="line">// can't overflow, since a and b are nonnegative</comment>
+
+      <decl_stmt><decl><type><name>int</name></type> <name>minDeltaOrZero</name> =<init> <expr><name>delta</name> &amp; (<name>delta</name> &gt;&gt; (<name><name>Integer</name>.<name>SIZE</name></name> - 1))</expr></init></decl>;</decl_stmt>
+      <comment type="line">// equivalent to Math.min(delta, 0)</comment>
+
+      <expr_stmt><expr><name>a</name> = <name>delta</name> - <name>minDeltaOrZero</name> - <name>minDeltaOrZero</name></expr>;</expr_stmt> <comment type="line">// sets a to Math.abs(a - b)</comment>
+      <comment type="line">// a is now nonnegative and even</comment>
+
+      <expr_stmt><expr><name>b</name> += <name>minDeltaOrZero</name></expr>;</expr_stmt> <comment type="line">// sets b to min(old a, b)</comment>
+      <expr_stmt><expr><name>a</name> &gt;&gt;= <call><name><name>Integer</name>.<name>numberOfTrailingZeros</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// divide out all 2s, since 2 doesn't divide b</comment>
+    }</block></while>
+    <return>return <expr><name>a</name> &lt;&lt; <call><name>min</name><argument_list>(<argument><expr><name>aTwos</name></expr></argument>, <argument><expr><name>bTwos</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the sum of {@code a} and {@code b}, provided it does not overflow.
+   *
+   * @throws ArithmeticException if {@code a + b} overflows in signed {@code int} arithmetic
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>checkedAdd</name><parameter_list>(<param><decl><type><name>int</name></type> <name>a</name></decl></param>, <param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr>(<name>long</name>) <name>a</name> + <name>b</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr><name>result</name> == (<name>int</name>) <name>result</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>int</name>) <name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the difference of {@code a} and {@code b}, provided it does not overflow.
+   *
+   * @throws ArithmeticException if {@code a - b} overflows in signed {@code int} arithmetic
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>checkedSubtract</name><parameter_list>(<param><decl><type><name>int</name></type> <name>a</name></decl></param>, <param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr>(<name>long</name>) <name>a</name> - <name>b</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr><name>result</name> == (<name>int</name>) <name>result</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>int</name>) <name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the product of {@code a} and {@code b}, provided it does not overflow.
+   *
+   * @throws ArithmeticException if {@code a * b} overflows in signed {@code int} arithmetic
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>checkedMultiply</name><parameter_list>(<param><decl><type><name>int</name></type> <name>a</name></decl></param>, <param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr>(<name>long</name>) <name>a</name> * <name>b</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr><name>result</name> == (<name>int</name>) <name>result</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>int</name>) <name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the {@code b} to the {@code k}th power, provided it does not overflow.
+   *
+   * &lt;p&gt;{@link #pow} may be faster, but does not check for overflow.
+   *
+   * @throws ArithmeticException if {@code b} to the {@code k}th power overflows in signed
+   *         {@code int} arithmetic
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>checkedPow</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>k</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"exponent"</expr></argument>, <argument><expr><name>k</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <switch>switch <condition>(<expr><name>b</name></expr>)</condition> <block>{
+      <case>case <expr>0</expr>:
+        <return>return <expr>(<name>k</name> == 0) ? 1 : 0</expr>;</return>
+      </case><case>case <expr>1</expr>:
+        <return>return <expr>1</expr>;</return>
+      </case><case>case <expr>(-1)</expr>:
+        <return>return <expr>((<name>k</name> &amp; 1) == 0) ? 1 : -1</expr>;</return>
+      </case><case>case <expr>2</expr>:
+        <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr><name>k</name> &lt; <name><name>Integer</name>.<name>SIZE</name></name> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr>1 &lt;&lt; <name>k</name></expr>;</return>
+      </case><case>case <expr>(-2)</expr>:
+        <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr><name>k</name> &lt; <name><name>Integer</name>.<name>SIZE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr>((<name>k</name> &amp; 1) == 0) ? 1 &lt;&lt; <name>k</name> : -1 &lt;&lt; <name>k</name></expr>;</return>
+      </case><default>default:
+        <comment type="line">// continue below to handle the general case</comment>
+    </default>}</block></switch>
+    <decl_stmt><decl><type><name>int</name></type> <name>accum</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <while>while <condition>(<expr>true</expr>)</condition> <block>{
+      <switch>switch <condition>(<expr><name>k</name></expr>)</condition> <block>{
+        <case>case <expr>0</expr>:
+          <return>return <expr><name>accum</name></expr>;</return>
+        </case><case>case <expr>1</expr>:
+          <return>return <expr><call><name>checkedMultiply</name><argument_list>(<argument><expr><name>accum</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+        </case><default>default:
+          <if>if <condition>(<expr>(<name>k</name> &amp; 1) != 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>accum</name> = <call><name>checkedMultiply</name><argument_list>(<argument><expr><name>accum</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <expr_stmt><expr><name>k</name> &gt;&gt;= 1</expr>;</expr_stmt>
+          <if>if <condition>(<expr><name>k</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>checkNoOverflow</name><argument_list>(<argument><expr>-<name>FLOOR_SQRT_MAX_INT</name> &lt;= <name>b</name> &amp; <name>b</name> &lt;= <name>FLOOR_SQRT_MAX_INT</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>b</name> *= <name>b</name></expr>;</expr_stmt>
+          }</block></then></if>
+      </default>}</block></switch>
+    }</block></while>
+  }</block></function>
+
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>FLOOR_SQRT_MAX_INT</name> =<init> <expr>46340</expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns {@code n!}, that is, the product of the first {@code n} positive
+   * integers, {@code 1} if {@code n == 0}, or {@link Integer#MAX_VALUE} if the
+   * result does not fit in a {@code int}.
+   *
+   * @throws IllegalArgumentException if {@code n &lt; 0}
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>factorial</name><parameter_list>(<param><decl><type><name>int</name></type> <name>n</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"n"</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>(<name>n</name> &lt; <name><name>factorials</name>.<name>length</name></name>) ? <name><name>factorials</name><index>[<expr><name>n</name></expr>]</index></name> : <name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name><index>[]</index></type> <name>factorials</name> =<init> <expr><block>{
+      <expr>1</expr>,
+      <expr>1</expr>,
+      <expr>1 * 2</expr>,
+      <expr>1 * 2 * 3</expr>,
+      <expr>1 * 2 * 3 * 4</expr>,
+      <expr>1 * 2 * 3 * 4 * 5</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7 * 8</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11</expr>,
+      <expr>1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9 * 10 * 11 * 12</expr>}</block></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns {@code n} choose {@code k}, also known as the binomial coefficient of {@code n} and
+   * {@code k}, or {@link Integer#MAX_VALUE} if the result does not fit in an {@code int}.
+   *
+   * @throws IllegalArgumentException if {@code n &lt; 0}, {@code k &lt; 0} or {@code k &gt; n}
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("need BigIntegerMath to adequately test")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>binomial</name><parameter_list>(<param><decl><type><name>int</name></type> <name>n</name></decl></param>, <param><decl><type><name>int</name></type> <name>k</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"n"</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNonNegative</name><argument_list>(<argument><expr>"k"</expr></argument>, <argument><expr><name>k</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>k</name> &lt;= <name>n</name></expr></argument>, <argument><expr>"k (%s) &gt; n (%s)"</expr></argument>, <argument><expr><name>k</name></expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>k</name> &gt; (<name>n</name> &gt;&gt; 1)</expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>k</name> = <name>n</name> - <name>k</name></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>k</name> &gt;= <name><name>biggestBinomials</name>.<name>length</name></name> || <name>n</name> &gt; <name><name>biggestBinomials</name><index>[<expr><name>k</name></expr>]</index></name></expr>)</condition><then> <block>{
+      <return>return <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>;</return>
+    }</block></then></if>
+    <switch>switch <condition>(<expr><name>k</name></expr>)</condition> <block>{
+      <case>case <expr>0</expr>:
+        <return>return <expr>1</expr>;</return>
+      </case><case>case <expr>1</expr>:
+        <return>return <expr><name>n</name></expr>;</return>
+      </case><default>default:
+        <decl_stmt><decl><type><name>long</name></type> <name>result</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>k</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><name>result</name> *= <name>n</name> - <name>i</name></expr>;</expr_stmt>
+          <expr_stmt><expr><name>result</name> /= <name>i</name> + 1</expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr>(<name>int</name>) <name>result</name></expr>;</return>
+    </default>}</block></switch>
+  }</block></function>
+
+  <comment type="line">// binomial(biggestBinomials[k], k) fits in an int, but not binomial(biggestBinomials[k]+1,k).</comment>
+  <decl_stmt><decl><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <name>int</name><index>[]</index></type> <name>biggestBinomials</name> =<init> <expr><block>{
+    <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>,
+    <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr>,
+    <expr>65536</expr>,
+    <expr>2345</expr>,
+    <expr>477</expr>,
+    <expr>193</expr>,
+    <expr>110</expr>,
+    <expr>75</expr>,
+    <expr>58</expr>,
+    <expr>49</expr>,
+    <expr>43</expr>,
+    <expr>39</expr>,
+    <expr>37</expr>,
+    <expr>35</expr>,
+    <expr>34</expr>,
+    <expr>34</expr>,
+    <expr>33</expr>
+  }</block></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Returns the arithmetic mean of {@code x} and {@code y}, rounded towards
+   * negative infinity. This method is overflow resilient.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>mean</name><parameter_list>(<param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Efficient method for computing the arithmetic mean.</comment>
+    <comment type="line">// The alternative (x + y) / 2 fails for large values.</comment>
+    <comment type="line">// The alternative (x + y) &gt;&gt;&gt; 1 fails for negative values.</comment>
+    <return>return <expr>(<name>x</name> &amp; <name>y</name>) + ((<name>x</name> ^ <name>y</name>) &gt;&gt; 1)</expr>;</return>
+  }</block></function>
+
+  <constructor><specifier>private</specifier> <name>IntMath</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+}</block></class>
+</unit>

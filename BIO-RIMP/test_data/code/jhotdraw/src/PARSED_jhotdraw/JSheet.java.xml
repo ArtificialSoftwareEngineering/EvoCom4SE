@@ -1,0 +1,1157 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jhotdraw\src\main\java\org\jhotdraw\gui\JSheet.java"><comment type="block">/*
+ * @(#)JSheet.java  3.0.1  2007-03-24
+ *
+ * Copyright (c) 1996-2008 by the original authors of JHotDraw
+ * and all its contributors.
+ * All rights reserved.
+ *
+ * The copyright of this software is owned by the authors and  
+ * contributors of the JHotDraw project ("the copyright holders").  
+ * You may not use, copy or modify this software, except in  
+ * accordance with the license agreement you entered into with  
+ * the copyright holders. For details see accompanying license terms. 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jhotdraw</name>.<name>gui</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>awt</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>peer</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>beans</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name>.<name>border</name>.<name>EmptyBorder</name></name>;</import>
+<import>import <name><name>javax</name>.<name>swing</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>javax</name>.<name>swing</name>.<name>plaf</name></name>.*;</import>
+<import>import <name><name>org</name>.<name>jhotdraw</name>.<name>gui</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>org</name>.<name>jhotdraw</name>.<name>util</name></name>.*;</import>
+
+<comment type="javadoc">/**
+ * JSheet is a document modal dialog which is displayed below the title bar
+ * of a JFrame.
+ * &lt;p&gt;
+ * A JSheet blocks input on its owner window, while it is visible.
+ * &lt;p&gt;
+ * Unlike application modal dialogs, the show method of a JSheet does return
+ * immediately, when the JSheet has become visible. Applications need to use
+ * a SheetListener to get the return value of a JSheet.
+ * &lt;p&gt;
+ * Requires Java 1.4.
+ * &lt;p&gt;
+ * Caveats: We are using an unsupported API call to make the JSheet translucent.
+ * This API may go away in future versions of the Macintosh Runtime for Java.
+ * In such a case, we (hopefully) just end up with a non-opaque sheet.
+ *
+ * @author  Werner Randelshofer
+ * @version 3.0.1 2008-03-24 Fixed NPE in method hide0. 
+ * &lt;br&gt;3.0 2008-03-15 Display the glass pane while the JSheet is showing.
+ * Call toFront on the owning window before showing the sheet.
+ * &lt;br&gt;2.1.1 2007-11-24 Don't call toFront() on parent window when running
+ * on Darwin.
+ * &lt;br&gt;2.1 2007-01-08 Bounce dock icon when opening sheet.
+ * &lt;br&gt;2.0 2006-08-20 Added support for native JSheets with J2SE 6.
+ * &lt;br&gt;1.3 2006-04-15 Request focus. Show window title of parent window
+ * when displaying sheet as a regular dialog window.
+ * &lt;br&gt;1.2 2006-02-18 Set window decoration style to NONE. Get sheet border
+ * from UIManager.
+ * &lt;br&gt;1.1 2005-10-15 Bring sheet to front when showing an option pane
+ * or a filechooser. Method showMessageSheet with a SheetListener added.
+ * &lt;br&gt;1.0.1 2005-10-08 Clear value.
+ * &lt;br&gt;1.0 September 25, 2005 Created.
+ */</comment>
+<class><specifier>public</specifier> class <name>JSheet</name> <super><extends>extends <name>JDialog</name></extends></super> <block>{
+
+    <comment type="javadoc">/**
+     * Event listener list.
+     */</comment>
+    <decl_stmt><decl><type><specifier>protected</specifier> <name>EventListenerList</name></type> <name>listenerList</name> =<init> <expr>new <call><name>EventListenerList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * This handler is used to handle movements of the owner.
+     * If the owner moves, we have to change the location of the sheet as well.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ComponentListener</name></type> <name>ownerMovementHandler</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * If this is non-null, we put the owner to the specified location,
+     * when the sheet is hidden.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Point</name></type> <name>shiftBackLocation</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * We need to keep track of the old owner position, in order to avoid
+     * processing duplicate owner moved events.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Point</name></type> <name>oldLocation</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * Focus owner on the owner window, before the sheet is shown.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Component</name></type> <name>oldFocusOwner</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * This is set to true, when the listeners for the JSheet are installed on
+     * the parent component.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isInstalled</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * If this is set to true, the JSheet uses a transition effect when shown
+     * and when hidden.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isAnimated</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * If this is set to true, the JSheet uses native Mac OS X sheets.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isNativeSheetSupported</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * If this is set to true, the JSheet uses native document modal dialogs.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isDocumentModalitySupported</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * This variable is only used in Java 1.5 and previous versions.
+     * In order to make the sheet document modal, we have to block events on
+     * the owner window. We do this by setting a JPanel as the glass
+     * pane on the owner window.
+     * Before we do this, we store the glass pane of the owner window here,
+     * and restore it after we have finished.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Component</name></type> <name>ownersGlassPane</name></decl>;</decl_stmt>
+
+    static <block>{
+        <comment type="line">// SoyLatte doesn't properly support document modal dialogs yet.</comment>
+        <expr_stmt><expr><name>isDocumentModalitySupported</name> = !<call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"os.name"</expr></argument>)</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr>"Darwin"</expr></argument>)</argument_list></call> &amp;&amp;
+                <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"java.version"</expr></argument>)</argument_list></call>.<call><name>compareTo</name><argument_list>(<argument><expr>"1.6"</expr></argument>)</argument_list></call> &gt;= 0</expr>;</expr_stmt>
+        <expr_stmt><expr><name>isNativeSheetSupported</name> = <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"os.name"</expr></argument>)</argument_list></call>.<call><name>toLowerCase</name><argument_list>()</argument_list></call>.<call><name>startsWith</name><argument_list>(<argument><expr>"mac os x"</expr></argument>)</argument_list></call> &amp;&amp;
+                <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"java.version"</expr></argument>)</argument_list></call>.<call><name>compareTo</name><argument_list>(<argument><expr>"1.6"</expr></argument>)</argument_list></call> &gt;= 0</expr>;</expr_stmt>
+    }</block>
+
+    <comment type="javadoc">/**
+     * Creates a new JSheet.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JSheet</name><parameter_list>(<param><decl><type><name>Frame</name></type> <name>owner</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>owner</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new JSheet.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JSheet</name><parameter_list>(<param><decl><type><name>Dialog</name></type> <name>owner</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>owner</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>init</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>getOwner</name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp; <call><name>isShowAsSheet</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name>isNativeSheetSupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>getRootPane</name><argument_list>()</argument_list></call>.<call><name>putClientProperty</name><argument_list>(<argument><expr>"apple.awt.documentModalSheet"</expr></argument>, <argument><expr><name><name>Boolean</name>.<name>TRUE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>setUndecorated</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>getRootPane</name><argument_list>()</argument_list></call>.<call><name>setWindowDecorationStyle</name><argument_list>(<argument><expr><name><name>JRootPane</name>.<name>NONE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>getRootPane</name><argument_list>()</argument_list></call>.<call><name>setBorder</name><argument_list>(<argument><expr><call><name><name>UIManager</name>.<name>getBorder</name></name><argument_list>(<argument><expr>"Sheet.border"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <if>if <condition>(<expr><call><name>isDocumentModalitySupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>Methods</name>.<name>invokeIfExistsWithEnum</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr>"setModalityType"</expr></argument>, <argument><expr>"java.awt.Dialog$ModalityType"</expr></argument>, <argument><expr>"DOCUMENT_MODAL"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+
+        <comment type="line">// We move the sheet when the user moves the owner, so that it</comment>
+        <comment type="line">// will always stay centered below the title bar of the owner.</comment>
+        <comment type="line">// If the user has moved the owner, we 'forget' the shift back location,</comment>
+        <comment type="line">// and don't shift the owner back to the place it was, when we opened</comment>
+        <comment type="line">// the sheet.</comment>
+        <expr_stmt><expr><name>ownerMovementHandler</name> = new <class><super><name>ComponentAdapter</name></super><argument_list>()</argument_list> <block>{
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>componentMoved</name><parameter_list>(<param><decl><type><name>ComponentEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+                <decl_stmt><decl><type><name>Window</name></type> <name>owner</name> =<init> <expr><call><name>getOwner</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Point</name></type> <name>newLocation</name> =<init> <expr><call><name><name>owner</name>.<name>getLocation</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr>!<call><name><name>newLocation</name>.<name>equals</name></name><argument_list>(<argument><expr><name>oldLocation</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>setLocation</name><argument_list>(
+                            <argument><expr><name><name>newLocation</name>.<name>x</name></name> + (<call><name><name>owner</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> - <call><name>getWidth</name><argument_list>()</argument_list></call>) / 2</expr></argument>,
+                            <argument><expr><name><name>newLocation</name>.<name>y</name></name> + <call><name><name>owner</name>.<name>getInsets</name></name><argument_list>()</argument_list></call>.<name>top</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>shiftBackLocation</name> = <name>null</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>oldLocation</name> = <name>newLocation</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></function>
+        }</block></class></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <name>boolean</name></type> <name>isShowAsSheet</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>UIManager</name>.<name>getBoolean</name></name><argument_list>(<argument><expr>"Sheet.showAsSheet"</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Installs the sheet on the owner.
+     * This method is invoked just before the JSheet is shown.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>installSheet</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr>!<call><name>isNativeSheetSupported</name><argument_list>()</argument_list></call> &amp;&amp; !<name>isInstalled</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>Window</name></type> <name>owner</name> =<init> <expr><call><name>getOwner</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>owner</name> != <name>null</name></expr>)</condition><then> <block>{
+
+                <comment type="line">// Determine the location for the sheet and its owner while</comment>
+                <comment type="line">// the sheet will be visible.</comment>
+                <comment type="line">// In case we have to shift the owner to fully display the</comment>
+                <comment type="line">// dialog, we remember the shift back position.</comment>
+                <decl_stmt><decl><type><name>Point</name></type> <name>ownerLoc</name> =<init> <expr><call><name><name>owner</name>.<name>getLocation</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Point</name></type> <name>sheetLoc</name></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name>isShowAsSheet</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>owner</name> <name>instanceof</name> <name>JFrame</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>sheetLoc</name> = new <call><name>Point</name><argument_list>(
+                                <argument><expr><name><name>ownerLoc</name>.<name>x</name></name> + (<call><name><name>owner</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> - <call><name>getWidth</name><argument_list>()</argument_list></call>) / 2</expr></argument>,
+                                <argument><expr><name><name>ownerLoc</name>.<name>y</name></name> + <call><name><name>owner</name>.<name>getInsets</name></name><argument_list>()</argument_list></call>.<name>top</name> + ((<name>JFrame</name>) <name>owner</name>).<call><name>getRootPane</name><argument_list>()</argument_list></call>.<call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>getY</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <if>if <condition>(<expr><name>owner</name> <name>instanceof</name> <name>JDialog</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>sheetLoc</name> = new <call><name>Point</name><argument_list>(
+                                <argument><expr><name><name>ownerLoc</name>.<name>x</name></name> + (<call><name><name>owner</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> - <call><name>getWidth</name><argument_list>()</argument_list></call>) / 2</expr></argument>,
+                                <argument><expr><name><name>ownerLoc</name>.<name>y</name></name> + <call><name><name>owner</name>.<name>getInsets</name></name><argument_list>()</argument_list></call>.<name>top</name> + ((<name>JDialog</name>) <name>owner</name>).<call><name>getRootPane</name><argument_list>()</argument_list></call>.<call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>getY</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>sheetLoc</name> = new <call><name>Point</name><argument_list>(
+                                <argument><expr><name><name>ownerLoc</name>.<name>x</name></name> + (<call><name><name>owner</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> - <call><name>getWidth</name><argument_list>()</argument_list></call>) / 2</expr></argument>,
+                                <argument><expr><name><name>ownerLoc</name>.<name>y</name></name> + <call><name><name>owner</name>.<name>getInsets</name></name><argument_list>()</argument_list></call>.<name>top</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if></else></if>
+
+                    <if>if <condition>(<expr><name><name>sheetLoc</name>.<name>x</name></name> &lt; 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>owner</name>.<name>setLocation</name></name><argument_list>(<argument><expr><name><name>ownerLoc</name>.<name>x</name></name> - <name><name>sheetLoc</name>.<name>x</name></name></expr></argument>, <argument><expr><name><name>ownerLoc</name>.<name>y</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name><name>sheetLoc</name>.<name>x</name></name> = 0</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>shiftBackLocation</name> = <name>ownerLoc</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>oldLocation</name> = <call><name><name>owner</name>.<name>getLocation</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>shiftBackLocation</name> = <name>null</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>oldLocation</name> = <name>ownerLoc</name></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>sheetLoc</name> = new <call><name>Point</name><argument_list>(
+                            <argument><expr><name><name>ownerLoc</name>.<name>x</name></name> + (<call><name><name>owner</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> - <call><name>getWidth</name><argument_list>()</argument_list></call>) / 2</expr></argument>,
+                            <argument><expr><name><name>ownerLoc</name>.<name>y</name></name> + (<call><name><name>owner</name>.<name>getHeight</name></name><argument_list>()</argument_list></call> - <call><name>getHeight</name><argument_list>()</argument_list></call>) / 2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <expr_stmt><expr><call><name>setLocation</name><argument_list>(<argument><expr><name>sheetLoc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>oldFocusOwner</name> = <call><name><name>owner</name>.<name>getFocusOwner</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                <comment type="line">// Note: We mustn't change the windows focusable state because</comment>
+                <comment type="line">// this also affects the focusable state of the JSheet.</comment>
+                <comment type="line">//owner.setFocusableWindowState(false);</comment>
+                <expr_stmt><expr><call><name><name>owner</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">// ((JFrame) owner).setResizable(false);</comment>
+                <if>if <condition>(<expr><call><name>isShowAsSheet</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>owner</name>.<name>addComponentListener</name></name><argument_list>(<argument><expr><name>ownerMovementHandler</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <if>if <condition>(<expr><name>owner</name> <name>instanceof</name> <name>Frame</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>setTitle</name><argument_list>(<argument><expr>((<name>Frame</name>) <name>owner</name>).<call><name>getTitle</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></else></if>
+            }</block></then></if>
+            <expr_stmt><expr><name>isInstalled</name> = true</expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Uninstalls the sheet on the owner.
+     * This method is invoked immediately after the JSheet is hidden.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>uninstallSheet</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>isInstalled</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>Window</name></type> <name>owner</name> =<init> <expr><call><name>getOwner</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>owner</name> != <name>null</name></expr>)</condition><then> <block>{
+                <comment type="line">// Note: We mustn't change the windows focusable state because</comment>
+                <comment type="line">// this also affects the focusable state of the JSheet.</comment>
+                <comment type="line">//owner.setFocusableWindowState(true);</comment>
+                <expr_stmt><expr><call><name><name>owner</name>.<name>setEnabled</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">//((JFrame) owner).setResizable(true);</comment>
+                <expr_stmt><expr><call><name><name>owner</name>.<name>removeComponentListener</name></name><argument_list>(<argument><expr><name>ownerMovementHandler</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name>shiftBackLocation</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>owner</name>.<name>setLocation</name></name><argument_list>(<argument><expr><name>shiftBackLocation</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <if>if <condition>(<expr><name>oldFocusOwner</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>owner</name>.<name>toFront</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>oldFocusOwner</name>.<name>requestFocus</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+            <expr_stmt><expr><name>isInstalled</name> = false</expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addNotify</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>addNotify</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name><name>UIManager</name>.<name>getBoolean</name></name><argument_list>(<argument><expr>"Sheet.showAsSheet"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+           <comment type="line">// QuaquaUtilities.setWindowAlpha(this, 240);</comment>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * If this is set to true, the JSheet uses a transition effect when shown
+     * and when hidden.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setAnimated</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>oldValue</name> =<init> <expr><name>isAnimated</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>isAnimated</name> = <name>newValue</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>firePropertyChange</name><argument_list>(<argument><expr>"animated"</expr></argument>, <argument><expr><name>oldValue</name></expr></argument>, <argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * If this returns true, the JSheet uses a transition effect when shown
+     * and when hidden.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isAnimated</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>isAnimated</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * If this returns true, the JSheet uses native support for
+     * sheet display.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isNativeSheetSupported</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>isNativeSheetSupported</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * If this returns true, the JSheet uses native support for
+     * sheet display.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isDocumentModalitySupported</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>isDocumentModalitySupported</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>dispose</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>dispose</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>uninstallSheet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>hide0</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>JRootPane</name></type> <name>rp</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>getOwner</name><argument_list>()</argument_list></call> <name>instanceof</name> <name>JFrame</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>rp</name> = ((<name>JFrame</name>) <call><name>getOwner</name><argument_list>()</argument_list></call>).<call><name>getRootPane</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name>getOwner</name><argument_list>()</argument_list></call> <name>instanceof</name> <name>JDialog</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>rp</name> = ((<name>JDialog</name>) <call><name>getOwner</name><argument_list>()</argument_list></call>).<call><name>getRootPane</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        <if>if <condition>(<expr><name>rp</name> != <name>null</name> &amp;&amp; !<call><name>isDocumentModalitySupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>Component</name></type> <name>blockingComponent</name> =<init> <expr><call><name><name>rp</name>.<name>getGlassPane</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>blockingComponent</name>.<name>setVisible</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>ownersGlassPane</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>rp</name>.<name>setGlassPane</name></name><argument_list>(<argument><expr><name>ownersGlassPane</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>ownersGlassPane</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>super</name>.<name>hide</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>show0</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>JRootPane</name></type> <name>rp</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>getOwner</name><argument_list>()</argument_list></call> <name>instanceof</name> <name>JFrame</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>rp</name> = ((<name>JFrame</name>) <call><name>getOwner</name><argument_list>()</argument_list></call>).<call><name>getRootPane</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name>getOwner</name><argument_list>()</argument_list></call> <name>instanceof</name> <name>JDialog</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>rp</name> = ((<name>JDialog</name>) <call><name>getOwner</name><argument_list>()</argument_list></call>).<call><name>getRootPane</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        <if>if <condition>(<expr><name>rp</name> != <name>null</name> &amp;&amp; !<call><name>isDocumentModalitySupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>ownersGlassPane</name> = <call><name><name>rp</name>.<name>getGlassPane</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>JPanel</name></type> <name>blockingPanel</name> =<init> <expr>new <call><name>JPanel</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>blockingPanel</name>.<name>setOpaque</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>rp</name>.<name>setGlassPane</name></name><argument_list>(<argument><expr><name>blockingPanel</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>blockingPanel</name>.<name>setVisible</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>super</name>.<name>show</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>hide</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isAnimated</name><argument_list>()</argument_list></call> &amp;&amp; <call><name>isShowAsSheet</name><argument_list>()</argument_list></call> &amp;&amp; !<call><name>isNativeSheetSupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>setVisible</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Rectangle</name></type> <name>startBounds</name> =<init> <expr><call><name>getBounds</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>parentWidth</name> =<init> <expr><call><name>getParent</name><argument_list>()</argument_list></call>.<call><name>getWidth</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Rectangle</name></type> <name>endBounds</name> =<init> <expr>new <call><name>Rectangle</name><argument_list>(
+                    <argument><expr>(<name>parentWidth</name> &lt; <name><name>startBounds</name>.<name>width</name></name>) ? <name><name>startBounds</name>.<name>x</name></name> + (<name><name>startBounds</name>.<name>width</name></name> - <name>parentWidth</name>) / 2 : <name><name>startBounds</name>.<name>x</name></name></expr></argument>,
+                    <argument><expr><name><name>startBounds</name>.<name>y</name></name></expr></argument>,
+                    <argument><expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name><name>startBounds</name>.<name>width</name></name></expr></argument>, <argument><expr><name>parentWidth</name></expr></argument>)</argument_list></call></expr></argument>,
+                    <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Timer</name></type> <name>timer</name> =<init> <expr>new <call><name>Timer</name><argument_list>(<argument><expr>20</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>addActionListener</name></name><argument_list>(<argument><expr>new <class><super><name>ActionListener</name></super><argument_list>()</argument_list> <block>{
+
+                <decl_stmt><decl><type><name>long</name></type> <name>startTime</name></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>long</name></type> <name>endTime</name></decl>;</decl_stmt>
+
+                <function><type><specifier>public</specifier> <name>void</name></type> <name>actionPerformed</name><parameter_list>(<param><decl><type><name>ActionEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+                    <decl_stmt><decl><type><name>long</name></type> <name>now</name> =<init> <expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><name>startTime</name> == 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>startTime</name> = <name>now</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>endTime</name> = <name>startTime</name> + 200</expr>;</expr_stmt>
+                    }</block></then></if>
+                    <if>if <condition>(<expr><name>now</name> &gt; <name>endTime</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>timer</name>.<name>stop</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>hide0</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>setBounds</name><argument_list>(<argument><expr><name>startBounds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>setVisible</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>uninstallSheet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <decl_stmt><decl><type><name>float</name></type> <name>ratio</name> =<init> <expr>(<name>now</name> - <name>startTime</name>) / <call>(<name>float</name>) <argument_list>(<argument><expr><name>endTime</name> - <name>startTime</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name>setBounds</name><argument_list>(
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>x</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>x</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>y</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>y</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>width</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>width</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>height</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>height</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>setRepeats</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>setInitialDelay</name></name><argument_list>(<argument><expr>5</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>start</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>hide0</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>uninstallSheet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>show</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isAnimated</name><argument_list>()</argument_list></call> &amp;&amp; <call><name>isShowAsSheet</name><argument_list>()</argument_list></call> &amp;&amp; !<call><name>isNativeSheetSupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>installSheet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>setVisible</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>startTime</name> =<init> <expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>endTime</name> =<init> <expr><name>startTime</name> + 300</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Rectangle</name></type> <name>endBounds</name> =<init> <expr><call><name>getBounds</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>parentWidth</name> =<init> <expr><call><name>getParent</name><argument_list>()</argument_list></call>.<call><name>getWidth</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Rectangle</name></type> <name>startBounds</name> =<init> <expr>new <call><name>Rectangle</name><argument_list>(
+                    <argument><expr>(<name>parentWidth</name> &lt; <name><name>endBounds</name>.<name>width</name></name>) ? <name><name>endBounds</name>.<name>x</name></name> + (<name><name>endBounds</name>.<name>width</name></name> - <name>parentWidth</name>) / 2 : <name><name>endBounds</name>.<name>x</name></name></expr></argument>,
+                    <argument><expr><name><name>endBounds</name>.<name>y</name></name></expr></argument>,
+                    <argument><expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name><name>endBounds</name>.<name>width</name></name></expr></argument>, <argument><expr><name>parentWidth</name></expr></argument>)</argument_list></call></expr></argument>,
+                    <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>setBounds</name><argument_list>(<argument><expr><name>startBounds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr>!<call><name>isDocumentModalitySupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr>((<name>Window</name>) <call><name>getParent</name><argument_list>()</argument_list></call>).<call><name>toFront</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>show0</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Timer</name></type> <name>timer</name> =<init> <expr>new <call><name>Timer</name><argument_list>(<argument><expr>20</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>addActionListener</name></name><argument_list>(<argument><expr>new <class><super><name>ActionListener</name></super><argument_list>()</argument_list> <block>{
+
+                <decl_stmt><decl><type><name>long</name></type> <name>startTime</name></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>long</name></type> <name>endTime</name></decl>;</decl_stmt>
+
+                <function><type><specifier>public</specifier> <name>void</name></type> <name>actionPerformed</name><parameter_list>(<param><decl><type><name>ActionEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+                    <decl_stmt><decl><type><name>long</name></type> <name>now</name> =<init> <expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><name>startTime</name> == 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>startTime</name> = <name>now</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>endTime</name> = <name>startTime</name> + 200</expr>;</expr_stmt>
+                    }</block></then></if>
+                    <if>if <condition>(<expr><name>now</name> &gt; <name>endTime</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>timer</name>.<name>stop</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>setBounds</name><argument_list>(<argument><expr><name>endBounds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>setVisible</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                                <decl_stmt><decl><type><name>Component</name></type> <name>c</name> =<init> <expr><call><name>getFocusTraversalPolicy</name><argument_list>()</argument_list></call>.<call><name>getInitialComponent</name><argument_list>(<argument><expr><name><name>JSheet</name>.<name>this</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                                <if>if <condition>(<expr><name>c</name> != <name>null</name></expr>)</condition><then> <block>{
+                                    <expr_stmt><expr><call><name><name>c</name>.<name>requestFocus</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                                }</block></then> <else>else <block>{
+                                    <expr_stmt><expr><call><name>getContentPane</name><argument_list>()</argument_list></call>.<call><name>requestFocus</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                                }</block></else></if>
+                    }</block></then> <else>else <block>{
+                        <decl_stmt><decl><type><name>float</name></type> <name>ratio</name> =<init> <expr>(<name>now</name> - <name>startTime</name>) / <call>(<name>float</name>) <argument_list>(<argument><expr><name>endTime</name> - <name>startTime</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name>setBounds</name><argument_list>(
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>x</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>x</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>y</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>y</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>width</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>width</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>,
+                                <argument><expr><call>(<name>int</name>) <argument_list>(<argument><expr><name><name>startBounds</name>.<name>height</name></name> * (1f - <name>ratio</name>) + <name><name>endBounds</name>.<name>height</name></name> * <name>ratio</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>setRepeats</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>setInitialDelay</name></name><argument_list>(<argument><expr>5</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>timer</name>.<name>start</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>installSheet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>show0</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <expr_stmt><expr><call><name>requestUserAttention</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Requests attention from user. This is invoked when the sheet is opened.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>requestUserAttention</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>requestCritical</name></decl></param>)</parameter_list> <block>{
+        <comment type="block">/*
+        NSApplication app = NSApplication.sharedApplication();
+        int id = app.requestUserAttention(
+                                NSApplication.UserAttentionRequestInformational);
+         */</comment>
+        <comment type="block">/*
+        try {
+            Object app = Methods.invokeStatic("com.apple.cocoa.application.NSApplication", "sharedApplication");
+            Methods.invoke(app, "requestUserAttention", app.getClass().getDeclaredField("UserAttentionRequestInformational").getInt(app));
+        } catch (Throwable ex) {
+            System.err.println("Quaqua Warning: Couldn't invoke NSApplication.requestUserAttention");
+        }*/</comment>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Adds a sheet listener.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addSheetListener</name><parameter_list>(<param><decl><type><name>SheetListener</name></type> <name>l</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>listenerList</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>SheetListener</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>l</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Removes a sheet listener.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removeSheetListener</name><parameter_list>(<param><decl><type><name>SheetListener</name></type> <name>l</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>listenerList</name>.<name>remove</name></name><argument_list>(<argument><expr><name><name>SheetListener</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>l</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Notify all listeners that have registered interest for
+     *   notification on this event type.  The event instance
+     *   is lazily created using the parameters passed into
+     *   the fire method.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>fireOptionSelected</name><parameter_list>(<param><decl><type><name>JOptionPane</name></type> <name>pane</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Object</name></type> <name>value</name> =<init> <expr><call><name><name>pane</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>option</name></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>option</name> = <name><name>JOptionPane</name>.<name>CLOSED_OPTION</name></name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <if>if <condition>(<expr><call><name><name>pane</name>.<name>getOptions</name></name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>value</name> <name>instanceof</name> <name>Integer</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>option</name> = ((<name>Integer</name>) <name>value</name>).<call><name>intValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>option</name> = <name><name>JOptionPane</name>.<name>CLOSED_OPTION</name></name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>option</name> = <name><name>JOptionPane</name>.<name>CLOSED_OPTION</name></name></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>options</name> =<init> <expr><call><name><name>pane</name>.<name>getOptions</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init>,  <name>n</name> =<init> <expr><name><name>options</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>n</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>options</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>equals</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>option</name> = <name>i</name></expr>;</expr_stmt>
+                        <break>break;</break>
+                    }</block></then></if>
+                }</block></for>
+                <if>if <condition>(<expr><name>option</name> == <name><name>JOptionPane</name>.<name>CLOSED_OPTION</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>value</name> = <name>null</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></else></if>
+
+        <expr_stmt><expr><call><name>fireOptionSelected</name><argument_list>(<argument><expr><name>pane</name></expr></argument>, <argument><expr><name>option</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><call><name><name>pane</name>.<name>getInputValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Notify all listeners that have registered interest for
+     *   notification on this event type.  The event instance
+     *   is lazily created using the parameters passed into
+     *   the fire method.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>fireOptionSelected</name><parameter_list>(<param><decl><type><name>JOptionPane</name></type> <name>pane</name></decl></param>, <param><decl><type><name>int</name></type> <name>option</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>, <param><decl><type><name>Object</name></type> <name>inputValue</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SheetEvent</name></type> <name>sheetEvent</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <comment type="line">// Guaranteed to return a non-null array</comment>
+        <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>listeners</name> =<init> <expr><call><name><name>listenerList</name>.<name>getListenerList</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="line">// Process the listeners last to first, notifying</comment>
+        <comment type="line">// those that are interested in this event</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>listeners</name>.<name>length</name></name> - 2</expr></init></decl>;</init> <condition><expr><name>i</name> &gt;= 0</expr>;</condition> <incr><expr><name>i</name> -= 2</expr></incr>) <block>{
+            <if>if <condition>(<expr><name><name>listeners</name><index>[<expr><name>i</name></expr>]</index></name> == <name><name>SheetListener</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+                <comment type="line">// Lazily create the event:</comment>
+                <if>if <condition>(<expr><name>sheetEvent</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>sheetEvent</name> = new <call><name>SheetEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>pane</name></expr></argument>, <argument><expr><name>option</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>inputValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr>((<name>SheetListener</name>) <name><name>listeners</name><index>[<expr><name>i</name> + 1</expr>]</index></name>).<call><name>optionSelected</name><argument_list>(<argument><expr><name>sheetEvent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Notify all listeners that have registered interest for
+     *   notification on this event type.  The event instance
+     *   is lazily created using the parameters passed into
+     *   the fire method.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>fireOptionSelected</name><parameter_list>(<param><decl><type><name>JFileChooser</name></type> <name>pane</name></decl></param>, <param><decl><type><name>int</name></type> <name>option</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>SheetEvent</name></type> <name>sheetEvent</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <comment type="line">// Guaranteed to return a non-null array</comment>
+        <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>listeners</name> =<init> <expr><call><name><name>listenerList</name>.<name>getListenerList</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="line">// Process the listeners last to first, notifying</comment>
+        <comment type="line">// those that are interested in this event</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>listeners</name>.<name>length</name></name> - 2</expr></init></decl>;</init> <condition><expr><name>i</name> &gt;= 0</expr>;</condition> <incr><expr><name>i</name> -= 2</expr></incr>) <block>{
+            <if>if <condition>(<expr><name><name>listeners</name><index>[<expr><name>i</name></expr>]</index></name> == <name><name>SheetListener</name>.<name><name/></name></name>class</expr>)</condition><then> <block>{
+                <comment type="line">// Lazily create the event:</comment>
+                <if>if <condition>(<expr><name>sheetEvent</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>sheetEvent</name> = new <call><name>SheetEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>pane</name></expr></argument>, <argument><expr><name>option</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr>((<name>SheetListener</name>) <name><name>listeners</name><index>[<expr><name>i</name> + 1</expr>]</index></name>).<call><name>optionSelected</name><argument_list>(<argument><expr><name>sheetEvent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Displays an option pane as a sheet on its parent window.
+     *
+     * @param pane The option pane.
+     * @param parentComponent The parent of the option pane.
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showSheet</name><parameter_list>(<param><decl><type><name>JOptionPane</name></type> <name>pane</name></decl></param>, <param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>JSheet</name></type> <name>sheet</name> =<init> <expr><call><name>createSheet</name><argument_list>(<argument><expr><name>pane</name></expr></argument>, <argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><call><name>styleFromMessageType</name><argument_list>(<argument><expr><call><name><name>pane</name>.<name>getMessageType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addSheetListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>show</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet with the options &lt;i&gt;Yes&lt;/i&gt;,
+     * &lt;i&gt;No&lt;/i&gt; and &lt;i&gt;Cancel&lt;/i&gt;.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in which the
+     *			sheet is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *			or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showConfirmSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>, <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showConfirmSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>YES_NO_CANCEL_OPTION</name></name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet where the number of choices is determined
+     * by the &lt;code&gt;optionType&lt;/code&gt; parameter.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in which the
+     *			sheet is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *			or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param optionType an int designating the options available on the dialog:
+     *                  &lt;code&gt;YES_NO_OPTION&lt;/code&gt;, or
+     *			&lt;code&gt;YES_NO_CANCEL_OPTION&lt;/code&gt;
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showConfirmSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>optionType</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showConfirmSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>optionType</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>QUESTION_MESSAGE</name></name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet where the number of choices is determined
+     * by the &lt;code&gt;optionType&lt;/code&gt; parameter, where the
+     * &lt;code&gt;messageType&lt;/code&gt;
+     * parameter determines the icon to display.
+     * The &lt;code&gt;messageType&lt;/code&gt; parameter is primarily used to supply
+     * a default icon from the Look and Feel.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in
+     *			which the dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *			or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param optionType an integer designating the options available
+     *			on the dialog: &lt;code&gt;YES_NO_OPTION&lt;/code&gt;,
+     *			or &lt;code&gt;YES_NO_CANCEL_OPTION&lt;/code&gt;
+     * @param messageType an integer designating the kind of message this is;
+     *                  primarily used to determine the icon from the pluggable
+     *                  Look and Feel: &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showConfirmSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>optionType</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showConfirmSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>optionType</name></expr></argument>,
+                <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet with a specified icon, where the number of
+     * choices is determined by the &lt;code&gt;optionType&lt;/code&gt; parameter.
+     * The &lt;code&gt;messageType&lt;/code&gt; parameter is primarily used to supply
+     * a default icon from the look and feel.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in which the
+     *			dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *			or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the Object to display
+     * @param optionType an int designating the options available on the dialog:
+     *                  &lt;code&gt;YES_NO_OPTION&lt;/code&gt;,
+     *			or &lt;code&gt;YES_NO_CANCEL_OPTION&lt;/code&gt;
+     * @param messageType an int designating the kind of message this is,
+     *                  primarily used to determine the icon from the pluggable
+     *                  Look and Feel: &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param icon      the icon to display in the dialog
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showConfirmSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>optionType</name></decl></param>,
+            <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>Icon</name></type> <name>icon</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showOptionSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>optionType</name></expr></argument>,
+                <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>icon</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Shows a question-message sheet requesting input from the user
+     * parented to &lt;code&gt;parentComponent&lt;/code&gt;.
+     *
+     * @param parentComponent  the parent &lt;code&gt;Component&lt;/code&gt; for the
+     *		dialog
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showInputSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showInputSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name><name>JOptionPane</name>.<name>QUESTION_MESSAGE</name></name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Shows a question-message sheet requesting input from the user and
+     * parented to &lt;code&gt;parentComponent&lt;/code&gt;. The input value will be
+     * initialized to &lt;code&gt;initialSelectionValue&lt;/code&gt;.
+     *
+     * @param parentComponent  the parent &lt;code&gt;Component&lt;/code&gt; for the
+     *		dialog
+     * @param message the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param initialSelectionValue the value used to initialize the input
+     *                 field
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showInputSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>, <param><decl><type><name>Object</name></type> <name>message</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>initialSelectionValue</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showInputSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>QUESTION_MESSAGE</name></name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>,
+                <argument><expr><name>initialSelectionValue</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Shows a sheet requesting input from the user parented to
+     * &lt;code&gt;parentComponent&lt;/code&gt; and message type &lt;code&gt;messageType&lt;/code&gt;.
+     *
+     * @param parentComponent  the parent &lt;code&gt;Component&lt;/code&gt; for the
+     *			dialog
+     * @param message  the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param messageType the type of message that is to be displayed:
+     *                 	&lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                 	&lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showInputSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showInputSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>,
+                <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Prompts the user for input in a sheet where the
+     * initial selection, possible selections, and all other options can
+     * be specified. The user will able to choose from
+     * &lt;code&gt;selectionValues&lt;/code&gt;, where &lt;code&gt;null&lt;/code&gt; implies the
+     * user can input
+     * whatever they wish, usually by means of a &lt;code&gt;JTextField&lt;/code&gt;.
+     * &lt;code&gt;initialSelectionValue&lt;/code&gt; is the initial value to prompt
+     * the user with. It is up to the UI to decide how best to represent
+     * the &lt;code&gt;selectionValues&lt;/code&gt;, but usually a
+     * &lt;code&gt;JComboBox&lt;/code&gt;, &lt;code&gt;JList&lt;/code&gt;, or
+     * &lt;code&gt;JTextField&lt;/code&gt; will be used.
+     *
+     * @param parentComponent  the parent &lt;code&gt;Component&lt;/code&gt; for the
+     *			dialog
+     * @param message  the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param messageType the type of message to be displayed:
+     *                  &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param icon     the &lt;code&gt;Icon&lt;/code&gt; image to display
+     * @param selectionValues an array of &lt;code&gt;Object&lt;/code&gt;s that
+     *			gives the possible selections
+     * @param initialSelectionValue the value used to initialize the input
+     *                 field
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showInputSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>Icon</name></type> <name>icon</name></decl></param>,
+            <param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>selectionValues</name></decl></param>, <param><decl><type><name>Object</name></type> <name>initialSelectionValue</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>JOptionPane</name></type> <name>pane</name> =<init> <expr>new <call><name>JOptionPane</name><argument_list>(<argument><expr><name>message</name></expr></argument>, <argument><expr><name>messageType</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>OK_CANCEL_OPTION</name></name></expr></argument>, <argument><expr><name>icon</name></expr></argument>,
+                <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setWantsInput</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setSelectionValues</name></name><argument_list>(<argument><expr><name>selectionValues</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setInitialSelectionValue</name></name><argument_list>(<argument><expr><name>initialSelectionValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setComponentOrientation</name></name><argument_list>(<argument><expr>((<name>parentComponent</name> == <name>null</name>) ? <call><name><name>JOptionPane</name>.<name>getRootFrame</name></name><argument_list>()</argument_list></call> : <name>parentComponent</name>).<call><name>getComponentOrientation</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>style</name> =<init> <expr><call><name>styleFromMessageType</name><argument_list>(<argument><expr><name>messageType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>JSheet</name></type> <name>sheet</name> =<init> <expr><call><name>createSheet</name><argument_list>(<argument><expr><name>pane</name></expr></argument>, <argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>style</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name><name>pane</name>.<name>selectInitialValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="block">/*
+        sheet.addWindowListener(new WindowAdapter() {
+        public void windowClosed(WindowEvent evt) {
+        sheet.dispose();
+        }
+        });*/</comment>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addSheetListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>show</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>toFront</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up an information-message sheet.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in
+     *		which the dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *		or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *		&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showMessageSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showMessageSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>INFORMATION_MESSAGE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up an information-message sheet.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in
+     *		which the dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *		or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *		&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param listener This listener is notified when the sheet is dismissed.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showMessageSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showMessageSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>,
+                <argument><expr><name><name>JOptionPane</name>.<name>INFORMATION_MESSAGE</name></name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet that displays a message using a default
+     * icon determined by the &lt;code&gt;messageType&lt;/code&gt; parameter.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt;
+     *		in which the dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *		or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *		&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param messageType the type of message to be displayed:
+     *                  &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showMessageSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showMessageSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet that displays a message using a default
+     * icon determined by the &lt;code&gt;messageType&lt;/code&gt; parameter.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt;
+     *		in which the dialog is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *		or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *		&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param messageType the type of message to be displayed:
+     *                  &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param listener This listener is notified when the sheet is dismissed.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showMessageSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showMessageSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet displaying a message, specifying all parameters.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt; in which the
+     *			sheet is displayed; if &lt;code&gt;null&lt;/code&gt;,
+     *			or if the &lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param messageType the type of message to be displayed:
+     *                  &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param icon      an icon to display in the sheet that helps the user
+     *                  identify the kind of message that is being displayed
+     * @param listener This listener is notified when the sheet is dismissed.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showMessageSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>, <param><decl><type><name>Icon</name></type> <name>icon</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>showOptionSheet</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><name><name>JOptionPane</name>.<name>DEFAULT_OPTION</name></name></expr></argument>,
+                <argument><expr><name>messageType</name></expr></argument>, <argument><expr><name>icon</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Brings up a sheet with a specified icon, where the initial
+     * choice is determined by the &lt;code&gt;initialValue&lt;/code&gt; parameter and
+     * the number of choices is determined by the &lt;code&gt;optionType&lt;/code&gt;
+     * parameter.
+     * &lt;p&gt;
+     * If &lt;code&gt;optionType&lt;/code&gt; is &lt;code&gt;YES_NO_OPTION&lt;/code&gt;,
+     * or &lt;code&gt;YES_NO_CANCEL_OPTION&lt;/code&gt;
+     * and the &lt;code&gt;options&lt;/code&gt; parameter is &lt;code&gt;null&lt;/code&gt;,
+     * then the options are
+     * supplied by the look and feel.
+     * &lt;p&gt;
+     * The &lt;code&gt;messageType&lt;/code&gt; parameter is primarily used to supply
+     * a default icon from the look and feel.
+     *
+     * @param parentComponent determines the &lt;code&gt;Frame&lt;/code&gt;
+     *			in which the dialog is displayed;  if
+     *                  &lt;code&gt;null&lt;/code&gt;, or if the
+     *			&lt;code&gt;parentComponent&lt;/code&gt; has no
+     *			&lt;code&gt;Frame&lt;/code&gt;, the sheet is displayed as a dialog.
+     * @param message   the &lt;code&gt;Object&lt;/code&gt; to display
+     * @param optionType an integer designating the options available on the
+     *			dialog: &lt;code&gt;YES_NO_OPTION&lt;/code&gt;,
+     *			or &lt;code&gt;YES_NO_CANCEL_OPTION&lt;/code&gt;
+     * @param messageType an integer designating the kind of message this is,
+     *                  primarily used to determine the icon from the
+     *			pluggable Look and Feel: &lt;code&gt;JOptionPane.ERROR_MESSAGE&lt;/code&gt;,
+     *			&lt;code&gt;JOptionPane.INFORMATION_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.WARNING_MESSAGE&lt;/code&gt;,
+     *                  &lt;code&gt;JOptionPane.QUESTION_MESSAGE&lt;/code&gt;,
+     *			or &lt;code&gt;JOptionPane.PLAIN_MESSAGE&lt;/code&gt;
+     * @param icon      the icon to display in the dialog
+     * @param options   an array of objects indicating the possible choices
+     *                  the user can make; if the objects are components, they
+     *                  are rendered properly; non-&lt;code&gt;String&lt;/code&gt;
+     *			objects are
+     *                  rendered using their &lt;code&gt;toString&lt;/code&gt; methods;
+     *                  if this parameter is &lt;code&gt;null&lt;/code&gt;,
+     *			the options are determined by the Look and Feel
+     * @param initialValue the object that represents the default selection
+     *                  for the dialog; only meaningful if &lt;code&gt;options&lt;/code&gt;
+     *			is used; can be &lt;code&gt;null&lt;/code&gt;
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showOptionSheet</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>Object</name></type> <name>message</name></decl></param>, <param><decl><type><name>int</name></type> <name>optionType</name></decl></param>, <param><decl><type><name>int</name></type> <name>messageType</name></decl></param>,
+            <param><decl><type><name>Icon</name></type> <name>icon</name></decl></param>, <param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>options</name></decl></param>, <param><decl><type><name>Object</name></type> <name>initialValue</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>JOptionPane</name></type> <name>pane</name> =<init> <expr>new <call><name>JOptionPane</name><argument_list>(<argument><expr><name>message</name></expr></argument>, <argument><expr><name>messageType</name></expr></argument>,
+                <argument><expr><name>optionType</name></expr></argument>, <argument><expr><name>icon</name></expr></argument>,
+                <argument><expr><name>options</name></expr></argument>, <argument><expr><name>initialValue</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setInitialValue</name></name><argument_list>(<argument><expr><name>initialValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>setComponentOrientation</name></name><argument_list>(<argument><expr>((<name>parentComponent</name> == <name>null</name>) ? <call><name><name>JOptionPane</name>.<name>getRootFrame</name></name><argument_list>()</argument_list></call> : <name>parentComponent</name>).<call><name>getComponentOrientation</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>style</name> =<init> <expr><call><name>styleFromMessageType</name><argument_list>(<argument><expr><name>messageType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>JSheet</name></type> <name>sheet</name> =<init> <expr><call><name>createSheet</name><argument_list>(<argument><expr><name>pane</name></expr></argument>, <argument><expr><name>parentComponent</name></expr></argument>, <argument><expr><name>style</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>selectInitialValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addSheetListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>show</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>toFront</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>styleFromMessageType</name><parameter_list>(<param><decl><type><name>int</name></type> <name>messageType</name></decl></param>)</parameter_list> <block>{
+        <switch>switch <condition>(<expr><name>messageType</name></expr>)</condition> <block>{
+            <case>case <expr><name><name>JOptionPane</name>.<name>ERROR_MESSAGE</name></name></expr>:
+                <return>return <expr><name><name>JRootPane</name>.<name>ERROR_DIALOG</name></name></expr>;</return>
+            </case><case>case <expr><name><name>JOptionPane</name>.<name>QUESTION_MESSAGE</name></name></expr>:
+                <return>return <expr><name><name>JRootPane</name>.<name>QUESTION_DIALOG</name></name></expr>;</return>
+            </case><case>case <expr><name><name>JOptionPane</name>.<name>WARNING_MESSAGE</name></name></expr>:
+                <return>return <expr><name><name>JRootPane</name>.<name>WARNING_DIALOG</name></name></expr>;</return>
+            </case><case>case <expr><name><name>JOptionPane</name>.<name>INFORMATION_MESSAGE</name></name></expr>:
+                <return>return <expr><name><name>JRootPane</name>.<name>INFORMATION_DIALOG</name></name></expr>;</return>
+            </case><case>case <expr><name><name>JOptionPane</name>.<name>PLAIN_MESSAGE</name></name></expr>:
+            </case><default>default:
+                <return>return <expr><name><name>JRootPane</name>.<name>PLAIN_DIALOG</name></name></expr>;</return>
+        </default>}</block></switch>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>JSheet</name></type> <name>createSheet</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>JOptionPane</name></type> <name>pane</name></decl></param>, <param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>,
+            <param><decl><type><name>int</name></type> <name>style</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Window</name></type> <name>window</name> =<init> <expr><call><name>getWindowForComponent</name><argument_list>(<argument><expr><name>parentComponent</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>JSheet</name></type> <name>sheet</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>window</name> <name>instanceof</name> <name>Frame</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>sheet</name> = new <call><name>JSheet</name><argument_list>(<argument><expr>(<name>Frame</name>) <name>window</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>sheet</name> = new <call><name>JSheet</name><argument_list>(<argument><expr>(<name>Dialog</name>) <name>window</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+
+        <decl_stmt><decl><type><name>JComponent</name></type> <name>contentPane</name> =<init> <expr>(<name>JComponent</name>) <call><name><name>sheet</name>.<name>getContentPane</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>contentPane</name>.<name>setLayout</name></name><argument_list>(<argument><expr>new <call><name>BorderLayout</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><call><name>isNativeSheetSupported</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>contentPane</name>.<name>setBorder</name></name><argument_list>(<argument><expr>new <call><name>EmptyBorder</name><argument_list>(<argument><expr>12</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>contentPane</name>.<name>add</name></name><argument_list>(<argument><expr><name>pane</name></expr></argument>, <argument><expr><name><name>BorderLayout</name>.<name>CENTER</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>setResizable</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addWindowListener</name></name><argument_list>(<argument><expr>new <class><super><name>WindowAdapter</name></super><argument_list>()</argument_list> <block>{
+
+            <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>gotFocus</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>count</name></decl>;</decl_stmt>
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>windowClosing</name><parameter_list>(<param><decl><type><name>WindowEvent</name></type> <name>we</name></decl></param>)</parameter_list> <block>{
+                <expr_stmt><expr><call><name><name>pane</name>.<name>setValue</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></function>
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>windowClosed</name><parameter_list>(<param><decl><type><name>WindowEvent</name></type> <name>we</name></decl></param>)</parameter_list> <block>{
+                <if>if <condition>(<expr><call><name><name>pane</name>.<name>getValue</name></name><argument_list>()</argument_list></call> == <name><name>JOptionPane</name>.<name>UNINITIALIZED_VALUE</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>sheet</name>.<name>fireOptionSelected</name></name><argument_list>(<argument><expr><name>pane</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></function>
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>windowGainedFocus</name><parameter_list>(<param><decl><type><name>WindowEvent</name></type> <name>we</name></decl></param>)</parameter_list> <block>{
+                <comment type="line">// Once window gets focus, set initial focus</comment>
+                <if>if <condition>(<expr>!<name>gotFocus</name></expr>)</condition><then> <block>{
+                    <comment type="line">//Ugly dirty hack: JOptionPane.selectInitialValue() is protected.</comment>
+                    <comment type="line">//So we call directly into the UI. This may cause mayhem,</comment>
+                    <comment type="line">//because we override the encapsulation.</comment>
+                    <comment type="line">//pane.selectInitialValue();</comment>
+                    <decl_stmt><decl><type><name>OptionPaneUI</name></type> <name>ui</name> =<init> <expr><call><name><name>pane</name>.<name>getUI</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><name>ui</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>ui</name>.<name>selectInitialValue</name></name><argument_list>(<argument><expr><name>pane</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><name>gotFocus</name> = true</expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addComponentListener</name></name><argument_list>(<argument><expr>new <class><super><name>ComponentAdapter</name></super><argument_list>()</argument_list> <block>{
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>componentShown</name><parameter_list>(<param><decl><type><name>ComponentEvent</name></type> <name>ce</name></decl></param>)</parameter_list> <block>{
+                <comment type="line">// reset value to ensure closing works properly</comment>
+                <expr_stmt><expr><call><name><name>pane</name>.<name>setValue</name></name><argument_list>(<argument><expr><name><name>JOptionPane</name>.<name>UNINITIALIZED_VALUE</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pane</name>.<name>addPropertyChangeListener</name></name><argument_list>(<argument><expr>new <class><super><name>PropertyChangeListener</name></super><argument_list>()</argument_list> <block>{
+
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>propertyChange</name><parameter_list>(<param><decl><type><name>PropertyChangeEvent</name></type> <name>event</name></decl></param>)</parameter_list> <block>{
+                <comment type="line">// Let the defaultCloseOperation handle the closing</comment>
+                <comment type="line">// if the user closed the window without selecting a button</comment>
+                <comment type="line">// (newValue = null in that case).  Otherwise, close the sheet.</comment>
+                <if>if <condition>(<expr><call><name><name>sheet</name>.<name>isVisible</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>event</name>.<name>getSource</name></name><argument_list>()</argument_list></call> == <name>pane</name> &amp;&amp;
+                        (<call><name><name>event</name>.<name>getPropertyName</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><name><name>JOptionPane</name>.<name>VALUE_PROPERTY</name></name></expr></argument>)</argument_list></call>) &amp;&amp;
+                        <call><name><name>event</name>.<name>getNewValue</name></name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp;
+                        <call><name><name>event</name>.<name>getNewValue</name></name><argument_list>()</argument_list></call> != <name><name>JOptionPane</name>.<name>UNINITIALIZED_VALUE</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>sheet</name>.<name>setVisible</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>sheet</name>.<name>fireOptionSelected</name></name><argument_list>(<argument><expr><name>pane</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>pack</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>sheet</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the specified component's toplevel &lt;code&gt;Frame&lt;/code&gt; or
+     * &lt;code&gt;Dialog&lt;/code&gt;.
+     *
+     * @param parentComponent the &lt;code&gt;Component&lt;/code&gt; to check for a
+     *		&lt;code&gt;Frame&lt;/code&gt; or &lt;code&gt;Dialog&lt;/code&gt;
+     * @return the &lt;code&gt;Frame&lt;/code&gt; or &lt;code&gt;Dialog&lt;/code&gt; that
+     *		contains the component, or the default
+     *         	frame if the component is &lt;code&gt;null&lt;/code&gt;,
+     *		or does not have a valid
+     *         	&lt;code&gt;Frame&lt;/code&gt; or &lt;code&gt;Dialog&lt;/code&gt; parent
+     */</comment>
+    <function><type><specifier>static</specifier> <name>Window</name></type> <name>getWindowForComponent</name><parameter_list>(<param><decl><type><name>Component</name></type> <name>parentComponent</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>parentComponent</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name><name>JOptionPane</name>.<name>getRootFrame</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>parentComponent</name> <name>instanceof</name> <name>Frame</name> || <name>parentComponent</name> <name>instanceof</name> <name>Dialog</name></expr>)</condition><then> <block>{
+            <return>return <expr>(<name>Window</name>) <name>parentComponent</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name>getWindowForComponent</name><argument_list>(<argument><expr><call><name><name>parentComponent</name>.<name>getParent</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Displays a "Save File" file chooser sheet. Note that the
+     * text that appears in the approve button is determined by
+     * the L&amp;F.
+     *
+     * @param    parent  the parent component of the dialog,
+     *			can be &lt;code&gt;null&lt;/code&gt;.
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showSaveSheet</name><parameter_list>(<param><decl><type><name>JFileChooser</name></type> <name>chooser</name></decl></param>, <param><decl><type><name>Component</name></type> <name>parent</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>chooser</name>.<name>setDialogType</name></name><argument_list>(<argument><expr><name><name>JFileChooser</name>.<name>SAVE_DIALOG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>showSheet</name><argument_list>(<argument><expr><name>chooser</name></expr></argument>, <argument><expr><name>parent</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Displays an "Open File" file chooser sheet. Note that the
+     * text that appears in the approve button is determined by
+     * the L&amp;F.
+     *
+     * @param    parent  the parent component of the dialog,
+     *			can be &lt;code&gt;null&lt;/code&gt;.
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showOpenSheet</name><parameter_list>(<param><decl><type><name>JFileChooser</name></type> <name>chooser</name></decl></param>, <param><decl><type><name>Component</name></type> <name>parent</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>chooser</name>.<name>setDialogType</name></name><argument_list>(<argument><expr><name><name>JFileChooser</name>.<name>OPEN_DIALOG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>showSheet</name><argument_list>(<argument><expr><name>chooser</name></expr></argument>, <argument><expr><name>parent</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Displays a custom file chooser sheet with a custom approve button.
+     *
+     * @param   parent  the parent component of the dialog;
+     *			can be &lt;code&gt;null&lt;/code&gt;
+     * @param   approveButtonText the text of the &lt;code&gt;ApproveButton&lt;/code&gt;
+     * @param listener The listener for SheetEvents.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>showSheet</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>JFileChooser</name></type> <name>chooser</name></decl></param>, <param><decl><type><name>Component</name></type> <name>parent</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>approveButtonText</name></decl></param>, <param><decl><type><name>SheetListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>approveButtonText</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>chooser</name>.<name>setApproveButtonText</name></name><argument_list>(<argument><expr><name>approveButtonText</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>chooser</name>.<name>setDialogType</name></name><argument_list>(<argument><expr><name><name>JFileChooser</name>.<name>CUSTOM_DIALOG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Begin Create Dialog</comment>
+        <decl_stmt><decl><type><name>Frame</name></type> <name>frame</name> =<init> <expr><name>parent</name> <name>instanceof</name> <name>Frame</name> ? (<name>Frame</name>) <name>parent</name>
+                : (<name>Frame</name>) <call><name><name>SwingUtilities</name>.<name>getAncestorOfClass</name></name><argument_list>(<argument><expr><name><name>Frame</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>parent</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>String</name></type> <name>title</name> =<init> <expr><call><name><name>chooser</name>.<name>getUI</name></name><argument_list>()</argument_list></call>.<call><name>getDialogTitle</name><argument_list>(<argument><expr><name>chooser</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>chooser</name>.<name>getAccessibleContext</name></name><argument_list>()</argument_list></call>.<call><name>setAccessibleDescription</name><argument_list>(<argument><expr><name>title</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>JSheet</name></type> <name>sheet</name> =<init> <expr>new <call><name>JSheet</name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addSheetListener</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>Container</name></type> <name>contentPane</name> =<init> <expr><call><name><name>sheet</name>.<name>getContentPane</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>contentPane</name>.<name>setLayout</name></name><argument_list>(<argument><expr>new <call><name>BorderLayout</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>contentPane</name>.<name>add</name></name><argument_list>(<argument><expr><name>chooser</name></expr></argument>, <argument><expr><name><name>BorderLayout</name>.<name>CENTER</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// End Create Dialog</comment>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>ActionListener</name></type> <name>actionListener</name> =<init> <expr>new <class><super><name>ActionListener</name></super><argument_list>()</argument_list> <block>{
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>actionPerformed</name><parameter_list>(<param><decl><type><name>ActionEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>option</name></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name><name>evt</name>.<name>getActionCommand</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr>"ApproveSelection"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>option</name> = <name><name>JFileChooser</name>.<name>APPROVE_OPTION</name></name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>option</name> = <name><name>JFileChooser</name>.<name>CANCEL_OPTION</name></name></expr>;</expr_stmt>
+                }</block></else></if>
+                <expr_stmt><expr><call><name><name>sheet</name>.<name>hide</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>sheet</name>.<name>fireOptionSelected</name></name><argument_list>(<argument><expr><name>chooser</name></expr></argument>, <argument><expr><name>option</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>chooser</name>.<name>removeActionListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>chooser</name>.<name>addActionListener</name></name><argument_list>(<argument><expr><name>actionListener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>addWindowListener</name></name><argument_list>(<argument><expr>new <class><super><name>WindowAdapter</name></super><argument_list>()</argument_list> <block>{
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>windowClosing</name><parameter_list>(<param><decl><type><name>WindowEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+                <expr_stmt><expr><call><name><name>sheet</name>.<name>fireOptionSelected</name></name><argument_list>(<argument><expr><name>chooser</name></expr></argument>, <argument><expr><name><name>JFileChooser</name>.<name>CANCEL_OPTION</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>chooser</name>.<name>removeActionListener</name></name><argument_list>(<argument><expr><name>actionListener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>chooser</name>.<name>rescanCurrentDirectory</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>pack</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>show</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>sheet</name>.<name>toFront</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+}</block></class>
+</unit>

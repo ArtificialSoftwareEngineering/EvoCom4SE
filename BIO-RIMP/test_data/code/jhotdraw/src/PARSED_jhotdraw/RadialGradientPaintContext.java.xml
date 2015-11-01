@@ -1,0 +1,773 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jhotdraw\src\main\java\org\apache\batik\ext\awt\RadialGradientPaintContext.java"><comment type="block">/*
+
+   Copyright 2001-2003  The Apache Software Foundation 
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>batik</name>.<name>ext</name>.<name>awt</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>awt</name>.<name>Color</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Rectangle</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>RenderingHints</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>AffineTransform</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>NoninvertibleTransformException</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>Rectangle2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>image</name>.<name>ColorModel</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Provides the actual implementation for the RadialGradientPaint.
+ * This is where the pixel processing is done.  A RadialGradienPaint
+ * only supports circular gradients, but it should be possible to scale
+ * the circle to look approximately elliptical, by means of a
+ * gradient transform passed into the RadialGradientPaint constructor.
+ *
+ * @author Nicholas Talian, Vincent Hardy, Jim Graham, Jerry Evans
+ * @author &lt;a href="mailto:vincent.hardy@eng.sun.com"&gt;Vincent Hardy&lt;/a&gt;
+ * @version $Id: RadialGradientPaintContext.java,v 1.11 2004/08/18 07:13:41 vhardy Exp $
+ *
+ */</comment>
+<class><specifier>final</specifier> class <name>RadialGradientPaintContext</name> <super><extends>extends <name>MultipleGradientPaintContext</name></extends></super> <block>{  
+    
+    <comment type="javadoc">/** True when (focus == center)  */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isSimpleFocus</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** True when (cycleMethod == NO_CYCLE) */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isNonCyclic</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+       
+    <comment type="javadoc">/** Radius of the outermost circle defining the 100% gradient stop. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>radius</name></decl>;</decl_stmt>   
+    
+    <comment type="javadoc">/** Variables representing center and focus points. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>centerX</name>, <name>centerY</name>, <name>focusX</name>, <name>focusY</name></decl>;</decl_stmt>     
+
+    <comment type="javadoc">/** Radius of the gradient circle squared. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>radiusSq</name></decl>;</decl_stmt> 
+        
+    <comment type="javadoc">/** Constant part of X, Y user space coordinates. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>constA</name>, <name>constB</name></decl>;</decl_stmt>
+       
+    <comment type="javadoc">/** This value represents the solution when focusX == X.  It is called
+     * trivial because it is easier to calculate than the general case.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>trivial</name></decl>;</decl_stmt>       
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>FIXED_POINT_IMPL</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_IMPL</name>     =<init> <expr>2</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ANTI_ALIAS_IMPL</name>  =<init> <expr>3</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fillMethod</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** Amount for offset when clamping focus. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>float</name></type> <name>SCALEBACK</name> =<init> <expr>.97f</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** 
+     * Constructor for RadialGradientPaintContext.
+     *
+     *  @param cm {@link ColorModel} that receives
+     *  the &lt;code&gt;Paint&lt;/code&gt; data. This is used only as a hint.
+     *
+     *  @param deviceBounds the device space bounding box of the 
+     *  graphics primitive being rendered
+     *
+     *  @param userBounds the user space bounding box of the 
+     *  graphics primitive being rendered
+     * 
+     *  @param t the {@link AffineTransform} from user
+     *  space into device space (gradientTransform should be 
+     *  concatenated with this)    
+     *
+     *  @param hints the hints that the context object uses to choose
+     *  between rendering alternatives
+     *       
+     *  @param cx the center point in user space of the circle defining 
+     *  the gradient.  The last color of the gradient is mapped to the 
+     *  perimeter of this circle X coordinate
+     *
+     *  @param cy the center point in user space of the circle defining 
+     *  the gradient.  The last color of the gradient is mapped to the 
+     *  perimeter of this circle Y coordinate
+     *     
+     *  @param r the radius of the circle defining the extents of the 
+     *  color gradient
+     *
+     *  @param fx the point in user space to which the first color is mapped
+     *  X coordinate
+     *
+     *  @param fy the point in user space to which the first color is mapped
+     *  Y coordinate
+     *
+     *  @param fractions the fractions specifying the gradient distribution
+     *
+     *  @param colors the gradient colors
+     *
+     *  @param cycleMethod either NO_CYCLE, REFLECT, or REPEAT
+     *
+     *  @param colorSpace which colorspace to use for interpolation, 
+     *  either SRGB or LINEAR_RGB
+     *
+     */</comment>
+    <constructor><specifier>public</specifier> <name>RadialGradientPaintContext</name><parameter_list>(<param><decl><type><name>ColorModel</name></type> <name>cm</name></decl></param>,
+                                      <param><decl><type><name>Rectangle</name></type> <name>deviceBounds</name></decl></param>,
+                                      <param><decl><type><name>Rectangle2D</name></type> <name>userBounds</name></decl></param>,
+                                      <param><decl><type><name>AffineTransform</name></type> <name>t</name></decl></param>,
+                                      <param><decl><type><name>RenderingHints</name></type> <name>hints</name></decl></param>,
+                                      <param><decl><type><name>float</name></type> <name>cx</name></decl></param>, <param><decl><type><name>float</name></type> <name>cy</name></decl></param>,
+                                      <param><decl><type><name>float</name></type> <name>r</name></decl></param>,
+                                      <param><decl><type><name>float</name></type> <name>fx</name></decl></param>, <param><decl><type><name>float</name></type> <name>fy</name></decl></param>,
+                                      <param><decl><type><name><name>float</name><index>[]</index></name></type> <name>fractions</name></decl></param>,
+                                      <param><decl><type><name><name>Color</name><index>[]</index></name></type> <name>colors</name></decl></param>,
+                                      <param><decl><type><name><name>MultipleGradientPaint</name>.<name>CycleMethodEnum</name></name></type> 
+                                      <name>cycleMethod</name></decl></param>,
+                                      <param><decl><type><name><name>MultipleGradientPaint</name>.<name>ColorSpaceEnum</name></name></type> 
+                                      <name>colorSpace</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>NoninvertibleTransformException</name></expr></argument></throws>
+    <block>{       	
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>cm</name></expr></argument>, <argument><expr><name>deviceBounds</name></expr></argument>, <argument><expr><name>userBounds</name></expr></argument>, <argument><expr><name>t</name></expr></argument>, <argument><expr><name>hints</name></expr></argument>, <argument><expr><name>fractions</name></expr></argument>, <argument><expr><name>colors</name></expr></argument>, 
+              <argument><expr><name>cycleMethod</name></expr></argument>, <argument><expr><name>colorSpace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">//copy some parameters.</comment>
+        <expr_stmt><expr><name>centerX</name> = <name>cx</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>centerY</name> = <name>cy</name></expr>;</expr_stmt>	
+        <expr_stmt><expr><name>focusX</name> = <name>fx</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>focusY</name> = <name>fy</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>radius</name> = <name>r</name></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name><name>this</name>.<name>isSimpleFocus</name></name> = (<name>focusX</name> == <name>centerX</name>) &amp;&amp; (<name>focusY</name> == <name>centerY</name>)</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>isNonCyclic</name></name> = (<name>cycleMethod</name> == <name><name>RadialGradientPaint</name>.<name>NO_CYCLE</name></name>)</expr>;</expr_stmt>
+	
+        <comment type="line">//for use in the quadractic equation</comment>
+        <expr_stmt><expr><name>radiusSq</name> = <name>radius</name> * <name>radius</name></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>float</name></type> <name>dX</name> =<init> <expr><name>focusX</name> - <name>centerX</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>dY</name> =<init> <expr><name>focusY</name> - <name>centerY</name></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>double</name></type> <name>dist</name> =<init> <expr><call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr>(<name>dX</name> * <name>dX</name>) + (<name>dY</name> * <name>dY</name>)</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">//test if distance from focus to center is greater than the radius</comment>
+        <if>if <condition>(<expr><name>dist</name> &gt; <name>radius</name>* <name>SCALEBACK</name></expr>)</condition><then> <block>{ <comment type="line">//clamp focus to radius</comment>
+          <decl_stmt><decl><type><name>double</name></type> <name>angle</name> =<init> <expr><call><name><name>Math</name>.<name>atan2</name></name><argument_list>(<argument><expr><name>dY</name></expr></argument>, <argument><expr><name>dX</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+			
+          <comment type="line">//x = r cos theta, y = r sin theta</comment>
+          <expr_stmt><expr><name>focusX</name> = <call>(<name>float</name>)<argument_list>(<argument><expr><name>SCALEBACK</name> * <name>radius</name> * <call><name><name>Math</name>.<name>cos</name></name><argument_list>(<argument><expr><name>angle</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> + <name>centerX</name></expr>;</expr_stmt>
+          
+          <expr_stmt><expr><name>focusY</name> = <call>(<name>float</name>)<argument_list>(<argument><expr><name>SCALEBACK</name> * <name>radius</name> * <call><name><name>Math</name>.<name>sin</name></name><argument_list>(<argument><expr><name>angle</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call> + <name>centerY</name></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">//calculate the solution to be used in the case where X == focusX</comment>
+        <comment type="line">//in cyclicCircularGradientFillRaster</comment>
+        <expr_stmt><expr><name>dX</name> = <name>focusX</name> - <name>centerX</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>trivial</name> = (<name>float</name>)<call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>radiusSq</name> - (<name>dX</name> * <name>dX</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// constant parts of X, Y user space coordinates </comment>
+        <expr_stmt><expr><name>constA</name> = <name>a02</name> - <name>centerX</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>constB</name> = <name>a12</name> - <name>centerY</name></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>Object</name></type> <name>colorRend</name> =<init> <expr><call><name><name>hints</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>RenderingHints</name>.<name>KEY_COLOR_RENDERING</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Object</name></type> <name>rend</name>      =<init> <expr><call><name><name>hints</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>RenderingHints</name>.<name>KEY_RENDERING</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><name>fillMethod</name> = 0</expr>;</expr_stmt>
+
+        <if>if <condition>(<expr>(<name>rend</name>      == <name><name>RenderingHints</name>.<name>VALUE_RENDER_QUALITY</name></name>) ||
+            (<name>colorRend</name> == <name><name>RenderingHints</name>.<name>VALUE_COLOR_RENDER_QUALITY</name></name>)</expr>)</condition><then> <block>{
+            <comment type="line">// System.out.println("AAHints set: " + rend + ", " + colorRend);</comment>
+            <expr_stmt><expr><name>fillMethod</name> = <name>ANTI_ALIAS_IMPL</name></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr>(<name>rend</name>      == <name><name>RenderingHints</name>.<name>VALUE_RENDER_SPEED</name></name>) ||
+            (<name>colorRend</name> == <name><name>RenderingHints</name>.<name>VALUE_COLOR_RENDER_SPEED</name></name>)</expr>)</condition><then> <block>{
+            <comment type="line">// System.out.println("SPHints set: " + rend + ", " + colorRend);</comment>
+            <expr_stmt><expr><name>fillMethod</name> = <name>DEFAULT_IMPL</name></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// We are in the 'default' case, no hint or hint set to</comment>
+        <comment type="line">// DEFAULT values...</comment>
+        <if>if <condition>(<expr><name>fillMethod</name> == 0</expr>)</condition><then> <block>{
+            <comment type="line">// For now we will always use the 'default' impl if </comment>
+            <comment type="line">// one is not specified.</comment>
+            <expr_stmt><expr><name>fillMethod</name> = <name>DEFAULT_IMPL</name></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr>false</expr>)</condition><then> <block>{
+                <comment type="line">// This could be used for a 'smart' choice in</comment>
+                <comment type="line">// the default case, if the gradient has obvious</comment>
+                <comment type="line">// discontinuites use AA, otherwise default</comment>
+                <if>if <condition>(<expr><name>hasDiscontinuity</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>fillMethod</name> = <name>ANTI_ALIAS_IMPL</name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>fillMethod</name> = <name>DEFAULT_IMPL</name></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block></then></if>
+
+        <if>if <condition>(<expr>(<name>fillMethod</name> == <name>DEFAULT_IMPL</name>) &amp;&amp;
+            (<name>isSimpleFocus</name> &amp;&amp; <name>isNonCyclic</name> &amp;&amp; <name>isSimpleLookup</name>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>calculateFixedPointSqrtLookupTable</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>fillMethod</name> = <name>FIXED_POINT_IMPL</name></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></constructor>
+    
+    <comment type="javadoc">/**
+     * Return a Raster containing the colors generated for the graphics
+     * operation.
+     * @param x,y,w,h The area in device space for which colors are
+     * generated.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>fillRaster</name><parameter_list>(<param><decl><type><name>int</name></type> <name><name>pixels</name><index>[]</index></name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>adjust</name></decl></param>,
+                              <param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>, <param><decl><type><name>int</name></type> <name>w</name></decl></param>, <param><decl><type><name>int</name></type> <name>h</name></decl></param>)</parameter_list> <block>{
+        <switch>switch<condition>(<expr><name>fillMethod</name></expr>)</condition> <block>{
+        <case>case <expr><name>FIXED_POINT_IMPL</name></expr>:
+            <comment type="line">// System.out.println("Calling FP");</comment>
+            <expr_stmt><expr><call><name>fixedPointSimplestCaseNonCyclicFillRaster</name><argument_list>(<argument><expr><name>pixels</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>adjust</name></expr></argument>, <argument><expr><name>x</name></expr></argument>, 
+                                                      <argument><expr><name>y</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        </case><case>case <expr><name>ANTI_ALIAS_IMPL</name></expr>:
+            <comment type="line">// System.out.println("Calling AA");</comment>
+            <expr_stmt><expr><call><name>antiAliasFillRaster</name><argument_list>(<argument><expr><name>pixels</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>adjust</name></expr></argument>, <argument><expr><name>x</name></expr></argument>, <argument><expr><name>y</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <break>break;</break>
+        </case><case>case <expr><name>DEFAULT_IMPL</name></expr>:
+        </case><default>default:
+            <comment type="line">// System.out.println("Calling Default");</comment>
+            <expr_stmt><expr><call><name>cyclicCircularGradientFillRaster</name><argument_list>(<argument><expr><name>pixels</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>adjust</name></expr></argument>, <argument><expr><name>x</name></expr></argument>, <argument><expr><name>y</name></expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        </default>}</block></switch>
+    }</block></function>    
+    
+    <comment type="javadoc">/**
+     * This code works in the simplest of cases, where the focus == center 
+     * point, the gradient is noncyclic, and the gradient lookup method is 
+     * fast (single array index, no conversion necessary).
+     *
+     */</comment>         
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>fixedPointSimplestCaseNonCyclicFillRaster</name><parameter_list>(<param><decl><type><name>int</name></type> <name><name>pixels</name><index>[]</index></name></decl></param>, 
+                                                           <param><decl><type><name>int</name></type> <name>off</name></decl></param>,
+                                                           <param><decl><type><name>int</name></type> <name>adjust</name></decl></param>, 
+                                                           <param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>, 
+                                                           <param><decl><type><name>int</name></type> <name>w</name></decl></param>, <param><decl><type><name>int</name></type> <name>h</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>float</name></type> <name>iSq</name>=<init><expr>0</expr></init></decl>;</decl_stmt>  <comment type="line">// Square distance index</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>indexFactor</name> =<init> <expr><name>fastGradientArraySize</name> / <name>radius</name></expr></init></decl>;</decl_stmt>      
+
+        <comment type="line">//constant part of X and Y coordinates for the entire raster</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constX</name> =<init> <expr>(<name>a00</name>*<name>x</name>) + (<name>a01</name>*<name>y</name>) + <name>constA</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constY</name> =<init> <expr>(<name>a10</name>*<name>x</name>) + (<name>a11</name>*<name>y</name>) + <name>constB</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>deltaX</name> =<init> <expr><name>indexFactor</name> * <name>a00</name></expr></init></decl>;</decl_stmt> <comment type="line">//incremental change in dX</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>deltaY</name> =<init> <expr><name>indexFactor</name> * <name>a10</name></expr></init></decl>;</decl_stmt> <comment type="line">//incremental change in dY</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>dX</name>, <name>dY</name></decl>;</decl_stmt> <comment type="line">//the current distance from center</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>fixedArraySizeSq</name>=<init>
+            <expr>(<name>fastGradientArraySize</name> * <name>fastGradientArraySize</name>)</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>g</name>, <name>gDelta</name>, <name>gDeltaDelta</name>, <name>temp</name></decl>;</decl_stmt> <comment type="line">//gradient square value</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>gIndex</name></decl>;</decl_stmt> <comment type="line">// integer number used to index gradient array</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>iSqInt</name></decl>;</decl_stmt> <comment type="line">// Square distance index       		   </comment>
+	
+        <decl_stmt><decl><type><name>int</name></type> <name>end</name>, <name>j</name></decl>;</decl_stmt> <comment type="line">//indexing variables</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>indexer</name> =<init> <expr><name>off</name></expr></init></decl>;</decl_stmt><comment type="line">//used to index pixels array</comment>
+
+        <expr_stmt><expr><name>temp</name>        = ((<name>deltaX</name> * <name>deltaX</name>) + (<name>deltaY</name> * <name>deltaY</name>))</expr>;</expr_stmt>
+        <expr_stmt><expr><name>gDeltaDelta</name> = ((<name>temp</name> * 2))</expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name>temp</name> &gt; <name>fixedArraySizeSq</name></expr>)</condition><then> <block>{
+            <comment type="line">// This combination of scale and circle radius means</comment>
+            <comment type="line">// essentially no pixels will be anything but the end</comment>
+            <comment type="line">// stop color.  This also avoids math problems.</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>val</name> =<init> <expr><name>gradientOverflow</name></expr></init></decl>;</decl_stmt>
+            <for>for(<init><expr><name>j</name> = 0</expr>;</init> <condition><expr><name>j</name> &lt; <name>h</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>)<block>{ <comment type="line">//for every row</comment>
+                <comment type="line">//for every column (inner loop begins here)</comment>
+                <for>for (<init><expr><name>end</name> = <name>indexer</name>+<name>w</name></expr>;</init> <condition><expr><name>indexer</name> &lt; <name>end</name></expr>;</condition> <incr><expr><name>indexer</name>++</expr></incr>) 
+                    <expr_stmt><expr><name><name>pixels</name><index>[<expr><name>indexer</name></expr>]</index></name> = <name>val</name></expr>;</expr_stmt></for>
+                <expr_stmt><expr><name>indexer</name> += <name>adjust</name></expr>;</expr_stmt>
+            }</block></for>
+            <return>return;</return>
+        }</block></then></if>
+
+        <comment type="line">// For every point in the raster, calculate the color at that point</comment>
+        <for>for(<init><expr><name>j</name> = 0</expr>;</init> <condition><expr><name>j</name> &lt; <name>h</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>)<block>{ <comment type="line">//for every row</comment>
+            <comment type="line">//x and y (in user space) of the first pixel of this row</comment>
+            <expr_stmt><expr><name>dX</name> = <name>indexFactor</name> * ((<name>a01</name>*<name>j</name>) + <name>constX</name>)</expr>;</expr_stmt>
+            <expr_stmt><expr><name>dY</name> = <name>indexFactor</name> * ((<name>a11</name>*<name>j</name>) + <name>constY</name>)</expr>;</expr_stmt>	   	   
+
+            <comment type="line">// these values below here allow for an incremental calculation</comment>
+            <comment type="line">// of dX^2 + dY^2 </comment>
+
+            <comment type="line">//initialize to be equal to distance squared</comment>
+            <expr_stmt><expr><name>g</name> = (((<name>dY</name> * <name>dY</name>) + (<name>dX</name> * <name>dX</name>)) )</expr>;</expr_stmt>
+            <expr_stmt><expr><name>gDelta</name> =  (((((<name>deltaY</name> * <name>dY</name>) + (<name>deltaX</name> * <name>dX</name>))* 2) + 
+                        <name>temp</name>))</expr>;</expr_stmt>	 
+	    
+            <comment type="line">//for every column (inner loop begins here)</comment>
+            <for>for (<init><expr><name>end</name> = <name>indexer</name>+<name>w</name></expr>;</init> <condition><expr><name>indexer</name> &lt; <name>end</name></expr>;</condition> <incr><expr><name>indexer</name>++</expr></incr>) <block>{	       
+                <comment type="line">//determine the distance to the center</comment>
+		
+                <comment type="line">//since this is a non cyclic fill raster, crop at "1" and 0</comment>
+                <if>if <condition>(<expr><name>g</name> &gt;= <name>fixedArraySizeSq</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>pixels</name><index>[<expr><name>indexer</name></expr>]</index></name> = <name>gradientOverflow</name></expr>;</expr_stmt>
+                }</block></then>
+		
+                <comment type="line">// This should not happen as gIndex is a square</comment>
+                <comment type="line">// quantity. Code commented out on purpose, can't underflow.</comment>
+                <comment type="line">// else if (g &lt; 0) {</comment>
+                <comment type="line">//    gIndex = 0;		    </comment>
+                <comment type="line">// }</comment>
+		
+                <else>else <block>{
+                    <expr_stmt><expr><name>iSq</name> = (<name>g</name> * <name>invSqStepFloat</name>)</expr>;</expr_stmt>
+                    
+                    <expr_stmt><expr><name>iSqInt</name> = (<name>int</name>)<name>iSq</name></expr>;</expr_stmt> <comment type="line">//chop off fractional part</comment>
+                    <expr_stmt><expr><name>iSq</name> -= <name>iSqInt</name></expr>;</expr_stmt>		    
+                    <expr_stmt><expr><name>gIndex</name> = <name><name>sqrtLutFixed</name><index>[<expr><name>iSqInt</name></expr>]</index></name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>gIndex</name> += <call>(<name>int</name>)<argument_list>(<argument><expr><name>iSq</name> * (<name><name>sqrtLutFixed</name><index>[<expr><name>iSqInt</name> + 1</expr>]</index></name>-<name>gIndex</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name><name>pixels</name><index>[<expr><name>indexer</name></expr>]</index></name> = <name><name>gradient</name><index>[<expr><name>gIndex</name></expr>]</index></name></expr>;</expr_stmt> 
+                }</block></else></if>
+		
+				
+                <comment type="line">//incremental calculation</comment>
+                <expr_stmt><expr><name>g</name> += <name>gDelta</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>gDelta</name> += <name>gDeltaDelta</name></expr>;</expr_stmt>		
+            }</block></for>	  
+            <expr_stmt><expr><name>indexer</name> += <name>adjust</name></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/** Length of a square distance intervale in the lookup table */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>float</name></type> <name>invSqStepFloat</name></decl>;</decl_stmt> 
+    
+    <comment type="javadoc">/** Used to limit the size of the square root lookup table */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>MAX_PRECISION</name> =<init> <expr>256</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** Square root lookup table */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name><name>sqrtLutFixed</name><index>[]</index></name> =<init> <expr>new <name><name>int</name><index>[<expr><name>MAX_PRECISION</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * Build square root lookup table
+     */</comment>       
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>calculateFixedPointSqrtLookupTable</name><parameter_list>()</parameter_list> <block>{	      
+        <decl_stmt><decl><type><name>float</name></type> <name>sqStepFloat</name></decl>;</decl_stmt>
+        <expr_stmt><expr><name>sqStepFloat</name> = ((<name>fastGradientArraySize</name>  * <name>fastGradientArraySize</name>) 
+                       / (<name>MAX_PRECISION</name> - 2))</expr>;</expr_stmt>
+	
+        <comment type="line">// The last two values are the same so that linear square root </comment>
+        <comment type="line">// interpolation can happen on the maximum reachable element in the </comment>
+        <comment type="line">// lookup table (precision-2)</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>;</decl_stmt>
+        <for>for (<init><expr><name>i</name> = 0</expr>;</init> <condition><expr><name>i</name> &lt; <name>MAX_PRECISION</name> - 1</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>sqrtLutFixed</name><index>[<expr><name>i</name></expr>]</index></name> = <call>(<name>int</name>)<argument_list>(<argument><expr><call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>i</name>*<name>sqStepFloat</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><name><name>sqrtLutFixed</name><index>[<expr><name>i</name></expr>]</index></name> = <name><name>sqrtLutFixed</name><index>[<expr><name>i</name>-1</expr>]</index></name></expr>;</expr_stmt>	
+        <expr_stmt><expr><name>invSqStepFloat</name> = 1/<name>sqStepFloat</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/** Fill the raster, cycling the gradient colors when a point falls outside
+     *  of the perimeter of the 100% stop circle.          
+     * 
+     *  This calculation first computes the intersection point of the line
+     *  from the focus through the current point in the raster, and the
+     *  perimeter of the gradient circle.
+     * 
+     *  Then it determines the percentage distance of the current point along
+     *  that line (focus is 0%, perimeter is 100%). 
+     *
+     *  Equation of a circle centered at (a,b) with radius r:
+     *  (x-a)^2 + (y-b)^2 = r^2
+     *  Equation of a line with slope m and y-intercept b
+     *  y = mx + b
+     *  replacing y in the cirlce equation and solving using the quadratic
+     *  formula produces the following set of equations.  Constant factors have
+     *  been extracted out of the inner loop.
+     *
+     */</comment>   
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>cyclicCircularGradientFillRaster</name><parameter_list>(<param><decl><type><name>int</name></type> <name><name>pixels</name><index>[]</index></name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, 
+                                                  <param><decl><type><name>int</name></type> <name>adjust</name></decl></param>, 
+                                                  <param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>, 
+                                                  <param><decl><type><name>int</name></type> <name>w</name></decl></param>, <param><decl><type><name>int</name></type> <name>h</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Constant part of the C factor of the quadratic equation</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>double</name></type> <name>constC</name> =<init> 
+            <expr>-(<name>radiusSq</name>) + (<name>centerX</name> * <name>centerX</name>) + (<name>centerY</name> * <name>centerY</name>)</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>A</name></decl>;</decl_stmt> <comment type="line">//coefficient of the quadratic equation (Ax^2 + Bx + C = 0)</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>B</name></decl>;</decl_stmt> <comment type="line">//coefficient of the quadratic equation</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>C</name></decl>;</decl_stmt> <comment type="line">//coefficient of the quadratic equation</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>slope</name></decl>;</decl_stmt> <comment type="line">//slope of the focus-perimeter line</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>yintcpt</name></decl>;</decl_stmt> <comment type="line">//y-intercept of the focus-perimeter line</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>solutionX</name></decl>;</decl_stmt><comment type="line">//intersection with circle X coordinate</comment>
+        <decl_stmt><decl><type><name>double</name></type> <name>solutionY</name></decl>;</decl_stmt><comment type="line">//intersection with circle Y coordinate       </comment>
+       	<decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constX</name> =<init> <expr>(<name>a00</name>*<name>x</name>) + (<name>a01</name>*<name>y</name>) + <name>a02</name></expr></init></decl>;</decl_stmt><comment type="line">//const part of X coord</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constY</name> =<init> <expr>(<name>a10</name>*<name>x</name>) + (<name>a11</name>*<name>y</name>) + <name>a12</name></expr></init></decl>;</decl_stmt> <comment type="line">//const part of Y coord</comment>
+       	<decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>precalc2</name> =<init> <expr>2 * <name>centerY</name></expr></init></decl>;</decl_stmt><comment type="line">//const in inner loop quad. formula</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>precalc3</name> =<init><expr>-2 * <name>centerX</name></expr></init></decl>;</decl_stmt><comment type="line">//const in inner loop quad. formula</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>X</name></decl>;</decl_stmt> <comment type="line">// User space point X coordinate </comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>Y</name></decl>;</decl_stmt> <comment type="line">// User space point Y coordinate</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>g</name></decl>;</decl_stmt><comment type="line">//value between 0 and 1 specifying position in the gradient</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>det</name></decl>;</decl_stmt> <comment type="line">//determinant of quadratic formula (should always be &gt;0)</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>currentToFocusSq</name></decl>;</decl_stmt><comment type="line">//sq distance from the current pt. to focus</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>intersectToFocusSq</name></decl>;</decl_stmt><comment type="line">//sq distance from the intersect pt. to focus</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>deltaXSq</name></decl>;</decl_stmt> <comment type="line">//temp variable for a change in X squared.</comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>deltaYSq</name></decl>;</decl_stmt> <comment type="line">//temp variable for a change in Y squared.</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>indexer</name> =<init> <expr><name>off</name></expr></init></decl>;</decl_stmt> <comment type="line">//index variable for pixels array</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name>, <name>j</name></decl>;</decl_stmt> <comment type="line">//indexing variables for FOR loops</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>pixInc</name> =<init> <expr><name>w</name>+<name>adjust</name></expr></init></decl>;</decl_stmt><comment type="line">//incremental index change for pixels array</comment>
+
+        <for>for (<init><expr><name>j</name> = 0</expr>;</init> <condition><expr><name>j</name> &lt; <name>h</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{ <comment type="line">//for every row</comment>
+	    
+            <expr_stmt><expr><name>X</name> = (<name>a01</name>*<name>j</name>) + <name>constX</name></expr>;</expr_stmt> <comment type="line">//constants from column to column</comment>
+            <expr_stmt><expr><name>Y</name> = (<name>a11</name>*<name>j</name>) + <name>constY</name></expr>;</expr_stmt>
+	    
+            <comment type="line">//for every column (inner loop begins here)</comment>
+            <for>for (<init><expr><name>i</name> = 0</expr>;</init> <condition><expr><name>i</name> &lt; <name>w</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{	       			
+	
+                <comment type="line">// special case to avoid divide by zero or very near zero</comment>
+                <if>if <condition>(<expr>((<name>X</name>-<name>focusX</name>)&gt;-0.000001) &amp;&amp;
+                    ((<name>X</name>-<name>focusX</name>)&lt; 0.000001)</expr>)</condition><then> <block>{		   
+                    <expr_stmt><expr><name>solutionX</name> = <name>focusX</name></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionY</name> = <name>centerY</name></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionY</name> += (<name>Y</name> &gt; <name>focusY</name>)?<name>trivial</name>:-<name>trivial</name></expr>;</expr_stmt>
+                }</block></then>
+		
+                <else>else <block>{    
+		    
+                    <comment type="line">//slope of the focus-current line</comment>
+                    <expr_stmt><expr><name>slope</name> =   (<name>Y</name> - <name>focusY</name>) / (<name>X</name> - <name>focusX</name>)</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>yintcpt</name> = <name>Y</name> - (<name>slope</name> * <name>X</name>)</expr>;</expr_stmt> <comment type="line">//y-intercept of that same line</comment>
+		    
+                    <comment type="line">//use the quadratic formula to calculate the intersection</comment>
+                    <comment type="line">//point		  </comment>
+                    <expr_stmt><expr><name>A</name> = (<name>slope</name> * <name>slope</name>) + 1</expr>;</expr_stmt> 
+		    
+                    <expr_stmt><expr><name>B</name> =  <name>precalc3</name> + (-2 * <name>slope</name> * (<name>centerY</name> - <name>yintcpt</name>))</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>C</name> =  <name>constC</name> + (<name>yintcpt</name>* (<name>yintcpt</name> - <name>precalc2</name>))</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>det</name> = (<name>float</name>)<call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr>(<name>B</name> * <name>B</name>) - ( 4 * <name>A</name> * <name>C</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionX</name> = -<name>B</name></expr>;</expr_stmt>
+		    
+                    <comment type="line">//choose the positive or negative root depending</comment>
+                    <comment type="line">//on where the X coord lies with respect to the focus.</comment>
+                    <expr_stmt><expr><name>solutionX</name> += (<name>X</name> &lt; <name>focusX</name>)?-<name>det</name>:<name>det</name></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionX</name> = <name>solutionX</name> / (2 * <name>A</name>)</expr>;</expr_stmt><comment type="line">//divisor</comment>
+		    
+                    <expr_stmt><expr><name>solutionY</name> = (<name>slope</name> * <name>solutionX</name>) + <name>yintcpt</name></expr>;</expr_stmt>
+                }</block></else></if>	                    	
+
+                <comment type="line">//calculate the square of the distance from the current point </comment>
+                <comment type="line">//to the focus and the square of the distance from the </comment>
+                <comment type="line">//intersection point to the focus. Want the squares so we can</comment>
+                <comment type="line">//do 1 square root after division instead of 2 before.</comment>
+
+                <expr_stmt><expr><name>deltaXSq</name> = (<name>float</name>)<name>solutionX</name> - <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>deltaYSq</name> = (<name>float</name>)<name>solutionY</name> - <name>focusY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>intersectToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>deltaXSq</name> = <name>X</name> - <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>deltaYSq</name> = <name>Y</name> - <name>focusY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>currentToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+
+                <comment type="line">//want the percentage (0-1) of the current point along the </comment>
+                <comment type="line">//focus-circumference line</comment>
+                <expr_stmt><expr><name>g</name> = (<name>float</name>)<call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>currentToFocusSq</name> / <name>intersectToFocusSq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <comment type="line">//Get the color at this point</comment>
+                <expr_stmt><expr><name><name>pixels</name><index>[<expr><name>indexer</name> + <name>i</name></expr>]</index></name> = <call><name>indexIntoGradientsArrays</name><argument_list>(<argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		
+                <expr_stmt><expr><name>X</name> += <name>a00</name></expr>;</expr_stmt> <comment type="line">//incremental change in X, Y</comment>
+                <expr_stmt><expr><name>Y</name> += <name>a10</name></expr>;</expr_stmt>	
+            }</block></for> <comment type="line">//end inner loop</comment>
+            <expr_stmt><expr><name>indexer</name> += <name>pixInc</name></expr>;</expr_stmt>
+        }</block></for> <comment type="line">//end outer loop</comment>
+    }</block></function>
+
+
+    <comment type="javadoc">/** Fill the raster, cycling the gradient colors when a point
+     *  falls outside of the perimeter of the 100% stop circle. Use
+     *  the anti-aliased gradient lookup.
+     *
+     *  This calculation first computes the intersection point of the line
+     *  from the focus through the current point in the raster, and the
+     *  perimeter of the gradient circle.
+     * 
+     *  Then it determines the percentage distance of the current point along
+     *  that line (focus is 0%, perimeter is 100%). 
+     *
+     *  Equation of a circle centered at (a,b) with radius r:
+     *  (x-a)^2 + (y-b)^2 = r^2
+     *  Equation of a line with slope m and y-intercept b
+     *  y = mx + b
+     *  replacing y in the cirlce equation and solving using the quadratic
+     *  formula produces the following set of equations.  Constant factors have
+     *  been extracted out of the inner loop.
+     * */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>antiAliasFillRaster</name><parameter_list>(<param><decl><type><name>int</name></type> <name><name>pixels</name><index>[]</index></name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, 
+                                     <param><decl><type><name>int</name></type> <name>adjust</name></decl></param>, 
+                                     <param><decl><type><name>int</name></type> <name>x</name></decl></param>, <param><decl><type><name>int</name></type> <name>y</name></decl></param>, 
+                                     <param><decl><type><name>int</name></type> <name>w</name></decl></param>, <param><decl><type><name>int</name></type> <name>h</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Constant part of the C factor of the quadratic equation</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>double</name></type> <name>constC</name> =<init> 
+            <expr>-(<name>radiusSq</name>) + (<name>centerX</name> * <name>centerX</name>) + (<name>centerY</name> * <name>centerY</name>)</expr></init></decl>;</decl_stmt>
+        <comment type="line">//coefficients of the quadratic equation (Ax^2 + Bx + C = 0)</comment>
+       	<decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>precalc2</name> =<init> <expr>2 * <name>centerY</name></expr></init></decl>;</decl_stmt><comment type="line">//const in inner loop quad. formula</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>precalc3</name> =<init><expr>-2 * <name>centerX</name></expr></init></decl>;</decl_stmt><comment type="line">//const in inner loop quad. formula</comment>
+
+        <comment type="line">//const part of X,Y coord (shifted to bottom left corner of pixel.</comment>
+       	<decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constX</name> =<init> <expr>(<name>a00</name>*(<name>x</name>-.5f)) + (<name>a01</name>*(<name>y</name>+.5f)) + <name>a02</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>float</name></type> <name>constY</name> =<init> <expr>(<name>a10</name>*(<name>x</name>-.5f)) + (<name>a11</name>*(<name>y</name>+.5f)) + <name>a12</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>float</name></type> <name>X</name></decl>;</decl_stmt> <comment type="line">// User space point X coordinate </comment>
+        <decl_stmt><decl><type><name>float</name></type> <name>Y</name></decl>;</decl_stmt> <comment type="line">// User space point Y coordinate</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name>, <name>j</name></decl>;</decl_stmt> <comment type="line">//indexing variables for FOR loops</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>indexer</name> =<init> <expr><name>off</name>-1</expr></init></decl>;</decl_stmt> <comment type="line">//index variable for pixels array</comment>
+
+        <decl_stmt><decl><type><name>double</name> <index>[]</index></type> <name>prevGs</name> =<init> <expr>new <name><name>double</name><index>[<expr><name>w</name>+1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>deltaXSq</name>, <name>deltaYSq</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>solutionX</name>, <name>solutionY</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>slope</name>, <name>yintcpt</name>, <name>A</name>, <name>B</name>, <name>C</name>, <name>det</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>intersectToFocusSq</name>, <name>currentToFocusSq</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>g00</name>, <name>g01</name>, <name>g10</name>, <name>g11</name></decl>;</decl_stmt>
+
+        <comment type="line">// Set X,Y to top left corner of first pixel of first row.</comment>
+        <expr_stmt><expr><name>X</name> = <name>constX</name> - <name>a01</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>Y</name> = <name>constY</name> - <name>a11</name></expr>;</expr_stmt>
+
+        <comment type="line">// Calc top row of g's.</comment>
+        <for>for (<init><expr><name>i</name>=0</expr>;</init> <condition><expr><name>i</name> &lt;= <name>w</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <comment type="line">// special case to avoid divide by zero or very near zero</comment>
+            <if>if <condition>(<expr>((<name>X</name>-<name>focusX</name>)&gt;-0.000001) &amp;&amp;
+                ((<name>X</name>-<name>focusX</name>)&lt; 0.000001)</expr>)</condition><then> <block>{		   
+                <expr_stmt><expr><name>solutionX</name> = <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>solutionY</name> = <name>centerY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>solutionY</name> += (<name>Y</name> &gt; <name>focusY</name>)?<name>trivial</name>:-<name>trivial</name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{ 
+                <comment type="line">// Formula for Circle: (X-Xc)^2 + (Y-Yc)^2 - R^2 = 0</comment>
+                <comment type="line">// Formula line:        Y = Slope*x + Y0;</comment>
+                <comment type="line">//</comment> 
+                <comment type="line">// So you substitue line into Circle and apply</comment>
+                <comment type="line">// Quadradic formula.</comment>
+
+
+                <comment type="line">//slope of the focus-current line</comment>
+                <expr_stmt><expr><name>slope</name> =   (<name>Y</name> - <name>focusY</name>) / (<name>X</name> - <name>focusX</name>)</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>yintcpt</name> = <name>Y</name> - (<name>slope</name> * <name>X</name>)</expr>;</expr_stmt> <comment type="line">//y-intercept of that same line</comment>
+		    
+                <comment type="line">//use the quadratic formula to calculate the intersection</comment>
+                <comment type="line">//point		  </comment>
+                <expr_stmt><expr><name>A</name> = (<name>slope</name> * <name>slope</name>) + 1</expr>;</expr_stmt> 
+		    
+                <expr_stmt><expr><name>B</name> =  <name>precalc3</name> + (-2 * <name>slope</name> * (<name>centerY</name> - <name>yintcpt</name>))</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>C</name> =  <name>constC</name> + (<name>yintcpt</name>* (<name>yintcpt</name> - <name>precalc2</name>))</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>det</name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr>(<name>B</name> * <name>B</name>) - ( 4 * <name>A</name> * <name>C</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>solutionX</name> = -<name>B</name></expr>;</expr_stmt>
+		    
+                <comment type="line">//choose the positive or negative root depending</comment>
+                <comment type="line">//on where the X coord lies with respect to the focus.</comment>
+                <expr_stmt><expr><name>solutionX</name> += (<name>X</name> &lt; <name>focusX</name>)?-<name>det</name>:<name>det</name></expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>solutionX</name> = <name>solutionX</name> / (2 * <name>A</name>)</expr>;</expr_stmt><comment type="line">//divisor</comment>
+		    
+                <expr_stmt><expr><name>solutionY</name> = (<name>slope</name> * <name>solutionX</name>) + <name>yintcpt</name></expr>;</expr_stmt>
+            }</block></else></if>	                    	
+
+            <comment type="line">//calculate the square of the distance from the current point </comment>
+            <comment type="line">//to the focus and the square of the distance from the </comment>
+            <comment type="line">//intersection point to the focus. Want the squares so we can</comment>
+            <comment type="line">//do 1 square root after division instead of 2 before.</comment>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>solutionX</name> - <name>focusX</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaYSq</name> = <name>solutionY</name> - <name>focusY</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>intersectToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaXSq</name> = <name>X</name> - <name>focusX</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaYSq</name> = <name>Y</name> - <name>focusY</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>currentToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <comment type="line">//want the percentage (0-1) of the current point along the </comment>
+            <comment type="line">//focus-circumference line</comment>
+            <expr_stmt><expr><name><name>prevGs</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>currentToFocusSq</name> / <name>intersectToFocusSq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>X</name> += <name>a00</name></expr>;</expr_stmt> <comment type="line">//incremental change in X, Y</comment>
+            <expr_stmt><expr><name>Y</name> += <name>a10</name></expr>;</expr_stmt>	
+        }</block></for>
+
+        <for>for (<init><expr><name>j</name> = 0</expr>;</init> <condition><expr><name>j</name> &lt; <name>h</name></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{ <comment type="line">//for every row</comment>
+	    
+            <comment type="line">// Set X,Y to bottom edge of pixel row.</comment>
+            <expr_stmt><expr><name>X</name> = (<name>a01</name>*<name>j</name>) + <name>constX</name></expr>;</expr_stmt> <comment type="line">//constants from row to row</comment>
+            <expr_stmt><expr><name>Y</name> = (<name>a11</name>*<name>j</name>) + <name>constY</name></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>g10</name> = <name><name>prevGs</name><index>[<expr>0</expr>]</index></name></expr>;</expr_stmt>
+            <comment type="line">// special case to avoid divide by zero or very near zero</comment>
+            <if>if <condition>(<expr>((<name>X</name>-<name>focusX</name>)&gt;-0.000001) &amp;&amp;
+                ((<name>X</name>-<name>focusX</name>)&lt; 0.000001)</expr>)</condition><then> <block>{		   
+                <expr_stmt><expr><name>solutionX</name> = <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>solutionY</name> = <name>centerY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>solutionY</name> += (<name>Y</name> &gt; <name>focusY</name>)?<name>trivial</name>:-<name>trivial</name></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{ 
+                <comment type="line">// Formula for Circle: (X-Xc)^2 + (Y-Yc)^2 - R^2 = 0</comment>
+                <comment type="line">// Formula line:        Y = Slope*x + Y0;</comment>
+                <comment type="line">//</comment> 
+                <comment type="line">// So you substitue line into Circle and apply</comment>
+                <comment type="line">// Quadradic formula.</comment>
+
+
+                <comment type="line">//slope of the focus-current line</comment>
+                <expr_stmt><expr><name>slope</name> =   (<name>Y</name> - <name>focusY</name>) / (<name>X</name> - <name>focusX</name>)</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>yintcpt</name> = <name>Y</name> - (<name>slope</name> * <name>X</name>)</expr>;</expr_stmt> <comment type="line">//y-intercept of that same line</comment>
+		    
+                <comment type="line">//use the quadratic formula to calculate the intersection</comment>
+                <comment type="line">//point		  </comment>
+                <expr_stmt><expr><name>A</name> = (<name>slope</name> * <name>slope</name>) + 1</expr>;</expr_stmt> 
+		    
+                <expr_stmt><expr><name>B</name> =  <name>precalc3</name> + (-2 * <name>slope</name> * (<name>centerY</name> - <name>yintcpt</name>))</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>C</name> =  <name>constC</name> + (<name>yintcpt</name>* (<name>yintcpt</name> - <name>precalc2</name>))</expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>det</name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr>(<name>B</name> * <name>B</name>) - ( 4 * <name>A</name> * <name>C</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>solutionX</name> = -<name>B</name></expr>;</expr_stmt>
+		    
+                <comment type="line">//choose the positive or negative root depending</comment>
+                <comment type="line">//on where the X coord lies with respect to the focus.</comment>
+                <expr_stmt><expr><name>solutionX</name> += (<name>X</name> &lt; <name>focusX</name>)?-<name>det</name>:<name>det</name></expr>;</expr_stmt>
+		    
+                <expr_stmt><expr><name>solutionX</name> = <name>solutionX</name> / (2 * <name>A</name>)</expr>;</expr_stmt><comment type="line">//divisor</comment>
+		    
+                <expr_stmt><expr><name>solutionY</name> = (<name>slope</name> * <name>solutionX</name>) + <name>yintcpt</name></expr>;</expr_stmt>
+            }</block></else></if>	                    	
+
+            <comment type="line">//calculate the square of the distance from the current point </comment>
+            <comment type="line">//to the focus and the square of the distance from the </comment>
+            <comment type="line">//intersection point to the focus. Want the squares so we can</comment>
+            <comment type="line">//do 1 square root after division instead of 2 before.</comment>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>solutionX</name> - <name>focusX</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaYSq</name> = <name>solutionY</name> - <name>focusY</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>intersectToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaXSq</name> = <name>X</name> - <name>focusX</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+            <expr_stmt><expr><name>deltaYSq</name> = <name>Y</name> - <name>focusY</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+                
+            <expr_stmt><expr><name>currentToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>g11</name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>currentToFocusSq</name> / <name>intersectToFocusSq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>prevGs</name><index>[<expr>0</expr>]</index></name> = <name>g11</name></expr>;</expr_stmt>
+            
+            <expr_stmt><expr><name>X</name> += <name>a00</name></expr>;</expr_stmt> <comment type="line">//incremental change in X, Y</comment>
+            <expr_stmt><expr><name>Y</name> += <name>a10</name></expr>;</expr_stmt>	
+
+            <comment type="line">//for every column (inner loop begins here)</comment>
+            <for>for (<init><expr><name>i</name>=1</expr>;</init> <condition><expr><name>i</name> &lt;= <name>w</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name>g00</name> = <name>g10</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>g01</name> = <name>g11</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>g10</name> = <name><name>prevGs</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt>
+
+                <comment type="line">// special case to avoid divide by zero or very near zero</comment>
+                <if>if <condition>(<expr>((<name>X</name>-<name>focusX</name>)&gt;-0.000001) &amp;&amp;
+                    ((<name>X</name>-<name>focusX</name>)&lt; 0.000001)</expr>)</condition><then> <block>{		   
+                    <expr_stmt><expr><name>solutionX</name> = <name>focusX</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>solutionY</name> = <name>centerY</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>solutionY</name> += (<name>Y</name> &gt; <name>focusY</name>)?<name>trivial</name>:-<name>trivial</name></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{ 
+                    <comment type="line">// Formula for Circle: (X-Xc)^2 + (Y-Yc)^2 - R^2 = 0</comment>
+                    <comment type="line">// Formula line:        Y = Slope*x + Y0;</comment>
+                    <comment type="line">//</comment> 
+                    <comment type="line">// So you substitue line into Circle and apply</comment>
+                    <comment type="line">// Quadradic formula.</comment>
+
+
+                    <comment type="line">//slope of the focus-current line</comment>
+                    <expr_stmt><expr><name>slope</name> =   (<name>Y</name> - <name>focusY</name>) / (<name>X</name> - <name>focusX</name>)</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>yintcpt</name> = <name>Y</name> - (<name>slope</name> * <name>X</name>)</expr>;</expr_stmt> <comment type="line">//y-intercept of that same line</comment>
+		    
+                    <comment type="line">//use the quadratic formula to calculate the intersection</comment>
+                    <comment type="line">//point		  </comment>
+                    <expr_stmt><expr><name>A</name> = (<name>slope</name> * <name>slope</name>) + 1</expr>;</expr_stmt> 
+		    
+                    <expr_stmt><expr><name>B</name> =  <name>precalc3</name> + (-2 * <name>slope</name> * (<name>centerY</name> - <name>yintcpt</name>))</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>C</name> =  <name>constC</name> + (<name>yintcpt</name>* (<name>yintcpt</name> - <name>precalc2</name>))</expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>det</name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr>(<name>B</name> * <name>B</name>) - ( 4 * <name>A</name> * <name>C</name>)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionX</name> = -<name>B</name></expr>;</expr_stmt>
+		    
+                    <comment type="line">//choose the positive or negative root depending</comment>
+                    <comment type="line">//on where the X coord lies with respect to the focus.</comment>
+                    <expr_stmt><expr><name>solutionX</name> += (<name>X</name> &lt; <name>focusX</name>)?-<name>det</name>:<name>det</name></expr>;</expr_stmt>
+		    
+                    <expr_stmt><expr><name>solutionX</name> = <name>solutionX</name> / (2 * <name>A</name>)</expr>;</expr_stmt><comment type="line">//divisor</comment>
+		    
+                    <expr_stmt><expr><name>solutionY</name> = (<name>slope</name> * <name>solutionX</name>) + <name>yintcpt</name></expr>;</expr_stmt>
+                }</block></else></if>	                    	
+
+                <comment type="line">//calculate the square of the distance from the current point </comment>
+                <comment type="line">//to the focus and the square of the distance from the </comment>
+                <comment type="line">//intersection point to the focus. Want the squares so we can</comment>
+                <comment type="line">//do 1 square root after division instead of 2 before.</comment>
+                <expr_stmt><expr><name>deltaXSq</name> = <name>solutionX</name> - <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+                <expr_stmt><expr><name>deltaYSq</name> = <name>solutionY</name> - <name>focusY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+        
+                <expr_stmt><expr><name>intersectToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+        
+                <expr_stmt><expr><name>deltaXSq</name> = <name>X</name> - <name>focusX</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaXSq</name> = <name>deltaXSq</name> * <name>deltaXSq</name></expr>;</expr_stmt>
+        
+                <expr_stmt><expr><name>deltaYSq</name> = <name>Y</name> - <name>focusY</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>deltaYSq</name> = <name>deltaYSq</name> * <name>deltaYSq</name></expr>;</expr_stmt>
+        
+                <expr_stmt><expr><name>currentToFocusSq</name> = <name>deltaXSq</name> + <name>deltaYSq</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>g11</name> = <call><name><name>Math</name>.<name>sqrt</name></name><argument_list>(<argument><expr><name>currentToFocusSq</name> / <name>intersectToFocusSq</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>prevGs</name><index>[<expr><name>i</name></expr>]</index></name> = <name>g11</name></expr>;</expr_stmt>
+
+                <comment type="line">//Get the color at this point</comment>
+                <expr_stmt><expr><name><name>pixels</name><index>[<expr><name>indexer</name>+<name>i</name></expr>]</index></name> = <call><name>indexGradientAntiAlias</name>
+                    <argument_list>(<argument><expr><call>(<name>float</name>)<argument_list>(<argument><expr>(<name>g00</name>+<name>g01</name>+<name>g10</name>+<name>g11</name>)/4</expr></argument>)</argument_list></call></expr></argument>, 
+                     <argument><expr>(<name>float</name>)<call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><call><name><name>Math</name>.<name>abs</name></name><argument_list>(<argument><expr><name>g11</name>-<name>g00</name></expr></argument>)</argument_list></call></expr></argument>,
+                                     <argument><expr><call><name><name>Math</name>.<name>abs</name></name><argument_list>(<argument><expr><name>g10</name>-<name>g01</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <expr_stmt><expr><name>X</name> += <name>a00</name></expr>;</expr_stmt> <comment type="line">//incremental change in X, Y</comment>
+                <expr_stmt><expr><name>Y</name> += <name>a10</name></expr>;</expr_stmt>	
+            }</block></for> <comment type="line">//end inner loop</comment>
+            <expr_stmt><expr><name>indexer</name> += (<name>w</name>+<name>adjust</name>)</expr>;</expr_stmt>
+        }</block></for> <comment type="line">//end outer loop</comment>
+    }</block></function>
+}</block></class>
+</unit>

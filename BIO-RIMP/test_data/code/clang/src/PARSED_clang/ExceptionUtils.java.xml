@@ -1,0 +1,1014 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\exception\ExceptionUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>exception</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>PrintStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>PrintWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>StringWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>InvocationTargetException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>SQLException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>StringTokenizer</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ArrayUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ClassUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>NullArgumentException</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>StringUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>SystemUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;Provides utilities for manipulating and examining 
+ * &lt;code&gt;Throwable&lt;/code&gt; objects.&lt;/p&gt;
+ *
+ * @author Apache Software Foundation
+ * @author Daniel L. Rall
+ * @author Dmitri Plotnikov
+ * @author &lt;a href="mailto:ggregory@seagullsw.com"&gt;Gary Gregory&lt;/a&gt;
+ * @author Pete Gieser
+ * @since 1.0
+ * @version $Id: ExceptionUtils.java 905837 2010-02-02 23:32:11Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>ExceptionUtils</name> <block>{
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Used when printing stack frames to denote the start of a
+     * wrapped exception.&lt;/p&gt;
+     *
+     * &lt;p&gt;Package private for accessibility by test suite.&lt;/p&gt;
+     */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>WRAPPED_MARKER</name> =<init> <expr>" [wrapped] "</expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Lock object for CAUSE_METHOD_NAMES</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Object</name></type> <name>CAUSE_METHOD_NAMES_LOCK</name> =<init> <expr>new <call><name>Object</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;The names of methods commonly used to access a wrapped exception.&lt;/p&gt;
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name><index>[]</index></type> <name>CAUSE_METHOD_NAMES</name> =<init> <expr><block>{
+        <expr>"getCause"</expr>,
+        <expr>"getNextException"</expr>,
+        <expr>"getTargetException"</expr>,
+        <expr>"getException"</expr>,
+        <expr>"getSourceException"</expr>,
+        <expr>"getRootCause"</expr>,
+        <expr>"getCausedByException"</expr>,
+        <expr>"getNested"</expr>,
+        <expr>"getLinkedException"</expr>,
+        <expr>"getNestedException"</expr>,
+        <expr>"getLinkedCause"</expr>,
+        <expr>"getThrowable"</expr>,
+    }</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;The Method object for Java 1.4 getCause.&lt;/p&gt;
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Method</name></type> <name>THROWABLE_CAUSE_METHOD</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;The Method object for Java 1.4 initCause.&lt;/p&gt;
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Method</name></type> <name>THROWABLE_INITCAUSE_METHOD</name></decl>;</decl_stmt>
+    
+    static <block>{
+        <decl_stmt><decl><type><name>Method</name></type> <name>causeMethod</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>causeMethod</name> = <name><name>Throwable</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"getCause"</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <expr_stmt><expr><name>causeMethod</name> = <name>null</name></expr>;</expr_stmt>
+        }</block></catch></try>
+        <expr_stmt><expr><name>THROWABLE_CAUSE_METHOD</name> = <name>causeMethod</name></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>causeMethod</name> = <name><name>Throwable</name>.<name><name/></name></name>class.<call><name>getMethod</name><argument_list>(<argument><expr>"initCause"</expr></argument>, <argument><expr>new <name><name>Class</name><index>[]</index></name><block>{<expr><name><name>Throwable</name>.<name><name/></name></name>class</expr>}</block></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <expr_stmt><expr><name>causeMethod</name> = <name>null</name></expr>;</expr_stmt>
+        }</block></catch></try>
+        <expr_stmt><expr><name>THROWABLE_INITCAUSE_METHOD</name> = <name>causeMethod</name></expr>;</expr_stmt>
+    }</block>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Public constructor allows an instance of &lt;code&gt;ExceptionUtils&lt;/code&gt; to be created, although that is not
+     * normally necessary.
+     * &lt;/p&gt;
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ExceptionUtils</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Adds to the list of method names used in the search for &lt;code&gt;Throwable&lt;/code&gt;
+     * objects.&lt;/p&gt;
+     * 
+     * @param methodName  the methodName to add to the list, &lt;code&gt;null&lt;/code&gt;
+     *  and empty strings are ignored
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>addCauseMethodName</name><parameter_list>(<param><decl><type><name>String</name></type> <name>methodName</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>StringUtils</name>.<name>isNotEmpty</name></name><argument_list>(<argument><expr><name>methodName</name></expr></argument>)</argument_list></call> &amp;&amp; !<call><name>isCauseMethodName</name><argument_list>(<argument><expr><name>methodName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{            
+            <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr><call><name>getCauseMethodNameList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>methodName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+                    <expr_stmt><expr><name>CAUSE_METHOD_NAMES</name> = <call><name>toArray</name><argument_list>(<argument><expr><name>list</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></synchronized>
+            }</block></then></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Removes from the list of method names used in the search for &lt;code&gt;Throwable&lt;/code&gt;
+     * objects.&lt;/p&gt;
+     * 
+     * @param methodName  the methodName to remove from the list, &lt;code&gt;null&lt;/code&gt;
+     *  and empty strings are ignored
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>removeCauseMethodName</name><parameter_list>(<param><decl><type><name>String</name></type> <name>methodName</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>StringUtils</name>.<name>isNotEmpty</name></name><argument_list>(<argument><expr><name>methodName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr><call><name>getCauseMethodNameList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>list</name>.<name>remove</name></name><argument_list>(<argument><expr><name>methodName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+                    <expr_stmt><expr><name>CAUSE_METHOD_NAMES</name> = <call><name>toArray</name><argument_list>(<argument><expr><name>list</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></synchronized>
+            }</block></then></if>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Sets the cause of a &lt;code&gt;Throwable&lt;/code&gt; using introspection, allowing
+     * source code compatibility between pre-1.4 and post-1.4 Java releases.&lt;/p&gt;
+     *
+     * &lt;p&gt;The typical use of this method is inside a constructor as in
+     * the following example:&lt;/p&gt;
+     *
+     * &lt;pre&gt;
+     * import org.apache.commons.lang.exception.ExceptionUtils;
+     *  
+     * public class MyException extends Exception {
+     *  
+     *    public MyException(String msg) {
+     *       super(msg);
+     *    }
+     *
+     *    public MyException(String msg, Throwable cause) {
+     *       super(msg);
+     *       ExceptionUtils.setCause(this, cause);
+     *    }
+     * }
+     * &lt;/pre&gt;
+     *
+     * @param target  the target &lt;code&gt;Throwable&lt;/code&gt;
+     * @param cause  the &lt;code&gt;Throwable&lt;/code&gt; to set in the target
+     * @return a &lt;code&gt;true&lt;/code&gt; if the target has been modified
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>setCause</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>target</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>cause</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>target</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullArgumentException</name><argument_list>(<argument><expr>"target"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Object</name><index>[]</index></type> <name>causeArgs</name> =<init> <expr>new <name><name>Object</name><index>[]</index></name><block>{<expr><name>cause</name></expr>}</block></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>modifiedTarget</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>THROWABLE_INITCAUSE_METHOD</name> != <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <expr_stmt><expr><call><name><name>THROWABLE_INITCAUSE_METHOD</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>causeArgs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>modifiedTarget</name> = true</expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// Exception ignored.</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>InvocationTargetException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// Exception ignored.</comment>
+            }</block></catch></try>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>Method</name></type> <name>setCauseMethod</name> =<init> <expr><call><name><name>target</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getMethod</name><argument_list>(<argument><expr>"setCause"</expr></argument>, <argument><expr>new <name><name>Class</name><index>[]</index></name><block>{<expr><name><name>Throwable</name>.<name><name/></name></name>class</expr>}</block></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>setCauseMethod</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>target</name></expr></argument>, <argument><expr><name>causeArgs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>modifiedTarget</name> = true</expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// Exception ignored.</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// Exception ignored.</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>InvocationTargetException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// Exception ignored.</comment>
+        }</block></catch></try>
+        <return>return <expr><name>modifiedTarget</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the given list as a &lt;code&gt;String[]&lt;/code&gt;.
+     * @param list a list to transform.
+     * @return the given list as a &lt;code&gt;String[]&lt;/code&gt;.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name><index>[]</index></type> <name>toArray</name><parameter_list>(<param><decl><type><name>List</name></type> <name>list</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name><name>String</name><index>[]</index></name>) <call><name><name>list</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>String</name><index>[<expr><call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns {@link #CAUSE_METHOD_NAMES} as a List.
+     *
+     * @return {@link #CAUSE_METHOD_NAMES} as a List.
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>ArrayList</name></type> <name>getCauseMethodNameList</name><parameter_list>()</parameter_list> <block>{
+        <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+            <return>return <expr>new <call><name>ArrayList</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>CAUSE_METHOD_NAMES</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Tests if the list of method names used in the search for &lt;code&gt;Throwable&lt;/code&gt;
+     * objects include the given name.&lt;/p&gt;
+     * 
+     * @param methodName  the methodName to search in the list.
+     * @return if the list of method names used in the search for &lt;code&gt;Throwable&lt;/code&gt;
+     *  objects include the given name.
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isCauseMethodName</name><parameter_list>(<param><decl><type><name>String</name></type> <name>methodName</name></decl></param>)</parameter_list> <block>{
+        <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+            <return>return <expr><call><name><name>ArrayUtils</name>.<name>indexOf</name></name><argument_list>(<argument><expr><name>CAUSE_METHOD_NAMES</name></expr></argument>, <argument><expr><name>methodName</name></expr></argument>)</argument_list></call> &gt;= 0</expr>;</return>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Introspects the &lt;code&gt;Throwable&lt;/code&gt; to obtain the cause.&lt;/p&gt;
+     *
+     * &lt;p&gt;The method searches for methods with specific names that return a 
+     * &lt;code&gt;Throwable&lt;/code&gt; object. This will pick up most wrapping exceptions,
+     * including those from JDK 1.4, and
+     * {@link org.apache.commons.lang.exception.NestableException NestableException}.
+     * The method names can be added to using {@link #addCauseMethodName(String)}.&lt;/p&gt;
+     *
+     * &lt;p&gt;The default list searched for are:&lt;/p&gt;
+     * &lt;ul&gt;
+     *  &lt;li&gt;&lt;code&gt;getCause()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getNextException()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getTargetException()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getException()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getSourceException()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getRootCause()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getCausedByException()&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;&lt;code&gt;getNested()&lt;/code&gt;&lt;/li&gt;
+     * &lt;/ul&gt;
+     * 
+     * &lt;p&gt;In the absence of any such method, the object is inspected for a
+     * &lt;code&gt;detail&lt;/code&gt; field assignable to a &lt;code&gt;Throwable&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;If none of the above is found, returns &lt;code&gt;null&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to introspect for a cause, may be null
+     * @return the cause of the &lt;code&gt;Throwable&lt;/code&gt;,
+     *  &lt;code&gt;null&lt;/code&gt; if none found or null throwable input
+     * @since 1.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getCause</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+            <return>return <expr><call><name>getCause</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>CAUSE_METHOD_NAMES</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Introspects the &lt;code&gt;Throwable&lt;/code&gt; to obtain the cause.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     * &lt;li&gt;Try known exception types.&lt;/li&gt;
+     * &lt;li&gt;Try the supplied array of method names.&lt;/li&gt;
+     * &lt;li&gt;Try the field 'detail'.&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; set of method names means use the default set.
+     * A &lt;code&gt;null&lt;/code&gt; in the set of method names will be ignored.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to introspect for a cause, may be null
+     * @param methodNames  the method names, null treated as default set
+     * @return the cause of the &lt;code&gt;Throwable&lt;/code&gt;,
+     *  &lt;code&gt;null&lt;/code&gt; if none found or null throwable input
+     * @since 1.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getCause</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>methodNames</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Throwable</name></type> <name>cause</name> =<init> <expr><call><name>getCauseUsingWellKnownTypes</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>cause</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>methodNames</name> == <name>null</name></expr>)</condition><then> <block>{
+                <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+                    <expr_stmt><expr><name>methodNames</name> = <name>CAUSE_METHOD_NAMES</name></expr>;</expr_stmt>
+                }</block></synchronized>
+            }</block></then></if>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>methodNames</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <decl_stmt><decl><type><name>String</name></type> <name>methodName</name> =<init> <expr><name><name>methodNames</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>methodName</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>cause</name> = <call><name>getCauseUsingMethodName</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>methodName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>cause</name> != <name>null</name></expr>)</condition><then> <block>{
+                        <break>break;</break>
+                    }</block></then></if>
+                }</block></then></if>
+            }</block></for>
+
+            <if>if <condition>(<expr><name>cause</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>cause</name> = <call><name>getCauseUsingFieldName</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr>"detail"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+        <return>return <expr><name>cause</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Introspects the &lt;code&gt;Throwable&lt;/code&gt; to obtain the root cause.&lt;/p&gt;
+     *
+     * &lt;p&gt;This method walks through the exception chain to the last element,
+     * "root" of the tree, using {@link #getCause(Throwable)}, and
+     * returns that exception.&lt;/p&gt;
+     *
+     * &lt;p&gt;From version 2.2, this method handles recursive cause structures
+     * that might otherwise cause infinite loops. If the throwable parameter
+     * has a cause of itself, then null will be returned. If the throwable
+     * parameter cause chain loops, the last element in the chain before the
+     * loop is returned.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to get the root cause for, may be null
+     * @return the root cause of the &lt;code&gt;Throwable&lt;/code&gt;,
+     *  &lt;code&gt;null&lt;/code&gt; if none found or null throwable input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getRootCause</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr><call><name>getThrowableList</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call> &lt; 2 ? <name>null</name> : (<name>Throwable</name>)<call><name><name>list</name>.<name>get</name></name><argument_list>(<argument><expr><call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call>)</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Finds a &lt;code&gt;Throwable&lt;/code&gt; for known types.&lt;/p&gt;
+     * 
+     * &lt;p&gt;Uses &lt;code&gt;instanceof&lt;/code&gt; checks to examine the exception,
+     * looking for well known types which could contain chained or
+     * wrapped exceptions.&lt;/p&gt;
+     *
+     * @param throwable  the exception to examine
+     * @return the wrapped exception, or &lt;code&gt;null&lt;/code&gt; if not found
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getCauseUsingWellKnownTypes</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>Nestable</name></expr>)</condition><then> <block>{
+            <return>return <expr>((<name>Nestable</name>) <name>throwable</name>).<call><name>getCause</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>SQLException</name></expr>)</condition><then> <block>{
+            <return>return <expr>((<name>SQLException</name>) <name>throwable</name>).<call><name>getNextException</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>InvocationTargetException</name></expr>)</condition><then> <block>{
+            <return>return <expr>((<name>InvocationTargetException</name>) <name>throwable</name>).<call><name>getTargetException</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></else></if></else></if></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Finds a &lt;code&gt;Throwable&lt;/code&gt; by method name.&lt;/p&gt;
+     *
+     * @param throwable  the exception to examine
+     * @param methodName  the name of the method to find and invoke
+     * @return the wrapped exception, or &lt;code&gt;null&lt;/code&gt; if not found
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getCauseUsingMethodName</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>String</name></type> <name>methodName</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Method</name></type> <name>method</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>method</name> = <call><name><name>throwable</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getMethod</name><argument_list>(<argument><expr><name>methodName</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><name>method</name> != <name>null</name> &amp;&amp; <name><name>Throwable</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><call><name><name>method</name>.<name>getReturnType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <return>return <expr>(<name>Throwable</name>) <call><name><name>method</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name><name>ArrayUtils</name>.<name>EMPTY_OBJECT_ARRAY</name></name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// exception ignored</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// exception ignored</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>InvocationTargetException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// exception ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Finds a &lt;code&gt;Throwable&lt;/code&gt; by field name.&lt;/p&gt;
+     *
+     * @param throwable  the exception to examine
+     * @param fieldName  the name of the attribute to examine
+     * @return the wrapped exception, or &lt;code&gt;null&lt;/code&gt; if not found
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Throwable</name></type> <name>getCauseUsingFieldName</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>String</name></type> <name>fieldName</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>field</name> = <call><name><name>throwable</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getField</name><argument_list>(<argument><expr><name>fieldName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchFieldException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch></try>
+
+        <if>if <condition>(<expr><name>field</name> != <name>null</name> &amp;&amp; <name><name>Throwable</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <return>return <expr>(<name>Throwable</name>) <call><name><name>field</name>.<name>get</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// exception ignored</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>ignored</name></decl></param>) <block>{
+                <comment type="line">// exception ignored</comment>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Checks if the Throwable class has a &lt;code&gt;getCause&lt;/code&gt; method.&lt;/p&gt;
+     *
+     * &lt;p&gt;This is true for JDK 1.4 and above.&lt;/p&gt;
+     *
+     * @return true if Throwable is nestable
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isThrowableNested</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>THROWABLE_CAUSE_METHOD</name> != <name>null</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Checks whether this &lt;code&gt;Throwable&lt;/code&gt; class can store a cause.&lt;/p&gt;
+     *
+     * &lt;p&gt;This method does &lt;b&gt;not&lt;/b&gt; check whether it actually does store a cause.&lt;p&gt;
+     *
+     * @param throwable  the &lt;code&gt;Throwable&lt;/code&gt; to examine, may be null
+     * @return boolean &lt;code&gt;true&lt;/code&gt; if nested otherwise &lt;code&gt;false&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>isNestedThrowable</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>Nestable</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>SQLException</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>InvocationTargetException</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name>isThrowableNested</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if></else></if></else></if></else></if>
+
+        <decl_stmt><decl><type><name>Class</name></type> <name>cls</name> =<init> <expr><call><name><name>throwable</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <synchronized>synchronized(<expr><name>CAUSE_METHOD_NAMES_LOCK</name></expr>) <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init>, <name>isize</name> =<init> <expr><name><name>CAUSE_METHOD_NAMES</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>isize</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <try>try <block>{
+                    <decl_stmt><decl><type><name>Method</name></type> <name>method</name> =<init> <expr><call><name><name>cls</name>.<name>getMethod</name></name><argument_list>(<argument><expr><name><name>CAUSE_METHOD_NAMES</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <if>if <condition>(<expr><name>method</name> != <name>null</name> &amp;&amp; <name><name>Throwable</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><call><name><name>method</name>.<name>getReturnType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                        <return>return <expr>true</expr>;</return>
+                    }</block></then></if>
+                }</block> <catch>catch (<param><decl><type><name>NoSuchMethodException</name></type> <name>ignored</name></decl></param>) <block>{
+                    <comment type="line">// exception ignored</comment>
+                }</block></catch> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ignored</name></decl></param>) <block>{
+                    <comment type="line">// exception ignored</comment>
+                }</block></catch></try>
+            }</block></for>
+        }</block></synchronized>
+
+        <try>try <block>{
+            <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><call><name><name>cls</name>.<name>getField</name></name><argument_list>(<argument><expr>"detail"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>field</name> != <name>null</name></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+        }</block> <catch>catch (<param><decl><type><name>NoSuchFieldException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch> <catch>catch (<param><decl><type><name>SecurityException</name></type> <name>ignored</name></decl></param>) <block>{
+            <comment type="line">// exception ignored</comment>
+        }</block></catch></try>
+
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Counts the number of &lt;code&gt;Throwable&lt;/code&gt; objects in the
+     * exception chain.&lt;/p&gt;
+     *
+     * &lt;p&gt;A throwable without cause will return &lt;code&gt;1&lt;/code&gt;.
+     * A throwable with one cause will return &lt;code&gt;2&lt;/code&gt; and so on.
+     * A &lt;code&gt;null&lt;/code&gt; throwable will return &lt;code&gt;0&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;From version 2.2, this method handles recursive cause structures
+     * that might otherwise cause infinite loops. The cause chain is
+     * processed until the end is reached, or until the next item in the
+     * chain is already in the result set.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @return the count of throwables, zero if null input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>getThrowableCount</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getThrowableList</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call>.<call><name>size</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the list of &lt;code&gt;Throwable&lt;/code&gt; objects in the
+     * exception chain.&lt;/p&gt;
+     *
+     * &lt;p&gt;A throwable without cause will return an array containing
+     * one element - the input throwable.
+     * A throwable with one cause will return an array containing
+     * two elements. - the input throwable and the cause throwable.
+     * A &lt;code&gt;null&lt;/code&gt; throwable will return an array of size zero.&lt;/p&gt;
+     *
+     * &lt;p&gt;From version 2.2, this method handles recursive cause structures
+     * that might otherwise cause infinite loops. The cause chain is
+     * processed until the end is reached, or until the next item in the
+     * chain is already in the result set.&lt;/p&gt;
+     *
+     * @see #getThrowableList(Throwable)
+     * @param throwable  the throwable to inspect, may be null
+     * @return the array of throwables, never null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Throwable</name><index>[]</index></type> <name>getThrowables</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr><call><name>getThrowableList</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name><name>Throwable</name><index>[]</index></name>) <call><name><name>list</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>Throwable</name><index>[<expr><call><name><name>list</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the list of &lt;code&gt;Throwable&lt;/code&gt; objects in the
+     * exception chain.&lt;/p&gt;
+     *
+     * &lt;p&gt;A throwable without cause will return a list containing
+     * one element - the input throwable.
+     * A throwable with one cause will return a list containing
+     * two elements. - the input throwable and the cause throwable.
+     * A &lt;code&gt;null&lt;/code&gt; throwable will return a list of size zero.&lt;/p&gt;
+     *
+     * &lt;p&gt;This method handles recursive cause structures that might
+     * otherwise cause infinite loops. The cause chain is processed until
+     * the end is reached, or until the next item in the chain is already
+     * in the result set.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @return the list of throwables, never null
+     * @since Commons Lang 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>List</name></type> <name>getThrowableList</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>throwable</name> != <name>null</name> &amp;&amp; <call><name><name>list</name>.<name>contains</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call> == false</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>throwable</name> = <call><name><name>ExceptionUtils</name>.<name>getCause</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>list</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the (zero based) index of the first &lt;code&gt;Throwable&lt;/code&gt;
+     * that matches the specified class (exactly) in the exception chain.
+     * Subclasses of the specified class do not match - see
+     * {@link #indexOfType(Throwable, Class)} for the opposite.&lt;/p&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; throwable returns &lt;code&gt;-1&lt;/code&gt;.
+     * A &lt;code&gt;null&lt;/code&gt; type returns &lt;code&gt;-1&lt;/code&gt;.
+     * No match in the chain returns &lt;code&gt;-1&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @param clazz  the class to search for, subclasses do not match, null returns -1
+     * @return the index into the throwable chain, -1 if no match or null input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>indexOfThrowable</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>indexOf</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>clazz</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the (zero based) index of the first &lt;code&gt;Throwable&lt;/code&gt;
+     * that matches the specified type in the exception chain from
+     * a specified index.
+     * Subclasses of the specified class do not match - see
+     * {@link #indexOfType(Throwable, Class, int)} for the opposite.&lt;/p&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; throwable returns &lt;code&gt;-1&lt;/code&gt;.
+     * A &lt;code&gt;null&lt;/code&gt; type returns &lt;code&gt;-1&lt;/code&gt;.
+     * No match in the chain returns &lt;code&gt;-1&lt;/code&gt;.
+     * A negative start index is treated as zero.
+     * A start index greater than the number of throwables returns &lt;code&gt;-1&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @param clazz  the class to search for, subclasses do not match, null returns -1
+     * @param fromIndex  the (zero based) index of the starting position,
+     *  negative treated as zero, larger than chain size returns -1
+     * @return the index into the throwable chain, -1 if no match or null input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>indexOfThrowable</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>, <param><decl><type><name>int</name></type> <name>fromIndex</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>indexOf</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>clazz</name></expr></argument>, <argument><expr><name>fromIndex</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the (zero based) index of the first &lt;code&gt;Throwable&lt;/code&gt;
+     * that matches the specified class or subclass in the exception chain.
+     * Subclasses of the specified class do match - see
+     * {@link #indexOfThrowable(Throwable, Class)} for the opposite.&lt;/p&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; throwable returns &lt;code&gt;-1&lt;/code&gt;.
+     * A &lt;code&gt;null&lt;/code&gt; type returns &lt;code&gt;-1&lt;/code&gt;.
+     * No match in the chain returns &lt;code&gt;-1&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @param type  the type to search for, subclasses match, null returns -1
+     * @return the index into the throwable chain, -1 if no match or null input
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>indexOfType</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>Class</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>indexOf</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>type</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns the (zero based) index of the first &lt;code&gt;Throwable&lt;/code&gt;
+     * that matches the specified type in the exception chain from
+     * a specified index.
+     * Subclasses of the specified class do match - see
+     * {@link #indexOfThrowable(Throwable, Class)} for the opposite.&lt;/p&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; throwable returns &lt;code&gt;-1&lt;/code&gt;.
+     * A &lt;code&gt;null&lt;/code&gt; type returns &lt;code&gt;-1&lt;/code&gt;.
+     * No match in the chain returns &lt;code&gt;-1&lt;/code&gt;.
+     * A negative start index is treated as zero.
+     * A start index greater than the number of throwables returns &lt;code&gt;-1&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @param type  the type to search for, subclasses match, null returns -1
+     * @param fromIndex  the (zero based) index of the starting position,
+     *  negative treated as zero, larger than chain size returns -1
+     * @return the index into the throwable chain, -1 if no match or null input
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>indexOfType</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>Class</name></type> <name>type</name></decl></param>, <param><decl><type><name>int</name></type> <name>fromIndex</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>indexOf</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name>type</name></expr></argument>, <argument><expr><name>fromIndex</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Worker method for the &lt;code&gt;indexOfType&lt;/code&gt; methods.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to inspect, may be null
+     * @param type  the type to search for, subclasses match, null returns -1
+     * @param fromIndex  the (zero based) index of the starting position,
+     *  negative treated as zero, larger than chain size returns -1
+     * @param subclass if &lt;code&gt;true&lt;/code&gt;, compares with {@link Class#isAssignableFrom(Class)}, otherwise compares
+     * using references
+     * @return index of the &lt;code&gt;type&lt;/code&gt; within throwables nested withing the specified &lt;code&gt;throwable&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>indexOf</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>Class</name></type> <name>type</name></decl></param>, <param><decl><type><name>int</name></type> <name>fromIndex</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>subclass</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name> || <name>type</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>-1</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>fromIndex</name> &lt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>fromIndex</name> = 0</expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Throwable</name><index>[]</index></type> <name>throwables</name> =<init> <expr><call><name><name>ExceptionUtils</name>.<name>getThrowables</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>fromIndex</name> &gt;= <name><name>throwables</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>-1</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>subclass</name></expr>)</condition><then> <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>fromIndex</name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>throwables</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><call><name><name>type</name>.<name>isAssignableFrom</name></name><argument_list>(<argument><expr><name><name>throwables</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getClass</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <return>return <expr><name>i</name></expr>;</return>
+                }</block></then></if>
+            }</block></for>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>fromIndex</name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>throwables</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><call><name><name>type</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>throwables</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getClass</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <return>return <expr><name>i</name></expr>;</return>
+                }</block></then></if>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr>-1</expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Prints a compact stack trace for the root cause of a throwable
+     * to &lt;code&gt;System.err&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;The compact stack trace starts with the root cause and prints
+     * stack frames up to the place where it was caught and wrapped.
+     * Then it prints the wrapped exception and continues with stack frames
+     * until the wrapper exception is caught and wrapped again, etc.&lt;/p&gt;
+     *
+     * &lt;p&gt;The output of this method is consistent across JDK versions.
+     * Note that this is the opposite order to the JDK1.4 display.&lt;/p&gt;
+     *
+     * &lt;p&gt;The method is equivalent to &lt;code&gt;printStackTrace&lt;/code&gt; for throwables
+     * that don't have nested causes.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to output
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>printRootCauseStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>printRootCauseStackTrace</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>, <argument><expr><name><name>System</name>.<name>err</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Prints a compact stack trace for the root cause of a throwable.&lt;/p&gt;
+     *
+     * &lt;p&gt;The compact stack trace starts with the root cause and prints
+     * stack frames up to the place where it was caught and wrapped.
+     * Then it prints the wrapped exception and continues with stack frames
+     * until the wrapper exception is caught and wrapped again, etc.&lt;/p&gt;
+     *
+     * &lt;p&gt;The output of this method is consistent across JDK versions.
+     * Note that this is the opposite order to the JDK1.4 display.&lt;/p&gt;
+     *
+     * &lt;p&gt;The method is equivalent to &lt;code&gt;printStackTrace&lt;/code&gt; for throwables
+     * that don't have nested causes.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to output, may be null
+     * @param stream  the stream to output to, may not be null
+     * @throws IllegalArgumentException if the stream is &lt;code&gt;null&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>printRootCauseStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>PrintStream</name></type> <name>stream</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>stream</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The PrintStream must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>String</name></type> <name><name>trace</name><index>[]</index></name> =<init> <expr><call><name>getRootCauseStackTrace</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>trace</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name><name>stream</name>.<name>println</name></name><argument_list>(<argument><expr><name><name>trace</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>stream</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Prints a compact stack trace for the root cause of a throwable.&lt;/p&gt;
+     *
+     * &lt;p&gt;The compact stack trace starts with the root cause and prints
+     * stack frames up to the place where it was caught and wrapped.
+     * Then it prints the wrapped exception and continues with stack frames
+     * until the wrapper exception is caught and wrapped again, etc.&lt;/p&gt;
+     *
+     * &lt;p&gt;The output of this method is consistent across JDK versions.
+     * Note that this is the opposite order to the JDK1.4 display.&lt;/p&gt;
+     *
+     * &lt;p&gt;The method is equivalent to &lt;code&gt;printStackTrace&lt;/code&gt; for throwables
+     * that don't have nested causes.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to output, may be null
+     * @param writer  the writer to output to, may not be null
+     * @throws IllegalArgumentException if the writer is &lt;code&gt;null&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>printRootCauseStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>, <param><decl><type><name>PrintWriter</name></type> <name>writer</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>writer</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The PrintWriter must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>String</name></type> <name><name>trace</name><index>[]</index></name> =<init> <expr><call><name>getRootCauseStackTrace</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>trace</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name><name>writer</name>.<name>println</name></name><argument_list>(<argument><expr><name><name>trace</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>writer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Creates a compact stack trace for the root cause of the supplied
+     * &lt;code&gt;Throwable&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;The output of this method is consistent across JDK versions.
+     * It consists of the root exception followed by each of its wrapping
+     * exceptions separated by '[wrapped]'. Note that this is the opposite
+     * order to the JDK1.4 display.&lt;/p&gt;
+     *
+     * @param throwable  the throwable to examine, may be null
+     * @return an array of stack trace frames, never null
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name><index>[]</index></type> <name>getRootCauseStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name><name>ArrayUtils</name>.<name>EMPTY_STRING_ARRAY</name></name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Throwable</name></type> <name><name>throwables</name><index>[]</index></name> =<init> <expr><call><name>getThrowables</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr><name><name>throwables</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ArrayList</name></type> <name>frames</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>List</name></type> <name>nextTrace</name> =<init> <expr><call><name>getStackFrameList</name><argument_list>(<argument><expr><name><name>throwables</name><index>[<expr><name>count</name> - 1</expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>count</name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= 0</expr>;</condition><incr/>) <block>{
+            <decl_stmt><decl><type><name>List</name></type> <name>trace</name> =<init> <expr><name>nextTrace</name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>i</name> != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>nextTrace</name> = <call><name>getStackFrameList</name><argument_list>(<argument><expr><name><name>throwables</name><index>[<expr><name>i</name> - 1</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>removeCommonFrames</name><argument_list>(<argument><expr><name>trace</name></expr></argument>, <argument><expr><name>nextTrace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>i</name> == <name>count</name> - 1</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>frames</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>throwables</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>frames</name>.<name>add</name></name><argument_list>(<argument><expr><name>WRAPPED_MARKER</name> + <name><name>throwables</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>toString</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <for>for (<init><decl><type><name>int</name></type> <name>j</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>j</name> &lt; <call><name><name>trace</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>j</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name><name>frames</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>trace</name>.<name>get</name></name><argument_list>(<argument><expr><name>j</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></for>
+        <return>return <expr>(<name><name>String</name><index>[]</index></name>) <call><name><name>frames</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>String</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Removes common frames from the cause trace given the two stack traces.&lt;/p&gt;
+     *
+     * @param causeFrames  stack trace of a cause throwable
+     * @param wrapperFrames  stack trace of a wrapper throwable
+     * @throws IllegalArgumentException if either argument is null
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>removeCommonFrames</name><parameter_list>(<param><decl><type><name>List</name></type> <name>causeFrames</name></decl></param>, <param><decl><type><name>List</name></type> <name>wrapperFrames</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>causeFrames</name> == <name>null</name> || <name>wrapperFrames</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The List must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>causeFrameIndex</name> =<init> <expr><call><name><name>causeFrames</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>wrapperFrameIndex</name> =<init> <expr><call><name><name>wrapperFrames</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>causeFrameIndex</name> &gt;= 0 &amp;&amp; <name>wrapperFrameIndex</name> &gt;= 0</expr>)</condition> <block>{
+            <comment type="line">// Remove the frame from the cause trace if it is the same</comment>
+            <comment type="line">// as in the wrapper trace</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>causeFrame</name> =<init> <expr>(<name>String</name>) <call><name><name>causeFrames</name>.<name>get</name></name><argument_list>(<argument><expr><name>causeFrameIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>wrapperFrame</name> =<init> <expr>(<name>String</name>) <call><name><name>wrapperFrames</name>.<name>get</name></name><argument_list>(<argument><expr><name>wrapperFrameIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>causeFrame</name>.<name>equals</name></name><argument_list>(<argument><expr><name>wrapperFrame</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>causeFrames</name>.<name>remove</name></name><argument_list>(<argument><expr><name>causeFrameIndex</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name>causeFrameIndex</name>--</expr>;</expr_stmt>
+            <expr_stmt><expr><name>wrapperFrameIndex</name>--</expr>;</expr_stmt>
+        }</block></while>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;A way to get the entire nested stack-trace of an throwable.&lt;/p&gt;
+     *
+     * &lt;p&gt;The result of this method is highly dependent on the JDK version
+     * and whether the exceptions override printStackTrace or not.&lt;/p&gt;
+     *
+     * @param throwable  the &lt;code&gt;Throwable&lt;/code&gt; to be examined
+     * @return the nested stack trace, with the root cause first
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>getFullStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>StringWriter</name></type> <name>sw</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>PrintWriter</name></type> <name>pw</name> =<init> <expr>new <call><name>PrintWriter</name><argument_list>(<argument><expr><name>sw</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Throwable</name><index>[]</index></type> <name>ts</name> =<init> <expr><call><name>getThrowables</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>ts</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>ts</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>printStackTrace</name><argument_list>(<argument><expr><name>pw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>isNestedThrowable</name><argument_list>(<argument><expr><name><name>ts</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><call><name><name>sw</name>.<name>getBuffer</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the stack trace from a Throwable as a String.&lt;/p&gt;
+     *
+     * &lt;p&gt;The result of this method vary by JDK version as this method
+     * uses {@link Throwable#printStackTrace(java.io.PrintWriter)}.
+     * On JDK1.3 and earlier, the cause exception will not be shown
+     * unless the specified throwable alters printStackTrace.&lt;/p&gt;
+     *
+     * @param throwable  the &lt;code&gt;Throwable&lt;/code&gt; to be examined
+     * @return the stack trace as generated by the exception's
+     *  &lt;code&gt;printStackTrace(PrintWriter)&lt;/code&gt; method
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>getStackTrace</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>StringWriter</name></type> <name>sw</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>PrintWriter</name></type> <name>pw</name> =<init> <expr>new <call><name>PrintWriter</name><argument_list>(<argument><expr><name>sw</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>throwable</name>.<name>printStackTrace</name></name><argument_list>(<argument><expr><name>pw</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>sw</name>.<name>getBuffer</name></name><argument_list>()</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Captures the stack trace associated with the specified
+     * &lt;code&gt;Throwable&lt;/code&gt; object, decomposing it into a list of
+     * stack frames.&lt;/p&gt;
+     *
+     * &lt;p&gt;The result of this method vary by JDK version as this method
+     * uses {@link Throwable#printStackTrace(java.io.PrintWriter)}.
+     * On JDK1.3 and earlier, the cause exception will not be shown
+     * unless the specified throwable alters printStackTrace.&lt;/p&gt;
+     *
+     * @param throwable  the &lt;code&gt;Throwable&lt;/code&gt; to examine, may be null
+     * @return an array of strings describing each stack frame, never null
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name><index>[]</index></type> <name>getStackFrames</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>throwable</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name><name>ArrayUtils</name>.<name>EMPTY_STRING_ARRAY</name></name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name>getStackFrames</name><argument_list>(<argument><expr><call><name>getStackTrace</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns an array where each element is a line from the argument.&lt;/p&gt;
+     *
+     * &lt;p&gt;The end of line is determined by the value of {@link SystemUtils#LINE_SEPARATOR}.&lt;/p&gt;
+     *
+     * &lt;p&gt;Functionality shared between the
+     * &lt;code&gt;getStackFrames(Throwable)&lt;/code&gt; methods of this and the
+     * {@link org.apache.commons.lang.exception.NestableDelegate} classes.&lt;/p&gt;
+     *
+     * @param stackTrace  a stack trace String
+     * @return an array where each element is a line from the argument
+     */</comment>
+    <function><type><specifier>static</specifier> <name>String</name><index>[]</index></type> <name>getStackFrames</name><parameter_list>(<param><decl><type><name>String</name></type> <name>stackTrace</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>linebreak</name> =<init> <expr><name><name>SystemUtils</name>.<name>LINE_SEPARATOR</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>StringTokenizer</name></type> <name>frames</name> =<init> <expr>new <call><name>StringTokenizer</name><argument_list>(<argument><expr><name>stackTrace</name></expr></argument>, <argument><expr><name>linebreak</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><call><name><name>frames</name>.<name>hasMoreTokens</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>frames</name>.<name>nextToken</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><call><name>toArray</name><argument_list>(<argument><expr><name>list</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Produces a &lt;code&gt;List&lt;/code&gt; of stack frames - the message
+     * is not included. Only the trace of the specified exception is
+     * returned, any caused by trace is stripped.&lt;/p&gt;
+     *
+     * &lt;p&gt;This works in most cases - it will only fail if the exception
+     * message contains a line that starts with:
+     * &lt;code&gt;&amp;quot;&amp;nbsp;&amp;nbsp;&amp;nbsp;at&amp;quot;.&lt;/code&gt;&lt;/p&gt;
+     * 
+     * @param t is any throwable
+     * @return List of stack frames
+     */</comment>
+    <function><type><specifier>static</specifier> <name>List</name></type> <name>getStackFrameList</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>stackTrace</name> =<init> <expr><call><name>getStackTrace</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>linebreak</name> =<init> <expr><name><name>SystemUtils</name>.<name>LINE_SEPARATOR</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>StringTokenizer</name></type> <name>frames</name> =<init> <expr>new <call><name>StringTokenizer</name><argument_list>(<argument><expr><name>stackTrace</name></expr></argument>, <argument><expr><name>linebreak</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>List</name></type> <name>list</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>traceStarted</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><call><name><name>frames</name>.<name>hasMoreTokens</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>token</name> =<init> <expr><call><name><name>frames</name>.<name>nextToken</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <comment type="line">// Determine if the line starts with &lt;whitespace&gt;at</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>at</name> =<init> <expr><call><name><name>token</name>.<name>indexOf</name></name><argument_list>(<argument><expr>"at"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>at</name> != -1 &amp;&amp; <call><name><name>token</name>.<name>substring</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>at</name></expr></argument>)</argument_list></call>.<call><name>trim</name><argument_list>()</argument_list></call>.<call><name>length</name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>traceStarted</name> = true</expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>list</name>.<name>add</name></name><argument_list>(<argument><expr><name>token</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>traceStarted</name></expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then></if></else></if>
+        }</block></while>
+        <return>return <expr><name>list</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Gets a short message summarising the exception.
+     * &lt;p&gt;
+     * The message returned is of the form
+     * {ClassNameWithoutPackage}: {ThrowableMessage}
+     *
+     * @param th  the throwable to get a message for, null returns empty string
+     * @return the message, non-null
+     * @since Commons Lang 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>getMessage</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>th</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>th</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr>""</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>String</name></type> <name>clsName</name> =<init> <expr><call><name><name>ClassUtils</name>.<name>getShortClassName</name></name><argument_list>(<argument><expr><name>th</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>msg</name> =<init> <expr><call><name><name>th</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>clsName</name> + ": " + <call><name><name>StringUtils</name>.<name>defaultString</name></name><argument_list>(<argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Gets a short message summarising the root cause exception.
+     * &lt;p&gt;
+     * The message returned is of the form
+     * {ClassNameWithoutPackage}: {ThrowableMessage}
+     *
+     * @param th  the throwable to get a message for, null returns empty string
+     * @return the message, non-null
+     * @since Commons Lang 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>getRootCauseMessage</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>th</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Throwable</name></type> <name>root</name> =<init> <expr><call><name><name>ExceptionUtils</name>.<name>getRootCause</name></name><argument_list>(<argument><expr><name>th</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>root</name> = (<name>root</name> == <name>null</name> ? <name>th</name> : <name>root</name>)</expr>;</expr_stmt>
+        <return>return <expr><call><name>getMessage</name><argument_list>(<argument><expr><name>root</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\data\statistics\DefaultBoxAndWhiskerXYDataset.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2007, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * ----------------------------------
+ * DefaultBoxAndWhiskerXYDataset.java
+ * ----------------------------------
+ * (C) Copyright 2003-2007, by David Browning and Contributors.
+ *
+ * Original Author:  David Browning (for Australian Institute of Marine 
+ *                   Science);
+ * Contributor(s):   David Gilbert (for Object Refinery Limited);
+ *
+ * Changes
+ * -------
+ * 05-Aug-2003 : Version 1, contributed by David Browning (DG);
+ * 08-Aug-2003 : Minor changes to comments (DB)
+ *               Allow average to be null  - average is a perculiar AIMS 
+ *               requirement which probably should be stripped out and overlaid
+ *               if required...
+ *               Added a number of methods to allow the max and min non-outlier
+ *               and non-farout values to be calculated
+ * 12-Aug-2003   Changed the getYValue to return the highest outlier value
+ *               Added getters and setters for outlier and farout coefficients
+ * 27-Aug-2003 : Renamed DefaultBoxAndWhiskerDataset 
+ *               --&gt; DefaultBoxAndWhiskerXYDataset (DG);
+ * 06-May-2004 : Now extends AbstractXYDataset (DG);
+ * 15-Jul-2004 : Switched getX() with getXValue() and getY() with 
+ *               getYValue() (DG);
+ * 18-Nov-2004 : Updated for changes in RangeInfo interface (DG);
+ * 11-Jan-2005 : Removed deprecated code in preparation for the 1.0.0 
+ *               release (DG);
+ * ------------- JFREECHART 1.0.x ---------------------------------------------
+ * 02-Feb-2007 : Removed author tags from all over JFreeChart sources (DG);
+ * 12-Nov-2007 : Implemented equals() and clone() (DG);
+ *
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>statistics</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>Range</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>RangeInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>general</name>.<name>DatasetChangeEvent</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>AbstractXYDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>ObjectUtilities</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A simple implementation of the {@link BoxAndWhiskerXYDataset} interface.  
+ * This dataset implementation can hold only one series.
+ */</comment>
+<class><specifier>public</specifier> class <name>DefaultBoxAndWhiskerXYDataset</name> <super><extends>extends <name>AbstractXYDataset</name></extends> 
+            <implements>implements <name>BoxAndWhiskerXYDataset</name>, <name>RangeInfo</name></implements></super> <block>{
+
+    <comment type="javadoc">/** The series key. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Comparable</name></type> <name>seriesKey</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Storage for the dates. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>List</name></type> <name>dates</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Storage for the box and whisker statistics. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>List</name></type> <name>items</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The minimum range value. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Number</name></type> <name>minimumRangeValue</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The maximum range value. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Number</name></type> <name>maximumRangeValue</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The range of values. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Range</name></type> <name>rangeBounds</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * The coefficient used to calculate outliers. Tukey's default value is 
+     * 1.5 (see EDA) Any value which is greater than Q3 + (interquartile range 
+     * * outlier coefficient) is considered to be an outlier.  Can be altered 
+     * if the data is particularly skewed.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>outlierCoefficient</name> =<init> <expr>1.5</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** 
+     * The coefficient used to calculate farouts. Tukey's default value is 2 
+     * (see EDA) Any value which is greater than Q3 + (interquartile range * 
+     * farout coefficient) is considered to be a farout.  Can be altered if the 
+     * data is particularly skewed.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>faroutCoefficient</name> =<init> <expr>2.0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a new box and whisker dataset.
+     * &lt;p&gt;
+     * The current implementation allows only one series in the dataset.
+     * This may be extended in a future version.
+     *
+     * @param seriesKey  the key for the series.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DefaultBoxAndWhiskerXYDataset</name><parameter_list>(<param><decl><type><name>Comparable</name></type> <name>seriesKey</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>seriesKey</name></name> = <name>seriesKey</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>dates</name></name> = new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>items</name></name> = new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>minimumRangeValue</name></name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>maximumRangeValue</name></name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>rangeBounds</name></name> = <name>null</name></expr>;</expr_stmt> 
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Returns the value used as the outlier coefficient. The outlier 
+     * coefficient gives an indication of the degree of certainty in an 
+     * unskewed distribution.  Increasing the coefficient increases the number 
+     * of values included. Currently only used to ensure farout coefficient is 
+     * greater than the outlier coefficient
+     *
+     * @return A &lt;code&gt;double&lt;/code&gt; representing the value used to calculate 
+     *         outliers.
+     *         
+     * @see #setOutlierCoefficient(double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getOutlierCoefficient</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>outlierCoefficient</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the value used as the outlier coefficient
+     *
+     * @param outlierCoefficient  being a &lt;code&gt;double&lt;/code&gt; representing the 
+     *                            value used to calculate outliers.
+     *                            
+     * @see #getOutlierCoefficient()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setOutlierCoefficient</name><parameter_list>(<param><decl><type><name>double</name></type> <name>outlierCoefficient</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>outlierCoefficient</name></name> = <name>outlierCoefficient</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the value used as the farout coefficient. The farout coefficient
+     * allows the calculation of which values will be off the graph.
+     *
+     * @return A &lt;code&gt;double&lt;/code&gt; representing the value used to calculate 
+     *         farouts.
+     *         
+     * @see #setFaroutCoefficient(double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getFaroutCoefficient</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>faroutCoefficient</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the value used as the farouts coefficient. The farout coefficient 
+     * must b greater than the outlier coefficient.
+     * 
+     * @param faroutCoefficient being a &lt;code&gt;double&lt;/code&gt; representing the 
+     *                          value used to calculate farouts.
+     *                          
+     * @see #getFaroutCoefficient()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setFaroutCoefficient</name><parameter_list>(<param><decl><type><name>double</name></type> <name>faroutCoefficient</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><name>faroutCoefficient</name> &gt; <call><name>getOutlierCoefficient</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>faroutCoefficient</name></name> = <name>faroutCoefficient</name></expr>;</expr_stmt>
+        }</block></then> 
+        <else>else <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Farout value must be greater " 
+                + "than the outlier value, which is currently set at: (" 
+                + <call><name>getOutlierCoefficient</name><argument_list>()</argument_list></call> + ")"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of series in the dataset.
+     * &lt;p&gt;
+     * This implementation only allows one series.
+     *
+     * @return The number of series.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getSeriesCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>1</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of items in the specified series.
+     *
+     * @param series  the index (zero-based) of the series.
+     *
+     * @return The number of items in the specified series.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getItemCount</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>this</name>.<name>dates</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds an item to the dataset and sends a {@link DatasetChangeEvent} to 
+     * all registered listeners.
+     * 
+     * @param date  the date (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param item  the item (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>add</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>, <param><decl><type><name>BoxAndWhiskerItem</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>this</name>.<name>dates</name>.<name>add</name></name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>this</name>.<name>items</name>.<name>add</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>minimumRangeValue</name></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>minimumRangeValue</name></name> = <call><name><name>item</name>.<name>getMinRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <if>if <condition>(<expr><call><name><name>item</name>.<name>getMinRegularValue</name></name><argument_list>()</argument_list></call>.<call><name>doubleValue</name><argument_list>()</argument_list></call> 
+                    &lt; <call><name><name>this</name>.<name>minimumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>minimumRangeValue</name></name> = <call><name><name>item</name>.<name>getMinRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>maximumRangeValue</name></name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>maximumRangeValue</name></name> = <call><name><name>item</name>.<name>getMaxRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <if>if <condition>(<expr><call><name><name>item</name>.<name>getMaxRegularValue</name></name><argument_list>()</argument_list></call>.<call><name>doubleValue</name><argument_list>()</argument_list></call> 
+                    &gt; <call><name><name>this</name>.<name>maximumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>maximumRangeValue</name></name> = <call><name><name>item</name>.<name>getMaxRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+        <expr_stmt><expr><name><name>this</name>.<name>rangeBounds</name></name> = new <call><name>Range</name><argument_list>(<argument><expr><call><name><name>this</name>.<name>minimumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr></argument>, 
+                <argument><expr><call><name><name>this</name>.<name>maximumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>fireDatasetChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the name of the series stored in this dataset.
+     *
+     * @param i  the index of the series. Currently ignored.
+     * 
+     * @return The name of this series.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Comparable</name></type> <name>getSeriesKey</name><parameter_list>(<param><decl><type><name>int</name></type> <name>i</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>seriesKey</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Return an item from within the dataset.
+     * 
+     * @param series  the series index (ignored, since this dataset contains
+     *                only one series).
+     * @param item  the item within the series (zero-based index)
+     * 
+     * @return The item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>BoxAndWhiskerItem</name></type> <name>getItem</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</return>  
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x-value for one item in a series.
+     * &lt;p&gt;
+     * The value returned is a Long object generated from the underlying Date 
+     * object.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The x-value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getX</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>Long</name><argument_list>(<argument><expr>((<name>Date</name>) <call><name><name>this</name>.<name>dates</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call>).<call><name>getTime</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x-value for one item in a series, as a Date.
+     * &lt;p&gt;
+     * This method is provided for convenience only.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The x-value as a Date.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Date</name></type> <name>getXDate</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>(<name>Date</name>) <call><name><name>this</name>.<name>dates</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the y-value for one item in a series.
+     * &lt;p&gt;
+     * This method (from the XYDataset interface) is mapped to the 
+     * getMeanValue() method.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The y-value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getY</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getMeanValue</name><argument_list>(<argument><expr><name>series</name></expr></argument>, <argument><expr><name>item</name></expr></argument>)</argument_list></call></expr>;</return>  
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the mean for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The mean for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMeanValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMean</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the median-value for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The median-value for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMedianValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMedian</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the Q1 median-value for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The Q1 median-value for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getQ1Value</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getQ1</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the Q3 median-value for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The Q3 median-value for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getQ3Value</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getQ3</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the min-value for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The min-value for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMinRegularValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMinRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the max-value for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The max-value for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMaxRegularValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMaxRegularValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the minimum value which is not a farout.
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return A &lt;code&gt;Number&lt;/code&gt; representing the maximum non-farout value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMinOutlier</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMinOutlier</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+ 
+    <comment type="javadoc">/**
+     * Returns the maximum value which is not a farout, ie Q3 + (interquartile 
+     * range * farout coefficient).
+     * 
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return A &lt;code&gt;Number&lt;/code&gt; representing the maximum non-farout value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getMaxOutlier</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Number</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getMaxOutlier</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns an array of outliers for the specified series and item.
+     *
+     * @param series  the series (zero-based index).
+     * @param item  the item (zero-based index).
+     *
+     * @return The array of outliers for the specified series and item.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>List</name></type> <name>getOutliers</name><parameter_list>(<param><decl><type><name>int</name></type> <name>series</name></decl></param>, <param><decl><type><name>int</name></type> <name>item</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>List</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>BoxAndWhiskerItem</name></type> <name>stats</name> =<init> <expr>(<name>BoxAndWhiskerItem</name>) <call><name><name>this</name>.<name>items</name>.<name>get</name></name><argument_list>(<argument><expr><name>item</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>stats</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>stats</name>.<name>getOutliers</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the minimum y-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The minimum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeLowerBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>result</name> =<init> <expr><name><name>Double</name>.<name>NaN</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>minimumRangeValue</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>this</name>.<name>minimumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>        
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the maximum y-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The maximum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeUpperBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>result</name> =<init> <expr><name><name>Double</name>.<name>NaN</name></name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>this</name>.<name>maximumRangeValue</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name><name>this</name>.<name>maximumRangeValue</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>        
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the range of the values in this dataset's range.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Range</name></type> <name>getRangeBounds</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>rangeBounds</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Tests this dataset for equality with an arbitrary object.
+     * 
+     * @param obj  the object (&lt;code&gt;null&lt;/code&gt; permitted).
+     * 
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>obj</name> == <name>this</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!(<name>obj</name> <name>instanceof</name> <name>DefaultBoxAndWhiskerXYDataset</name>)</expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>DefaultBoxAndWhiskerXYDataset</name></type> <name>that</name> 
+                =<init> <expr>(<name>DefaultBoxAndWhiskerXYDataset</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>ObjectUtilities</name>.<name>equal</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>seriesKey</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>seriesKey</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>this</name>.<name>dates</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>dates</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>this</name>.<name>items</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>items</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns a clone of the plot.
+     * 
+     * @return A clone.
+     * 
+     * @throws CloneNotSupportedException  if the cloning is not supported.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Object</name></type> <name>clone</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>CloneNotSupportedException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>DefaultBoxAndWhiskerXYDataset</name></type> <name>clone</name> 
+                =<init> <expr>(<name>DefaultBoxAndWhiskerXYDataset</name>) <call><name><name>super</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>clone</name>.<name>dates</name></name> = new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>dates</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>clone</name>.<name>items</name></name> = new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>items</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>clone</name></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

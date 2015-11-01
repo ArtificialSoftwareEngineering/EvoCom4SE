@@ -1,0 +1,1749 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\time\FastDateFormat.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>time</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>DateFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>DateFormatSymbols</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>FieldPosition</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>Format</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>ParsePosition</name></name>;</import>
+<import>import <name><name>java</name>.<name>text</name>.<name>SimpleDateFormat</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Calendar</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>GregorianCalendar</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>TimeZone</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>Validate</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>text</name>.<name>StrBuilder</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;FastDateFormat is a fast and thread-safe version of
+ * {@link java.text.SimpleDateFormat}.&lt;/p&gt;
+ * 
+ * &lt;p&gt;This class can be used as a direct replacement to
+ * &lt;code&gt;SimpleDateFormat&lt;/code&gt; in most formatting situations.
+ * This class is especially useful in multi-threaded server environments.
+ * &lt;code&gt;SimpleDateFormat&lt;/code&gt; is not thread-safe in any JDK version,
+ * nor will it be as Sun have closed the bug/RFE.
+ * &lt;/p&gt;
+ *
+ * &lt;p&gt;Only formatting is supported, but all patterns are compatible with
+ * SimpleDateFormat (except time zones - see below).&lt;/p&gt;
+ *
+ * &lt;p&gt;Java 1.4 introduced a new pattern letter, &lt;code&gt;'Z'&lt;/code&gt;, to represent
+ * time zones in RFC822 format (eg. &lt;code&gt;+0800&lt;/code&gt; or &lt;code&gt;-1100&lt;/code&gt;).
+ * This pattern letter can be used here (on all JDK versions).&lt;/p&gt;
+ *
+ * &lt;p&gt;In addition, the pattern &lt;code&gt;'ZZ'&lt;/code&gt; has been made to represent
+ * ISO8601 full format time zones (eg. &lt;code&gt;+08:00&lt;/code&gt; or &lt;code&gt;-11:00&lt;/code&gt;).
+ * This introduces a minor incompatibility with Java 1.4, but at a gain of
+ * useful functionality.&lt;/p&gt;
+ *
+ * @author Apache Software Foundation
+ * @author TeaTrove project
+ * @author Brian S O'Neill
+ * @author Sean Schofield
+ * @author Gary Gregory
+ * @author Nikolay Metchev
+ * @since 2.0
+ * @version $Id: FastDateFormat.java 1057072 2011-01-10 01:55:57Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>FastDateFormat</name> <super><extends>extends <name>Format</name></extends></super> <block>{
+    <comment type="line">// A lot of the speed in this class comes from caching, but some comes</comment>
+    <comment type="line">// from the special int to StringBuffer conversion.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// The following produces a padded 2 digit number:</comment>
+    <comment type="line">//   buffer.append((char)(value / 10 + '0'));</comment>
+    <comment type="line">//   buffer.append((char)(value % 10 + '0'));</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// Note that the fastest append to StringBuffer is a single char (used here).</comment>
+    <comment type="line">// Note that Integer.toString() is not called, the conversion is simply</comment>
+    <comment type="line">// taking the value and adding (mathematically) the ASCII value for '0'.</comment>
+    <comment type="line">// So, don't change this code! It works and is very fast.</comment>
+    
+    <comment type="javadoc">/**
+     * Required for serialization support.
+     * 
+     * @see java.io.Serializable
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>1L</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * FULL locale dependent date or time style.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>FULL</name> =<init> <expr><name><name>DateFormat</name>.<name>FULL</name></name></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * LONG locale dependent date or time style.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>LONG</name> =<init> <expr><name><name>DateFormat</name>.<name>LONG</name></name></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * MEDIUM locale dependent date or time style.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>MEDIUM</name> =<init> <expr><name><name>DateFormat</name>.<name>MEDIUM</name></name></expr></init></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * SHORT locale dependent date or time style.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SHORT</name> =<init> <expr><name><name>DateFormat</name>.<name>SHORT</name></name></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>cDefaultPattern</name></decl>;</decl_stmt> <comment type="line">// lazily initialised by getInstance()</comment>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Map</name></type> <name>cInstanceCache</name> =<init> <expr>new <call><name>HashMap</name><argument_list>(<argument><expr>7</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Map</name></type> <name>cDateInstanceCache</name> =<init> <expr>new <call><name>HashMap</name><argument_list>(<argument><expr>7</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Map</name></type> <name>cTimeInstanceCache</name> =<init> <expr>new <call><name>HashMap</name><argument_list>(<argument><expr>7</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Map</name></type> <name>cDateTimeInstanceCache</name> =<init> <expr>new <call><name>HashMap</name><argument_list>(<argument><expr>7</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Map</name></type> <name>cTimeZoneDisplayCache</name> =<init> <expr>new <call><name>HashMap</name><argument_list>(<argument><expr>7</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The pattern.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>mPattern</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The time zone.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TimeZone</name></type> <name>mTimeZone</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * Whether the time zone overrides any on Calendars.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>mTimeZoneForced</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The locale.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Locale</name></type> <name>mLocale</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * Whether the locale overrides the default.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>mLocaleForced</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The parsed rules.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>Rule</name><index>[]</index></type> <name>mRules</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * The estimated maximum length.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>int</name></type> <name>mMaxLengthEstimate</name></decl>;</decl_stmt>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a formatter instance using the default pattern in the
+     * default locale.&lt;/p&gt;
+     * 
+     * @return a date/time formatter
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getInstance</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getInstance</name><argument_list>(<argument><expr><call><name>getDefaultPattern</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a formatter instance using the specified pattern in the
+     * default locale.&lt;/p&gt;
+     * 
+     * @param pattern  {@link java.text.SimpleDateFormat} compatible
+     *  pattern
+     * @return a pattern based date/time formatter
+     * @throws IllegalArgumentException if pattern is invalid
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a formatter instance using the specified pattern and
+     * time zone.&lt;/p&gt;
+     * 
+     * @param pattern  {@link java.text.SimpleDateFormat} compatible
+     *  pattern
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @return a pattern based date/time formatter
+     * @throws IllegalArgumentException if pattern is invalid
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a formatter instance using the specified pattern and
+     * locale.&lt;/p&gt;
+     * 
+     * @param pattern  {@link java.text.SimpleDateFormat} compatible
+     *  pattern
+     * @param locale  optional locale, overrides system locale
+     * @return a pattern based date/time formatter
+     * @throws IllegalArgumentException if pattern is invalid
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a formatter instance using the specified pattern, time zone
+     * and locale.&lt;/p&gt;
+     * 
+     * @param pattern  {@link java.text.SimpleDateFormat} compatible
+     *  pattern
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @param locale  optional locale, overrides system locale
+     * @return a pattern based date/time formatter
+     * @throws IllegalArgumentException if pattern is invalid
+     *  or &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <specifier>synchronized</specifier> <name>FastDateFormat</name></type> <name>getInstance</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>emptyFormat</name> =<init> <expr>new <call><name>FastDateFormat</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>format</name> =<init> <expr>(<name>FastDateFormat</name>) <call><name><name>cInstanceCache</name>.<name>get</name></name><argument_list>(<argument><expr><name>emptyFormat</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>format</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>format</name> = <name>emptyFormat</name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>format</name>.<name>init</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>  <comment type="line">// convert shell format into usable one</comment>
+            <expr_stmt><expr><call><name><name>cInstanceCache</name>.<name>put</name></name><argument_list>(<argument><expr><name>format</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>  <comment type="line">// this is OK!</comment>
+        }</block></then></if>
+        <return>return <expr><name>format</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date formatter instance using the specified style in the
+     * default time zone and locale.&lt;/p&gt;
+     * 
+     * @param style  date style: FULL, LONG, MEDIUM, or SHORT
+     * @return a localized standard date formatter
+     * @throws IllegalArgumentException if the Locale has no date
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date formatter instance using the specified style and
+     * locale in the default time zone.&lt;/p&gt;
+     * 
+     * @param style  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard date formatter
+     * @throws IllegalArgumentException if the Locale has no date
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date formatter instance using the specified style and
+     * time zone in the default locale.&lt;/p&gt;
+     * 
+     * @param style  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @return a localized standard date formatter
+     * @throws IllegalArgumentException if the Locale has no date
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date formatter instance using the specified style, time
+     * zone and locale.&lt;/p&gt;
+     * 
+     * @param style  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard date formatter
+     * @throws IllegalArgumentException if the Locale has no date
+     *  pattern defined
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <specifier>synchronized</specifier> <name>FastDateFormat</name></type> <name>getDateInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>style</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>timeZone</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <if>if <condition>(<expr><name>locale</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>locale</name> = <call><name><name>Locale</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>format</name> =<init> <expr>(<name>FastDateFormat</name>) <call><name><name>cDateInstanceCache</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>format</name> == <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <decl_stmt><decl><type><name>SimpleDateFormat</name></type> <name>formatter</name> =<init> <expr>(<name>SimpleDateFormat</name>) <call><name><name>DateFormat</name>.<name>getDateInstance</name></name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>pattern</name> =<init> <expr><call><name><name>formatter</name>.<name>toPattern</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>format</name> = <call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>cDateInstanceCache</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                
+            }</block> <catch>catch (<param><decl><type><name>ClassCastException</name></type> <name>ex</name></decl></param>) <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"No date pattern for locale: " + <name>locale</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>format</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a time formatter instance using the specified style in the
+     * default time zone and locale.&lt;/p&gt;
+     * 
+     * @param style  time style: FULL, LONG, MEDIUM, or SHORT
+     * @return a localized standard time formatter
+     * @throws IllegalArgumentException if the Locale has no time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getTimeInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getTimeInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a time formatter instance using the specified style and
+     * locale in the default time zone.&lt;/p&gt;
+     * 
+     * @param style  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard time formatter
+     * @throws IllegalArgumentException if the Locale has no time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getTimeInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getTimeInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a time formatter instance using the specified style and
+     * time zone in the default locale.&lt;/p&gt;
+     * 
+     * @param style  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted time
+     * @return a localized standard time formatter
+     * @throws IllegalArgumentException if the Locale has no time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getTimeInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getTimeInstance</name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a time formatter instance using the specified style, time
+     * zone and locale.&lt;/p&gt;
+     * 
+     * @param style  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted time
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard time formatter
+     * @throws IllegalArgumentException if the Locale has no time
+     *  pattern defined
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <specifier>synchronized</specifier> <name>FastDateFormat</name></type> <name>getTimeInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>style</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>timeZone</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>locale</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>format</name> =<init> <expr>(<name>FastDateFormat</name>) <call><name><name>cTimeInstanceCache</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>format</name> == <name>null</name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>locale</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>locale</name> = <call><name><name>Locale</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <try>try <block>{
+                <decl_stmt><decl><type><name>SimpleDateFormat</name></type> <name>formatter</name> =<init> <expr>(<name>SimpleDateFormat</name>) <call><name><name>DateFormat</name>.<name>getTimeInstance</name></name><argument_list>(<argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>pattern</name> =<init> <expr><call><name><name>formatter</name>.<name>toPattern</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>format</name> = <call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>cTimeInstanceCache</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            }</block> <catch>catch (<param><decl><type><name>ClassCastException</name></type> <name>ex</name></decl></param>) <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"No date pattern for locale: " + <name>locale</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>format</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date/time formatter instance using the specified style
+     * in the default time zone and locale.&lt;/p&gt;
+     * 
+     * @param dateStyle  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeStyle  time style: FULL, LONG, MEDIUM, or SHORT
+     * @return a localized standard date/time formatter
+     * @throws IllegalArgumentException if the Locale has no date/time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateTimeInstance</name><parameter_list>(
+            <param><decl><type><name>int</name></type> <name>dateStyle</name></decl></param>, <param><decl><type><name>int</name></type> <name>timeStyle</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateTimeInstance</name><argument_list>(<argument><expr><name>dateStyle</name></expr></argument>, <argument><expr><name>timeStyle</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date/time formatter instance using the specified style and
+     * locale in the default time zone.&lt;/p&gt;
+     * 
+     * @param dateStyle  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeStyle  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard date/time formatter
+     * @throws IllegalArgumentException if the Locale has no date/time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateTimeInstance</name><parameter_list>(
+            <param><decl><type><name>int</name></type> <name>dateStyle</name></decl></param>, <param><decl><type><name>int</name></type> <name>timeStyle</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateTimeInstance</name><argument_list>(<argument><expr><name>dateStyle</name></expr></argument>, <argument><expr><name>timeStyle</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date/time formatter instance using the specified style and
+     * time zone in the default locale.&lt;/p&gt;
+     * 
+     * @param dateStyle  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeStyle  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @return a localized standard date/time formatter
+     * @throws IllegalArgumentException if the Locale has no date/time
+     *  pattern defined
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>FastDateFormat</name></type> <name>getDateTimeInstance</name><parameter_list>(
+            <param><decl><type><name>int</name></type> <name>dateStyle</name></decl></param>, <param><decl><type><name>int</name></type> <name>timeStyle</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>getDateTimeInstance</name><argument_list>(<argument><expr><name>dateStyle</name></expr></argument>, <argument><expr><name>timeStyle</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a date/time formatter instance using the specified style,
+     * time zone and locale.&lt;/p&gt;
+     * 
+     * @param dateStyle  date style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeStyle  time style: FULL, LONG, MEDIUM, or SHORT
+     * @param timeZone  optional time zone, overrides time zone of
+     *  formatted date
+     * @param locale  optional locale, overrides system locale
+     * @return a localized standard date/time formatter
+     * @throws IllegalArgumentException if the Locale has no date/time
+     *  pattern defined
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <specifier>synchronized</specifier> <name>FastDateFormat</name></type> <name>getDateTimeInstance</name><parameter_list>(<param><decl><type><name>int</name></type> <name>dateStyle</name></decl></param>, <param><decl><type><name>int</name></type> <name>timeStyle</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>,
+            <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr>new <call><name>Pair</name><argument_list>(<argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>dateStyle</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>timeStyle</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>timeZone</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>locale</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>locale</name> = <call><name><name>Locale</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>key</name> = new <call><name>Pair</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>format</name> =<init> <expr>(<name>FastDateFormat</name>) <call><name><name>cDateTimeInstanceCache</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>format</name> == <name>null</name></expr>)</condition><then> <block>{
+            <try>try <block>{
+                <decl_stmt><decl><type><name>SimpleDateFormat</name></type> <name>formatter</name> =<init> <expr>(<name>SimpleDateFormat</name>) <call><name><name>DateFormat</name>.<name>getDateTimeInstance</name></name><argument_list>(<argument><expr><name>dateStyle</name></expr></argument>, <argument><expr><name>timeStyle</name></expr></argument>,
+                        <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>String</name></type> <name>pattern</name> =<init> <expr><call><name><name>formatter</name>.<name>toPattern</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>format</name> = <call><name>getInstance</name><argument_list>(<argument><expr><name>pattern</name></expr></argument>, <argument><expr><name>timeZone</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>cDateTimeInstanceCache</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>format</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            }</block> <catch>catch (<param><decl><type><name>ClassCastException</name></type> <name>ex</name></decl></param>) <block>{
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"No date time pattern for locale: " + <name>locale</name></expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></catch></try>
+        }</block></then></if>
+        <return>return <expr><name>format</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the time zone display name, using a cache for performance.&lt;/p&gt;
+     * 
+     * @param tz  the zone to query
+     * @param daylight  true if daylight savings
+     * @param style  the style to use &lt;code&gt;TimeZone.LONG&lt;/code&gt;
+     *  or &lt;code&gt;TimeZone.SHORT&lt;/code&gt;
+     * @param locale  the locale to use
+     * @return the textual name of the time zone
+     */</comment>
+    <function><type><specifier>static</specifier> <specifier>synchronized</specifier> <name>String</name></type> <name>getTimeZoneDisplay</name><parameter_list>(<param><decl><type><name>TimeZone</name></type> <name>tz</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>daylight</name></decl></param>, <param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr>new <call><name>TimeZoneDisplayKey</name><argument_list>(<argument><expr><name>tz</name></expr></argument>, <argument><expr><name>daylight</name></expr></argument>, <argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>value</name> =<init> <expr>(<name>String</name>) <call><name><name>cTimeZoneDisplayCache</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+            <comment type="line">// This is a very slow call, so cache the results.</comment>
+            <expr_stmt><expr><name>value</name> = <call><name><name>tz</name>.<name>getDisplayName</name></name><argument_list>(<argument><expr><name>daylight</name></expr></argument>, <argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>cTimeZoneDisplayCache</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the default pattern.&lt;/p&gt;
+     * 
+     * @return the default pattern
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <specifier>synchronized</specifier> <name>String</name></type> <name>getDefaultPattern</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>cDefaultPattern</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>cDefaultPattern</name> = new <call><name>SimpleDateFormat</name><argument_list>()</argument_list></call>.<call><name>toPattern</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>cDefaultPattern</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Constructor</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Constructs a new FastDateFormat.&lt;/p&gt;
+     * 
+     * @param pattern  {@link java.text.SimpleDateFormat} compatible
+     *  pattern
+     * @param timeZone  time zone to use, &lt;code&gt;null&lt;/code&gt; means use
+     *  default for &lt;code&gt;Date&lt;/code&gt; and value within for
+     *  &lt;code&gt;Calendar&lt;/code&gt;
+     * @param locale  locale, &lt;code&gt;null&lt;/code&gt; means use system
+     *  default
+     * @throws IllegalArgumentException if pattern is invalid or
+     *  &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>FastDateFormat</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>, <param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>pattern</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The pattern must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name>mPattern</name> = <name>pattern</name></expr>;</expr_stmt>
+        
+        <expr_stmt><expr><name>mTimeZoneForced</name> = (<name>timeZone</name> != <name>null</name>)</expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>timeZone</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>timeZone</name> = <call><name><name>TimeZone</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>mTimeZone</name> = <name>timeZone</name></expr>;</expr_stmt>
+        
+        <expr_stmt><expr><name>mLocaleForced</name> = (<name>locale</name> != <name>null</name>)</expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>locale</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>locale</name> = <call><name><name>Locale</name>.<name>getDefault</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>mLocale</name> = <name>locale</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Initializes the instance for first use.&lt;/p&gt;
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>init</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>List</name></type> <name>rulesList</name> =<init> <expr><call><name>parsePattern</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>mRules</name> = (<name><name>Rule</name><index>[]</index></name>) <call><name><name>rulesList</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>Rule</name><index>[<expr><call><name><name>rulesList</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>len</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr><name><name>mRules</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= 0</expr>;</condition> <incr/>) <block>{
+            <expr_stmt><expr><name>len</name> += <name><name>mRules</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>estimateLength</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <expr_stmt><expr><name>mMaxLengthEstimate</name> = <name>len</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// Parse the pattern</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns a list of Rules given a pattern.&lt;/p&gt;
+     * 
+     * @return a &lt;code&gt;List&lt;/code&gt; of Rule objects
+     * @throws IllegalArgumentException if pattern is invalid
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>List</name></type> <name>parsePattern</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DateFormatSymbols</name></type> <name>symbols</name> =<init> <expr>new <call><name>DateFormatSymbols</name><argument_list>(<argument><expr><name>mLocale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>List</name></type> <name>rules</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>ERAs</name> =<init> <expr><call><name><name>symbols</name>.<name>getEras</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>months</name> =<init> <expr><call><name><name>symbols</name>.<name>getMonths</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>shortMonths</name> =<init> <expr><call><name><name>symbols</name>.<name>getShortMonths</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>weekdays</name> =<init> <expr><call><name><name>symbols</name>.<name>getWeekdays</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>shortWeekdays</name> =<init> <expr><call><name><name>symbols</name>.<name>getShortWeekdays</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>AmPmStrings</name> =<init> <expr><call><name><name>symbols</name>.<name>getAmPmStrings</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>mPattern</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name><index>[]</index></type> <name>indexRef</name> =<init> <expr>new <name><name>int</name><index>[<expr>1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>indexRef</name><index>[<expr>0</expr>]</index></name> = <name>i</name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>String</name></type> <name>token</name> =<init> <expr><call><name>parseToken</name><argument_list>(<argument><expr><name>mPattern</name></expr></argument>, <argument><expr><name>indexRef</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>i</name> = <name><name>indexRef</name><index>[<expr>0</expr>]</index></name></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><name>int</name></type> <name>tokenLen</name> =<init> <expr><call><name><name>token</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>tokenLen</name> == 0</expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then></if>
+
+            <decl_stmt><decl><type><name>Rule</name></type> <name>rule</name></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>token</name>.<name>charAt</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <switch>switch <condition>(<expr><name>c</name></expr>)</condition> <block>{
+            <case>case <expr>'G'</expr>: <comment type="line">// era designator (text)</comment>
+                <expr_stmt><expr><name>rule</name> = new <call><name>TextField</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>ERA</name></name></expr></argument>, <argument><expr><name>ERAs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'y'</expr>: <comment type="line">// year (number)</comment>
+                <if>if <condition>(<expr><name>tokenLen</name> &gt;= 4</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>YEAR</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>rule</name> = <name><name>TwoDigitYearField</name>.<name>INSTANCE</name></name></expr>;</expr_stmt>
+                }</block></else></if>
+                <break>break;</break>
+            </case><case>case <expr>'M'</expr>: <comment type="line">// month in year (text and number)</comment>
+                <if>if <condition>(<expr><name>tokenLen</name> &gt;= 4</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>TextField</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>, <argument><expr><name>months</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>tokenLen</name> == 3</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>TextField</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>, <argument><expr><name>shortMonths</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>tokenLen</name> == 2</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = <name><name>TwoDigitMonthField</name>.<name>INSTANCE</name></name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>rule</name> = <name><name>UnpaddedMonthField</name>.<name>INSTANCE</name></name></expr>;</expr_stmt>
+                }</block></else></if></else></if></else></if>
+                <break>break;</break>
+            </case><case>case <expr>'d'</expr>: <comment type="line">// day in month (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_MONTH</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'h'</expr>: <comment type="line">// hour in am/pm (number, 1..12)</comment>
+                <expr_stmt><expr><name>rule</name> = new <call><name>TwelveHourField</name><argument_list>(<argument><expr><call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'H'</expr>: <comment type="line">// hour in day (number, 0..23)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'m'</expr>: <comment type="line">// minute in hour (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MINUTE</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'s'</expr>: <comment type="line">// second in minute (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>SECOND</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'S'</expr>: <comment type="line">// millisecond (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MILLISECOND</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'E'</expr>: <comment type="line">// day in week (text)</comment>
+                <expr_stmt><expr><name>rule</name> = new <call><name>TextField</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_WEEK</name></name></expr></argument>, <argument><expr><name>tokenLen</name> &lt; 4 ? <name>shortWeekdays</name> : <name>weekdays</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'D'</expr>: <comment type="line">// day in year (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_YEAR</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'F'</expr>: <comment type="line">// day of week in month (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DAY_OF_WEEK_IN_MONTH</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'w'</expr>: <comment type="line">// week in year (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>WEEK_OF_YEAR</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'W'</expr>: <comment type="line">// week in month (number)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>WEEK_OF_MONTH</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'a'</expr>: <comment type="line">// am/pm marker (text)</comment>
+                <expr_stmt><expr><name>rule</name> = new <call><name>TextField</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>AM_PM</name></name></expr></argument>, <argument><expr><name>AmPmStrings</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'k'</expr>: <comment type="line">// hour in day (1..24)</comment>
+                <expr_stmt><expr><name>rule</name> = new <call><name>TwentyFourHourField</name><argument_list>(<argument><expr><call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'K'</expr>: <comment type="line">// hour in am/pm (0..11)</comment>
+                <expr_stmt><expr><name>rule</name> = <call><name>selectNumberRule</name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR</name></name></expr></argument>, <argument><expr><name>tokenLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr>'z'</expr>: <comment type="line">// time zone (text)</comment>
+                <if>if <condition>(<expr><name>tokenLen</name> &gt;= 4</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>TimeZoneNameRule</name><argument_list>(<argument><expr><name>mTimeZone</name></expr></argument>, <argument><expr><name>mTimeZoneForced</name></expr></argument>, <argument><expr><name>mLocale</name></expr></argument>, <argument><expr><name><name>TimeZone</name>.<name>LONG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>TimeZoneNameRule</name><argument_list>(<argument><expr><name>mTimeZone</name></expr></argument>, <argument><expr><name>mTimeZoneForced</name></expr></argument>, <argument><expr><name>mLocale</name></expr></argument>, <argument><expr><name><name>TimeZone</name>.<name>SHORT</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <break>break;</break>
+            </case><case>case <expr>'Z'</expr>: <comment type="line">// time zone (value)</comment>
+                <if>if <condition>(<expr><name>tokenLen</name> == 1</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = <name><name>TimeZoneNumberRule</name>.<name>INSTANCE_NO_COLON</name></name></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>rule</name> = <name><name>TimeZoneNumberRule</name>.<name>INSTANCE_COLON</name></name></expr>;</expr_stmt>
+                }</block></else></if>
+                <break>break;</break>
+            </case><case>case <expr>'\''</expr>: <comment type="line">// literal text</comment>
+                <decl_stmt><decl><type><name>String</name></type> <name>sub</name> =<init> <expr><call><name><name>token</name>.<name>substring</name></name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name><name>sub</name>.<name>length</name></name><argument_list>()</argument_list></call> == 1</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>CharacterLiteral</name><argument_list>(<argument><expr><call><name><name>sub</name>.<name>charAt</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>rule</name> = new <call><name>StringLiteral</name><argument_list>(<argument><expr><name>sub</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <break>break;</break>
+            </case><default>default:
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Illegal pattern component: " + <name>token</name></expr></argument>)</argument_list></call></expr>;</throw>
+            </default>}</block></switch>
+
+            <expr_stmt><expr><call><name><name>rules</name>.<name>add</name></name><argument_list>(<argument><expr><name>rule</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <return>return <expr><name>rules</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Performs the parsing of tokens.&lt;/p&gt;
+     * 
+     * @param pattern  the pattern
+     * @param indexRef  index references
+     * @return parsed token
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>String</name></type> <name>parseToken</name><parameter_list>(<param><decl><type><name>String</name></type> <name>pattern</name></decl></param>, <param><decl><type><name><name>int</name><index>[]</index></name></type> <name>indexRef</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>StrBuilder</name></type> <name>buf</name> =<init> <expr>new <call><name>StrBuilder</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>indexRef</name><index>[<expr>0</expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>length</name> =<init> <expr><call><name><name>pattern</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>pattern</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>c</name> &gt;= 'A' &amp;&amp; <name>c</name> &lt;= 'Z' || <name>c</name> &gt;= 'a' &amp;&amp; <name>c</name> &lt;= 'z'</expr>)</condition><then> <block>{
+            <comment type="line">// Scan a run of the same character, which indicates a time</comment>
+            <comment type="line">// pattern.</comment>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <while>while <condition>(<expr><name>i</name> + 1 &lt; <name>length</name></expr>)</condition> <block>{
+                <decl_stmt><decl><type><name>char</name></type> <name>peek</name> =<init> <expr><call><name><name>pattern</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>peek</name> == <name>c</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>i</name>++</expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <break>break;</break>
+                }</block></else></if>
+            }</block></while>
+        }</block></then> <else>else <block>{
+            <comment type="line">// This will identify token as text.</comment>
+            <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr>'\''</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <decl_stmt><decl><type><name>boolean</name></type> <name>inLiteral</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+            <for>for (<init>;</init> <condition><expr><name>i</name> &lt; <name>length</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name>c</name> = <call><name><name>pattern</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name>c</name> == '\''</expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>i</name> + 1 &lt; <name>length</name> &amp;&amp; <call><name><name>pattern</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name> + 1</expr></argument>)</argument_list></call> == '\''</expr>)</condition><then> <block>{
+                        <comment type="line">// '' is treated as escaped '</comment>
+                        <expr_stmt><expr><name>i</name>++</expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>inLiteral</name> = !<name>inLiteral</name></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then> <else>else <if>if <condition>(<expr>!<name>inLiteral</name> &amp;&amp;
+                         (<name>c</name> &gt;= 'A' &amp;&amp; <name>c</name> &lt;= 'Z' || <name>c</name> &gt;= 'a' &amp;&amp; <name>c</name> &lt;= 'z')</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>i</name>--</expr>;</expr_stmt>
+                    <break>break;</break>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>buf</name>.<name>append</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if></else></if>
+            }</block></for>
+        }</block></else></if>
+
+        <expr_stmt><expr><name><name>indexRef</name><index>[<expr>0</expr>]</index></name> = <name>i</name></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>buf</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets an appropriate rule for the padding required.&lt;/p&gt;
+     * 
+     * @param field  the field to get a rule for
+     * @param padding  the padding required
+     * @return a new rule with the correct padding
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>NumberRule</name></type> <name>selectNumberRule</name><parameter_list>(<param><decl><type><name>int</name></type> <name>field</name></decl></param>, <param><decl><type><name>int</name></type> <name>padding</name></decl></param>)</parameter_list> <block>{
+        <switch>switch <condition>(<expr><name>padding</name></expr>)</condition> <block>{
+        <case>case <expr>1</expr>:
+            <return>return <expr>new <call><name>UnpaddedNumberField</name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>;</return>
+        </case><case>case <expr>2</expr>:
+            <return>return <expr>new <call><name>TwoDigitNumberField</name><argument_list>(<argument><expr><name>field</name></expr></argument>)</argument_list></call></expr>;</return>
+        </case><default>default:
+            <return>return <expr>new <call><name>PaddedNumberField</name><argument_list>(<argument><expr><name>field</name></expr></argument>, <argument><expr><name>padding</name></expr></argument>)</argument_list></call></expr>;</return>
+        </default>}</block></switch>
+    }</block></function>
+
+    <comment type="line">// Format methods</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a &lt;code&gt;Date&lt;/code&gt;, &lt;code&gt;Calendar&lt;/code&gt; or
+     * &lt;code&gt;Long&lt;/code&gt; (milliseconds) object.&lt;/p&gt;
+     * 
+     * @param obj  the object to format
+     * @param toAppendTo  the buffer to append to
+     * @param pos  the position - ignored
+     * @return the buffer passed in
+     */</comment>
+    <function><type><specifier>public</specifier> <name>StringBuffer</name></type> <name>format</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>, <param><decl><type><name>StringBuffer</name></type> <name>toAppendTo</name></decl></param>, <param><decl><type><name>FieldPosition</name></type> <name>pos</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Date</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>format</name><argument_list>(<argument><expr>(<name>Date</name>) <name>obj</name></expr></argument>, <argument><expr><name>toAppendTo</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Calendar</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>format</name><argument_list>(<argument><expr>(<name>Calendar</name>) <name>obj</name></expr></argument>, <argument><expr><name>toAppendTo</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>Long</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>format</name><argument_list>(<argument><expr>((<name>Long</name>) <name>obj</name>).<call><name>longValue</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>toAppendTo</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Unknown class: " +
+                (<name>obj</name> == <name>null</name> ? "&lt;null&gt;" : <call><name><name>obj</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getName</name><argument_list>()</argument_list></call>)</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></else></if></else></if></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a millisecond &lt;code&gt;long&lt;/code&gt; value.&lt;/p&gt;
+     * 
+     * @param millis  the millisecond value to format
+     * @return the formatted string
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>format</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millis</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>format</name><argument_list>(<argument><expr>new <call><name>Date</name><argument_list>(<argument><expr><name>millis</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a &lt;code&gt;Date&lt;/code&gt; object.&lt;/p&gt;
+     * 
+     * @param date  the date to format
+     * @return the formatted string
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>format</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Calendar</name></type> <name>c</name> =<init> <expr>new <call><name>GregorianCalendar</name><argument_list>(<argument><expr><name>mTimeZone</name></expr></argument>, <argument><expr><name>mLocale</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>c</name>.<name>setTime</name></name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name>applyRules</name><argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr>new <call><name>StringBuffer</name><argument_list>(<argument><expr><name>mMaxLengthEstimate</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a &lt;code&gt;Calendar&lt;/code&gt; object.&lt;/p&gt;
+     * 
+     * @param calendar  the calendar to format
+     * @return the formatted string
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>format</name><parameter_list>(<param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>format</name><argument_list>(<argument><expr><name>calendar</name></expr></argument>, <argument><expr>new <call><name>StringBuffer</name><argument_list>(<argument><expr><name>mMaxLengthEstimate</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call>.<call><name>toString</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a milliseond &lt;code&gt;long&lt;/code&gt; value into the
+     * supplied &lt;code&gt;StringBuffer&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * @param millis  the millisecond value to format
+     * @param buf  the buffer to format into
+     * @return the specified string buffer
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>StringBuffer</name></type> <name>format</name><parameter_list>(<param><decl><type><name>long</name></type> <name>millis</name></decl></param>, <param><decl><type><name>StringBuffer</name></type> <name>buf</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>format</name><argument_list>(<argument><expr>new <call><name>Date</name><argument_list>(<argument><expr><name>millis</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a &lt;code&gt;Date&lt;/code&gt; object into the
+     * supplied &lt;code&gt;StringBuffer&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * @param date  the date to format
+     * @param buf  the buffer to format into
+     * @return the specified string buffer
+     */</comment>
+    <function><type><specifier>public</specifier> <name>StringBuffer</name></type> <name>format</name><parameter_list>(<param><decl><type><name>Date</name></type> <name>date</name></decl></param>, <param><decl><type><name>StringBuffer</name></type> <name>buf</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Calendar</name></type> <name>c</name> =<init> <expr>new <call><name>GregorianCalendar</name><argument_list>(<argument><expr><name>mTimeZone</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>c</name>.<name>setTime</name></name><argument_list>(<argument><expr><name>date</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name>applyRules</name><argument_list>(<argument><expr><name>c</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Formats a &lt;code&gt;Calendar&lt;/code&gt; object into the
+     * supplied &lt;code&gt;StringBuffer&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * @param calendar  the calendar to format
+     * @param buf  the buffer to format into
+     * @return the specified string buffer
+     */</comment>
+    <function><type><specifier>public</specifier> <name>StringBuffer</name></type> <name>format</name><parameter_list>(<param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>, <param><decl><type><name>StringBuffer</name></type> <name>buf</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>mTimeZoneForced</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>calendar</name>.<name>getTime</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt> <comment type="line">/// LANG-538</comment>
+            <expr_stmt><expr><name>calendar</name> = (<name>Calendar</name>) <call><name><name>calendar</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>calendar</name>.<name>setTimeZone</name></name><argument_list>(<argument><expr><name>mTimeZone</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><call><name>applyRules</name><argument_list>(<argument><expr><name>calendar</name></expr></argument>, <argument><expr><name>buf</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Performs the formatting by applying the rules to the
+     * specified calendar.&lt;/p&gt;
+     * 
+     * @param calendar  the calendar to format
+     * @param buf  the buffer to format into
+     * @return the specified string buffer
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>StringBuffer</name></type> <name>applyRules</name><parameter_list>(<param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>, <param><decl><type><name>StringBuffer</name></type> <name>buf</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Rule</name><index>[]</index></type> <name>rules</name> =<init> <expr><name>mRules</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>len</name> =<init> <expr><name><name>mRules</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>len</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>rules</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>appendTo</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>calendar</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>buf</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Parsing</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Parsing is not supported.&lt;/p&gt;
+     * 
+     * @param source  the string to parse
+     * @param pos  the parsing position
+     * @return &lt;code&gt;null&lt;/code&gt; as not supported
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Object</name></type> <name>parseObject</name><parameter_list>(<param><decl><type><name>String</name></type> <name>source</name></decl></param>, <param><decl><type><name>ParsePosition</name></type> <name>pos</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>pos</name>.<name>setIndex</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pos</name>.<name>setErrorIndex</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="line">// Accessors</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the pattern used by this formatter.&lt;/p&gt;
+     * 
+     * @return the pattern, {@link java.text.SimpleDateFormat} compatible
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getPattern</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>mPattern</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the time zone used by this formatter.&lt;/p&gt;
+     *
+     * &lt;p&gt;This zone is always used for &lt;code&gt;Date&lt;/code&gt; formatting.
+     * If a &lt;code&gt;Calendar&lt;/code&gt; is passed in to be formatted, the
+     * time zone on that may be used depending on
+     * {@link #getTimeZoneOverridesCalendar()}.&lt;/p&gt;
+     * 
+     * @return the time zone
+     */</comment>
+    <function><type><specifier>public</specifier> <name>TimeZone</name></type> <name>getTimeZone</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>mTimeZone</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns &lt;code&gt;true&lt;/code&gt; if the time zone of the
+     * calendar overrides the time zone of the formatter.&lt;/p&gt;
+     * 
+     * @return &lt;code&gt;true&lt;/code&gt; if time zone of formatter
+     *  overridden for calendars
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>getTimeZoneOverridesCalendar</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>mTimeZoneForced</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets the locale used by this formatter.&lt;/p&gt;
+     * 
+     * @return the locale
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Locale</name></type> <name>getLocale</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>mLocale</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets an estimate for the maximum string length that the
+     * formatter will produce.&lt;/p&gt;
+     *
+     * &lt;p&gt;The actual formatted length will almost always be less than or
+     * equal to this amount.&lt;/p&gt;
+     * 
+     * @return the maximum formatted length
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getMaxLengthEstimate</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>mMaxLengthEstimate</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Basics</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two objects for equality.&lt;/p&gt;
+     * 
+     * @param obj  the object to compare to
+     * @return &lt;code&gt;true&lt;/code&gt; if equal
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>FastDateFormat</name> == false</expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>FastDateFormat</name></type> <name>other</name> =<init> <expr>(<name>FastDateFormat</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(
+            <expr>(<name>mPattern</name> == <name><name>other</name>.<name>mPattern</name></name> || <call><name><name>mPattern</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>mPattern</name></name></expr></argument>)</argument_list></call>) &amp;&amp;
+            (<name>mTimeZone</name> == <name><name>other</name>.<name>mTimeZone</name></name> || <call><name><name>mTimeZone</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>mTimeZone</name></name></expr></argument>)</argument_list></call>) &amp;&amp;
+            (<name>mLocale</name> == <name><name>other</name>.<name>mLocale</name></name> || <call><name><name>mLocale</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>mLocale</name></name></expr></argument>)</argument_list></call>) &amp;&amp;
+            (<name>mTimeZoneForced</name> == <name><name>other</name>.<name>mTimeZoneForced</name></name>) &amp;&amp;
+            (<name>mLocaleForced</name> == <name><name>other</name>.<name>mLocaleForced</name></name>)</expr>
+            )</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns a hashcode compatible with equals.&lt;/p&gt;
+     * 
+     * @return a hashcode compatible with equals
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>total</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>total</name> += <call><name><name>mPattern</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>total</name> += <call><name><name>mTimeZone</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>total</name> += (<name>mTimeZoneForced</name> ? 1 : 0)</expr>;</expr_stmt>
+        <expr_stmt><expr><name>total</name> += <call><name><name>mLocale</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>total</name> += (<name>mLocaleForced</name> ? 1 : 0)</expr>;</expr_stmt>
+        <return>return <expr><name>total</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Gets a debugging string version of this formatter.&lt;/p&gt;
+     * 
+     * @return a debugging string
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>"FastDateFormat[" + <name>mPattern</name> + "]"</expr>;</return>
+    }</block></function>
+
+    <comment type="line">// Serializing</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Create the object after serialization. This implementation reinitializes the 
+     * transient properties.
+     *
+     * @param in ObjectInputStream from which the object is being deserialized.
+     * @throws IOException if there is an IO issue.
+     * @throws ClassNotFoundException if a class cannot be found.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>in</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>in</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>init</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="line">// Rules</comment>
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class defining a rule.&lt;/p&gt;
+     */</comment>
+    <class type="interface"><specifier>private</specifier> interface <name>Rule</name> <block>{
+        <comment type="javadoc">/**
+         * Returns the estimated lentgh of the result.
+         * 
+         * @return the estimated length
+         */</comment>
+        <function_decl><type><name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list>;</function_decl>
+        
+        <comment type="javadoc">/**
+         * Appends the value of the specified calendar to the output buffer based on the rule implementation.
+         * 
+         * @param buffer the output buffer
+         * @param calendar calendar to be appended
+         */</comment>
+        <function_decl><type><name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list>;</function_decl>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class defining a numeric rule.&lt;/p&gt;
+     */</comment>
+    <class type="interface"><specifier>private</specifier> interface <name>NumberRule</name> <super><extends>extends <name>Rule</name></extends></super> <block>{
+        <comment type="javadoc">/**
+         * Appends the specified value to the output buffer based on the rule implementation.
+         * 
+         * @param buffer the output buffer
+         * @param value the value to be appended
+         */</comment>
+        <function_decl><type><name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list>;</function_decl>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a constant single character.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>CharacterLiteral</name> <super><implements>implements <name>Rule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>char</name></type> <name>mValue</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs a new instance of &lt;code&gt;CharacterLiteral&lt;/code&gt;
+         * to hold the specified value.
+         * 
+         * @param value the character literal
+         */</comment>
+        <constructor><name>CharacterLiteral</name><parameter_list>(<param><decl><type><name>char</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mValue</name> = <name>value</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>1</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>mValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a constant string.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>StringLiteral</name> <super><implements>implements <name>Rule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>mValue</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs a new instance of &lt;code&gt;StringLiteral&lt;/code&gt;
+         * to hold the specified value.
+         * 
+         * @param value the string literal
+         */</comment>
+        <constructor><name>StringLiteral</name><parameter_list>(<param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mValue</name> = <name>value</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>mValue</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>mValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output one of a set of values.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TextField</name> <super><implements>implements <name>Rule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mField</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name><index>[]</index></type> <name>mValues</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TextField&lt;/code&gt;
+         * with the specified field and values.
+         * 
+         * @param field the field
+         * @param values the field values
+         */</comment>
+        <constructor><name>TextField</name><parameter_list>(<param><decl><type><name>int</name></type> <name>field</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>values</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mField</name> = <name>field</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mValues</name> = <name>values</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>max</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name>=<init><expr><name><name>mValues</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= 0</expr>;</condition> <incr/>) <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>len</name> =<init> <expr><name><name>mValues</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>length</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>len</name> &gt; <name>max</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>max</name> = <name>len</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+            <return>return <expr><name>max</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name><name>mValues</name><index>[<expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name>mField</name></expr></argument>)</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output an unpadded number.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>UnpaddedNumberField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mField</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;UnpadedNumberField&lt;/code&gt; with the specified field.
+         * 
+         * @param field the field
+         */</comment>
+        <constructor><name>UnpaddedNumberField</name><parameter_list>(<param><decl><type><name>int</name></type> <name>field</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mField</name> = <name>field</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>4</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name>mField</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>value</name> &lt; 10</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>value</name> &lt; 100</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toString</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if></else></if>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output an unpadded month.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>UnpaddedMonthField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>UnpaddedMonthField</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>UnpaddedMonthField</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;UnpaddedMonthField&lt;/code&gt;.
+         *
+         */</comment>
+        <constructor><name>UnpaddedMonthField</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>2</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>)</argument_list></call> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>value</name> &lt; 10</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a padded number.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>PaddedNumberField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mField</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mSize</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;PaddedNumberField&lt;/code&gt;.
+         * 
+         * @param field the field
+         * @param size size of the output field
+         */</comment>
+        <constructor><name>PaddedNumberField</name><parameter_list>(<param><decl><type><name>int</name></type> <name>field</name></decl></param>, <param><decl><type><name>int</name></type> <name>size</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>size</name> &lt; 3</expr>)</condition><then> <block>{
+                <comment type="line">// Should use UnpaddedNumberField or TwoDigitNumberField.</comment>
+                <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><name>mField</name> = <name>field</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mSize</name> = <name>size</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>4</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name>mField</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>value</name> &lt; 100</expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>mSize</name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= 2</expr>;</condition> <incr/>) <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'0'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>digits</name></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>value</name> &lt; 1000</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>digits</name> = 3</expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>Validate</name>.<name>isTrue</name></name><argument_list>(<argument><expr><name>value</name> &gt; -1</expr></argument>, <argument><expr>"Negative values should not be possible"</expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>digits</name> = <call><name><name>Integer</name>.<name>toString</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call>.<call><name>length</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name>mSize</name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= <name>digits</name></expr>;</condition> <incr/>) <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'0'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toString</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a two digit number.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TwoDigitNumberField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mField</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TwoDigitNumberField&lt;/code&gt; with the specified field.
+         * 
+         * @param field the field
+         */</comment>
+        <constructor><name>TwoDigitNumberField</name><parameter_list>(<param><decl><type><name>int</name></type> <name>field</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mField</name> = <name>field</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>2</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name>mField</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>value</name> &lt; 100</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>Integer</name>.<name>toString</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a two digit year.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TwoDigitYearField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>TwoDigitYearField</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>TwoDigitYearField</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TwoDigitYearField&lt;/code&gt;.
+         */</comment>
+        <constructor><name>TwoDigitYearField</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>2</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>YEAR</name></name></expr></argument>)</argument_list></call> % 100</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a two digit month.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TwoDigitMonthField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>TwoDigitMonthField</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>TwoDigitMonthField</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TwoDigitMonthField&lt;/code&gt;.
+         */</comment>
+        <constructor><name>TwoDigitMonthField</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>2</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>appendTo</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>MONTH</name></name></expr></argument>)</argument_list></call> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>value</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output the twelve hour field.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TwelveHourField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>NumberRule</name></type> <name>mRule</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TwelveHourField&lt;/code&gt; with the specified
+         * &lt;code&gt;NumberRule&lt;/code&gt;.
+         * 
+         * @param rule the rule
+         */</comment>
+        <constructor><name>TwelveHourField</name><parameter_list>(<param><decl><type><name>NumberRule</name></type> <name>rule</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mRule</name> = <name>rule</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>mRule</name>.<name>estimateLength</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>value</name> =<init> <expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>value</name> == 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>value</name> = <call><name><name>calendar</name>.<name>getLeastMaximum</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR</name></name></expr></argument>)</argument_list></call> + 1</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>mRule</name>.<name>appendTo</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>mRule</name>.<name>appendTo</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output the twenty four hour field.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TwentyFourHourField</name> <super><implements>implements <name>NumberRule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>NumberRule</name></type> <name>mRule</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TwentyFourHourField&lt;/code&gt; with the specified
+         * &lt;code&gt;NumberRule&lt;/code&gt;.
+         * 
+         * @param rule the rule
+         */</comment>
+        <constructor><name>TwentyFourHourField</name><parameter_list>(<param><decl><type><name>NumberRule</name></type> <name>rule</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mRule</name> = <name>rule</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>mRule</name>.<name>estimateLength</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>value</name> =<init> <expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>value</name> == 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>value</name> = <call><name><name>calendar</name>.<name>getMaximum</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>HOUR_OF_DAY</name></name></expr></argument>)</argument_list></call> + 1</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>mRule</name>.<name>appendTo</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>mRule</name>.<name>appendTo</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a time zone name.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TimeZoneNameRule</name> <super><implements>implements <name>Rule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TimeZone</name></type> <name>mTimeZone</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>mTimeZoneForced</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Locale</name></type> <name>mLocale</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mStyle</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>mStandard</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>String</name></type> <name>mDaylight</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TimeZoneNameRule&lt;/code&gt; with the specified properties.
+         * 
+         * @param timeZone the time zone
+         * @param timeZoneForced if &lt;code&gt;true&lt;/code&gt; the time zone is forced into standard and daylight
+         * @param locale the locale
+         * @param style the style
+         */</comment>
+        <constructor><name>TimeZoneNameRule</name><parameter_list>(<param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>timeZoneForced</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>, <param><decl><type><name>int</name></type> <name>style</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mTimeZone</name> = <name>timeZone</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mTimeZoneForced</name> = <name>timeZoneForced</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mLocale</name> = <name>locale</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mStyle</name> = <name>style</name></expr>;</expr_stmt>
+
+            <if>if <condition>(<expr><name>timeZoneForced</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mStandard</name> = <call><name>getTimeZoneDisplay</name><argument_list>(<argument><expr><name>timeZone</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>mDaylight</name> = <call><name>getTimeZoneDisplay</name><argument_list>(<argument><expr><name>timeZone</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name>style</name></expr></argument>, <argument><expr><name>locale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>mStandard</name> = <name>null</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>mDaylight</name> = <name>null</name></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <if>if <condition>(<expr><name>mTimeZoneForced</name></expr>)</condition><then> <block>{
+                <return>return <expr><call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><call><name><name>mStandard</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>mDaylight</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then> <else>else <if>if <condition>(<expr><name>mStyle</name> == <name><name>TimeZone</name>.<name>SHORT</name></name></expr>)</condition><then> <block>{
+                <return>return <expr>4</expr>;</return>
+            }</block></then> <else>else <block>{
+                <return>return <expr>40</expr>;</return>
+            }</block></else></if></else></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>mTimeZoneForced</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name><name>mTimeZone</name>.<name>useDaylightTime</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DST_OFFSET</name></name></expr></argument>)</argument_list></call> != 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>mDaylight</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>mStandard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then> <else>else <block>{
+                <decl_stmt><decl><type><name>TimeZone</name></type> <name>timeZone</name> =<init> <expr><call><name><name>calendar</name>.<name>getTimeZone</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><call><name><name>timeZone</name>.<name>useDaylightTime</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DST_OFFSET</name></name></expr></argument>)</argument_list></call> != 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call><name>getTimeZoneDisplay</name><argument_list>(<argument><expr><name>timeZone</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name>mStyle</name></expr></argument>, <argument><expr><name>mLocale</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call><name>getTimeZoneDisplay</name><argument_list>(<argument><expr><name>timeZone</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>mStyle</name></expr></argument>, <argument><expr><name>mLocale</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></else></if>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class to output a time zone as a number &lt;code&gt;+/-HHMM&lt;/code&gt;
+     * or &lt;code&gt;+/-HH:MM&lt;/code&gt;.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TimeZoneNumberRule</name> <super><implements>implements <name>Rule</name></implements></super> <block>{
+        <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>TimeZoneNumberRule</name></type> <name>INSTANCE_COLON</name> =<init> <expr>new <call><name>TimeZoneNumberRule</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>TimeZoneNumberRule</name></type> <name>INSTANCE_NO_COLON</name> =<init> <expr>new <call><name>TimeZoneNumberRule</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>mColon</name></decl>;</decl_stmt>
+        
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TimeZoneNumberRule&lt;/code&gt; with the specified properties.
+         * 
+         * @param colon add colon between HH and MM in the output if &lt;code&gt;true&lt;/code&gt;
+         */</comment>
+        <constructor><name>TimeZoneNumberRule</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>colon</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mColon</name> = <name>colon</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>estimateLength</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>5</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>appendTo</name><parameter_list>(<param><decl><type><name>StringBuffer</name></type> <name>buffer</name></decl></param>, <param><decl><type><name>Calendar</name></type> <name>calendar</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>offset</name> =<init> <expr><call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>ZONE_OFFSET</name></name></expr></argument>)</argument_list></call> + <call><name><name>calendar</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>Calendar</name>.<name>DST_OFFSET</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <if>if <condition>(<expr><name>offset</name> &lt; 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'-'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>offset</name> = -<name>offset</name></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>'+'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            
+            <decl_stmt><decl><type><name>int</name></type> <name>hours</name> =<init> <expr><name>offset</name> / (60 * 60 * 1000)</expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>hours</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>hours</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            <if>if <condition>(<expr><name>mColon</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>':'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            
+            <decl_stmt><decl><type><name>int</name></type> <name>minutes</name> =<init> <expr><name>offset</name> / (60 * 1000) - 60 * <name>hours</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>minutes</name> / 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><call>(<name>char</name>)<argument_list>(<argument><expr><name>minutes</name> % 10 + '0'</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>            
+    }</block></class>
+
+    <comment type="line">// ----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Inner class that acts as a compound key for time zone names.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TimeZoneDisplayKey</name> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TimeZone</name></type> <name>mTimeZone</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>mStyle</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Locale</name></type> <name>mLocale</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;TimeZoneDisplayKey&lt;/code&gt; with the specified properties.
+         *  
+         * @param timeZone the time zone
+         * @param daylight adjust the style for daylight saving time if &lt;code&gt;true&lt;/code&gt;
+         * @param style the timezone style
+         * @param locale the timezone locale
+         */</comment>
+        <constructor><name>TimeZoneDisplayKey</name><parameter_list>(<param><decl><type><name>TimeZone</name></type> <name>timeZone</name></decl></param>,
+                           <param><decl><type><name>boolean</name></type> <name>daylight</name></decl></param>, <param><decl><type><name>int</name></type> <name>style</name></decl></param>, <param><decl><type><name>Locale</name></type> <name>locale</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mTimeZone</name> = <name>timeZone</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>daylight</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>style</name> |= 0x80000000</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name>mStyle</name> = <name>style</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mLocale</name> = <name>locale</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>mStyle</name> * 31 + <call><name><name>mLocale</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>this</name> == <name>obj</name></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>TimeZoneDisplayKey</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>TimeZoneDisplayKey</name></type> <name>other</name> =<init> <expr>(<name>TimeZoneDisplayKey</name>)<name>obj</name></expr></init></decl>;</decl_stmt>
+                <return>return
+                    <expr><call><name><name>mTimeZone</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>mTimeZone</name></name></expr></argument>)</argument_list></call> &amp;&amp;
+                    <name>mStyle</name> == <name><name>other</name>.<name>mStyle</name></name> &amp;&amp;
+                    <call><name><name>mLocale</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>other</name>.<name>mLocale</name></name></expr></argument>)</argument_list></call></expr>;</return>
+            }</block></then></if>
+            <return>return <expr>false</expr>;</return>
+        }</block></function>
+    }</block></class>
+
+    <comment type="line">// ----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Helper class for creating compound objects.&lt;/p&gt;
+     *
+     * &lt;p&gt;One use for this class is to create a hashtable key
+     * out of multiple objects.&lt;/p&gt;
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>Pair</name> <block>{
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>mObj1</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>mObj2</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Constructs an instance of &lt;code&gt;Pair&lt;/code&gt; to hold the specified objects.
+         * @param obj1 one object in the pair
+         * @param obj2 second object in the pair
+         */</comment>
+        <constructor><specifier>public</specifier> <name>Pair</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj1</name></decl></param>, <param><decl><type><name>Object</name></type> <name>obj2</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mObj1</name> = <name>obj1</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>mObj2</name> = <name>obj2</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+            <if>if <condition>(<expr><name>this</name> == <name>obj</name></expr>)</condition><then> <block>{
+                <return>return <expr>true</expr>;</return>
+            }</block></then></if>
+
+            <if>if <condition>(<expr>!(<name>obj</name> <name>instanceof</name> <name>Pair</name>)</expr>)</condition><then> <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+
+            <decl_stmt><decl><type><name>Pair</name></type> <name>key</name> =<init> <expr>(<name>Pair</name>)<name>obj</name></expr></init></decl>;</decl_stmt>
+
+            <return>return
+                <expr>(<name>mObj1</name> == <name>null</name> ?
+                 <name><name>key</name>.<name>mObj1</name></name> == <name>null</name> : <call><name><name>mObj1</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>key</name>.<name>mObj1</name></name></expr></argument>)</argument_list></call>) &amp;&amp;
+                (<name>mObj2</name> == <name>null</name> ?
+                 <name><name>key</name>.<name>mObj2</name></name> == <name>null</name> : <call><name><name>mObj2</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>key</name>.<name>mObj2</name></name></expr></argument>)</argument_list></call>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+            <return>return
+                <expr>(<name>mObj1</name> == <name>null</name> ? 0 : <call><name><name>mObj1</name>.<name>hashCode</name></name><argument_list>()</argument_list></call>) +
+                (<name>mObj2</name> == <name>null</name> ? 0 : <call><name><name>mObj2</name>.<name>hashCode</name></name><argument_list>()</argument_list></call>)</expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * {@inheritDoc}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>"[" + <name>mObj1</name> + ':' + <name>mObj2</name> + ']'</expr>;</return>
+        }</block></function>
+    }</block></class>
+
+}</block></class>
+</unit>

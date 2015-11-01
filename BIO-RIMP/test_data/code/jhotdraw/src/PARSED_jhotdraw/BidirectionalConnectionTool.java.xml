@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jhotdraw\src\main\java\org\jhotdraw\draw\BidirectionalConnectionTool.java"><comment type="block">/*
+ * @(#)BidirectionalConnectionTool.java  2.1  2007-05-18
+ *
+ * Copyright (c) 1996-2007 by the original authors of JHotDraw
+ * and all its contributors.
+ * All rights reserved.
+ *
+ * The copyright of this software is owned by the authors and  
+ * contributors of the JHotDraw project ("the copyright holders").  
+ * You may not use, copy or modify this software, except in  
+ * accordance with the license agreement you entered into with  
+ * the copyright holders. For details see accompanying license terms. 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jhotdraw</name>.<name>draw</name></name>;</package>
+
+<import>import <name><name>org</name>.<name>jhotdraw</name>.<name>util</name></name>.*;</import>
+<import>import <name><name>org</name>.<name>jhotdraw</name>.<name>undo</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>event</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>util</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>dnd</name></name>.*;</import>
+<comment type="javadoc">/**
+ * A tool that can be used to connect figures, to split
+ * connections, and to join two segments of a connection.
+ * ConnectionTools turns the visibility of the Connectors
+ * on when it enters a figure.
+ * The connection object to be created is specified by a prototype.
+ * &lt;p&gt;
+ * FIXME: Use a Tracker instance for each state of this tool.
+ *
+ * @author Werner Randelshofer
+ * @version 2.1 2007-05-18 Changed due to changes in the canConnect methods
+ * of the ConnectionFigure interface.
+ * &lt;br&gt;2.0 2006-01-14 Changed to support double precision coordinates.
+ * &lt;br&gt;1.0 2003-12-01 Derived from JHotDraw 5.4b1.
+ */</comment>
+<class><specifier>public</specifier> class <name>BidirectionalConnectionTool</name> <super><extends>extends <name>AbstractTool</name></extends> <implements>implements <name>FigureListener</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>AttributeKey</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>attributes</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * the anchor point of the interaction
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Connector</name></type>   <name>startConnector</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Connector</name></type>   <name>endConnector</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Connector</name></type>   <name>targetConnector</name></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Figure</name></type> <name>target</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * the currently created figure
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ConnectionFigure</name></type>  <name>connection</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * the currently manipulated connection point
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type>  <name>splitPoint</name></decl>;</decl_stmt>
+    <comment type="javadoc">/**
+     * the currently edited connection
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ConnectionFigure</name></type>  <name>editedConnection</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * the figure that was actually added
+     * Note, this can be a different figure from the one which has been created.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Figure</name></type> <name>createdFigure</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * the prototypical figure that is used to create new
+     * connections.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ConnectionFigure</name></type>  <name>prototype</name></decl>;</decl_stmt>
+    
+    
+    
+    <comment type="javadoc">/** Creates a new instance. */</comment>
+    <constructor><specifier>public</specifier> <name>BidirectionalConnectionTool</name><parameter_list>(<param><decl><type><name>ConnectionFigure</name></type> <name>prototype</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>prototype</name></name> = <name>prototype</name></expr>;</expr_stmt>
+    }</block></constructor>
+    <constructor><specifier>public</specifier> <name>BidirectionalConnectionTool</name><parameter_list>(<param><decl><type><name>ConnectionFigure</name></type> <name>prototype</name></decl></param>, <param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>AttributeKey</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>attributes</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>prototype</name></name> = <name>prototype</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>attributes</name></name> = <name>attributes</name></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>mouseMoved</name><parameter_list>(<param><decl><type><name>MouseEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>trackConnectors</name><argument_list>(<argument><expr><name>evt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Manipulates connections in a context dependent way. If the
+     * mouse down hits a figure start a new connection. If the mousedown
+     * hits a connection split a segment or join two segments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>mousePressed</name><parameter_list>(<param><decl><type><name>MouseEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>mousePressed</name></name><argument_list>(<argument><expr><name>evt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>ap</name> =<init> <expr><call><name>viewToDrawing</name><argument_list>(<argument><expr><name>anchor</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>setTargetFigure</name><argument_list>(<argument><expr><call><name>findConnectionStart</name><argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><call><name>getDrawing</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <if>if <condition>(<expr><call><name>getTargetFigure</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setStartConnector</name><argument_list>(<argument><expr><call><name>findConnector</name><argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>target</name></expr></argument>, <argument><expr><name>prototype</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>getStartConnector</name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp; <call><name><name>prototype</name>.<name>canConnect</name></name><argument_list>(<argument><expr><call><name>getTargetConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name> =<init> <expr><call><name>getStartConnector</name><argument_list>()</argument_list></call>.<call><name>getAnchor</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>setConnection</name><argument_list>(<argument><expr><call><name>createFigure</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <decl_stmt><decl><type><name>ConnectionFigure</name></type> <name>cf</name> =<init> <expr><call><name>getConnection</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>cf</name>.<name>setBounds</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>cf</name>.<name>addFigureListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>setCreatedFigure</name><argument_list>(<argument><expr><name>cf</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Adjust the created connection or split segment.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>mouseDragged</name><parameter_list>(<param><decl><type><name><name>java</name>.<name>awt</name>.<name>event</name>.<name>MouseEvent</name></name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name> =<init> <expr><call><name>viewToDrawing</name><argument_list>(<argument><expr>new <call><name>Point</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getX</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>e</name>.<name>getY</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>getConnection</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>trackConnectors</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            <if>if <condition>(<expr><call><name>getTargetConnector</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>p</name> = <call><name>getTargetConnector</name><argument_list>()</argument_list></call>.<call><name>getAnchor</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>setEndPoint</name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><name>editedConnection</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>editedConnection</name>.<name>setPoint</name></name><argument_list>(<argument><expr><name>splitPoint</name></expr></argument>, <argument><expr><name>p</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Connects the figures if the mouse is released over another
+     * figure.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>mouseReleased</name><parameter_list>(<param><decl><type><name>MouseEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Figure</name></type> <name>c</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name> =<init> <expr><call><name>viewToDrawing</name><argument_list>(<argument><expr>new <call><name>Point</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getX</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>e</name>.<name>getY</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name>getStartConnector</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>findTarget</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>getDrawing</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr><name>c</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setEndConnector</name><argument_list>(<argument><expr><call><name>findConnector</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>prototype</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name>getEndConnector</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>CompositeEdit</name></type> <name>creationEdit</name> =<init> <expr>new <call><name>CompositeEdit</name><argument_list>(<argument><expr>"Verbindung erstellen"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>getDrawing</name><argument_list>()</argument_list></call>.<call><name>fireUndoableEditHappened</name><argument_list>(<argument><expr><name>creationEdit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>getDrawing</name><argument_list>()</argument_list></call>.<call><name>add</name><argument_list>(<argument><expr><call><name>getConnection</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>canConnect</name><argument_list>(<argument><expr><call><name>getStartConnector</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name>getEndConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>setStartConnector</name><argument_list>(<argument><expr><call><name>getStartConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>setEndConnector</name><argument_list>(<argument><expr><call><name>getEndConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>setStartConnector</name><argument_list>(<argument><expr><call><name>getEndConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>setEndConnector</name><argument_list>(<argument><expr><call><name>getStartConnector</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>updateConnection</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>removeFigureListener</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>getDrawing</name><argument_list>()</argument_list></call>.<call><name>fireUndoableEditHappened</name><argument_list>(<argument><expr><name>creationEdit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name>getConnection</name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>getDrawing</name><argument_list>()</argument_list></call>.<call><name>remove</name><argument_list>(<argument><expr><call><name>getConnection</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        
+        <expr_stmt><expr><call><name>setConnection</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setStartConnector</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setEndConnector</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setCreatedFigure</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>fireToolDone</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>activate</name><parameter_list>(<param><decl><type><name>DrawingEditor</name></type> <name>editor</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>activate</name></name><argument_list>(<argument><expr><name>editor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>getView</name><argument_list>()</argument_list></call>.<call><name>clearSelection</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>deactivate</name><parameter_list>(<param><decl><type><name>DrawingEditor</name></type> <name>editor</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>deactivate</name></name><argument_list>(<argument><expr><name>editor</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <comment type="line">//--</comment>
+    <comment type="javadoc">/**
+     * Creates the ConnectionFigure. By default the figure prototype is
+     * cloned.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>ConnectionFigure</name></type> <name>createFigure</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ConnectionFigure</name></type> <name>f</name> =<init> <expr>(<name>ConnectionFigure</name>) <call><name><name>prototype</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>getEditor</name><argument_list>()</argument_list></call>.<call><name>applyDefaultAttributesTo</name><argument_list>(<argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>attributes</name> != <name>null</name></expr>)</condition><then> <block>{
+            <for>for (<init><decl><type><name><name>Map</name>.<name><name>Entry</name><argument_list>&lt;<argument><name>AttributeKey</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></name></type> <name>entry</name> :<range> <expr><call><name><name>attributes</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+                <expr_stmt><expr><call><name><name>f</name>.<name>setAttribute</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+        <return>return <expr><name>f</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Finds a connectable figure target.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>Figure</name></type> <name>findSource</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Drawing</name></type> <name>drawing</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>findConnectableFigure</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>drawing</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Finds a connectable figure target.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>Figure</name></type> <name>findTarget</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Drawing</name></type> <name>drawing</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Figure</name></type> <name>target</name> =<init> <expr><call><name>findConnectableFigure</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>drawing</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Connector</name></type> <name>targetConnector</name> =<init> <expr>(<name>target</name> == <name>null</name>) ? <name>null</name> : <call><name><name>target</name>.<name>findConnector</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>prototype</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Connector</name></type> <name>startConnector</name> =<init> <expr><call><name>getStartConnector</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><name>targetConnector</name> != <name>null</name>
+        &amp;&amp; <call><name>getConnection</name><argument_list>()</argument_list></call> != <name>null</name>
+        &amp;&amp; <call><name><name>target</name>.<name>canConnect</name></name><argument_list>()</argument_list></call>
+        &amp;&amp; (<call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>canConnect</name><argument_list>(<argument><expr><name>startConnector</name></expr></argument>, <argument><expr><name>targetConnector</name></expr></argument>)</argument_list></call> || 
+                <call><name>getConnection</name><argument_list>()</argument_list></call>.<call><name>canConnect</name><argument_list>(<argument><expr><name>targetConnector</name></expr></argument>, <argument><expr><name>startConnector</name></expr></argument>)</argument_list></call>)</expr>
+        )</condition><then> <block>{
+            <return>return <expr><name>target</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Finds an existing connection figure.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>ConnectionFigure</name></type> <name>findConnection</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Drawing</name></type> <name>drawing</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>Figure</name></type> <name>f</name> :<range> <expr><call><name><name>drawing</name>.<name>getFiguresFrontToBack</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+            <decl_stmt><decl><type><name>Figure</name></type> <name>fInside</name> =<init> <expr><call><name><name>f</name>.<name>findFigureInside</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>fInside</name> != <name>null</name> &amp;&amp; (<name>fInside</name> <name>instanceof</name> <name>ConnectionFigure</name>)</expr>)</condition><then> <block>{
+                <return>return <expr>(<name>ConnectionFigure</name>) <name>fInside</name></expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setConnection</name><parameter_list>(<param><decl><type><name>ConnectionFigure</name></type> <name>newConnection</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>connection</name> = <name>newConnection</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Gets the connection which is created by this tool
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>ConnectionFigure</name></type> <name>getConnection</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>connection</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>trackConnectors</name><parameter_list>(<param><decl><type><name>MouseEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name> =<init> <expr><call><name>viewToDrawing</name><argument_list>(<argument><expr>new <call><name>Point</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getX</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>e</name>.<name>getY</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Figure</name></type> <name>c</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        
+        <if>if <condition>(<expr><call><name>getStartConnector</name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>findSource</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>getDrawing</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then>
+        <else>else <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>findTarget</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><call><name>getDrawing</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <decl_stmt><decl><type><name>Connector</name></type> <name>cc</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>c</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>cc</name> = <call><name>findConnector</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>c</name></expr></argument>, <argument><expr><name>prototype</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>cc</name> != <call><name>getTargetConnector</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setTargetConnector</name><argument_list>(<argument><expr><name>cc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <comment type="line">// track the figure containing the mouse</comment>
+        <if>if <condition>(<expr><name>c</name> != <call><name>getTargetFigure</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setTargetFigure</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>Connector</name></type> <name>targetConnector</name> =<init> <expr><call><name>getTargetConnector</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        }</block></then></if>
+    }</block></function>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>draw</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>createdFigure</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>createdFigure</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>Connector</name></type> <name>findConnector</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Figure</name></type> <name>target</name></decl></param>, <param><decl><type><name>ConnectionFigure</name></type> <name>f</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>target</name>.<name>findConnector</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>f</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Finds a connection start figure.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>Figure</name></type> <name>findConnectionStart</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Drawing</name></type> <name>drawing</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Figure</name></type> <name>target</name> =<init> <expr><call><name>findConnectableFigure</name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>drawing</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>(<name>target</name> != <name>null</name>) &amp;&amp; <call><name><name>target</name>.<name>canConnect</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><name>target</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>Figure</name></type> <name>findConnectableFigure</name><parameter_list>(<param><decl><type><name><name>Point2D</name>.<name>Double</name></name></type> <name>p</name></decl></param>, <param><decl><type><name>Drawing</name></type> <name>drawing</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>drawing</name>.<name>findFigureExcept</name></name><argument_list>(<argument><expr><name>p</name></expr></argument>, <argument><expr><name>createdFigure</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setStartConnector</name><parameter_list>(<param><decl><type><name>Connector</name></type> <name>newStartConnector</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>startConnector</name> = <name>newStartConnector</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>Connector</name></type> <name>getStartConnector</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>startConnector</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setEndConnector</name><parameter_list>(<param><decl><type><name>Connector</name></type> <name>newEndConnector</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>endConnector</name> = <name>newEndConnector</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>Connector</name></type> <name>getEndConnector</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>endConnector</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setTargetConnector</name><parameter_list>(<param><decl><type><name>Connector</name></type> <name>newTargetConnector</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>targetConnector</name> = <name>newTargetConnector</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>Connector</name></type> <name>getTargetConnector</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>targetConnector</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setTargetFigure</name><parameter_list>(<param><decl><type><name>Figure</name></type> <name>newTarget</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>target</name> = <name>newTarget</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>protected</specifier> <name>Figure</name></type> <name>getTargetFigure</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>target</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Gets the figure that was actually added
+     * Note, this can be a different figure from the one which has been created.
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>Figure</name></type> <name>getCreatedFigure</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>createdFigure</name></expr>;</return>
+    }</block></function>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setCreatedFigure</name><parameter_list>(<param><decl><type><name>Figure</name></type> <name>newCreatedFigure</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>createdFigure</name> = <name>newCreatedFigure</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>areaInvalidated</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>evt</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>fireAreaInvalidated</name><argument_list>(<argument><expr><call><name><name>evt</name>.<name>getInvalidatedArea</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>figureAdded</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>figureChanged</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>figureRemoved</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>figureRequestRemove</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>attributeChanged</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>figureHandlesChanged</name><parameter_list>(<param><decl><type><name>FigureEvent</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    }</block></function>
+    
+}</block></class>
+</unit>

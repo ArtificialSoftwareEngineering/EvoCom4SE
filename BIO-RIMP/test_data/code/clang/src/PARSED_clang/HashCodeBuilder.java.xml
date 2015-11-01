@@ -1,0 +1,1010 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\builder\HashCodeBuilder.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>builder</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>AccessibleObject</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Modifier</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashSet</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ArrayUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;
+ * Assists in implementing {@link Object#hashCode()} methods.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * This class enables a good &lt;code&gt;hashCode&lt;/code&gt; method to be built for any class. It follows the rules laid out in
+ * the book &lt;a href="http://java.sun.com/docs/books/effective/index.html"&gt;Effective Java&lt;/a&gt; by Joshua Bloch. Writing a
+ * good &lt;code&gt;hashCode&lt;/code&gt; method is actually quite difficult. This class aims to simplify the process.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * The following is the approach taken. When appending a data field, the current total is multiplied by the 
+ * multiplier then a relevant value 
+ * for that data type is added. For example, if the current hashCode is 17, and the multiplier is 37, then 
+ * appending the integer 45 will create a hashcode of 674, namely 17 * 37 + 45. 
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * All relevant fields from the object should be included in the &lt;code&gt;hashCode&lt;/code&gt; method. Derived fields may be
+ * excluded. In general, any field used in the &lt;code&gt;equals&lt;/code&gt; method must be used in the &lt;code&gt;hashCode&lt;/code&gt;
+ * method.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * To use this class write code as follows:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * public class Person {
+ *   String name;
+ *   int age;
+ *   boolean smoker;
+ *   ...
+ *
+ *   public int hashCode() {
+ *     // you pick a hard-coded, randomly chosen, non-zero, odd number
+ *     // ideally different for each class
+ *     return new HashCodeBuilder(17, 37).
+ *       append(name).
+ *       append(age).
+ *       append(smoker).
+ *       toHashCode();
+ *   }
+ * }
+ * &lt;/pre&gt;
+ * 
+ * &lt;p&gt;
+ * If required, the superclass &lt;code&gt;hashCode()&lt;/code&gt; can be added using {@link #appendSuper}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Alternatively, there is a method that uses reflection to determine the fields to test. Because these fields are
+ * usually private, the method, &lt;code&gt;reflectionHashCode&lt;/code&gt;, uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+ * to change the visibility of the fields. This will fail under a security manager, unless the appropriate permissions
+ * are set up correctly. It is also slower than testing explicitly.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A typical invocation for this method would look like:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * public int hashCode() {
+ *   return HashCodeBuilder.reflectionHashCode(this);
+ * }
+ * &lt;/pre&gt;
+ * 
+ * @author Apache Software Foundation
+ * @author Gary Gregory
+ * @author Pete Gieser
+ * @since 1.0
+ * @version $Id: HashCodeBuilder.java 1057009 2011-01-09 19:48:06Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>HashCodeBuilder</name> <block>{
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * A registry of objects used by reflection methods to detect cyclical object references and avoid infinite loops.
+     * &lt;/p&gt;
+     * 
+     * @since 2.3
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>ThreadLocal</name></type> <name>REGISTRY</name> =<init> <expr>new <call><name>ThreadLocal</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="block">/*
+     * N.B. we cannot store the actual objects in a HashSet, as that would use the very hashCode()
+     * we are in the process of calculating.
+     * 
+     * So we generate a one-to-one mapping from the original object to a new object.
+     * 
+     * Now HashSet uses equals() to determine if two elements with the same hashcode really
+     * are equal, so we also need to ensure that the replacement objects are only equal
+     * if the original objects are identical.
+     * 
+     * The original implementation (2.4 and before) used the System.indentityHashCode()
+     * method - however this is not guaranteed to generate unique ids (e.g. LANG-459)
+     *  
+     * We now use the IDKey helper class (adapted from org.apache.axis.utils.IDKey)
+     * to disambiguate the duplicate ids.
+     */</comment>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Returns the registry of objects being traversed by the reflection methods in the current thread.
+     * &lt;/p&gt;
+     * 
+     * @return Set the registry of objects being traversed
+     * @since 2.3
+     */</comment>
+    <function><type><specifier>static</specifier> <name>Set</name></type> <name>getRegistry</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>(<name>Set</name>) <call><name><name>REGISTRY</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Returns &lt;code&gt;true&lt;/code&gt; if the registry contains the given object. Used by the reflection methods to avoid
+     * infinite loops.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            The object to lookup in the registry.
+     * @return boolean &lt;code&gt;true&lt;/code&gt; if the registry contains the given object.
+     * @since 2.3
+     */</comment>
+    <function><type><specifier>static</specifier> <name>boolean</name></type> <name>isRegistered</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Set</name></type> <name>registry</name> =<init> <expr><call><name>getRegistry</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>registry</name> != <name>null</name> &amp;&amp; <call><name><name>registry</name>.<name>contains</name></name><argument_list>(<argument><expr>new <call><name>IDKey</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Appends the fields and values defined by the given object of the given &lt;code&gt;Class&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the object to append details of
+     * @param clazz
+     *            the class to append details of
+     * @param builder
+     *            the builder to append to
+     * @param useTransients
+     *            whether to use transient fields
+     * @param excludeFields
+     *            Collection of String field names to exclude from use in calculation of hash code
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>reflectionAppend</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>, <param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>, <param><decl><type><name>HashCodeBuilder</name></type> <name>builder</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>useTransients</name></decl></param>,
+            <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name>isRegistered</name><argument_list>(<argument><expr><name>object</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>register</name><argument_list>(<argument><expr><name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>Field</name><index>[]</index></type> <name>fields</name> =<init> <expr><call><name><name>clazz</name>.<name>getDeclaredFields</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>AccessibleObject</name>.<name>setAccessible</name></name><argument_list>(<argument><expr><name>fields</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fields</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <decl_stmt><decl><type><name>Field</name></type> <name>field</name> =<init> <expr><name><name>fields</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr>!<call><name><name>ArrayUtils</name>.<name>contains</name></name><argument_list>(<argument><expr><name>excludeFields</name></expr></argument>, <argument><expr><call><name><name>field</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+                    &amp;&amp; (<call><name><name>field</name>.<name>getName</name></name><argument_list>()</argument_list></call>.<call><name>indexOf</name><argument_list>(<argument><expr>'$'</expr></argument>)</argument_list></call> == -1)
+                    &amp;&amp; (<name>useTransients</name> || !<call><name><name>Modifier</name>.<name>isTransient</name></name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>)
+                    &amp;&amp; (!<call><name><name>Modifier</name>.<name>isStatic</name></name><argument_list>(<argument><expr><call><name><name>field</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                    <try>try <block>{
+                        <decl_stmt><decl><type><name>Object</name></type> <name>fieldValue</name> =<init> <expr><call><name><name>field</name>.<name>get</name></name><argument_list>(<argument><expr><name>object</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><name>fieldValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>e</name></decl></param>) <block>{
+                        <comment type="line">// this can't happen. Would get a Security exception instead</comment>
+                        <comment type="line">// throw a runtime exception in case the impossible happens.</comment>
+                        <throw>throw <expr>new <call><name>InternalError</name><argument_list>(<argument><expr>"Unexpected IllegalAccessException"</expr></argument>)</argument_list></call></expr>;</throw>
+                    }</block></catch></try>
+                }</block></then></if>
+            }</block></for>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name>unregister</name><argument_list>(<argument><expr><name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Transient members will be not be used, as they are likely derived fields, and not part of the value of the
+     * &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Two randomly chosen, non-zero, odd numbers must be passed in. Ideally these should be different for each class,
+     * however this is not vital. Prime numbers are preferred, especially for the multiplier.
+     * &lt;/p&gt;
+     * 
+     * @param initialNonZeroOddNumber
+     *            a non-zero, odd number used as the initial value
+     * @param multiplierNonZeroOddNumber
+     *            a non-zero, odd number used as the multiplier
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the Object is &lt;code&gt;null&lt;/code&gt;
+     * @throws IllegalArgumentException
+     *             if the number is zero or even
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialNonZeroOddNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>multiplierNonZeroOddNumber</name></decl></param>, <param><decl><type><name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr><name>initialNonZeroOddNumber</name></expr></argument>, <argument><expr><name>multiplierNonZeroOddNumber</name></expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * If the TestTransients parameter is set to &lt;code&gt;true&lt;/code&gt;, transient members will be tested, otherwise they
+     * are ignored, as they are likely derived fields, and not part of the value of the &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Two randomly chosen, non-zero, odd numbers must be passed in. Ideally these should be different for each class,
+     * however this is not vital. Prime numbers are preferred, especially for the multiplier.
+     * &lt;/p&gt;
+     * 
+     * @param initialNonZeroOddNumber
+     *            a non-zero, odd number used as the initial value
+     * @param multiplierNonZeroOddNumber
+     *            a non-zero, odd number used as the multiplier
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param testTransients
+     *            whether to include transient fields
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the Object is &lt;code&gt;null&lt;/code&gt;
+     * @throws IllegalArgumentException
+     *             if the number is zero or even
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialNonZeroOddNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>multiplierNonZeroOddNumber</name></decl></param>, <param><decl><type><name>Object</name></type> <name>object</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>testTransients</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr><name>initialNonZeroOddNumber</name></expr></argument>, <argument><expr><name>multiplierNonZeroOddNumber</name></expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr><name>testTransients</name></expr></argument>, <argument><expr><name>null</name></expr></argument>,
+                <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Calls {@link #reflectionHashCode(int, int, Object, boolean, Class, String[])} with excludeFields set to
+     * &lt;code&gt;null&lt;/code&gt;.
+     * 
+     * @param initialNonZeroOddNumber
+     *            a non-zero, odd number used as the initial value
+     * @param multiplierNonZeroOddNumber
+     *            a non-zero, odd number used as the multiplier
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param testTransients
+     *            whether to include transient fields
+     * @param reflectUpToClass
+     *            the superclass to reflect up to (inclusive), may be &lt;code&gt;null&lt;/code&gt;
+     * @return int hash code
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialNonZeroOddNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>multiplierNonZeroOddNumber</name></decl></param>, <param><decl><type><name>Object</name></type> <name>object</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>testTransients</name></decl></param>, <param><decl><type><name>Class</name></type> <name>reflectUpToClass</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr><name>initialNonZeroOddNumber</name></expr></argument>, <argument><expr><name>multiplierNonZeroOddNumber</name></expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr><name>testTransients</name></expr></argument>,
+                <argument><expr><name>reflectUpToClass</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * If the TestTransients parameter is set to &lt;code&gt;true&lt;/code&gt;, transient members will be tested, otherwise they
+     * are ignored, as they are likely derived fields, and not part of the value of the &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be included. Superclass fields will be included up to and including the specified
+     * superclass. A null superclass is treated as java.lang.Object.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Two randomly chosen, non-zero, odd numbers must be passed in. Ideally these should be different for each class,
+     * however this is not vital. Prime numbers are preferred, especially for the multiplier.
+     * &lt;/p&gt;
+     * 
+     * @param initialNonZeroOddNumber
+     *            a non-zero, odd number used as the initial value
+     * @param multiplierNonZeroOddNumber
+     *            a non-zero, odd number used as the multiplier
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param testTransients
+     *            whether to include transient fields
+     * @param reflectUpToClass
+     *            the superclass to reflect up to (inclusive), may be &lt;code&gt;null&lt;/code&gt;
+     * @param excludeFields
+     *            array of field names to exclude from use in calculation of hash code
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the Object is &lt;code&gt;null&lt;/code&gt;
+     * @throws IllegalArgumentException
+     *             if the number is zero or even
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialNonZeroOddNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>multiplierNonZeroOddNumber</name></decl></param>, <param><decl><type><name>Object</name></type> <name>object</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>testTransients</name></decl></param>, <param><decl><type><name>Class</name></type> <name>reflectUpToClass</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><name>object</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The object to build a hash code for must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>HashCodeBuilder</name></type> <name>builder</name> =<init> <expr>new <call><name>HashCodeBuilder</name><argument_list>(<argument><expr><name>initialNonZeroOddNumber</name></expr></argument>, <argument><expr><name>multiplierNonZeroOddNumber</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Class</name></type> <name>clazz</name> =<init> <expr><call><name><name>object</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>reflectionAppend</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>clazz</name></expr></argument>, <argument><expr><name>builder</name></expr></argument>, <argument><expr><name>testTransients</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>clazz</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp; <name>clazz</name> != <name>reflectUpToClass</name></expr>)</condition> <block>{
+            <expr_stmt><expr><name>clazz</name> = <call><name><name>clazz</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>reflectionAppend</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><name>clazz</name></expr></argument>, <argument><expr><name>builder</name></expr></argument>, <argument><expr><name>testTransients</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><call><name><name>builder</name>.<name>toHashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * This constructor uses two hard coded choices for the constants needed to build a hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Transient members will be not be used, as they are likely derived fields, and not part of the value of the
+     * &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the object is &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr>17</expr></argument>, <argument><expr>37</expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * This constructor uses two hard coded choices for the constants needed to build a hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;P&gt;
+     * If the TestTransients parameter is set to &lt;code&gt;true&lt;/code&gt;, transient members will be tested, otherwise they
+     * are ignored, as they are likely derived fields, and not part of the value of the &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param testTransients
+     *            whether to include transient fields
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the object is &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>testTransients</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr>17</expr></argument>, <argument><expr>37</expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr><name>testTransients</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * This constructor uses two hard coded choices for the constants needed to build a hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Transient members will be not be used, as they are likely derived fields, and not part of the value of the
+     * &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param excludeFields
+     *            Collection of String field names to exclude from use in calculation of hash code
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the object is &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>, <param><decl><type><name>Collection</name></type> <comment type="block">/* String */</comment><name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr><name>object</name></expr></argument>, <argument><expr><call><name><name>ReflectionToStringBuilder</name>.<name>toNoNullStringArray</name></name><argument_list>(<argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// -------------------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * This method uses reflection to build a valid hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * This constructor uses two hard coded choices for the constants needed to build a hash code.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * It uses &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt; to gain access to private fields. This means that it will
+     * throw a security exception if run under a security manager, if the permissions are not set up correctly. It is
+     * also not as efficient as testing explicitly.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Transient members will be not be used, as they are likely derived fields, and not part of the value of the
+     * &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Static fields will not be tested. Superclass fields will be included.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the Object to create a &lt;code&gt;hashCode&lt;/code&gt; for
+     * @param excludeFields
+     *            array of field names to exclude from use in calculation of hash code
+     * @return int hash code
+     * @throws IllegalArgumentException
+     *             if the object is &lt;code&gt;null&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionHashCode</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionHashCode</name><argument_list>(<argument><expr>17</expr></argument>, <argument><expr>37</expr></argument>, <argument><expr><name>object</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Registers the given object. Used by the reflection methods to avoid infinite loops.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            The object to register.
+     */</comment>
+    <function><type><specifier>static</specifier> <name>void</name></type> <name>register</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <synchronized>synchronized (<expr><name><name>HashCodeBuilder</name>.<name><name/></name></name>class</expr>) <block>{
+            <if>if <condition>(<expr><call><name>getRegistry</name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>REGISTRY</name>.<name>set</name></name><argument_list>(<argument><expr>new <call><name>HashSet</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></synchronized>
+        <expr_stmt><expr><call><name>getRegistry</name><argument_list>()</argument_list></call>.<call><name>add</name><argument_list>(<argument><expr>new <call><name>IDKey</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Unregisters the given object.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Used by the reflection methods to avoid infinite loops.
+     * 
+     * @param value
+     *            The object to unregister.
+     * @since 2.3
+     */</comment>
+    <function><type><specifier>static</specifier> <name>void</name></type> <name>unregister</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Set</name></type> <name>registry</name> =<init> <expr><call><name>getRegistry</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>registry</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>registry</name>.<name>remove</name></name><argument_list>(<argument><expr>new <call><name>IDKey</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <synchronized>synchronized (<expr><name><name>HashCodeBuilder</name>.<name><name/></name></name>class</expr>) <block>{
+                <comment type="line">//read again</comment>
+                <expr_stmt><expr><name>registry</name> = <call><name>getRegistry</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>registry</name> != <name>null</name> &amp;&amp; <call><name><name>registry</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>REGISTRY</name>.<name>set</name></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></synchronized>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Constant to use in building the hashCode.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type> <name>iConstant</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Running total of the hashCode.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>iTotal</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Uses two hard coded choices for the constants needed to build a &lt;code&gt;hashCode&lt;/code&gt;.
+     * &lt;/p&gt;
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HashCodeBuilder</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name>iConstant</name> = 37</expr>;</expr_stmt>
+        <expr_stmt><expr><name>iTotal</name> = 17</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Two randomly chosen, non-zero, odd numbers must be passed in. Ideally these should be different for each class,
+     * however this is not vital.
+     * &lt;/p&gt;
+     * 
+     * &lt;p&gt;
+     * Prime numbers are preferred, especially for the multiplier.
+     * &lt;/p&gt;
+     * 
+     * @param initialNonZeroOddNumber
+     *            a non-zero, odd number used as the initial value
+     * @param multiplierNonZeroOddNumber
+     *            a non-zero, odd number used as the multiplier
+     * @throws IllegalArgumentException
+     *             if the number is zero or even
+     */</comment>
+    <constructor><specifier>public</specifier> <name>HashCodeBuilder</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialNonZeroOddNumber</name></decl></param>, <param><decl><type><name>int</name></type> <name>multiplierNonZeroOddNumber</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>initialNonZeroOddNumber</name> == 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"HashCodeBuilder requires a non zero initial value"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>initialNonZeroOddNumber</name> % 2 == 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"HashCodeBuilder requires an odd initial value"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>multiplierNonZeroOddNumber</name> == 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"HashCodeBuilder requires a non zero multiplier"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>multiplierNonZeroOddNumber</name> % 2 == 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"HashCodeBuilder requires an odd multiplier"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name>iConstant</name> = <name>multiplierNonZeroOddNumber</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>iTotal</name> = <name>initialNonZeroOddNumber</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;boolean&lt;/code&gt;.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * This adds &lt;code&gt;1&lt;/code&gt; when true, and &lt;code&gt;0&lt;/code&gt; when false to the &lt;code&gt;hashCode&lt;/code&gt;.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * This is in contrast to the standard &lt;code&gt;java.lang.Boolean.hashCode&lt;/code&gt; handling, which computes
+     * a &lt;code&gt;hashCode&lt;/code&gt; value of &lt;code&gt;1231&lt;/code&gt; for &lt;code&gt;java.lang.Boolean&lt;/code&gt; instances
+     * that represent &lt;code&gt;true&lt;/code&gt; or &lt;code&gt;1237&lt;/code&gt; for &lt;code&gt;java.lang.Boolean&lt;/code&gt; instances
+     * that represent &lt;code&gt;false&lt;/code&gt;.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * This is in accordance with the &lt;quote&gt;Effective Java&lt;/quote&gt; design.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the boolean to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + (<name>value</name> ? 0 : 1)</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;boolean&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>boolean</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// -------------------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;byte&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the byte to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>byte</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <name>value</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// -------------------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;byte&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;char&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the char to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>char</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <name>value</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;char&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;double&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the double to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>double</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>append</name><argument_list>(<argument><expr><call><name><name>Double</name>.<name>doubleToLongBits</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;double&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>double</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;float&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the float to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>float</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <call><name><name>Float</name>.<name>floatToIntBits</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;float&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>float</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for an &lt;code&gt;int&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the int to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>int</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <name>value</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for an &lt;code&gt;int&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;long&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the long to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <comment type="line">// NOTE: This method uses &gt;&gt; and not &gt;&gt;&gt; as Effective Java and </comment>
+    <comment type="line">//       Long.hashCode do. Ideally we should switch to &gt;&gt;&gt; at </comment>
+    <comment type="line">//       some stage. There are backwards compat issues, so </comment>
+    <comment type="line">//       that will have to wait for the time being. cf LANG-342.</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>long</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + (<call>(<name>int</name>) <argument_list>(<argument><expr><name>value</name> ^ (<name>value</name> &gt;&gt; 32)</expr></argument>)</argument_list></call>)</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;long&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>long</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for an &lt;code&gt;Object&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param object
+     *            the Object to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>object</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+
+        }</block></then> <else>else <block>{
+            <if>if<condition>(<expr><call><name><name>object</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>isArray</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <comment type="line">// 'Switch' on type of array, to dispatch to the correct handler</comment>
+                <comment type="line">// This handles multi dimensional arrays</comment>
+                <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>long</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>long</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>int</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>int</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>short</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>short</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>char</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>char</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>byte</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>byte</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>double</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>double</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>float</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>float</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name><name>boolean</name><index>[]</index></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>boolean</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// Not an array of primitives</comment>
+                    <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>Object</name><index>[]</index></name>) <name>object</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if></else></if></else></if></else></if></else></if></else></if></else></if></else></if>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <call><name><name>object</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for an &lt;code&gt;Object&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;short&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @param value
+     *            the short to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>short</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <name>value</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Append a &lt;code&gt;hashCode&lt;/code&gt; for a &lt;code&gt;short&lt;/code&gt; array.
+     * &lt;/p&gt;
+     * 
+     * @param array
+     *            the array to add to the &lt;code&gt;hashCode&lt;/code&gt;
+     * @return this
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>short</name><index>[]</index></name></type> <name>array</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>array</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>array</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>array</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Adds the result of super.hashCode() to this builder.
+     * &lt;/p&gt;
+     * 
+     * @param superHashCode
+     *            the result of calling &lt;code&gt;super.hashCode()&lt;/code&gt;
+     * @return this HashCodeBuilder, used to chain calls.
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <name>HashCodeBuilder</name></type> <name>appendSuper</name><parameter_list>(<param><decl><type><name>int</name></type> <name>superHashCode</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>iTotal</name> = <name>iTotal</name> * <name>iConstant</name> + <name>superHashCode</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Return the computed &lt;code&gt;hashCode&lt;/code&gt;.
+     * &lt;/p&gt;
+     * 
+     * @return &lt;code&gt;hashCode&lt;/code&gt; based on the fields appended
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>toHashCode</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>iTotal</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * The computed &lt;code&gt;hashCode&lt;/code&gt; from toHashCode() is returned due to the likelyhood 
+     * of bugs in mis-calling toHashCode() and the unlikelyness of it mattering what the hashCode for 
+     * HashCodeBuilder itself is.
+     * 
+     * @return &lt;code&gt;hashCode&lt;/code&gt; based on the fields appended
+     * @since 2.5
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>toHashCode</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

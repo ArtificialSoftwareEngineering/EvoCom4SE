@@ -1,0 +1,863 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\StringEscapeUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>StringWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>exception</name>.<name>NestableRuntimeException</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>text</name>.<name>StrBuilder</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;Escapes and unescapes &lt;code&gt;String&lt;/code&gt;s for
+ * Java, Java Script, HTML, XML, and SQL.&lt;/p&gt;
+ *
+ * &lt;p&gt;#ThreadSafe#&lt;/p&gt;
+ * @author Apache Software Foundation
+ * @author Apache Jakarta Turbine
+ * @author Purple Technology
+ * @author &lt;a href="mailto:alex@purpletech.com"&gt;Alexander Day Chaffee&lt;/a&gt;
+ * @author Antony Riley
+ * @author Helge Tesgaard
+ * @author &lt;a href="sean@boohai.com"&gt;Sean Brown&lt;/a&gt;
+ * @author &lt;a href="mailto:ggregory@seagullsw.com"&gt;Gary Gregory&lt;/a&gt;
+ * @author Phil Steitz
+ * @author Pete Gieser
+ * @since 2.0
+ * @version $Id: StringEscapeUtils.java 1057072 2011-01-10 01:55:57Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>StringEscapeUtils</name> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name></type> <name>CSV_DELIMITER</name> =<init> <expr>','</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name></type> <name>CSV_QUOTE</name> =<init> <expr>'"'</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>CSV_QUOTE_STR</name> =<init> <expr><call><name><name>String</name>.<name>valueOf</name></name><argument_list>(<argument><expr><name>CSV_QUOTE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>char</name><index>[]</index></type> <name>CSV_SEARCH_CHARS</name> =<init> <expr>new <name><name>char</name><index>[]</index></name> <block>{<expr><name>CSV_DELIMITER</name></expr>, <expr><name>CSV_QUOTE</name></expr>, <expr><name><name>CharUtils</name>.<name>CR</name></name></expr>, <expr><name><name>CharUtils</name>.<name>LF</name></name></expr>}</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;&lt;code&gt;StringEscapeUtils&lt;/code&gt; instances should NOT be constructed in
+     * standard programming.&lt;/p&gt;
+     *
+     * &lt;p&gt;Instead, the class should be used as:
+     * &lt;pre&gt;StringEscapeUtils.escapeJava("foo");&lt;/pre&gt;&lt;/p&gt;
+     *
+     * &lt;p&gt;This constructor is public to permit tools that require a JavaBean
+     * instance to operate.&lt;/p&gt;
+     */</comment>
+    <constructor><specifier>public</specifier> <name>StringEscapeUtils</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">// Java and JavaScript</comment>
+    <comment type="line">//--------------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using Java String rules.&lt;/p&gt;
+     *
+     * &lt;p&gt;Deals correctly with quotes and control-chars (tab, backslash, cr, ff, etc.) &lt;/p&gt;
+     *
+     * &lt;p&gt;So a tab becomes the characters &lt;code&gt;'\\'&lt;/code&gt; and
+     * &lt;code&gt;'t'&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;The only difference between Java strings and JavaScript strings
+     * is that in JavaScript, a single quote must be escaped.&lt;/p&gt;
+     *
+     * &lt;p&gt;Example:
+     * &lt;pre&gt;
+     * input string: He didn't say, "Stop!"
+     * output string: He didn't say, \"Stop!\"
+     * &lt;/pre&gt;
+     * &lt;/p&gt;
+     *
+     * @param str  String to escape values in, may be null
+     * @return String with escaped values, &lt;code&gt;null&lt;/code&gt; if null string input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeJava</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>escapeJavaStyleString</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using Java String rules to
+     * a &lt;code&gt;Writer&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; string input has no effect.&lt;/p&gt;
+     * 
+     * @see #escapeJava(java.lang.String)
+     * @param out  Writer to write escaped string into
+     * @param str  String to escape values in, may be null
+     * @throws IllegalArgumentException if the Writer is &lt;code&gt;null&lt;/code&gt;
+     * @throws IOException if error occurs on underlying Writer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeJava</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>escapeJavaStyleString</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>str</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using JavaScript String rules.&lt;/p&gt;
+     * &lt;p&gt;Escapes any values it finds into their JavaScript String form.
+     * Deals correctly with quotes and control-chars (tab, backslash, cr, ff, etc.) &lt;/p&gt;
+     *
+     * &lt;p&gt;So a tab becomes the characters &lt;code&gt;'\\'&lt;/code&gt; and
+     * &lt;code&gt;'t'&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;The only difference between Java strings and JavaScript strings
+     * is that in JavaScript, a single quote must be escaped.&lt;/p&gt;
+     *
+     * &lt;p&gt;Example:
+     * &lt;pre&gt;
+     * input string: He didn't say, "Stop!"
+     * output string: He didn\'t say, \"Stop!\"
+     * &lt;/pre&gt;
+     * &lt;/p&gt;
+     *
+     * @param str  String to escape values in, may be null
+     * @return String with escaped values, &lt;code&gt;null&lt;/code&gt; if null string input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeJavaScript</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>escapeJavaStyleString</name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using JavaScript String rules
+     * to a &lt;code&gt;Writer&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; string input has no effect.&lt;/p&gt;
+     * 
+     * @see #escapeJavaScript(java.lang.String)
+     * @param out  Writer to write escaped string into
+     * @param str  String to escape values in, may be null
+     * @throws IllegalArgumentException if the Writer is &lt;code&gt;null&lt;/code&gt;
+     * @throws IOException if error occurs on underlying Writer
+     **/</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeJavaScript</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>escapeJavaStyleString</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>str</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Worker method for the {@link #escapeJavaScript(String)} method.&lt;/p&gt;
+     * 
+     * @param str String to escape values in, may be null
+     * @param escapeSingleQuotes escapes single quotes if &lt;code&gt;true&lt;/code&gt;
+     * @param escapeForwardSlash TODO
+     * @return the escaped string
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeJavaStyleString</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>escapeSingleQuotes</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>escapeForwardSlash</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> * 2</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>escapeJavaStyleString</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>, <argument><expr><name>escapeSingleQuotes</name></expr></argument>, <argument><expr><name>escapeForwardSlash</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">// this should never ever happen while writing to a StringWriter</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Worker method for the {@link #escapeJavaScript(String)} method.&lt;/p&gt;
+     * 
+     * @param out write to receieve the escaped string
+     * @param str String to escape values in, may be null
+     * @param escapeSingleQuote escapes single quotes if &lt;code&gt;true&lt;/code&gt;
+     * @param escapeForwardSlash TODO
+     * @throws IOException if an IOException occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeJavaStyleString</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>escapeSingleQuote</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>escapeForwardSlash</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>out</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The Writer must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>sz</name></decl>;</decl_stmt>
+        <expr_stmt><expr><name>sz</name> = <call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>sz</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>char</name></type> <name>ch</name> =<init> <expr><call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <comment type="line">// handle unicode</comment>
+            <if>if <condition>(<expr><name>ch</name> &gt; 0xfff</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>"\\u" + <call><name>hex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> &gt; 0xff</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>"\\u0" + <call><name>hex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> &gt; 0x7f</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>"\\u00" + <call><name>hex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> &lt; 32</expr>)</condition><then> <block>{
+                <switch>switch <condition>(<expr><name>ch</name></expr>)</condition> <block>{
+                    <case>case <expr>'\b'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'b'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\n'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'n'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\t'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'t'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\f'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'f'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\r'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'r'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><default>default :
+                        <if>if <condition>(<expr><name>ch</name> &gt; 0xf</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>"\\u00" + <call><name>hex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>"\\u000" + <call><name>hex</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></else></if>
+                        <break>break;</break>
+                </default>}</block></switch>
+            }</block></then> <else>else <block>{
+                <switch>switch <condition>(<expr><name>ch</name></expr>)</condition> <block>{
+                    <case>case <expr>'\''</expr> :
+                        <if>if <condition>(<expr><name>escapeSingleQuote</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\''</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'"'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'"'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\\'</expr> :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'/'</expr> :
+                        <if>if <condition>(<expr><name>escapeForwardSlash</name></expr>)</condition><then> <block>{
+                            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'/'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><default>default :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                </default>}</block></switch>
+            }</block></else></if></else></if></else></if></else></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns an upper case hexadecimal &lt;code&gt;String&lt;/code&gt; for the given
+     * character.&lt;/p&gt;
+     * 
+     * @param ch The character to convert.
+     * @return An upper case hexadecimal &lt;code&gt;String&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>hex</name><parameter_list>(<param><decl><type><name>char</name></type> <name>ch</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>Integer</name>.<name>toHexString</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call>.<call><name>toUpperCase</name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ENGLISH</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes any Java literals found in the &lt;code&gt;String&lt;/code&gt;.
+     * For example, it will turn a sequence of &lt;code&gt;'\'&lt;/code&gt; and
+     * &lt;code&gt;'n'&lt;/code&gt; into a newline character, unless the &lt;code&gt;'\'&lt;/code&gt;
+     * is preceded by another &lt;code&gt;'\'&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @return a new unescaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>unescapeJava</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>unescapeJava</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">// this should never ever happen while writing to a StringWriter</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes any Java literals found in the &lt;code&gt;String&lt;/code&gt; to a
+     * &lt;code&gt;Writer&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example, it will turn a sequence of &lt;code&gt;'\'&lt;/code&gt; and
+     * &lt;code&gt;'n'&lt;/code&gt; into a newline character, unless the &lt;code&gt;'\'&lt;/code&gt;
+     * is preceded by another &lt;code&gt;'\'&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; string input has no effect.&lt;/p&gt;
+     * 
+     * @param out  the &lt;code&gt;Writer&lt;/code&gt; used to output unescaped characters
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @throws IllegalArgumentException if the Writer is &lt;code&gt;null&lt;/code&gt;
+     * @throws IOException if error occurs on underlying Writer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>unescapeJava</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>out</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"The Writer must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>sz</name> =<init> <expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>StrBuilder</name></type> <name>unicode</name> =<init> <expr>new <call><name>StrBuilder</name><argument_list>(<argument><expr>4</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>hadSlash</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>inUnicode</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>sz</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>char</name></type> <name>ch</name> =<init> <expr><call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>inUnicode</name></expr>)</condition><then> <block>{
+                <comment type="line">// if in unicode, then we're reading unicode</comment>
+                <comment type="line">// values in somehow</comment>
+                <expr_stmt><expr><call><name><name>unicode</name>.<name>append</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><call><name><name>unicode</name>.<name>length</name></name><argument_list>()</argument_list></call> == 4</expr>)</condition><then> <block>{
+                    <comment type="line">// unicode now contains the four hex digits</comment>
+                    <comment type="line">// which represents our unicode character</comment>
+                    <try>try <block>{
+                        <decl_stmt><decl><type><name>int</name></type> <name>value</name> =<init> <expr><call><name><name>Integer</name>.<name>parseInt</name></name><argument_list>(<argument><expr><call><name><name>unicode</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>16</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>(<name>char</name>) <name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>unicode</name>.<name>setLength</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>inUnicode</name> = false</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>hadSlash</name> = false</expr>;</expr_stmt>
+                    }</block> <catch>catch (<param><decl><type><name>NumberFormatException</name></type> <name>nfe</name></decl></param>) <block>{
+                        <throw>throw <expr>new <call><name>NestableRuntimeException</name><argument_list>(<argument><expr>"Unable to parse unicode value: " + <name>unicode</name></expr></argument>, <argument><expr><name>nfe</name></expr></argument>)</argument_list></call></expr>;</throw>
+                    }</block></catch></try>
+                }</block></then></if>
+                <continue>continue;</continue>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>hadSlash</name></expr>)</condition><then> <block>{
+                <comment type="line">// handle an escaped value</comment>
+                <expr_stmt><expr><name>hadSlash</name> = false</expr>;</expr_stmt>
+                <switch>switch <condition>(<expr><name>ch</name></expr>)</condition> <block>{
+                    <case>case <expr>'\\'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\''</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\''</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'\"'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'"'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'r'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\r'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'f'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\f'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'t'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\t'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'n'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\n'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'b'</expr>:
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\b'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                    </case><case>case <expr>'u'</expr>:
+                        <block>{
+                            <comment type="line">// uh-oh, we're in unicode country....</comment>
+                            <expr_stmt><expr><name>inUnicode</name> = true</expr>;</expr_stmt>
+                            <break>break;</break>
+                        }</block>
+                    </case><default>default :
+                        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <break>break;</break>
+                </default>}</block></switch>
+                <continue>continue;</continue>
+            }</block></then> <else>else <if>if <condition>(<expr><name>ch</name> == '\\'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>hadSlash</name> = true</expr>;</expr_stmt>
+                <continue>continue;</continue>
+            }</block></then></if></else></if>
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <if>if <condition>(<expr><name>hadSlash</name></expr>)</condition><then> <block>{
+            <comment type="line">// then we're in the weird case of a \ at the end of the</comment>
+            <comment type="line">// string, let's output it anyway.</comment>
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr>'\\'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes any JavaScript literals found in the &lt;code&gt;String&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example, it will turn a sequence of &lt;code&gt;'\'&lt;/code&gt; and &lt;code&gt;'n'&lt;/code&gt;
+     * into a newline character, unless the &lt;code&gt;'\'&lt;/code&gt; is preceded by another
+     * &lt;code&gt;'\'&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @see #unescapeJava(String)
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @return A new unescaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>unescapeJavaScript</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>unescapeJava</name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes any JavaScript literals found in the &lt;code&gt;String&lt;/code&gt; to a
+     * &lt;code&gt;Writer&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example, it will turn a sequence of &lt;code&gt;'\'&lt;/code&gt; and &lt;code&gt;'n'&lt;/code&gt;
+     * into a newline character, unless the &lt;code&gt;'\'&lt;/code&gt; is preceded by another
+     * &lt;code&gt;'\'&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;A &lt;code&gt;null&lt;/code&gt; string input has no effect.&lt;/p&gt;
+     * 
+     * @see #unescapeJava(Writer,String)
+     * @param out  the &lt;code&gt;Writer&lt;/code&gt; used to output unescaped characters
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @throws IllegalArgumentException if the Writer is &lt;code&gt;null&lt;/code&gt;
+     * @throws IOException if error occurs on underlying Writer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>unescapeJavaScript</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>unescapeJava</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// HTML and XML</comment>
+    <comment type="line">//--------------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using HTML entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;
+     * For example:
+     * &lt;/p&gt; 
+     * &lt;p&gt;&lt;code&gt;"bread" &amp; "butter"&lt;/code&gt;&lt;/p&gt;
+     * becomes:
+     * &lt;p&gt;
+     * &lt;code&gt;&amp;amp;quot;bread&amp;amp;quot; &amp;amp;amp; &amp;amp;quot;butter&amp;amp;quot;&lt;/code&gt;.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Supports all known HTML 4.0 entities, including funky accents.
+     * Note that the commonly used apostrophe escape character (&amp;amp;apos;)
+     * is not a legal entity and so is not supported). &lt;/p&gt;
+     *
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to escape, may be null
+     * @return a new escaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     * 
+     * @see #unescapeHtml(String)
+     * @see &lt;a href="http://hotwired.lycos.com/webmonkey/reference/special_characters/"&gt;ISO Entities&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/REC-html32#latin1"&gt;HTML 3.2 Character Entities for ISO Latin-1&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/REC-html40/sgml/entities.html"&gt;HTML 4.0 Character entity references&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/html401/charset.html#h-5.3"&gt;HTML 4.01 Character References&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/html401/charset.html#code-position"&gt;HTML 4.01 Code positions&lt;/a&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeHtml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name> <argument_list>(<argument><expr><call>(<name>int</name>)<argument_list>(<argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> * 1.5</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>escapeHtml</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">//should be impossible</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using HTML entities and writes
+     * them to a &lt;code&gt;Writer&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;
+     * For example:
+     * &lt;/p&gt; 
+     * &lt;code&gt;"bread" &amp; "butter"&lt;/code&gt;
+     * &lt;p&gt;becomes:&lt;/p&gt;
+     * &lt;code&gt;&amp;amp;quot;bread&amp;amp;quot; &amp;amp;amp; &amp;amp;quot;butter&amp;amp;quot;&lt;/code&gt;.
+     *
+     * &lt;p&gt;Supports all known HTML 4.0 entities, including funky accents.
+     * Note that the commonly used apostrophe escape character (&amp;amp;apos;)
+     * is not a legal entity and so is not supported). &lt;/p&gt;
+     *
+     * @param writer  the writer receiving the escaped string, not null
+     * @param string  the &lt;code&gt;String&lt;/code&gt; to escape, may be null
+     * @throws IllegalArgumentException if the writer is null
+     * @throws IOException when &lt;code&gt;Writer&lt;/code&gt; passed throws the exception from
+     *                                       calls to the {@link Writer#write(int)} methods.
+     * 
+     * @see #escapeHtml(String)
+     * @see #unescapeHtml(String)
+     * @see &lt;a href="http://hotwired.lycos.com/webmonkey/reference/special_characters/"&gt;ISO Entities&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/REC-html32#latin1"&gt;HTML 3.2 Character Entities for ISO Latin-1&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/REC-html40/sgml/entities.html"&gt;HTML 4.0 Character entity references&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/html401/charset.html#h-5.3"&gt;HTML 4.01 Character References&lt;/a&gt;
+     * @see &lt;a href="http://www.w3.org/TR/html401/charset.html#code-position"&gt;HTML 4.01 Code positions&lt;/a&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeHtml</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>string</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>writer</name> == <name>null</name></expr> )</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name> <argument_list>(<argument><expr>"The Writer must not be null."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>string</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>Entities</name>.<name>HTML40</name>.<name>escape</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>string</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes a string containing entity escapes to a string
+     * containing the actual Unicode characters corresponding to the
+     * escapes. Supports HTML 4.0 entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example, the string "&amp;amp;lt;Fran&amp;amp;ccedil;ais&amp;amp;gt;"
+     * will become "&amp;lt;Fran&amp;ccedil;ais&amp;gt;"&lt;/p&gt;
+     *
+     * &lt;p&gt;If an entity is unrecognized, it is left alone, and inserted
+     * verbatim into the result string. e.g. "&amp;amp;gt;&amp;amp;zzzz;x" will
+     * become "&amp;gt;&amp;amp;zzzz;x".&lt;/p&gt;
+     *
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @return a new unescaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @see #escapeHtml(Writer, String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>unescapeHtml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name> <argument_list>(<argument><expr><call>(<name>int</name>)<argument_list>(<argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> * 1.5</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>unescapeHtml</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">//should be impossible</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes a string containing entity escapes to a string
+     * containing the actual Unicode characters corresponding to the
+     * escapes. Supports HTML 4.0 entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example, the string "&amp;amp;lt;Fran&amp;amp;ccedil;ais&amp;amp;gt;"
+     * will become "&amp;lt;Fran&amp;ccedil;ais&amp;gt;"&lt;/p&gt;
+     *
+     * &lt;p&gt;If an entity is unrecognized, it is left alone, and inserted
+     * verbatim into the result string. e.g. "&amp;amp;gt;&amp;amp;zzzz;x" will
+     * become "&amp;gt;&amp;amp;zzzz;x".&lt;/p&gt;
+     *
+     * @param writer  the writer receiving the unescaped string, not null
+     * @param string  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @throws IllegalArgumentException if the writer is null
+     * @throws IOException if an IOException occurs
+     * @see #escapeHtml(String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>unescapeHtml</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>string</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>writer</name> == <name>null</name></expr> )</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name> <argument_list>(<argument><expr>"The Writer must not be null."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>string</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>Entities</name>.<name>HTML40</name>.<name>unescape</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>string</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using XML entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example: &lt;tt&gt;"bread" &amp; "butter"&lt;/tt&gt; =&gt;
+     * &lt;tt&gt;&amp;amp;quot;bread&amp;amp;quot; &amp;amp;amp; &amp;amp;quot;butter&amp;amp;quot;&lt;/tt&gt;.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Supports only the five basic XML entities (gt, lt, quot, amp, apos).
+     * Does not support DTDs or external entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;Note that unicode characters greater than 0x7f are currently escaped to 
+     *    their numerical \\u equivalent. This may change in future releases. &lt;/p&gt;
+     *
+     * @param writer  the writer receiving the unescaped string, not null
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to escape, may be null
+     * @throws IllegalArgumentException if the writer is null
+     * @throws IOException if there is a problem writing
+     * @see #unescapeXml(java.lang.String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeXml</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>writer</name> == <name>null</name></expr> )</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name> <argument_list>(<argument><expr>"The Writer must not be null."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>Entities</name>.<name>XML</name>.<name>escape</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; using XML entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example: &lt;tt&gt;"bread" &amp; "butter"&lt;/tt&gt; =&gt;
+     * &lt;tt&gt;&amp;amp;quot;bread&amp;amp;quot; &amp;amp;amp; &amp;amp;quot;butter&amp;amp;quot;&lt;/tt&gt;.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Supports only the five basic XML entities (gt, lt, quot, amp, apos).
+     * Does not support DTDs or external entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;Note that unicode characters greater than 0x7f are currently escaped to 
+     *    their numerical \\u equivalent. This may change in future releases. &lt;/p&gt;
+     *
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to escape, may be null
+     * @return a new escaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @see #unescapeXml(java.lang.String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeXml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>Entities</name>.<name>XML</name>.<name>escape</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes a string containing XML entity escapes to a string
+     * containing the actual Unicode characters corresponding to the
+     * escapes.&lt;/p&gt;
+     *
+     * &lt;p&gt;Supports only the five basic XML entities (gt, lt, quot, amp, apos).
+     * Does not support DTDs or external entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;Note that numerical \\u unicode codes are unescaped to their respective 
+     *    unicode characters. This may change in future releases. &lt;/p&gt;
+     *
+     * @param writer  the writer receiving the unescaped string, not null
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @throws IllegalArgumentException if the writer is null
+     * @throws IOException if there is a problem writing
+     * @see #escapeXml(String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>unescapeXml</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>writer</name> == <name>null</name></expr> )</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name> <argument_list>(<argument><expr>"The Writer must not be null."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>Entities</name>.<name>XML</name>.<name>unescape</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Unescapes a string containing XML entity escapes to a string
+     * containing the actual Unicode characters corresponding to the
+     * escapes.&lt;/p&gt;
+     *
+     * &lt;p&gt;Supports only the five basic XML entities (gt, lt, quot, amp, apos).
+     * Does not support DTDs or external entities.&lt;/p&gt;
+     *
+     * &lt;p&gt;Note that numerical \\u unicode codes are unescaped to their respective 
+     *    unicode characters. This may change in future releases. &lt;/p&gt;
+     *
+     * @param str  the &lt;code&gt;String&lt;/code&gt; to unescape, may be null
+     * @return a new unescaped &lt;code&gt;String&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @see #escapeXml(String)
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>unescapeXml</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>Entities</name>.<name>XML</name>.<name>unescape</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Escapes the characters in a &lt;code&gt;String&lt;/code&gt; to be suitable to pass to
+     * an SQL query.&lt;/p&gt;
+     *
+     * &lt;p&gt;For example,
+     * &lt;pre&gt;statement.executeQuery("SELECT * FROM MOVIES WHERE TITLE='" + 
+     *   StringEscapeUtils.escapeSql("McHale's Navy") + 
+     *   "'");&lt;/pre&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;At present, this method only turns single-quotes into doubled single-quotes
+     * (&lt;code&gt;"McHale's Navy"&lt;/code&gt; =&gt; &lt;code&gt;"McHale''s Navy"&lt;/code&gt;). It does not
+     * handle the cases of percent (%) or underscore (_) for use in LIKE clauses.&lt;/p&gt;
+     *
+     * see http://www.jguru.com/faq/view.jsp?EID=8881
+     * @param str  the string to escape, may be null
+     * @return a new String, escaped for SQL, &lt;code&gt;null&lt;/code&gt; if null string input
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeSql</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>StringUtils</name>.<name>replace</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr>"'"</expr></argument>, <argument><expr>"''"</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns a &lt;code&gt;String&lt;/code&gt; value for a CSV column enclosed in double quotes,
+     * if required.&lt;/p&gt;
+     *
+     * &lt;p&gt;If the value contains a comma, newline or double quote, then the
+     *    String value is returned enclosed in double quotes.&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Any double quote characters in the value are escaped with another double quote.&lt;/p&gt;
+     *
+     * &lt;p&gt;If the value does not contain a comma, newline or double quote, then the
+     *    String value is returned unchanged.&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * see &lt;a href="http://en.wikipedia.org/wiki/Comma-separated_values"&gt;Wikipedia&lt;/a&gt; and
+     * &lt;a href="http://tools.ietf.org/html/rfc4180"&gt;RFC 4180&lt;/a&gt;.
+     *
+     * @param str the input CSV column String, may be null
+     * @return the input String, enclosed in double quotes if the value contains a comma,
+     * newline or double quote, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @since 2.4
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>escapeCsv</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>StringUtils</name>.<name>containsNone</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>CSV_SEARCH_CHARS</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><name>str</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>escapeCsv</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">// this should never ever happen while writing to a StringWriter</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Writes a &lt;code&gt;String&lt;/code&gt; value for a CSV column enclosed in double quotes,
+     * if required.&lt;/p&gt;
+     *
+     * &lt;p&gt;If the value contains a comma, newline or double quote, then the
+     *    String value is written enclosed in double quotes.&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Any double quote characters in the value are escaped with another double quote.&lt;/p&gt;
+     *
+     * &lt;p&gt;If the value does not contain a comma, newline or double quote, then the
+     *    String value is written unchanged (null values are ignored).&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * see &lt;a href="http://en.wikipedia.org/wiki/Comma-separated_values"&gt;Wikipedia&lt;/a&gt; and
+     * &lt;a href="http://tools.ietf.org/html/rfc4180"&gt;RFC 4180&lt;/a&gt;.
+     *
+     * @param str the input CSV column String, may be null
+     * @param out Writer to write input string to, enclosed in double quotes if it contains
+     * a comma, newline or double quote
+     * @throws IOException if error occurs on underlying Writer
+     * @since 2.4
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>escapeCsv</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name><name>StringUtils</name>.<name>containsNone</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>CSV_SEARCH_CHARS</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>str</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <return>return;</return>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>CSV_QUOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>char</name></type> <name>c</name> =<init> <expr><call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>c</name> == <name>CSV_QUOTE</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>CSV_QUOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// escape double quote</comment>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>CSV_QUOTE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns a &lt;code&gt;String&lt;/code&gt; value for an unescaped CSV column. &lt;/p&gt;
+     *
+     * &lt;p&gt;If the value is enclosed in double quotes, and contains a comma, newline 
+     *    or double quote, then quotes are removed. 
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Any double quote escaped characters (a pair of double quotes) are unescaped 
+     *    to just one double quote. &lt;/p&gt;
+     *
+     * &lt;p&gt;If the value is not enclosed in double quotes, or is and does not contain a 
+     *    comma, newline or double quote, then the String value is returned unchanged.&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * see &lt;a href="http://en.wikipedia.org/wiki/Comma-separated_values"&gt;Wikipedia&lt;/a&gt; and
+     * &lt;a href="http://tools.ietf.org/html/rfc4180"&gt;RFC 4180&lt;/a&gt;.
+     *
+     * @param str the input CSV column String, may be null
+     * @return the input String, with enclosing double quotes removed and embedded double 
+     * quotes unescaped, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @since 2.4
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>unescapeCsv</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>null</name></expr>;</return>
+        }</block></then></if>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>StringWriter</name></type> <name>writer</name> =<init> <expr>new <call><name>StringWriter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>unescapeCsv</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><call><name><name>writer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <comment type="line">// this should never ever happen while writing to a StringWriter</comment>
+            <throw>throw <expr>new <call><name>UnhandledException</name><argument_list>(<argument><expr><name>ioe</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Returns a &lt;code&gt;String&lt;/code&gt; value for an unescaped CSV column. &lt;/p&gt;
+     *
+     * &lt;p&gt;If the value is enclosed in double quotes, and contains a comma, newline 
+     *    or double quote, then quotes are removed. 
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;Any double quote escaped characters (a pair of double quotes) are unescaped 
+     *    to just one double quote. &lt;/p&gt;
+     *
+     * &lt;p&gt;If the value is not enclosed in double quotes, or is and does not contain a 
+     *    comma, newline or double quote, then the String value is returned unchanged.&lt;/p&gt;
+     * &lt;/p&gt;
+     *
+     * see &lt;a href="http://en.wikipedia.org/wiki/Comma-separated_values"&gt;Wikipedia&lt;/a&gt; and
+     * &lt;a href="http://tools.ietf.org/html/rfc4180"&gt;RFC 4180&lt;/a&gt;.
+     *
+     * @param str the input CSV column String, may be null
+     * @param out Writer to write the input String to, with enclosing double quotes 
+     * removed and embedded double quotes unescaped, &lt;code&gt;null&lt;/code&gt; if null string input
+     * @throws IOException if error occurs on underlying Writer
+     * @since 2.4
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>unescapeCsv</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>out</name></decl></param>, <param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>str</name> == <name>null</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> &lt; 2</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if>
+        <if>if <condition>( <expr><call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call> != <name>CSV_QUOTE</name> || <call><name><name>str</name>.<name>charAt</name></name><argument_list>(<argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call> != <name>CSV_QUOTE</name></expr> )</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if>
+
+        <comment type="line">// strip quotes</comment>
+        <decl_stmt><decl><type><name>String</name></type> <name>quoteless</name> =<init> <expr><call><name><name>str</name>.<name>substring</name></name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr><call><name><name>str</name>.<name>length</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>( <expr><call><name><name>StringUtils</name>.<name>containsAny</name></name><argument_list>(<argument><expr><name>quoteless</name></expr></argument>, <argument><expr><name>CSV_SEARCH_CHARS</name></expr></argument>)</argument_list></call></expr> )</condition><then> <block>{
+            <comment type="line">// deal with escaped quotes; ie) ""</comment>
+            <expr_stmt><expr><name>str</name> = <call><name><name>StringUtils</name>.<name>replace</name></name><argument_list>(<argument><expr><name>quoteless</name></expr></argument>, <argument><expr><name>CSV_QUOTE_STR</name> + <name>CSV_QUOTE_STR</name></expr></argument>, <argument><expr><name>CSV_QUOTE_STR</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+}</block></class>
+</unit>

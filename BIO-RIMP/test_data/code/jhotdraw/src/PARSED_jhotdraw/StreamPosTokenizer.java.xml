@@ -1,0 +1,1118 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jhotdraw\src\main\java\org\jhotdraw\io\StreamPosTokenizer.java"><comment type="block">/*
+ * @(#)StreamPosTokenizer.java  2.2 2007-12-18
+ *
+ * Copyright (c) 1999-2007 by the original authors of JHotDraw
+ * and all its contributors.
+ * All rights reserved.
+ *
+ * The copyright of this software is owned by the authors and  
+ * contributors of the JHotDraw project ("the copyright holders").  
+ * You may not use, copy or modify this software, except in  
+ * accordance with the license agreement you entered into with  
+ * the copyright holders. For details see accompanying license terms. 
+ */</comment>
+<package>package <name><name>org</name>.<name>jhotdraw</name>.<name>io</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name></name>.*;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Vector</name></name>;</import>
+
+<comment type="javadoc">/**
+ * This extension of &lt;code&gt;StreamTokenizer&lt;/code&gt; keeps track
+ * of the position of the tokens in the input stream, and it can
+ * parse hexadecimal numbers and double numbers with exponents.
+ * &lt;p&gt;
+ * The handling of numeric data is also different: a single dot
+ * '.' and minus dot '-.' are not treated as numbers.
+ *
+ * @author  Werner Randelshofer, Staldenmattweg 2, Immensee, CH-6405, Switzerland
+ * @version 2.2 2007-12-18 Added method setReader. 
+ * &lt;br&gt;2.1 2007-06-24 Added methods nextChar() and pushBackChar().
+ * &lt;br&gt;2.0.1 2007-04-10 Parse exponent extended to support lower case 'e'
+ * for  exponent (instead of just upper case 'E'). Method parseExponent renamed
+ * to parseExponents.
+ * &lt;br&gt;2.0 2007-04-09 Method parseExponent added.
+ * &lt;br&gt;1.3 2006-12-26 Method parseHexNumbers added.
+ * &lt;br&gt;1.2 2004-08-01 Method consumeGreedy added.
+ * &lt;br&gt;1.1.1 2004-02-23 Diagnostic output to System.out removed.
+ * &lt;br&gt;1.1 2003-07-26 Methods setSlashStarTokens and setSlashSlashToken added.
+ * &lt;br&gt;1.0 2001-02-24 Created.
+ */</comment>
+
+<class><specifier>public</specifier> class <name>StreamPosTokenizer</name>
+        <comment type="block">/*extends StreamTokenizer*/</comment> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Reader</name></type> <name>reader</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * Position of the next character that will be read from the file.
+     * rlw
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>readpos</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * Start and end position of the current token.
+     * rlw
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>startpos</name> =<init> <expr>-1</expr></init>, <name>endpos</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>Vector</name></type> <name>unread</name> =<init> <expr>new <call><name>Vector</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>char</name></type> <name><name>buf</name><index>[]</index></name> =<init> <expr>new <name><name>char</name><index>[<expr>20</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The next character to be considered by the nextToken method.  May also
+     * be NEED_CHAR to indicate that a new character should be read, or SKIP_LF
+     * to indicate that a new character should be read and, if it is a '\n'
+     * character, it should be discarded and a second new character should be
+     * read.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>peekc</name> =<init> <expr><name>NEED_CHAR</name></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>NEED_CHAR</name> =<init> <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SKIP_LF</name> =<init> <expr><name><name>Integer</name>.<name>MAX_VALUE</name></name> - 1</expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>pushedBack</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>forceLower</name></decl>;</decl_stmt>
+    <comment type="javadoc">/** The line number of the last token read */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>lineno</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>eolIsSignificantP</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>slashSlashCommentsP</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>slashStarCommentsP</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    
+    <comment type="line">// rlw</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>char</name><index>[]</index></type> <name>slashSlash</name> =<init> <expr>new <name><name>char</name><index>[]</index></name> <block>{<expr>'/'</expr>,<expr>'/'</expr>}</block></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>char</name><index>[]</index></type> <name>slashStar</name> =<init> <expr>new <name><name>char</name><index>[]</index></name> <block>{<expr>'/'</expr>,<expr>'*'</expr>}</block></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>char</name><index>[]</index></type> <name>starSlash</name> =<init> <expr>new <name><name>char</name><index>[]</index></name> <block>{<expr>'*'</expr>,<expr>'/'</expr>}</block></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>byte</name></type> <name><name>ctype</name><index>[]</index></name> =<init> <expr>new <name><name>byte</name><index>[<expr>256</expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name></type> <name>CT_WHITESPACE</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name></type> <name>CT_DIGIT</name> =<init> <expr>2</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name></type> <name>CT_ALPHA</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name></type> <name>CT_QUOTE</name> =<init> <expr>8</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>byte</name></type> <name>CT_COMMENT</name> =<init> <expr>16</expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isParseHexNumbers</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isParseExponents</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * After a call to the &lt;code&gt;nextToken&lt;/code&gt; method, this field
+     * contains the type of the token just read. For a single character
+     * token, its value is the single character, converted to an integer.
+     * For a quoted string token (see , its value is the quote character.
+     * Otherwise, its value is one of the following:
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;TT_WORD&lt;/code&gt; indicates that the token is a word.
+     * &lt;li&gt;&lt;code&gt;TT_NUMBER&lt;/code&gt; indicates that the token is a number.
+     * &lt;li&gt;&lt;code&gt;TT_EOL&lt;/code&gt; indicates that the end of line has been read.
+     *     The field can only have this value if the
+     *     &lt;code&gt;eolIsSignificant&lt;/code&gt; method has been called with the
+     *     argument &lt;code&gt;true&lt;/code&gt;.
+     * &lt;li&gt;&lt;code&gt;TT_EOF&lt;/code&gt; indicates that the end of the input stream
+     *     has been reached.
+     * &lt;/ul&gt;
+     *
+     * @see     java.io.StreamTokenizer#eolIsSignificant(boolean)
+     * @see     java.io.StreamTokenizer#nextToken()
+     * @see     java.io.StreamTokenizer#quoteChar(int)
+     * @see     java.io.StreamTokenizer#TT_EOF
+     * @see     java.io.StreamTokenizer#TT_EOL
+     * @see     java.io.StreamTokenizer#TT_NUMBER
+     * @see     java.io.StreamTokenizer#TT_WORD
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>int</name></type> <name>ttype</name> =<init> <expr><name>TT_NOTHING</name></expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * A constant indicating that the end of the stream has been read.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TT_EOF</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * A constant indicating that the end of the line has been read.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TT_EOL</name> =<init> <expr>'\n'</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * A constant indicating that a number token has been read.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TT_NUMBER</name> =<init> <expr>-2</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * A constant indicating that a word token has been read.
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TT_WORD</name> =<init> <expr>-3</expr></init></decl>;</decl_stmt>
+    
+    <comment type="block">/* A constant indicating that no token has been read, used for
+     * initializing ttype.  FIXME This could be made public and
+     * made available as the part of the API in a future release.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>TT_NOTHING</name> =<init> <expr>-4</expr></init></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * If the current token is a word token, this field contains a
+     * string giving the characters of the word token. When the current
+     * token is a quoted string token, this field contains the body of
+     * the string.
+     * &lt;p&gt;
+     * The current token is a word when the value of the
+     * &lt;code&gt;ttype&lt;/code&gt; field is &lt;code&gt;TT_WORD&lt;/code&gt;. The current token is
+     * a quoted string token when the value of the &lt;code&gt;ttype&lt;/code&gt; field is
+     * a quote character.
+     *
+     * @see     java.io.StreamTokenizer#quoteChar(int)
+     * @see     java.io.StreamTokenizer#TT_WORD
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>String</name></type> <name>sval</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * If the current token is a number, this field contains the value
+     * of that number. The current token is a number when the value of
+     * the &lt;code&gt;ttype&lt;/code&gt; field is &lt;code&gt;TT_NUMBER&lt;/code&gt;.
+     *
+     * @see     java.io.StreamTokenizer#TT_NUMBER
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <decl_stmt><decl><type><specifier>public</specifier> <name>double</name></type> <name>nval</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** Initializes everything except the streams. */</comment>
+    <constructor><specifier>public</specifier> <name>StreamPosTokenizer</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>wordChars</name><argument_list>(<argument><expr>'a'</expr></argument>, <argument><expr>'z'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>wordChars</name><argument_list>(<argument><expr>'A'</expr></argument>, <argument><expr>'Z'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>wordChars</name><argument_list>(<argument><expr>128 + 32</expr></argument>, <argument><expr>255</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>whitespaceChars</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr>' '</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>commentChar</name><argument_list>(<argument><expr>'/'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>quoteChar</name><argument_list>(<argument><expr>'"'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>quoteChar</name><argument_list>(<argument><expr>'\''</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>parseNumbers</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    
+    <comment type="javadoc">/**
+     * Create a tokenizer that parses the given character stream.
+     * @since   JDK1.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>StreamPosTokenizer</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>r</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>r</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>()</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name>reader</name> = <name>r</name></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <comment type="javadoc">/**
+     * Sets the reader for the tokenizer.
+     * 
+     * @param r
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setReader</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>r</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>reader</name></name> = <name>r</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>readpos</name> = 0</expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>unread</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>peekc</name> = <name>NEED_CHAR</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>pushedBack</name> = false</expr>;</expr_stmt>
+        <expr_stmt><expr><name>forceLower</name> = false</expr>;</expr_stmt>
+        <expr_stmt><expr><name>lineno</name> = 0</expr>;</expr_stmt>
+        <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = -1</expr>;</expr_stmt>
+        <expr_stmt><expr><name>ttype</name> = <name>TT_NOTHING</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Resets this tokenizer's syntax table so that all characters are
+     * "ordinary." See the &lt;code&gt;ordinaryChar&lt;/code&gt; method
+     * for more information on a character being ordinary.
+     *
+     * @see     java.io.StreamTokenizer#ordinaryChar(int)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>resetSyntax</name><parameter_list>()</parameter_list> <block>{
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><name><name>ctype</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr>--<name>i</name> &gt;= 0</expr>;</condition><incr/>)
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>i</name></expr>]</index></name> = 0</expr>;</expr_stmt></for>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that all characters &lt;i&gt;c&lt;/i&gt; in the range
+     * &lt;code&gt;low&amp;nbsp;&amp;lt;=&amp;nbsp;&lt;i&gt;c&lt;/i&gt;&amp;nbsp;&amp;lt;=&amp;nbsp;high&lt;/code&gt;
+     * are word constituents. A word token consists of a word constituent
+     * followed by zero or more word constituents or number constituents.
+     *
+     * @param   low   the low end of the range.
+     * @param   hi    the high end of the range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>wordChars</name><parameter_list>(<param><decl><type><name>int</name></type> <name>low</name></decl></param>, <param><decl><type><name>int</name></type> <name>hi</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>low</name> &lt; 0</expr>)</condition><then>
+            <expr_stmt><expr><name>low</name> = 0</expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><name>hi</name> &gt;= <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name>hi</name> = <name><name>ctype</name>.<name>length</name></name> - 1</expr>;</expr_stmt></then></if>
+        <while>while <condition>(<expr><name>low</name> &lt;= <name>hi</name></expr>)</condition>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>low</name>++</expr>]</index></name> |= <name>CT_ALPHA</name></expr>;</expr_stmt></while>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that all characters &lt;i&gt;c&lt;/i&gt; in the range
+     * &lt;code&gt;low&amp;nbsp;&amp;lt;=&amp;nbsp;&lt;i&gt;c&lt;/i&gt;&amp;nbsp;&amp;lt;=&amp;nbsp;high&lt;/code&gt;
+     * are white space characters. White space characters serve only to
+     * separate tokens in the input stream.
+     *
+     * @param   low   the low end of the range.
+     * @param   hi    the high end of the range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>whitespaceChars</name><parameter_list>(<param><decl><type><name>int</name></type> <name>low</name></decl></param>, <param><decl><type><name>int</name></type> <name>hi</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>low</name> &lt; 0</expr>)</condition><then>
+            <expr_stmt><expr><name>low</name> = 0</expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><name>hi</name> &gt;= <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name>hi</name> = <name><name>ctype</name>.<name>length</name></name> - 1</expr>;</expr_stmt></then></if>
+        <while>while <condition>(<expr><name>low</name> &lt;= <name>hi</name></expr>)</condition>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>low</name>++</expr>]</index></name> = <name>CT_WHITESPACE</name></expr>;</expr_stmt></while>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that all characters &lt;i&gt;c&lt;/i&gt; in the range
+     * &lt;code&gt;low&amp;nbsp;&amp;lt;=&amp;nbsp;&lt;i&gt;c&lt;/i&gt;&amp;nbsp;&amp;lt;=&amp;nbsp;high&lt;/code&gt;
+     * are "ordinary" in this tokenizer. See the
+     * &lt;code&gt;ordinaryChar&lt;/code&gt; method for more information on a
+     * character being ordinary.
+     *
+     * @param   low   the low end of the range.
+     * @param   hi    the high end of the range.
+     * @see     java.io.StreamTokenizer#ordinaryChar(int)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>ordinaryChars</name><parameter_list>(<param><decl><type><name>int</name></type> <name>low</name></decl></param>, <param><decl><type><name>int</name></type> <name>hi</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>low</name> &lt; 0</expr>)</condition><then>
+            <expr_stmt><expr><name>low</name> = 0</expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><name>hi</name> &gt;= <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name>hi</name> = <name><name>ctype</name>.<name>length</name></name> - 1</expr>;</expr_stmt></then></if>
+        <while>while <condition>(<expr><name>low</name> &lt;= <name>hi</name></expr>)</condition>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>low</name>++</expr>]</index></name> = 0</expr>;</expr_stmt></while>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that the character argument is "ordinary"
+     * in this tokenizer. It removes any special significance the
+     * character has as a comment character, word component, string
+     * delimiter, white space, or number character. When such a character
+     * is encountered by the parser, the parser treates it as a
+     * single-character token and sets &lt;code&gt;ttype&lt;/code&gt; field to the
+     * character value.
+     *
+     * @param   ch   the character.
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>ordinaryChar</name><parameter_list>(<param><decl><type><name>int</name></type> <name>ch</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>ch</name> &gt;= 0 &amp;&amp; <name>ch</name> &lt; <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>ch</name></expr>]</index></name> = 0</expr>;</expr_stmt></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specified that the character argument starts a single-line
+     * comment. All characters from the comment character to the end of
+     * the line are ignored by this stream tokenizer.
+     *
+     * @param   ch   the character.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>commentChar</name><parameter_list>(<param><decl><type><name>int</name></type> <name>ch</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>ch</name> &gt;= 0 &amp;&amp; <name>ch</name> &lt; <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>ch</name></expr>]</index></name> = <name>CT_COMMENT</name></expr>;</expr_stmt></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that matching pairs of this character delimit string
+     * constants in this tokenizer.
+     * &lt;p&gt;
+     * When the &lt;code&gt;nextToken&lt;/code&gt; method encounters a string
+     * constant, the &lt;code&gt;ttype&lt;/code&gt; field is set to the string
+     * delimiter and the &lt;code&gt;sval&lt;/code&gt; field is set to the body of
+     * the string.
+     * &lt;p&gt;
+     * If a string quote character is encountered, then a string is
+     * recognized, consisting of all characters after (but not including)
+     * the string quote character, up to (but not including) the next
+     * occurrence of that same string quote character, or a line
+     * terminator, or end of file. The usual escape sequences such as
+     * &lt;code&gt;"&amp;#92;n"&lt;/code&gt; and &lt;code&gt;"&amp;#92;t"&lt;/code&gt; are recognized and
+     * converted to single characters as the string is parsed.
+     *
+     * @param   ch   the character.
+     * @see     java.io.StreamTokenizer#nextToken()
+     * @see     java.io.StreamTokenizer#sval
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>quoteChar</name><parameter_list>(<param><decl><type><name>int</name></type> <name>ch</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>ch</name> &gt;= 0 &amp;&amp; <name>ch</name> &lt; <name><name>ctype</name>.<name>length</name></name></expr>)</condition><then>
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>ch</name></expr>]</index></name> = <name>CT_QUOTE</name></expr>;</expr_stmt></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Specifies that numbers should be parsed by this tokenizer. The
+     * syntax table of this tokenizer is modified so that each of the twelve
+     * characters:
+     * &lt;blockquote&gt;&lt;pre&gt;
+     *      0 1 2 3 4 5 6 7 8 9 . -
+     * &lt;/pre&gt;&lt;/blockquote&gt;
+     * &lt;p&gt;
+     * has the "numeric" attribute.
+     * &lt;p&gt;
+     * When the parser encounters a word token that has the format of a
+     * double precision floating-point number, it treats the token as a
+     * number rather than a word, by setting the the &lt;code&gt;ttype&lt;/code&gt;
+     * field to the value &lt;code&gt;TT_NUMBER&lt;/code&gt; and putting the numeric
+     * value of the token into the &lt;code&gt;nval&lt;/code&gt; field.
+     *
+     * @see     java.io.StreamTokenizer#nval
+     * @see     java.io.StreamTokenizer#TT_NUMBER
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>parseNumbers</name><parameter_list>()</parameter_list> <block>{
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>'0'</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= '9'</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>)
+            <expr_stmt><expr><name><name>ctype</name><index>[<expr><name>i</name></expr>]</index></name> |= <name>CT_DIGIT</name></expr>;</expr_stmt></for>
+        <expr_stmt><expr><name><name>ctype</name><index>[<expr>'.'</expr>]</index></name> |= <name>CT_DIGIT</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>ctype</name><index>[<expr>'-'</expr>]</index></name> |= <name>CT_DIGIT</name></expr>;</expr_stmt>
+        <comment type="line">//ctype['+'] |= CT_DIGIT; // rlw</comment>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>parsePlusAsNumber</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name><name>ctype</name><index>[<expr>'+'</expr>]</index></name> |= <name>CT_DIGIT</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Enables number parsing for decimal numbers and for hexadecimal numbers
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>parseHexNumbers</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>parseNumbers</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>isParseHexNumbers</name> = true</expr>;</expr_stmt>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Enables number parsing of exponents.
+     * Exponents appear after the last digit of number with capital letter 'E'
+     * or small letter 'e'.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>parseExponents</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>parseNumbers</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>isParseExponents</name> = true</expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Determines whether or not ends of line are treated as tokens.
+     * If the flag argument is true, this tokenizer treats end of lines
+     * as tokens; the &lt;code&gt;nextToken&lt;/code&gt; method returns
+     * &lt;code&gt;TT_EOL&lt;/code&gt; and also sets the &lt;code&gt;ttype&lt;/code&gt; field to
+     * this value when an end of line is read.
+     * &lt;p&gt;
+     * A line is a sequence of characters ending with either a
+     * carriage-return character (&lt;code&gt;'&amp;#92;r'&lt;/code&gt;) or a newline
+     * character (&lt;code&gt;'&amp;#92;n'&lt;/code&gt;). In addition, a carriage-return
+     * character followed immediately by a newline character is treated
+     * as a single end-of-line token.
+     * &lt;p&gt;
+     * If the &lt;code&gt;flag&lt;/code&gt; is false, end-of-line characters are
+     * treated as white space and serve only to separate tokens.
+     *
+     * @param   flag   &lt;code&gt;true&lt;/code&gt; indicates that end-of-line characters
+     *                 are separate tokens; &lt;code&gt;false&lt;/code&gt; indicates that
+     *                 end-of-line characters are white space.
+     * @see     java.io.StreamTokenizer#nextToken()
+     * @see     java.io.StreamTokenizer#ttype
+     * @see     java.io.StreamTokenizer#TT_EOL
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>eolIsSignificant</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>flag</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>eolIsSignificantP</name> = <name>flag</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Determines whether or not the tokenizer recognizes C-style comments.
+     * If the flag argument is &lt;code&gt;true&lt;/code&gt;, this stream tokenizer
+     * recognizes C-style comments. All text between successive
+     * occurrences of &lt;code&gt;/*&lt;/code&gt; and &lt;code&gt;*&amp;#47;&lt;/code&gt; are discarded.
+     * &lt;p&gt;
+     * If the flag argument is &lt;code&gt;false&lt;/code&gt;, then C-style comments
+     * are not treated specially.
+     *
+     * @param   flag   &lt;code&gt;true&lt;/code&gt; indicates to recognize and ignore
+     *                 C-style comments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>slashStarComments</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>flag</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>slashStarCommentsP</name> = <name>flag</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Determines whether or not the tokenizer recognizes C++-style comments.
+     * If the flag argument is &lt;code&gt;true&lt;/code&gt;, this stream tokenizer
+     * recognizes C++-style comments. Any occurrence of two consecutive
+     * slash characters (&lt;code&gt;'/'&lt;/code&gt;) is treated as the beginning of
+     * a comment that extends to the end of the line.
+     * &lt;p&gt;
+     * If the flag argument is &lt;code&gt;false&lt;/code&gt;, then C++-style
+     * comments are not treated specially.
+     *
+     * @param   flag   &lt;code&gt;true&lt;/code&gt; indicates to recognize and ignore
+     *                 C++-style comments.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>slashSlashComments</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>flag</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>slashSlashCommentsP</name> = <name>flag</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Determines whether or not word token are automatically lowercased.
+     * If the flag argument is &lt;code&gt;true&lt;/code&gt;, then the value in the
+     * &lt;code&gt;sval&lt;/code&gt; field is lowercased whenever a word token is
+     * returned (the &lt;code&gt;ttype&lt;/code&gt; field has the
+     * value &lt;code&gt;TT_WORD&lt;/code&gt; by the &lt;code&gt;nextToken&lt;/code&gt; method
+     * of this tokenizer.
+     * &lt;p&gt;
+     * If the flag argument is &lt;code&gt;false&lt;/code&gt;, then the
+     * &lt;code&gt;sval&lt;/code&gt; field is not modified.
+     *
+     * @param   fl   &lt;code&gt;true&lt;/code&gt; indicates that all word tokens should
+     *               be lowercased.
+     * @see     java.io.StreamTokenizer#nextToken()
+     * @see     java.io.StreamTokenizer#ttype
+     * @see     java.io.StreamTokenizer#TT_WORD
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>lowerCaseMode</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>fl</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>forceLower</name> = <name>fl</name></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/** Read the next character */</comment>
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// rlw</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>data</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>unread</name>.<name>size</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>data</name> = ((<name>Integer</name>) <call><name><name>unread</name>.<name>lastElement</name></name><argument_list>()</argument_list></call>).<call><name>intValue</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>unread</name>.<name>removeElementAt</name></name><argument_list>(<argument><expr><call><name><name>unread</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>data</name> = <call><name><name>reader</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+        <if>if <condition>(<expr><name>data</name> != -1</expr>)</condition><then> <block>{ <expr_stmt><expr><name>readpos</name>++</expr>;</expr_stmt> }</block></then></if>
+        <return>return <expr><name>data</name></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/** Unread */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>unread</name><parameter_list>(<param><decl><type><name>int</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>unread</name>.<name>addElement</name></name><argument_list>(<argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>readpos</name>--</expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Parses the next token from the input stream of this tokenizer.
+     * The type of the next token is returned in the &lt;code&gt;ttype&lt;/code&gt;
+     * field. Additional information about the token may be in the
+     * &lt;code&gt;nval&lt;/code&gt; field or the &lt;code&gt;sval&lt;/code&gt; field of this
+     * tokenizer.
+     * &lt;p&gt;
+     * Typical clients of this
+     * class first set up the syntax tables and then sit in a loop
+     * calling nextToken to parse successive tokens until TT_EOF
+     * is returned.
+     *
+     * @return     the value of the &lt;code&gt;ttype&lt;/code&gt; field.
+     * @exception  IOException  if an I/O error occurs.
+     * @see        java.io.StreamTokenizer#nval
+     * @see        java.io.StreamTokenizer#sval
+     * @see        java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>nextToken</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>pushedBack</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>pushedBack</name> = false</expr>;</expr_stmt>
+            <return>return <expr><name>ttype</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>byte</name></type> <name><name>ct</name><index>[]</index></name> =<init> <expr><name>ctype</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>sval</name> = <name>null</name></expr>;</expr_stmt>
+        
+        <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><name>peekc</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then>
+            <expr_stmt><expr><name>c</name> = <name>NEED_CHAR</name></expr>;</expr_stmt></then></if>
+        <if>if <condition>(<expr><name>c</name> == <name>SKIP_LF</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then> <block>{
+                <comment type="line">// rlw</comment>
+                <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                <return>return <expr><name>ttype</name> = <name>TT_EOF</name></expr>;</return>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then>
+                <expr_stmt><expr><name>c</name> = <name>NEED_CHAR</name></expr>;</expr_stmt></then></if>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>c</name> == <name>NEED_CHAR</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then> <block>{
+                <comment type="line">// rlw</comment>
+                <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                <return>return <expr><name>ttype</name> = <name>TT_EOF</name></expr>;</return>
+            }</block></then></if>
+        }</block></then></if>
+        <expr_stmt><expr><name>ttype</name> = <name>c</name></expr>;</expr_stmt>    <comment type="block">/* Just to be safe */</comment>
+        
+        <comment type="block">/* Set peekc so that the next invocation of nextToken will read
+         * another character unless peekc is reset in this invocation
+         */</comment>
+        <expr_stmt><expr><name>peekc</name> = <name>NEED_CHAR</name></expr>;</expr_stmt>
+        
+        <decl_stmt><decl><type><name>int</name></type> <name>ctype</name> =<init> <expr><name>c</name> &lt; 256 ? <name><name>ct</name><index>[<expr><name>c</name></expr>]</index></name> : <name>CT_ALPHA</name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr>(<name>ctype</name> &amp; <name>CT_WHITESPACE</name>) != 0</expr>)</condition> <block>{
+            <if>if <condition>(<expr><name>c</name> == '\r'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>eolIsSignificantP</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>peekc</name> = <name>SKIP_LF</name></expr>;</expr_stmt>
+                    <comment type="line">// rlw</comment>
+                    <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                    <return>return <expr><name>ttype</name> = <name>TT_EOL</name></expr>;</return>
+                }</block></then></if>
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then>
+                    <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            }</block></then> <else>else <block>{
+                <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>eolIsSignificantP</name></expr>)</condition><then> <block>{
+                        <comment type="line">// rlw</comment>
+                        <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                        <return>return <expr><name>ttype</name> = <name>TT_EOL</name></expr>;</return>
+                    }</block></then></if>
+                }</block></then></if>
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then> <block>{
+                <comment type="line">// rlw</comment>
+                <expr_stmt><expr><name>startpos</name> = <name>endpos</name> = <name>readpos</name></expr>;</expr_stmt>
+                <return>return <expr><name>ttype</name> = <name>TT_EOF</name></expr>;</return>
+            }</block></then></if>
+            <expr_stmt><expr><name>ctype</name> = <name>c</name> &lt; 256 ? <name><name>ct</name><index>[<expr><name>c</name></expr>]</index></name> : <name>CT_ALPHA</name></expr>;</expr_stmt>
+        }</block></while>
+        
+        <comment type="line">// rlw</comment>
+        <expr_stmt><expr><name>startpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+        
+        <comment type="line">// rlw hexadecimal</comment>
+        <label><name>hex</name>:</label> <if>if <condition>(<expr>((<name>ctype</name> &amp; <name>CT_DIGIT</name>) != 0) &amp;&amp;
+                <name>c</name> == '0' &amp;&amp; <name>isParseHexNumbers</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>c</name> == 'x'</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>digits</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>long</name></type> <name>hval</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+                <while>while <condition>(<expr><name>digits</name> &lt; 16</expr>)</condition> <block>{
+                    <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>c</name> &gt;= '0' &amp;&amp; <name>c</name> &lt;= '9'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>hval</name> = (<name>hval</name> &lt;&lt; 4) | (<name>c</name> - '0')</expr>;</expr_stmt>
+                    }</block></then> <else>else <if>if <condition>(<expr><name>c</name> &gt;= 'A' &amp;&amp; <name>c</name> &lt;= 'F'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>hval</name> = (<name>hval</name> &lt;&lt; 4) | (<name>c</name> - 'A' + 10)</expr>;</expr_stmt>
+                    }</block></then> <else>else <if>if <condition>(<expr><name>c</name> &gt;= 'a' &amp;&amp; <name>c</name> &lt;= 'f'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>hval</name> = (<name>hval</name> &lt;&lt; 4) | (<name>c</name> - 'a' + 10)</expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>digits</name> == 0</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>sval</name> = "0x"</expr>;</expr_stmt>
+                            <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                            <return>return <expr><name>ttype</name> = <name>TT_WORD</name></expr>;</return>
+                        }</block></then> <else>else <block>{
+                            <expr_stmt><expr><name>nval</name> = (<name>double</name>) <name>hval</name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                            <return>return <expr><name>ttype</name> = <name>TT_NUMBER</name></expr>;</return>
+                        }</block></else></if>
+                    }</block></else></if></else></if></else></if>
+                    <expr_stmt><expr><name>digits</name>++</expr>;</expr_stmt>
+                }</block></while>
+                <expr_stmt><expr><name>nval</name> = (<name>double</name>) <name>hval</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                <return>return <expr><name>ttype</name> = <name>TT_NUMBER</name></expr>;</return>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+        
+        <label><name>digit</name>:</label> <if>if <condition>(<expr>(<name>ctype</name> &amp; <name>CT_DIGIT</name>) != 0</expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>digits</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>boolean</name></type> <name>neg</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>c</name> == '-'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>c</name> != '.' &amp;&amp; (<name>c</name> &lt; '0' || <name>c</name> &gt; '9')</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                    <comment type="line">// rlw</comment>
+                    <if>if <condition>(<expr>('-' &amp; <name>CT_ALPHA</name>) != 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>c</name> = '-'</expr>;</expr_stmt>
+                        <break>break digit;</break>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                        <return>return <expr><name>ttype</name> = '-'</expr>;</return>
+                    }</block></else></if>
+                }</block></then></if>
+                <expr_stmt><expr><name>neg</name> = true</expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == '+'</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>c</name> != '.' &amp;&amp; (<name>c</name> &lt; '0' || <name>c</name> &gt; '9')</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                    <comment type="line">// rlw</comment>
+                    <if>if <condition>(<expr>('+' &amp; <name>CT_ALPHA</name>) != 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>c</name> = '+'</expr>;</expr_stmt>
+                        <break>break digit;</break>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+                        <return>return <expr><name>ttype</name> = '-'</expr>;</return>
+                    }</block></else></if>
+                }</block></then></if>
+                <expr_stmt><expr><name>neg</name> = false</expr>;</expr_stmt>
+            }</block></then></if></else></if>
+            
+            <decl_stmt><decl><type><name>double</name></type> <name>v</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>decexp</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>seendot</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr>true</expr>)</condition> <block>{
+                <if>if <condition>(<expr><name>c</name> == '.' &amp;&amp; <name>seendot</name> == 0</expr>)</condition><then>
+                    <expr_stmt><expr><name>seendot</name> = 1</expr>;</expr_stmt></then>
+                <else>else <if>if <condition>(<expr>'0' &lt;= <name>c</name> &amp;&amp; <name>c</name> &lt;= '9'</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>digits</name>++</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>v</name> = <name>v</name> * 10 + (<name>c</name> - '0')</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>decexp</name> += <name>seendot</name></expr>;</expr_stmt>
+                }</block></then> <else>else
+                    <break>break;</break></else></if></else></if>
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+            <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>decexp</name> != 0</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>double</name></type> <name>denom</name> =<init> <expr>10</expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>decexp</name>--</expr>;</expr_stmt>
+                <while>while <condition>(<expr><name>decexp</name> &gt; 0</expr>)</condition> <block>{
+                    <expr_stmt><expr><name>denom</name> *= 10</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>decexp</name>--</expr>;</expr_stmt>
+                }</block></while>
+                <comment type="block">/* Do one division of a likely-to-be-more-accurate number */</comment>
+                <expr_stmt><expr><name>v</name> = <name>v</name> / <name>denom</name></expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><name>nval</name> = <name>neg</name> ? -<name>v</name> : <name>v</name></expr>;</expr_stmt>
+            <comment type="line">// rlw</comment>
+            <expr_stmt><expr><name>endpos</name> = (<name>c</name> == -1) ? <name>readpos</name> - 1 : <name>readpos</name> - 2</expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>digits</name> == 0</expr>)</condition><then> <block>{
+                <if>if <condition>(<expr>('.' &amp; <name>CT_ALPHA</name>) != 0</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <if>if <condition>(<expr><name>neg</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr>'.'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>c</name> = '-'</expr>;</expr_stmt>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt> <comment type="line">// consume full stop</comment>
+                        <expr_stmt><expr><name>c</name> = '.'</expr>;</expr_stmt>
+                    }</block></else></if>
+                    <break>break digit;</break>
+                }</block></then> <else>else <block>{
+                    <return>return <expr><name>ttype</name> = '.'</expr>;</return>
+                }</block></else></if>
+            }</block></then> <else>else <block>{
+                <if>if <condition>(<expr><name>isParseExponents</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr><name>c</name> == 'E' || <name>c</name> == 'e'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        
+                        <expr_stmt><expr><name>digits</name> = 0</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>neg</name> = false</expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>c</name> == '-'</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><name>c</name> &lt; '0' || <name>c</name> &gt; '9'</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr>'E'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                                <return>return <expr><name>ttype</name> = <name>TT_NUMBER</name></expr>;</return>
+                            }</block></then></if>
+                            <expr_stmt><expr><name>neg</name> = true</expr>;</expr_stmt>
+                        }</block></then></if>
+                        <expr_stmt><expr><name>v</name> = 0</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>decexp</name> = 0</expr>;</expr_stmt>
+                        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+                            <if>if <condition>(<expr>'0' &lt;= <name>c</name> &amp;&amp; <name>c</name> &lt;= '9'</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name>digits</name>++</expr>;</expr_stmt>
+                                <expr_stmt><expr><name>v</name> = <name>v</name> * 10 + (<name>c</name> - '0')</expr>;</expr_stmt>
+                            }</block></then> <else>else <block>{
+                                <break>break;</break>
+                            }</block></else></if>
+                            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        }</block></while>
+                        <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>nval</name> *= <call><name><name>Math</name>.<name>pow</name></name><argument_list>(<argument><expr>10</expr></argument>, <argument><expr>(<name>neg</name>) ? -<name>v</name> : <name>v</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></then></if>
+                <return>return <expr><name>ttype</name> = <name>TT_NUMBER</name></expr>;</return>
+            }</block></else></if>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr>(<name>ctype</name> &amp; <name>CT_ALPHA</name>) != 0</expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <do>do <block>{
+                <if>if <condition>(<expr><name>i</name> &gt;= <name><name>buf</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>char</name></type> <name><name>nb</name><index>[]</index></name> =<init> <expr>new <name><name>char</name><index>[<expr><name><name>buf</name>.<name>length</name></name> * 2</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>nb</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buf</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>buf</name> = <name>nb</name></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name><name>buf</name><index>[<expr><name>i</name>++</expr>]</index></name> = (<name>char</name>) <name>c</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>ctype</name> = <name>c</name> &lt; 0 ? <name>CT_WHITESPACE</name> : <name>c</name> &lt; 256 ? <name><name>ct</name><index>[<expr><name>c</name></expr>]</index></name> : <name>CT_ALPHA</name></expr>;</expr_stmt>
+            }</block> while <condition>(<expr>(<name>ctype</name> &amp; (<name>CT_ALPHA</name> | <name>CT_DIGIT</name>)) != 0</expr>)</condition>;</do>
+            <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>sval</name> = <call><name><name>String</name>.<name>copyValueOf</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>forceLower</name></expr>)</condition><then>
+                <expr_stmt><expr><name>sval</name> = <call><name><name>sval</name>.<name>toLowerCase</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+            <comment type="line">// rlw EOF must be treated specially</comment>
+            <expr_stmt><expr><name>endpos</name> = (<name>c</name> == -1) ? <name>readpos</name> - 1 : <name>readpos</name> - 2</expr>;</expr_stmt>
+            <return>return <expr><name>ttype</name> = <name>TT_WORD</name></expr>;</return>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr>(<name>ctype</name> &amp; <name>CT_QUOTE</name>) != 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>ttype</name> = <name>c</name></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <comment type="block">/* Invariants (because \Octal needs a lookahead):
+             *   (i)  c contains char value
+             *   (ii) d contains the lookahead
+             */</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>d</name> =<init> <expr><call><name>read</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <while>while <condition>(<expr><name>d</name> &gt;= 0 &amp;&amp; <name>d</name> != <name>ttype</name> &amp;&amp; <name>d</name> != '\n' &amp;&amp; <name>d</name> != '\r'</expr>)</condition> <block>{
+                <if>if <condition>(<expr><name>d</name> == '\\'</expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><name>int</name></type> <name>first</name> =<init> <expr><name>c</name></expr></init></decl>;</decl_stmt>   <comment type="block">/* To allow \377, but not \477 */</comment>
+                    <if>if <condition>(<expr><name>c</name> &gt;= '0' &amp;&amp; <name>c</name> &lt;= '7'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>c</name> = <name>c</name> - '0'</expr>;</expr_stmt>
+                        <decl_stmt><decl><type><name>int</name></type> <name>c2</name> =<init> <expr><call><name>read</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr>'0' &lt;= <name>c2</name> &amp;&amp; <name>c2</name> &lt;= '7'</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>c</name> = (<name>c</name> &lt;&lt; 3) + (<name>c2</name> - '0')</expr>;</expr_stmt>
+                            <expr_stmt><expr><name>c2</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr>'0' &lt;= <name>c2</name> &amp;&amp; <name>c2</name> &lt;= '7' &amp;&amp; <name>first</name> &lt;= '3'</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name>c</name> = (<name>c</name> &lt;&lt; 3) + (<name>c2</name> - '0')</expr>;</expr_stmt>
+                                <expr_stmt><expr><name>d</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            }</block></then> <else>else
+                                <expr_stmt><expr><name>d</name> = <name>c2</name></expr>;</expr_stmt></else></if>
+                        }</block></then> <else>else
+                            <expr_stmt><expr><name>d</name> = <name>c2</name></expr>;</expr_stmt></else></if>
+                    }</block></then> <else>else <block>{
+                        <switch>switch <condition>(<expr><name>c</name></expr>)</condition> <block>{
+                            <case>case <expr>'a'</expr>:
+                                <expr_stmt><expr><name>c</name> = 0x7</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'b'</expr>:
+                                <expr_stmt><expr><name>c</name> = '\b'</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'f'</expr>:
+                                <expr_stmt><expr><name>c</name> = 0xC</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'n'</expr>:
+                                <expr_stmt><expr><name>c</name> = '\n'</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'r'</expr>:
+                                <expr_stmt><expr><name>c</name> = '\r'</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'t'</expr>:
+                                <expr_stmt><expr><name>c</name> = '\t'</expr>;</expr_stmt>
+                                <break>break;</break>
+                            </case><case>case <expr>'v'</expr>:
+                                <expr_stmt><expr><name>c</name> = 0xB</expr>;</expr_stmt>
+                                <break>break;</break>
+                        </case>}</block></switch>
+                        <expr_stmt><expr><name>d</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><name>c</name> = <name>d</name></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>d</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <if>if <condition>(<expr><name>i</name> &gt;= <name><name>buf</name>.<name>length</name></name></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>char</name></type> <name><name>nb</name><index>[]</index></name> =<init> <expr>new <name><name>char</name><index>[<expr><name><name>buf</name>.<name>length</name></name> * 2</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>nb</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buf</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><name>buf</name> = <name>nb</name></expr>;</expr_stmt>
+                }</block></then></if>
+                <expr_stmt><expr><name><name>buf</name><index>[<expr><name>i</name>++</expr>]</index></name> = (<name>char</name>)<name>c</name></expr>;</expr_stmt>
+            }</block></while>
+            
+            <comment type="block">/* If we broke out of the loop because we found a matching quote
+             * character then arrange to read a new character next time
+             * around; otherwise, save the character.
+             */</comment>
+            <expr_stmt><expr><name>peekc</name> = (<name>d</name> == <name>ttype</name>) ? <name>NEED_CHAR</name> : <name>d</name></expr>;</expr_stmt>
+            
+            <expr_stmt><expr><name>sval</name> = <call><name><name>String</name>.<name>copyValueOf</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// rlw</comment>
+            <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 2</expr>;</expr_stmt>
+            <return>return <expr><name>ttype</name></expr>;</return>
+        }</block></then></if>
+        <comment type="block">/* rlw*/</comment>
+        <comment type="block">/*
+        if (c == '/' &amp;&amp; (slashSlashCommentsP || slashStarCommentsP)) {
+            c = read();
+            if (c == '*' &amp;&amp; slashStarCommentsP) {
+                int prevc = 0;
+                while ((c = read()) != '/' || prevc != '*') {
+                    if (c == '\r') {
+                        lineno++;
+                        c = read();
+                        if (c == '\n') {
+                            c = read();
+                        }
+                    } else {
+                        if (c == '\n') {
+                            lineno++;
+                            c = read();
+                        }
+                    }
+                    if (c &lt; 0) {
+                        endpos = readpos;
+                        return ttype = TT_EOF;
+                    }
+                    prevc = c;
+                }
+                return nextToken();
+            } else if (c == '/' &amp;&amp; slashSlashCommentsP) {
+                while ((c = read()) != '\n' &amp;&amp; c != '\r' &amp;&amp; c &gt;= 0);
+                peekc = c;
+                return nextToken();
+            } else {
+                // Now see if it is still a single line comment
+                if ((ct['/'] &amp; CT_COMMENT) != 0) {
+                    while ((c = read()) != '\n' &amp;&amp; c != '\r' &amp;&amp; c &gt;= 0);
+                    peekc = c;
+                    return nextToken();
+                } else {
+                    peekc = c;
+                    // rlw
+                    endpos = readpos - 2;
+                    return ttype = '/';
+                }
+            }
+        }*/</comment>
+        
+        <if>if <condition>(<expr><name>slashSlashCommentsP</name> &amp;&amp; <name>c</name> == <name><name>slashSlash</name><index>[<expr>0</expr>]</index></name>
+                || <name>slashStarCommentsP</name> &amp;&amp; <name>c</name> == <name><name>slashStar</name><index>[<expr>0</expr>]</index></name></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><name>c</name> == <name><name>slashStar</name><index>[<expr>0</expr>]</index></name> &amp;&amp; <name><name>slashStar</name>.<name>length</name></name> == 1</expr>)</condition><then> <block>{
+                <comment type="line">// This is the scanner code if the slashStar token</comment>
+                <comment type="line">// is one characters long</comment>
+                <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != <name><name>starSlash</name><index>[<expr>0</expr>]</index></name></expr>)</condition> <block>{
+                    <if>if <condition>(<expr><name>c</name> == '\r'</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                        <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></then> <else>else <block>{
+                        <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        }</block></then></if>
+                    }</block></else></if>
+                    <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>endpos</name> = <name>readpos</name></expr>;</expr_stmt>
+                        <return>return <expr><name>ttype</name> = <name>TT_EOF</name></expr>;</return>
+                    }</block></then></if>
+                }</block></while>
+                <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == <name><name>slashSlash</name><index>[<expr>0</expr>]</index></name> &amp;&amp; <name><name>slashSlash</name>.<name>length</name></name> == 1</expr>)</condition><then> <block>{
+                <comment type="line">// This is the scanner code if the slashSlash token</comment>
+                <comment type="line">// is one characters long</comment>
+                <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != '\n' &amp;&amp; <name>c</name> != '\r' &amp;&amp; <name>c</name> &gt;= 0</expr>)</condition><empty_stmt>;</empty_stmt></while>
+                <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></then> <else>else <block>{
+                <comment type="line">// This is the scanner code if the slashStar and the slashSlash</comment>
+                <comment type="line">// tokens are two characters long</comment>
+                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>c</name> == <name><name>slashStar</name><index>[<expr>1</expr>]</index></name> &amp;&amp; <name>slashStarCommentsP</name></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>int</name></type> <name>prevc</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+                    <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != <name><name>starSlash</name><index>[<expr>1</expr>]</index></name> || <name>prevc</name> != <name><name>starSlash</name><index>[<expr>0</expr>]</index></name></expr>)</condition> <block>{
+                        <if>if <condition>(<expr><name>c</name> == '\r'</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                            <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+                        }</block></then> <else>else <block>{
+                            <if>if <condition>(<expr><name>c</name> == '\n'</expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name>lineno</name>++</expr>;</expr_stmt>
+                                <expr_stmt><expr><name>c</name> = <call><name>read</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                            }</block></then></if>
+                        }</block></else></if>
+                        <if>if <condition>(<expr><name>c</name> &lt; 0</expr>)</condition><then> <block>{
+                            <expr_stmt><expr><name>endpos</name> = <name>readpos</name></expr>;</expr_stmt>
+                            <return>return <expr><name>ttype</name> = <name>TT_EOF</name></expr>;</return>
+                        }</block></then></if>
+                        <expr_stmt><expr><name>prevc</name> = <name>c</name></expr>;</expr_stmt>
+                    }</block></while>
+                    <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+                }</block></then> <else>else <if>if <condition>(<expr><name>c</name> == <name><name>slashSlash</name><index>[<expr>1</expr>]</index></name> &amp;&amp; <name>slashSlashCommentsP</name></expr>)</condition><then> <block>{
+                    <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != '\n' &amp;&amp; <name>c</name> != '\r' &amp;&amp; <name>c</name> &gt;= 0</expr>)</condition><empty_stmt>;</empty_stmt></while>
+                    <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                    <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// Now see if it is still a single line comment</comment>
+                    <if>if <condition>(<expr>(<name><name>ct</name><index>[<expr><name><name>slashSlash</name><index>[<expr>0</expr>]</index></name></expr>]</index></name> &amp; <name>CT_COMMENT</name>) != 0</expr>)</condition><then> <block>{
+                        <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != '\n' &amp;&amp; <name>c</name> != '\r' &amp;&amp; <name>c</name> &gt;= 0</expr>)</condition><empty_stmt>;</empty_stmt></while>
+                        <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                        <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+                        <comment type="line">// rlw</comment>
+                        <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 2</expr>;</expr_stmt>
+                        <return>return <expr><name>ttype</name> = <name><name>slashSlash</name><index>[<expr>0</expr>]</index></name></expr>;</return>
+                    }</block></else></if>
+                }</block></else></if></else></if>
+            }</block></else></if></else></if>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr>(<name>ctype</name> &amp; <name>CT_COMMENT</name>) != 0</expr>)</condition><then> <block>{
+            <while>while <condition>(<expr>(<name>c</name> = <call><name>read</name><argument_list>()</argument_list></call>) != '\n' &amp;&amp; <name>c</name> != '\r' &amp;&amp; <name>c</name> &gt;= 0</expr>)</condition><empty_stmt>;</empty_stmt></while>
+            <expr_stmt><expr><name>peekc</name> = <name>c</name></expr>;</expr_stmt>
+            <return>return <expr><call><name>nextToken</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then></if>
+        
+        <comment type="line">// rlw</comment>
+        <expr_stmt><expr><name>endpos</name> = <name>readpos</name> - 1</expr>;</expr_stmt>
+        <return>return <expr><name>ttype</name> = <name>c</name></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Reads the next character from the input stream, without
+     * passing it to the tokenizer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>nextChar</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>pushedBack</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr>"can't read char when a token has been pushed back"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>peekc</name> == <name>NEED_CHAR</name></expr>)</condition><then> <block>{
+            <return>return <expr><call><name>read</name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>ch</name> =<init> <expr><name>peekc</name></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><name>peekc</name> = <name>NEED_CHAR</name></expr>;</expr_stmt>
+            <return>return <expr><name>ch</name></expr>;</return>
+        }</block></else></if>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Unreads a character back into the input stream of the tokenizer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>pushCharBack</name><parameter_list>(<param><decl><type><name>int</name></type> <name>ch</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>pushedBack</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalStateException</name><argument_list>(<argument><expr>"can't push back char when a token has been pushed back"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>peekc</name> == <name>NEED_CHAR</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>peekc</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>peekc</name> = <name>NEED_CHAR</name></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>unread</name><argument_list>(<argument><expr><name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Sets the slash star and star slash tokens.
+     * Due to limitations by this implementation, both tokens must have the
+     * same number of characters and the character length must be either 1
+     * or 2.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setSlashStarTokens</name><parameter_list>(<param><decl><type><name>String</name></type> <name>slashStar</name></decl></param>, <param><decl><type><name>String</name></type> <name>starSlash</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>slashStar</name>.<name>length</name></name><argument_list>()</argument_list></call> != <call><name><name>starSlash</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"SlashStar and StarSlash tokens must be of same length: '"+<name>slashStar</name>+"' '"+<name>starSlash</name>+"'"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>slashStar</name>.<name>length</name></name><argument_list>()</argument_list></call> &lt; 1 || <call><name><name>slashStar</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 2</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"SlashStar and StarSlash tokens must be of length 1 or 2: '"+<name>slashStar</name>+"' '"+<name>starSlash</name>+"'"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>slashStar</name></name> = <call><name><name>slashStar</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>starSlash</name></name> = <call><name><name>starSlash</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>commentChar</name><argument_list>(<argument><expr><name><name>this</name>.<name>slashStar</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Sets the slash slash token.
+     * Due to limitations by this implementation, the character length must be
+     * either 1 or 2.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setSlashSlashToken</name><parameter_list>(<param><decl><type><name>String</name></type> <name>slashSlash</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>slashSlash</name>.<name>length</name></name><argument_list>()</argument_list></call> &lt; 1 || <call><name><name>slashSlash</name>.<name>length</name></name><argument_list>()</argument_list></call> &gt; 2</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"SlashSlash token must be of length 1 or 2: '"+<name>slashSlash</name>+"'"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>slashSlash</name></name> = <call><name><name>slashSlash</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>commentChar</name><argument_list>(<argument><expr><name><name>this</name>.<name>slashSlash</name><index>[<expr>0</expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Causes the next call to the &lt;code&gt;nextToken&lt;/code&gt; method of this
+     * tokenizer to return the current value in the &lt;code&gt;ttype&lt;/code&gt;
+     * field, and not to modify the value in the &lt;code&gt;nval&lt;/code&gt; or
+     * &lt;code&gt;sval&lt;/code&gt; field.
+     *
+     * @see     java.io.StreamTokenizer#nextToken()
+     * @see     java.io.StreamTokenizer#nval
+     * @see     java.io.StreamTokenizer#sval
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>pushBack</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>ttype</name> != <name>TT_NOTHING</name></expr>)</condition><then>   <comment type="block">/* No-op if nextToken() not called */</comment>
+            <expr_stmt><expr><name>pushedBack</name> = true</expr>;</expr_stmt></then></if>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Return the current line number.
+     *
+     * @return  the current line number of this stream tokenizer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>lineno</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>lineno</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the start position of the token relative
+     * to the position that the stream had, when the
+     * StreamPosTokenizer was constructed.
+     *
+     * @return  the start position of the token.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getStartPosition</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>startpos</name></expr>;</return>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Set the start position of the current token.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setStartPosition</name><parameter_list>(<param><decl><type><name>int</name></type> <name>p</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>startpos</name> = <name>p</name></expr>;</expr_stmt>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Returns the end position of the token relative
+     * to the position that the stream had, when the
+     * StreamPosTokenizer was constructed.
+     *
+     * @return  the end position of the token.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getEndPosition</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>endpos</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Consumes a substring from the current sval of the StreamPosTokenizer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>consumeGreedy</name><parameter_list>(<param><decl><type><name>String</name></type> <name>greedyToken</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>greedyToken</name>.<name>length</name></name><argument_list>()</argument_list></call> &lt; <call><name><name>sval</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>pushBack</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>setStartPosition</name><argument_list>(<argument><expr><call><name>getStartPosition</name><argument_list>()</argument_list></call> + <call><name><name>greedyToken</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>sval</name> = <call><name><name>sval</name>.<name>substring</name></name><argument_list>(<argument><expr><call><name><name>greedyToken</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+    <comment type="javadoc">/**
+     * Returns the string representation of the current stream token.
+     *
+     * @return  a string representation of the token specified by the
+     *          &lt;code&gt;ttype&lt;/code&gt;, &lt;code&gt;nval&lt;/code&gt;, and &lt;code&gt;sval&lt;/code&gt;
+     *          fields.
+     * @see     java.io.StreamTokenizer#nval
+     * @see     java.io.StreamTokenizer#sval
+     * @see     java.io.StreamTokenizer#ttype
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>ret</name></decl>;</decl_stmt>
+        <switch>switch <condition>(<expr><name>ttype</name></expr>)</condition> <block>{
+            <case>case <expr><name>TT_EOF</name></expr>:
+                <expr_stmt><expr><name>ret</name> = "EOF"</expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>TT_EOL</name></expr>:
+                <expr_stmt><expr><name>ret</name> = "EOL"</expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>TT_WORD</name></expr>:
+                <expr_stmt><expr><name>ret</name> = <name>sval</name></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>TT_NUMBER</name></expr>:
+                <expr_stmt><expr><name>ret</name> = "n=" + <name>nval</name></expr>;</expr_stmt>
+                <break>break;</break>
+            </case><case>case <expr><name>TT_NOTHING</name></expr>:
+                <expr_stmt><expr><name>ret</name> = "NOTHING"</expr>;</expr_stmt>
+                <break>break;</break>
+            </case><default>default:<block>{
+                <decl_stmt><decl><type><name>char</name></type> <name><name>s</name><index>[]</index></name> =<init> <expr>new <name><name>char</name><index>[<expr>3</expr>]</index></name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name><name>s</name><index>[<expr>0</expr>]</index></name> = <name><name>s</name><index>[<expr>2</expr>]</index></name> = '\''</expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>s</name><index>[<expr>1</expr>]</index></name> = (<name>char</name>) <name>ttype</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>ret</name> = new <call><name>String</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break>
+            }</block>
+        </default>}</block></switch>
+        <return>return <expr>"Token[" + <name>ret</name> + "], line " + <name>lineno</name></expr>;</return>
+    }</block></function>
+}</block></class>
+</unit>

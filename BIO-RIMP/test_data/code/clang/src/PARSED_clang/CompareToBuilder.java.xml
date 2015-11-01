@@ -1,0 +1,1046 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clang\src\main\java\org\apache\commons\lang\builder\CompareToBuilder.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>builder</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>AccessibleObject</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Field</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Modifier</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>ArrayUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>lang</name>.<name>math</name>.<name>NumberUtils</name></name>;</import>
+
+<comment type="javadoc">/** 
+ * Assists in implementing {@link java.lang.Comparable#compareTo(Object)} methods.
+ *
+ * It is consistent with &lt;code&gt;equals(Object)&lt;/code&gt; and
+ * &lt;code&gt;hashcode()&lt;/code&gt; built with {@link EqualsBuilder} and
+ * {@link HashCodeBuilder}.&lt;/p&gt;
+ *
+ * &lt;p&gt;Two Objects that compare equal using &lt;code&gt;equals(Object)&lt;/code&gt; should normally
+ * also compare equal using &lt;code&gt;compareTo(Object)&lt;/code&gt;.&lt;/p&gt;
+ *
+ * &lt;p&gt;All relevant fields should be included in the calculation of the
+ * comparison. Derived fields may be ignored. The same fields, in the same
+ * order, should be used in both &lt;code&gt;compareTo(Object)&lt;/code&gt; and
+ * &lt;code&gt;equals(Object)&lt;/code&gt;.&lt;/p&gt;
+ *
+ * &lt;p&gt;To use this class write code as follows:&lt;/p&gt;
+ *
+ * &lt;pre&gt;
+ * public class MyClass {
+ *   String field1;
+ *   int field2;
+ *   boolean field3;
+ *
+ *   ...
+ *
+ *   public int compareTo(Object o) {
+ *     MyClass myClass = (MyClass) o;
+ *     return new CompareToBuilder()
+ *       .appendSuper(super.compareTo(o)
+ *       .append(this.field1, myClass.field1)
+ *       .append(this.field2, myClass.field2)
+ *       .append(this.field3, myClass.field3)
+ *       .toComparison();
+ *   }
+ * }
+ * &lt;/pre&gt;
+ *
+ * &lt;p&gt;Alternatively, there are {@link #reflectionCompare(Object, Object) reflectionCompare} methods that use
+ * reflection to determine the fields to append. Because fields can be private,
+ * &lt;code&gt;reflectionCompare&lt;/code&gt; uses {@link java.lang.reflect.AccessibleObject#setAccessible(boolean)} to
+ * bypass normal access control checks. This will fail under a security manager,
+ * unless the appropriate permissions are set up correctly. It is also
+ * slower than appending explicitly.&lt;/p&gt;
+ *
+ * &lt;p&gt;A typical implementation of &lt;code&gt;compareTo(Object)&lt;/code&gt; using
+ * &lt;code&gt;reflectionCompare&lt;/code&gt; looks like:&lt;/p&gt;
+
+ * &lt;pre&gt;
+ * public int compareTo(Object o) {
+ *   return CompareToBuilder.reflectionCompare(this, o);
+ * }
+ * &lt;/pre&gt;
+ *
+ * @see java.lang.Comparable
+ * @see java.lang.Object#equals(Object)
+ * @see java.lang.Object#hashCode()
+ * @see EqualsBuilder
+ * @see HashCodeBuilder
+ * @author Apache Software Foundation
+ * @author &lt;a href="mailto:steve.downey@netfolio.com"&gt;Steve Downey&lt;/a&gt;
+ * @author Gary Gregory
+ * @author Pete Gieser
+ * @since 1.0
+ * @version $Id: CompareToBuilder.java 1056843 2011-01-09 00:29:01Z niallp $
+ */</comment>
+<class><specifier>public</specifier> class <name>CompareToBuilder</name> <block>{
+    
+    <comment type="javadoc">/**
+     * Current state of the comparison as appended fields are checked.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>comparison</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Constructor for CompareToBuilder.&lt;/p&gt;
+     *
+     * &lt;p&gt;Starts off assuming that the objects are equal. Multiple calls are 
+     * then made to the various append methods, followed by a call to 
+     * {@link #toComparison} to get the result.&lt;/p&gt;
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CompareToBuilder</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>comparison</name> = 0</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/** 
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;Transient members will be not be compared, as they are likely derived
+     *     fields&lt;/li&gt;
+     * &lt;li&gt;Superclass fields will be compared&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either (but not both) parameters are
+     *  &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionCompare</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;If &lt;code&gt;compareTransients&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;,
+     *     compares transient members.  Otherwise ignores them, as they
+     *     are likely derived fields.&lt;/li&gt;
+     * &lt;li&gt;Superclass fields will be compared&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param compareTransients  whether to compare transient fields
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt;
+     *  (but not both) is &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>compareTransients</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionCompare</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>compareTransients</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;If &lt;code&gt;compareTransients&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;,
+     *     compares transient members.  Otherwise ignores them, as they
+     *     are likely derived fields.&lt;/li&gt;
+     * &lt;li&gt;Superclass fields will be compared&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param excludeFields  Collection of String fields to exclude
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt;
+     *  (but not both) is &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, <param><decl><type><name>Collection</name></type> <comment type="block">/*String*/</comment> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionCompare</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><call><name><name>ReflectionToStringBuilder</name>.<name>toNoNullStringArray</name></name><argument_list>(<argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;If &lt;code&gt;compareTransients&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;,
+     *     compares transient members.  Otherwise ignores them, as they
+     *     are likely derived fields.&lt;/li&gt;
+     * &lt;li&gt;Superclass fields will be compared&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param excludeFields  array of fields to exclude
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt;
+     *  (but not both) is &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>reflectionCompare</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;If the &lt;code&gt;compareTransients&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;,
+     *     compares transient members.  Otherwise ignores them, as they
+     *     are likely derived fields.&lt;/li&gt;
+     * &lt;li&gt;Compares superclass fields up to and including &lt;code&gt;reflectUpToClass&lt;/code&gt;.
+     *     If &lt;code&gt;reflectUpToClass&lt;/code&gt; is &lt;code&gt;null&lt;/code&gt;, compares all superclass fields.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param compareTransients  whether to compare transient fields
+     * @param reflectUpToClass  last superclass for which fields are compared
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt;
+     *  (but not both) is &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>compareTransients</name></decl></param>, 
+                                        <param><decl><type><name>Class</name></type> <name>reflectUpToClass</name></decl></param>)</parameter_list> 
+    <block>{
+        <return>return <expr><call><name>reflectionCompare</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>compareTransients</name></expr></argument>, <argument><expr><name>reflectUpToClass</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Compares two &lt;code&gt;Object&lt;/code&gt;s via reflection.&lt;/p&gt;
+     *
+     * &lt;p&gt;Fields can be private, thus &lt;code&gt;AccessibleObject.setAccessible&lt;/code&gt;
+     * is used to bypass normal access control checks. This will fail under a 
+     * security manager unless the appropriate permissions are set.&lt;/p&gt;
+     *
+     * &lt;ul&gt;
+     * &lt;li&gt;Static fields will not be compared&lt;/li&gt;
+     * &lt;li&gt;If the &lt;code&gt;compareTransients&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt;,
+     *     compares transient members.  Otherwise ignores them, as they
+     *     are likely derived fields.&lt;/li&gt;
+     * &lt;li&gt;Compares superclass fields up to and including &lt;code&gt;reflectUpToClass&lt;/code&gt;.
+     *     If &lt;code&gt;reflectUpToClass&lt;/code&gt; is &lt;code&gt;null&lt;/code&gt;, compares all superclass fields.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * &lt;p&gt;If both &lt;code&gt;lhs&lt;/code&gt; and &lt;code&gt;rhs&lt;/code&gt; are &lt;code&gt;null&lt;/code&gt;,
+     * they are considered equal.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param compareTransients  whether to compare transient fields
+     * @param reflectUpToClass  last superclass for which fields are compared
+     * @param excludeFields  fields to exclude
+     * @return a negative integer, zero, or a positive integer as &lt;code&gt;lhs&lt;/code&gt;
+     *  is less than, equal to, or greater than &lt;code&gt;rhs&lt;/code&gt;
+     * @throws NullPointerException  if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt;
+     *  (but not both) is &lt;code&gt;null&lt;/code&gt;
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.2
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>reflectionCompare</name><parameter_list>(
+        <param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, 
+        <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, 
+        <param><decl><type><name>boolean</name></type> <name>compareTransients</name></decl></param>, 
+        <param><decl><type><name>Class</name></type> <name>reflectUpToClass</name></decl></param>, 
+        <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr>0</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name> || <name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>()</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Class</name></type> <name>lhsClazz</name> =<init> <expr><call><name><name>lhs</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>lhsClazz</name>.<name>isInstance</name></name><argument_list>(<argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>ClassCastException</name><argument_list>()</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>CompareToBuilder</name></type> <name>compareToBuilder</name> =<init> <expr>new <call><name>CompareToBuilder</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>reflectionAppend</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>lhsClazz</name></expr></argument>, <argument><expr><name>compareToBuilder</name></expr></argument>, <argument><expr><name>compareTransients</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>lhsClazz</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp; <name>lhsClazz</name> != <name>reflectUpToClass</name></expr>)</condition> <block>{
+            <expr_stmt><expr><name>lhsClazz</name> = <call><name><name>lhsClazz</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>reflectionAppend</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>lhsClazz</name></expr></argument>, <argument><expr><name>compareToBuilder</name></expr></argument>, <argument><expr><name>compareTransients</name></expr></argument>, <argument><expr><name>excludeFields</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><call><name><name>compareToBuilder</name>.<name>toComparison</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to &lt;code&gt;builder&lt;/code&gt; the comparison of &lt;code&gt;lhs&lt;/code&gt;
+     * to &lt;code&gt;rhs&lt;/code&gt; using the fields defined in &lt;code&gt;clazz&lt;/code&gt;.&lt;/p&gt;
+     * 
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param clazz  &lt;code&gt;Class&lt;/code&gt; that defines fields to be compared
+     * @param builder  &lt;code&gt;CompareToBuilder&lt;/code&gt; to append to
+     * @param useTransients  whether to compare transient fields
+     * @param excludeFields  fields to exclude
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>reflectionAppend</name><parameter_list>(
+        <param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>,
+        <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>,
+        <param><decl><type><name>Class</name></type> <name>clazz</name></decl></param>,
+        <param><decl><type><name>CompareToBuilder</name></type> <name>builder</name></decl></param>,
+        <param><decl><type><name>boolean</name></type> <name>useTransients</name></decl></param>,
+        <param><decl><type><name><name>String</name><index>[]</index></name></type> <name>excludeFields</name></decl></param>)</parameter_list> <block>{
+        
+        <decl_stmt><decl><type><name>Field</name><index>[]</index></type> <name>fields</name> =<init> <expr><call><name><name>clazz</name>.<name>getDeclaredFields</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>AccessibleObject</name>.<name>setAccessible</name></name><argument_list>(<argument><expr><name>fields</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fields</name>.<name>length</name></name> &amp;&amp; <name><name>builder</name>.<name>comparison</name></name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><name>Field</name></type> <name>f</name> =<init> <expr><name><name>fields</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>!<call><name><name>ArrayUtils</name>.<name>contains</name></name><argument_list>(<argument><expr><name>excludeFields</name></expr></argument>, <argument><expr><call><name><name>f</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+                &amp;&amp; (<call><name><name>f</name>.<name>getName</name></name><argument_list>()</argument_list></call>.<call><name>indexOf</name><argument_list>(<argument><expr>'$'</expr></argument>)</argument_list></call> == -1)
+                &amp;&amp; (<name>useTransients</name> || !<call><name><name>Modifier</name>.<name>isTransient</name></name><argument_list>(<argument><expr><call><name><name>f</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>)
+                &amp;&amp; (!<call><name><name>Modifier</name>.<name>isStatic</name></name><argument_list>(<argument><expr><call><name><name>f</name>.<name>getModifiers</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>)</expr>)</condition><then> <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>f</name>.<name>get</name></name><argument_list>(<argument><expr><name>lhs</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>f</name>.<name>get</name></name><argument_list>(<argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>IllegalAccessException</name></type> <name>e</name></decl></param>) <block>{
+                    <comment type="line">// This can't happen. Would get a Security exception instead.</comment>
+                    <comment type="line">// Throw a runtime exception in case the impossible happens.</comment>
+                    <throw>throw <expr>new <call><name>InternalError</name><argument_list>(<argument><expr>"Unexpected IllegalAccessException"</expr></argument>)</argument_list></call></expr>;</throw>
+                }</block></catch></try>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the &lt;code&gt;compareTo(Object)&lt;/code&gt;
+     * result of the superclass.&lt;/p&gt;
+     *
+     * @param superCompareTo  result of calling &lt;code&gt;super.compareTo(Object)&lt;/code&gt;
+     * @return this - used to chain append calls
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>appendSuper</name><parameter_list>(<param><decl><type><name>int</name></type> <name>superCompareTo</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = <name>superCompareTo</name></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;Object&lt;/code&gt;s.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     * &lt;li&gt;Check if &lt;code&gt;lhs == rhs&lt;/code&gt;&lt;/li&gt;
+     * &lt;li&gt;Check if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt; is &lt;code&gt;null&lt;/code&gt;,
+     *     a &lt;code&gt;null&lt;/code&gt; object is less than a non-&lt;code&gt;null&lt;/code&gt; object&lt;/li&gt;
+     * &lt;li&gt;Check the object contents&lt;/li&gt;
+     * &lt;/ol&gt;
+     * 
+     * &lt;p&gt;&lt;code&gt;lhs&lt;/code&gt; must either be an array or implement {@link Comparable}.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @return this - used to chain append calls
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>append</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;Object&lt;/code&gt;s.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     * &lt;li&gt;Check if &lt;code&gt;lhs == rhs&lt;/code&gt;&lt;/li&gt;
+     * &lt;li&gt;Check if either &lt;code&gt;lhs&lt;/code&gt; or &lt;code&gt;rhs&lt;/code&gt; is &lt;code&gt;null&lt;/code&gt;,
+     *     a &lt;code&gt;null&lt;/code&gt; object is less than a non-&lt;code&gt;null&lt;/code&gt; object&lt;/li&gt;
+     * &lt;li&gt;Check the object contents&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * &lt;p&gt;If &lt;code&gt;lhs&lt;/code&gt; is an array, array comparison methods will be used.
+     * Otherwise &lt;code&gt;comparator&lt;/code&gt; will be used to compare the objects.
+     * If &lt;code&gt;comparator&lt;/code&gt; is &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;lhs&lt;/code&gt; must
+     * implement {@link Comparable} instead.&lt;/p&gt;
+     *
+     * @param lhs  left-hand object
+     * @param rhs  right-hand object
+     * @param comparator  &lt;code&gt;Comparator&lt;/code&gt; used to compare the objects,
+     *  &lt;code&gt;null&lt;/code&gt; means treat lhs as &lt;code&gt;Comparable&lt;/code&gt;
+     * @return this - used to chain append calls
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>Object</name></type> <name>rhs</name></decl></param>, <param><decl><type><name>Comparator</name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>lhs</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>isArray</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// switch on type of array, to dispatch to the correct handler</comment>
+            <comment type="line">// handles multi dimensional arrays</comment>
+            <comment type="line">// throws a ClassCastException if rhs is not the correct array type</comment>
+            <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>long</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>long</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>long</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>int</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>int</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>int</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>short</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>short</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>short</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>char</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>char</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>char</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>byte</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>byte</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>byte</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>double</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>double</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>double</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>float</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>float</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>float</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><name>lhs</name> <name>instanceof</name> <name><name>boolean</name><index>[]</index></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>boolean</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>boolean</name><index>[]</index></name>) <name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <comment type="line">// not an array of primitives</comment>
+                <comment type="line">// throws a ClassCastException if rhs is not an array</comment>
+                <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr>(<name><name>Object</name><index>[]</index></name>) <name>lhs</name></expr></argument>, <argument><expr>(<name><name>Object</name><index>[]</index></name>) <name>rhs</name></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if></else></if></else></if></else></if></else></if></else></if></else></if></else></if>
+        }</block></then> <else>else <block>{
+            <comment type="line">// the simple case, not an array, just test the element</comment>
+            <if>if <condition>(<expr><name>comparator</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>comparison</name> = ((<name>Comparable</name>) <name>lhs</name>).<call><name>compareTo</name><argument_list>(<argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>comparison</name> = <call><name><name>comparator</name>.<name>compare</name></name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-------------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;long&lt;/code&gt;s.
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>long</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>long</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = ((<name>lhs</name> &lt; <name>rhs</name>) ? -1 : ((<name>lhs</name> &gt; <name>rhs</name>) ? 1 : 0))</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;int&lt;/code&gt;s.
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>int</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>int</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = ((<name>lhs</name> &lt; <name>rhs</name>) ? -1 : ((<name>lhs</name> &gt; <name>rhs</name>) ? 1 : 0))</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;short&lt;/code&gt;s.
+     * 
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>short</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>short</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = ((<name>lhs</name> &lt; <name>rhs</name>) ? -1 : ((<name>lhs</name> &gt; <name>rhs</name>) ? 1 : 0))</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;char&lt;/code&gt;s.
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>char</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>char</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = ((<name>lhs</name> &lt; <name>rhs</name>) ? -1 : ((<name>lhs</name> &gt; <name>rhs</name>) ? 1 : 0))</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;byte&lt;/code&gt;s.
+     * 
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>byte</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>byte</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = ((<name>lhs</name> &lt; <name>rhs</name>) ? -1 : ((<name>lhs</name> &gt; <name>rhs</name>) ? 1 : 0))</expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;double&lt;/code&gt;s.&lt;/p&gt;
+     *
+     * &lt;p&gt;This handles NaNs, Infinities, and &lt;code&gt;-0.0&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;It is compatible with the hash code generated by
+     * &lt;code&gt;HashCodeBuilder&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>double</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>double</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = <call><name><name>NumberUtils</name>.<name>compare</name></name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;float&lt;/code&gt;s.&lt;/p&gt;
+     *
+     * &lt;p&gt;This handles NaNs, Infinities, and &lt;code&gt;-0.0&lt;/code&gt;.&lt;/p&gt;
+     *
+     * &lt;p&gt;It is compatible with the hash code generated by
+     * &lt;code&gt;HashCodeBuilder&lt;/code&gt;.&lt;/p&gt;
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>float</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>float</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <expr_stmt><expr><name>comparison</name> = <call><name><name>NumberUtils</name>.<name>compare</name></name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends to the &lt;code&gt;builder&lt;/code&gt; the comparison of
+     * two &lt;code&gt;booleans&lt;/code&gt;s.
+     *
+     * @param lhs  left-hand value
+     * @param rhs  right-hand value
+     * @return this - used to chain append calls
+      */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>lhs</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == false</expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+        }</block></else></if>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;Object&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a short length array is less than a long length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(Object, Object, Comparator)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * &lt;p&gt;This method will also will be called for the top level of multi-dimensional,
+     * ragged, and multi-typed arrays.&lt;/p&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>append</name><argument_list>(<argument><expr><name>lhs</name></expr></argument>, <argument><expr><name>rhs</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;Object&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a short length array is less than a long length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(Object, Object, Comparator)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * &lt;p&gt;This method will also will be called for the top level of multi-dimensional,
+     * ragged, and multi-typed arrays.&lt;/p&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @param comparator  &lt;code&gt;Comparator&lt;/code&gt; to use to compare the array elements,
+     *  &lt;code&gt;null&lt;/code&gt; means to treat &lt;code&gt;lhs&lt;/code&gt; elements as &lt;code&gt;Comparable&lt;/code&gt;.
+     * @return this - used to chain append calls
+     * @throws ClassCastException  if &lt;code&gt;rhs&lt;/code&gt; is not assignment-compatible
+     *  with &lt;code&gt;lhs&lt;/code&gt;
+     * @since 2.0
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>rhs</name></decl></param>, <param><decl><type><name>Comparator</name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;long&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(long, long)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>long</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>long</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;int&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(int, int)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>int</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>int</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;short&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(short, short)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>short</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>short</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;char&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(char, char)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>char</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;byte&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(byte, byte)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;double&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(double, double)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>double</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>double</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;float&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(float, float)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>float</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>float</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;Appends to the &lt;code&gt;builder&lt;/code&gt; the deep comparison of
+     * two &lt;code&gt;boolean&lt;/code&gt; arrays.&lt;/p&gt;
+     *
+     * &lt;ol&gt;
+     *  &lt;li&gt;Check if arrays are the same using &lt;code&gt;==&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check if for &lt;code&gt;null&lt;/code&gt;, &lt;code&gt;null&lt;/code&gt; is less than non-&lt;code&gt;null&lt;/code&gt;&lt;/li&gt;
+     *  &lt;li&gt;Check array length, a shorter length array is less than a longer length array&lt;/li&gt;
+     *  &lt;li&gt;Check array contents element by element using {@link #append(boolean, boolean)}&lt;/li&gt;
+     * &lt;/ol&gt;
+     *
+     * @param lhs  left-hand array
+     * @param rhs  right-hand array
+     * @return this - used to chain append calls
+     */</comment>
+    <function><type><specifier>public</specifier> <name>CompareToBuilder</name></type> <name>append</name><parameter_list>(<param><decl><type><name><name>boolean</name><index>[]</index></name></type> <name>lhs</name></decl></param>, <param><decl><type><name><name>boolean</name><index>[]</index></name></type> <name>rhs</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>comparison</name> != 0</expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>rhs</name></expr>)</condition><then> <block>{
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>lhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = -1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>rhs</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>lhs</name>.<name>length</name></name> != <name><name>rhs</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>comparison</name> = (<name><name>lhs</name>.<name>length</name></name> &lt; <name><name>rhs</name>.<name>length</name></name>) ? -1 : +1</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>lhs</name>.<name>length</name></name> &amp;&amp; <name>comparison</name> == 0</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name>append</name><argument_list>(<argument><expr><name><name>lhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>rhs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Returns a negative integer, a positive integer, or zero as
+     * the &lt;code&gt;builder&lt;/code&gt; has judged the "left-hand" side
+     * as less than, greater than, or equal to the "right-hand"
+     * side.
+     * 
+     * @return final comparison result
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>toComparison</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>comparison</name></expr>;</return>
+    }</block></function>
+
+}</block></class>
+
+</unit>

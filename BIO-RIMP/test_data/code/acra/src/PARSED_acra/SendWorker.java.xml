@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\acra\src\main\java\org\acra\SendWorker.java"><comment type="block">/*
+ *  Copyright 2012 Kevin Gaudin
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>acra</name></name>;</package>
+
+<import>import static <name><name>org</name>.<name>acra</name>.<name>ACRA</name>.<name>LOG_TAG</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>CrashReportData</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>sender</name>.<name>ReportSender</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>sender</name>.<name>ReportSenderException</name></name>;</import>
+
+<import>import <name><name>android</name>.<name>content</name>.<name>Context</name></name>;</import>
+<import>import <name><name>android</name>.<name>util</name>.<name>Log</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Checks and send reports on a separate Thread.
+ * 
+ * @author Kevin Gaudin
+ */</comment>
+<class><specifier>final</specifier> class <name>SendWorker</name> <super><extends>extends <name>Thread</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Context</name></type> <name>context</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>sendOnlySilentReports</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>approvePendingReports</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CrashReportFileNameParser</name></type> <name>fileNameParser</name> =<init> <expr>new <call><name>CrashReportFileNameParser</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>ReportSender</name></argument>&gt;</argument_list></name></type> <name>reportSenders</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates a new {@link SendWorker} to try sending pending reports.
+     * 
+     * @param context
+     *            ApplicationContext in which the reports are being sent.
+     * @param reportSenders
+     *            List of ReportSender to use to send the crash reports.
+     * @param sendOnlySilentReports
+     *            If set to true, will send only reports which have been
+     *            explicitly declared as silent by the application developer.
+     * @param approvePendingReports
+     *            if this endWorker should approve pending reports before
+     *            sending any reports.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>SendWorker</name><parameter_list>(<param><decl><type><name>Context</name></type> <name>context</name></decl></param>, <param><decl><type><name><name>List</name><argument_list>&lt;<argument><name>ReportSender</name></argument>&gt;</argument_list></name></type> <name>reportSenders</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>sendOnlySilentReports</name></decl></param>,
+            <param><decl><type><name>boolean</name></type> <name>approvePendingReports</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>context</name></name> = <name>context</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>reportSenders</name></name> = <name>reportSenders</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>sendOnlySilentReports</name></name> = <name>sendOnlySilentReports</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>approvePendingReports</name></name> = <name>approvePendingReports</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="block">/*
+     * (non-Javadoc)
+     * 
+     * @see java.lang.Thread#run()
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+        <if>if <condition>(<expr><name>approvePendingReports</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>approvePendingReports</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>checkAndSendReports</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>sendOnlySilentReports</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Flag all pending reports as "approved" by the user. These reports can be
+     * sent.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>approvePendingReports</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Mark all pending reports as approved."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportFinder</name></type> <name>reportFinder</name> =<init> <expr>new <call><name>CrashReportFinder</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name><index>[]</index></type> <name>reportFileNames</name> =<init> <expr><call><name><name>reportFinder</name>.<name>getCrashReportFiles</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>String</name></type> <name>reportFileName</name> :<range> <expr><name>reportFileNames</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr>!<call><name><name>fileNameParser</name>.<name>isApproved</name></name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>File</name></type> <name>reportFile</name> =<init> <expr>new <call><name>File</name><argument_list>(<argument><expr><call><name><name>context</name>.<name>getFilesDir</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>reportFileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <comment type="line">// TODO look into how this could cause a file to go from</comment>
+                <comment type="line">// -approved.stacktrace to -approved-approved.stacktrace</comment>
+                <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>newName</name> =<init> <expr><call><name><name>reportFileName</name>.<name>replace</name></name><argument_list>(<argument><expr><name><name>ACRAConstants</name>.<name>REPORTFILE_EXTENSION</name></name></expr></argument>,
+                        <argument><expr><name><name>ACRAConstants</name>.<name>APPROVED_SUFFIX</name></name> + <name><name>ACRAConstants</name>.<name>REPORTFILE_EXTENSION</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <comment type="line">// TODO Look into whether rename is atomic. Is there a better</comment>
+                <comment type="line">// option?</comment>
+                <decl_stmt><decl><type><specifier>final</specifier> <name>File</name></type> <name>newFile</name> =<init> <expr>new <call><name>File</name><argument_list>(<argument><expr><call><name><name>context</name>.<name>getFilesDir</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>newName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr>!<call><name><name>reportFile</name>.<name>renameTo</name></name><argument_list>(<argument><expr><name>newFile</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Could not rename approved report from " + <name>reportFile</name> + " to " + <name>newFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Send pending reports.
+     * 
+     * @param context
+     *            The application context.
+     * @param sendOnlySilentReports
+     *            Send only reports explicitly declared as SILENT by the
+     *            developer (sent via
+     *            {@link ErrorReporter#handleSilentException(Throwable)}.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>checkAndSendReports</name><parameter_list>(<param><decl><type><name>Context</name></type> <name>context</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>sendOnlySilentReports</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"#checkAndSendReports - start"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportFinder</name></type> <name>reportFinder</name> =<init> <expr>new <call><name>CrashReportFinder</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name><index>[]</index></type> <name>reportFiles</name> =<init> <expr><call><name><name>reportFinder</name>.<name>getCrashReportFiles</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>sort</name></name><argument_list>(<argument><expr><name>reportFiles</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <decl_stmt><decl><type><name>int</name></type> <name>reportsSentCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+        <for>for (<init><decl><type><name>String</name></type> <name>curFileName</name> :<range> <expr><name>reportFiles</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><name>sendOnlySilentReports</name> &amp;&amp; !<call><name><name>fileNameParser</name>.<name>isSilent</name></name><argument_list>(<argument><expr><name>curFileName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <continue>continue;</continue>
+            }</block></then></if>
+
+            <if>if <condition>(<expr><name>reportsSentCount</name> &gt;= <name><name>ACRAConstants</name>.<name>MAX_SEND_REPORTS</name></name></expr>)</condition><then> <block>{
+                <break>break;</break> <comment type="line">// send only a few reports to avoid overloading the</comment>
+                       <comment type="line">// network</comment>
+            }</block></then></if>
+
+            <expr_stmt><expr><call><name><name>Log</name>.<name>i</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Sending file " + <name>curFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <try>try <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportPersister</name></type> <name>persister</name> =<init> <expr>new <call><name>CrashReportPersister</name><argument_list>(<argument><expr><name>context</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportData</name></type> <name>previousCrashReport</name> =<init> <expr><call><name><name>persister</name>.<name>load</name></name><argument_list>(<argument><expr><name>curFileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>sendCrashReport</name><argument_list>(<argument><expr><name>previousCrashReport</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>curFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Failed to send crash reports for " + <name>curFileName</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>curFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break> <comment type="line">// Something really unexpected happened. Don't try to</comment>
+                       <comment type="line">// send any more reports now.</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Failed to load crash report for " + <name>curFileName</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>curFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <break>break;</break> <comment type="line">// Something unexpected happened when reading the crash</comment>
+                       <comment type="line">// report. Don't try to send any more reports now.</comment>
+            }</block></catch> <catch>catch (<param><decl><type><name>ReportSenderException</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Failed to send crash report for " + <name>curFileName</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <comment type="line">// An issue occurred while sending this report but we can still try to</comment>
+                <comment type="line">// send other reports. Report sending is limited by ACRAConstants.MAX_SEND_REPORTS</comment>
+                <comment type="line">// so there's not much to fear about overloading a failing server.</comment>
+            }</block></catch></try>
+            <expr_stmt><expr><name>reportsSentCount</name>++</expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"#checkAndSendReports - finish"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sends the report with all configured ReportSenders. If at least one
+     * sender completed its job, the report is considered as sent and will not
+     * be sent again for failing senders.
+     * 
+     * @param errorContent
+     *            Crash data.
+     * @throws ReportSenderException
+     *             if unable to send the crash report.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>sendCrashReport</name><parameter_list>(<param><decl><type><name>CrashReportData</name></type> <name>errorContent</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>ReportSenderException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr>!<call><name><name>ACRA</name>.<name>isDebuggable</name></name><argument_list>()</argument_list></call> || <call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>sendReportsInDevMode</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>sentAtLeastOnce</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>ReportSender</name></type> <name>sender</name> :<range> <expr><name>reportSenders</name></expr></range></decl></init>) <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>sender</name>.<name>send</name></name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr><name>errorContent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <comment type="line">// If at least one sender worked, don't re-send the report</comment>
+                    <comment type="line">// later.</comment>
+                    <expr_stmt><expr><name>sentAtLeastOnce</name> = true</expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>ReportSenderException</name></type> <name>e</name></decl></param>) <block>{
+                    <if>if <condition>(<expr>!<name>sentAtLeastOnce</name></expr>)</condition><then> <block>{
+                        <throw>throw <expr><name>e</name></expr>;</throw> <comment type="line">// Don't log here because we aren't dealing</comment>
+                                 <comment type="line">// with the Exception here.</comment>
+                    }</block></then> <else>else <block>{
+                        <expr_stmt><expr><call><name><name>Log</name>.<name>w</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>,
+                                <argument><expr>"ReportSender of class "
+                                        + <call><name><name>sender</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getName</name><argument_list>()</argument_list></call>
+                                        + " failed but other senders completed their task. ACRA will not send this report again."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></else></if>
+                }</block></catch></try>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>deleteFile</name><parameter_list>(<param><decl><type><name>Context</name></type> <name>context</name></decl></param>, <param><decl><type><name>String</name></type> <name>fileName</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>deleted</name> =<init> <expr><call><name><name>context</name>.<name>deleteFile</name></name><argument_list>(<argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<name>deleted</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>w</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Could not delete error report : " + <name>fileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+}</block></class>
+</unit>

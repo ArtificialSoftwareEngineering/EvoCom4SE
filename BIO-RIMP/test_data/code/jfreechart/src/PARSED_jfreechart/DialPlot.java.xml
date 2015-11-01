@@ -1,0 +1,833 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\chart\plot\dial\DialPlot.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2007, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * -------------
+ * DialPlot.java
+ * -------------
+ * (C) Copyright 2006, 2007, by Object Refinery Limited.
+ *
+ * Original Author:  David Gilbert (for Object Refinery Limited);
+ * Contributor(s):   -;
+ *
+ * Changes
+ * -------
+ * 03-Nov-2006 : Version 1 (DG);
+ * 08-Mar-2007 : Fix in hashCode() (DG);
+ * 17-Oct-2007 : Fixed listener registration/deregistration bugs (DG);
+ * 24-Oct-2007 : Maintain pointers in their own list, so they can be
+ *               drawn after other layers (DG);
+ * 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>dial</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>awt</name>.<name>Graphics2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>Shape</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>Point2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>awt</name>.<name>geom</name>.<name>Rectangle2D</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>JFreeChart</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>event</name>.<name>PlotChangeEvent</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>Plot</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>PlotRenderingInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>chart</name>.<name>plot</name>.<name>PlotState</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>general</name>.<name>DatasetChangeEvent</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>general</name>.<name>ValueDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>ObjectList</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>ObjectUtilities</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A dial plot.
+ * 
+ * @since 1.0.7
+ */</comment>
+<class><specifier>public</specifier> class <name>DialPlot</name> <super><extends>extends <name>Plot</name></extends> <implements>implements <name>DialLayerChangeListener</name></implements></super> <block>{
+
+    <comment type="javadoc">/**
+     * The background layer (optional).
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>DialLayer</name></type> <name>background</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The needle cap (optional).
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>DialLayer</name></type> <name>cap</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The dial frame.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>DialFrame</name></type> <name>dialFrame</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The dataset(s) for the dial plot.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ObjectList</name></type> <name>datasets</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The scale(s) for the dial plot. 
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ObjectList</name></type> <name>scales</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** Storage for keys that map datasets to scales. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ObjectList</name></type> <name>datasetToScaleMap</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The drawing layers for the dial plot.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>List</name></type> <name>layers</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** 
+     * The pointer(s) for the dial.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>List</name></type> <name>pointers</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The x-coordinate for the view window.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>viewX</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The y-coordinate for the view window.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>viewY</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The width of the view window, expressed as a percentage.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>viewW</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/**
+     * The height of the view window, expressed as a percentage.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>viewH</name></decl>;</decl_stmt>
+    
+    <comment type="javadoc">/** 
+     * Creates a new instance of &lt;code&gt;DialPlot&lt;/code&gt;.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DialPlot</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>    
+    }</block></constructor>
+    
+    <comment type="javadoc">/** 
+     * Creates a new instance of &lt;code&gt;DialPlot&lt;/code&gt;.
+     * 
+     * @param dataset  the dataset (&lt;code&gt;null&lt;/code&gt; permitted).
+     */</comment>
+    <constructor><specifier>public</specifier> <name>DialPlot</name><parameter_list>(<param><decl><type><name>ValueDataset</name></type> <name>dataset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>background</name></name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>cap</name></name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>dialFrame</name></name> = new <call><name>ArcDialFrame</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>datasets</name></name> = new <call><name>ObjectList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>dataset</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>setDataset</name></name><argument_list>(<argument><expr><name>dataset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>  
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>scales</name></name> = new <call><name>ObjectList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>datasetToScaleMap</name></name> = new <call><name>ObjectList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>layers</name></name> = new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>pointers</name></name> = new <call><name><name>java</name>.<name>util</name>.<name>ArrayList</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewX</name></name> = 0.0</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewY</name></name> = 0.0</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewW</name></name> = 1.0</expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewH</name></name> = 1.0</expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Returns the background.
+     *
+     * @return The background (possibly &lt;code&gt;null&lt;/code&gt;).
+     *
+     * @see #setBackground(DialLayer)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialLayer</name></type> <name>getBackground</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>background</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Sets the background layer and sends a {@link PlotChangeEvent} to all
+     * registered listeners.
+     *
+     * @param background  the background layer (&lt;code&gt;null&lt;/code&gt; permitted).
+     *
+     * @see #getBackground()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setBackground</name><parameter_list>(<param><decl><type><name>DialLayer</name></type> <name>background</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>this</name>.<name>background</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>background</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>background</name></name> = <name>background</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>background</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>background</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the cap.
+     *
+     * @return The cap (possibly &lt;code&gt;null&lt;/code&gt;).
+     *
+     * @see #setCap(DialLayer)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialLayer</name></type> <name>getCap</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>cap</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Sets the cap and sends a {@link PlotChangeEvent} to all registered 
+     * listeners.
+     *
+     * @param cap  the cap (&lt;code&gt;null&lt;/code&gt; permitted).
+     *
+     * @see #getCap()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setCap</name><parameter_list>(<param><decl><type><name>DialLayer</name></type> <name>cap</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>this</name>.<name>cap</name></name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>cap</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>cap</name></name> = <name>cap</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>cap</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>cap</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the dial's frame.
+     *
+     * @return The dial's frame (never &lt;code&gt;null&lt;/code&gt;).
+     *
+     * @see #setDialFrame(DialFrame)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialFrame</name></type> <name>getDialFrame</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>dialFrame</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Sets the dial's frame and sends a {@link PlotChangeEvent} to all 
+     * registered listeners.
+     *
+     * @param frame  the frame (&lt;code&gt;null&lt;/code&gt; not permitted).
+     *
+     * @see #getDialFrame()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setDialFrame</name><parameter_list>(<param><decl><type><name>DialFrame</name></type> <name>frame</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>frame</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'frame' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>dialFrame</name></name> = <name>frame</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>frame</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x-coordinate of the viewing rectangle.  This is specified
+     * in the range 0.0 to 1.0, relative to the dial's framing rectangle.
+     * 
+     * @return The x-coordinate of the viewing rectangle.
+     * 
+     * @see #setView(double, double, double, double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getViewX</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>viewX</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the y-coordinate of the viewing rectangle.  This is specified
+     * in the range 0.0 to 1.0, relative to the dial's framing rectangle.
+     * 
+     * @return The y-coordinate of the viewing rectangle.
+     * 
+     * @see #setView(double, double, double, double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getViewY</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>viewY</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the width of the viewing rectangle.  This is specified
+     * in the range 0.0 to 1.0, relative to the dial's framing rectangle.
+     * 
+     * @return The width of the viewing rectangle.
+     * 
+     * @see #setView(double, double, double, double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getViewWidth</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>viewW</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the height of the viewing rectangle.  This is specified
+     * in the range 0.0 to 1.0, relative to the dial's framing rectangle.
+     * 
+     * @return The height of the viewing rectangle.
+     * 
+     * @see #setView(double, double, double, double)
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getViewHeight</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>viewH</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Sets the viewing rectangle, relative to the dial's framing rectangle,
+     * and sends a {@link PlotChangeEvent} to all registered listeners.
+     * 
+     * @param x  the x-coordinate (in the range 0.0 to 1.0).
+     * @param y  the y-coordinate (in the range 0.0 to 1.0).
+     * @param w  the width (in the range 0.0 to 1.0).
+     * @param h  the height (in the range 0.0 to 1.0).
+     * 
+     * @see #getViewX()
+     * @see #getViewY()
+     * @see #getViewWidth()
+     * @see #getViewHeight()
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setView</name><parameter_list>(<param><decl><type><name>double</name></type> <name>x</name></decl></param>, <param><decl><type><name>double</name></type> <name>y</name></decl></param>, <param><decl><type><name>double</name></type> <name>w</name></decl></param>, <param><decl><type><name>double</name></type> <name>h</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>viewX</name></name> = <name>x</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewY</name></name> = <name>y</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewW</name></name> = <name>w</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>viewH</name></name> = <name>h</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds a layer to the plot and sends a {@link PlotChangeEvent} to all 
+     * registered listeners.
+     * 
+     * @param layer  the layer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addLayer</name><parameter_list>(<param><decl><type><name>DialLayer</name></type> <name>layer</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>layer</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'layer' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>layers</name>.<name>add</name></name><argument_list>(<argument><expr><name>layer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>layer</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the index for the specified layer.
+     * 
+     * @param layer  the layer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * 
+     * @return The layer index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getLayerIndex</name><parameter_list>(<param><decl><type><name>DialLayer</name></type> <name>layer</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>layer</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'layer' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr><call><name><name>this</name>.<name>layers</name>.<name>indexOf</name></name><argument_list>(<argument><expr><name>layer</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Removes the layer at the specified index and sends a 
+     * {@link PlotChangeEvent} to all registered listeners.
+     * 
+     * @param index  the index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removeLayer</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DialLayer</name></type> <name>layer</name> =<init> <expr>(<name>DialLayer</name>) <call><name><name>this</name>.<name>layers</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>layer</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>layer</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>layers</name>.<name>remove</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Removes the specified layer and sends a {@link PlotChangeEvent} to all
+     * registered listeners.
+     * 
+     * @param layer  the layer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removeLayer</name><parameter_list>(<param><decl><type><name>DialLayer</name></type> <name>layer</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// defer argument checking</comment>
+        <expr_stmt><expr><call><name>removeLayer</name><argument_list>(<argument><expr><call><name>getLayerIndex</name><argument_list>(<argument><expr><name>layer</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Adds a pointer to the plot and sends a {@link PlotChangeEvent} to all 
+     * registered listeners.
+     * 
+     * @param pointer  the pointer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addPointer</name><parameter_list>(<param><decl><type><name>DialPointer</name></type> <name>pointer</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>pointer</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'pointer' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>pointers</name>.<name>add</name></name><argument_list>(<argument><expr><name>pointer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>pointer</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the index for the specified pointer.
+     * 
+     * @param pointer  the pointer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * 
+     * @return The pointer index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getPointerIndex</name><parameter_list>(<param><decl><type><name>DialPointer</name></type> <name>pointer</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>pointer</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'pointer' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr><call><name><name>this</name>.<name>pointers</name>.<name>indexOf</name></name><argument_list>(<argument><expr><name>pointer</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Removes the pointer at the specified index and sends a 
+     * {@link PlotChangeEvent} to all registered listeners.
+     * 
+     * @param index  the index.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removePointer</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DialPointer</name></type> <name>pointer</name> =<init> <expr>(<name>DialPointer</name>) <call><name><name>this</name>.<name>pointers</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>pointer</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>pointer</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>pointers</name>.<name>remove</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Removes the specified pointer and sends a {@link PlotChangeEvent} to all
+     * registered listeners.
+     * 
+     * @param pointer  the pointer (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removePointer</name><parameter_list>(<param><decl><type><name>DialPointer</name></type> <name>pointer</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// defer argument checking</comment>
+        <expr_stmt><expr><call><name>removeLayer</name><argument_list>(<argument><expr><call><name>getPointerIndex</name><argument_list>(<argument><expr><name>pointer</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the dial pointer that is associated with the specified
+     * dataset, or &lt;code&gt;null&lt;/code&gt;.
+     * 
+     * @param datasetIndex  the dataset index.
+     * 
+     * @return The pointer.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialPointer</name></type> <name>getPointerForDataset</name><parameter_list>(<param><decl><type><name>int</name></type> <name>datasetIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DialPointer</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Iterator</name></type> <name>iterator</name> =<init> <expr><call><name><name>this</name>.<name>pointers</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><call><name><name>iterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>DialPointer</name></type> <name>p</name> =<init> <expr>(<name>DialPointer</name>) <call><name><name>iterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>p</name>.<name>getDatasetIndex</name></name><argument_list>()</argument_list></call> == <name>datasetIndex</name></expr>)</condition><then> <block>{
+                <return>return <expr><name>p</name></expr>;</return>
+            }</block></then></if>
+        }</block></while>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the primary dataset for the plot.
+     *
+     * @return The primary dataset (possibly &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ValueDataset</name></type> <name>getDataset</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getDataset</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the dataset at the given index.
+     *
+     * @param index  the dataset index.
+     *
+     * @return The dataset (possibly &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ValueDataset</name></type> <name>getDataset</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ValueDataset</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>this</name>.<name>datasets</name>.<name>size</name></name><argument_list>()</argument_list></call> &gt; <name>index</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = (<name>ValueDataset</name>) <call><name><name>this</name>.<name>datasets</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets the dataset for the plot, replacing the existing dataset, if there 
+     * is one, and sends a {@link PlotChangeEvent} to all registered 
+     * listeners.
+     *
+     * @param dataset  the dataset (&lt;code&gt;null&lt;/code&gt; permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setDataset</name><parameter_list>(<param><decl><type><name>ValueDataset</name></type> <name>dataset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>setDataset</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>dataset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets a dataset for the plot.
+     *
+     * @param index  the dataset index.
+     * @param dataset  the dataset (&lt;code&gt;null&lt;/code&gt; permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setDataset</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>ValueDataset</name></type> <name>dataset</name></decl></param>)</parameter_list> <block>{
+        
+        <decl_stmt><decl><type><name>ValueDataset</name></type> <name>existing</name> =<init> <expr>(<name>ValueDataset</name>) <call><name><name>this</name>.<name>datasets</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>existing</name>.<name>removeChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>datasets</name>.<name>set</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>dataset</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>dataset</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>dataset</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+        <comment type="line">// send a dataset change event to self...</comment>
+        <decl_stmt><decl><type><name>DatasetChangeEvent</name></type> <name>event</name> =<init> <expr>new <call><name>DatasetChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>dataset</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>datasetChanged</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of datasets.
+     *
+     * @return The number of datasets.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getDatasetCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>this</name>.<name>datasets</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>    
+    
+    <comment type="javadoc">/**
+     * Draws the plot.  This method is usually called by the {@link JFreeChart}
+     * instance that manages the plot.
+     * 
+     * @param g2  the graphics target.
+     * @param area  the area in which the plot should be drawn.
+     * @param anchor  the anchor point (typically the last point that the 
+     *     mouse clicked on, &lt;code&gt;null&lt;/code&gt; is permitted).
+     * @param parentState  the state for the parent plot (if any).
+     * @param info  used to collect plot rendering info (&lt;code&gt;null&lt;/code&gt; 
+     *     permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>draw</name><parameter_list>(<param><decl><type><name>Graphics2D</name></type> <name>g2</name></decl></param>, <param><decl><type><name>Rectangle2D</name></type> <name>area</name></decl></param>, <param><decl><type><name>Point2D</name></type> <name>anchor</name></decl></param>, 
+            <param><decl><type><name>PlotState</name></type> <name>parentState</name></decl></param>, <param><decl><type><name>PlotRenderingInfo</name></type> <name>info</name></decl></param>)</parameter_list> <block>{
+        
+        <comment type="line">// first, expand the viewing area into a drawing frame</comment>
+        <decl_stmt><decl><type><name>Rectangle2D</name></type> <name>frame</name> =<init> <expr><call><name>viewToFrame</name><argument_list>(<argument><expr><name>area</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        
+        <comment type="line">// draw the background if there is one...</comment>
+        <if>if <condition>(<expr><name><name>this</name>.<name>background</name></name> != <name>null</name> &amp;&amp; <call><name><name>this</name>.<name>background</name>.<name>isVisible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>this</name>.<name>background</name>.<name>isClippedToWindow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Shape</name></type> <name>savedClip</name> =<init> <expr><call><name><name>g2</name>.<name>getClip</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>getWindow</name></name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>this</name>.<name>background</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><name>savedClip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>this</name>.<name>background</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+        
+        <decl_stmt><decl><type><name>Iterator</name></type> <name>iterator</name> =<init> <expr><call><name><name>this</name>.<name>layers</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><call><name><name>iterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>DialLayer</name></type> <name>current</name> =<init> <expr>(<name>DialLayer</name>) <call><name><name>iterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>current</name>.<name>isVisible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name><name>current</name>.<name>isClippedToWindow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>Shape</name></type> <name>savedClip</name> =<init> <expr><call><name><name>g2</name>.<name>getClip</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>getWindow</name></name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>current</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><name>savedClip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><call><name><name>current</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block></while>
+        
+        <comment type="line">// draw the pointers</comment>
+        <expr_stmt><expr><name>iterator</name> = <call><name><name>this</name>.<name>pointers</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <while>while <condition>(<expr><call><name><name>iterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>DialPointer</name></type> <name>current</name> =<init> <expr>(<name>DialPointer</name>) <call><name><name>iterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><call><name><name>current</name>.<name>isVisible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><call><name><name>current</name>.<name>isClippedToWindow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <decl_stmt><decl><type><name>Shape</name></type> <name>savedClip</name> =<init> <expr><call><name><name>g2</name>.<name>getClip</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>getWindow</name></name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>current</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><name>savedClip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then>
+                <else>else <block>{
+                    <expr_stmt><expr><call><name><name>current</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+        }</block></while>
+
+        <comment type="line">// draw the cap if there is one...</comment>
+        <if>if <condition>(<expr><name><name>this</name>.<name>cap</name></name> != <name>null</name> &amp;&amp; <call><name><name>this</name>.<name>cap</name>.<name>isVisible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <if>if <condition>(<expr><call><name><name>this</name>.<name>cap</name>.<name>isClippedToWindow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Shape</name></type> <name>savedClip</name> =<init> <expr><call><name><name>g2</name>.<name>getClip</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>getWindow</name></name><argument_list>(<argument><expr><name>frame</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>this</name>.<name>cap</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>g2</name>.<name>setClip</name></name><argument_list>(<argument><expr><name>savedClip</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <expr_stmt><expr><call><name><name>this</name>.<name>cap</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></then></if>
+        
+        <if>if <condition>(<expr><call><name><name>this</name>.<name>dialFrame</name>.<name>isVisible</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>dialFrame</name>.<name>draw</name></name><argument_list>(<argument><expr><name>g2</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>frame</name></expr></argument>, <argument><expr><name>area</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the frame surrounding the specified view rectangle.
+     * 
+     * @param view  the view rectangle (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * 
+     * @return The frame rectangle.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>Rectangle2D</name></type> <name>viewToFrame</name><parameter_list>(<param><decl><type><name>Rectangle2D</name></type> <name>view</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>width</name> =<init> <expr><call><name><name>view</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> / <name><name>this</name>.<name>viewW</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>height</name> =<init> <expr><call><name><name>view</name>.<name>getHeight</name></name><argument_list>()</argument_list></call> / <name><name>this</name>.<name>viewH</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>x</name> =<init> <expr><call><name><name>view</name>.<name>getX</name></name><argument_list>()</argument_list></call> - (<name>width</name> * <name><name>this</name>.<name>viewX</name></name>)</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>y</name> =<init> <expr><call><name><name>view</name>.<name>getY</name></name><argument_list>()</argument_list></call> - (<name>height</name> * <name><name>this</name>.<name>viewY</name></name>)</expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name><name>Rectangle2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>, <argument><expr><name>y</name></expr></argument>, <argument><expr><name>width</name></expr></argument>, <argument><expr><name>height</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the value from the specified dataset.
+     * 
+     * @param datasetIndex  the dataset index.
+     * 
+     * @return The data value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getValue</name><parameter_list>(<param><decl><type><name>int</name></type> <name>datasetIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>double</name></type> <name>result</name> =<init> <expr><name><name>Double</name>.<name>NaN</name></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ValueDataset</name></type> <name>dataset</name> =<init> <expr><call><name>getDataset</name><argument_list>(<argument><expr><name>datasetIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>dataset</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>Number</name></type> <name>n</name> =<init> <expr><call><name><name>dataset</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>n</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>result</name> = <call><name><name>n</name>.<name>doubleValue</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Adds a dial scale to the plot and sends a {@link PlotChangeEvent} to 
+     * all registered listeners.
+     * 
+     * @param index  the scale index.
+     * @param scale  the scale (&lt;code&gt;null&lt;/code&gt; not permitted).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addScale</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>DialScale</name></type> <name>scale</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>scale</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'scale' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>DialScale</name></type> <name>existing</name> =<init> <expr>(<name>DialScale</name>) <call><name><name>this</name>.<name>scales</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>removeLayer</name><argument_list>(<argument><expr><name>existing</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>this</name>.<name>layers</name>.<name>add</name></name><argument_list>(<argument><expr><name>scale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>this</name>.<name>scales</name>.<name>set</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>scale</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>scale</name>.<name>addChangeListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>         
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the scale at the given index.
+     *
+     * @param index  the scale index.
+     *
+     * @return The scale (possibly &lt;code&gt;null&lt;/code&gt;).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialScale</name></type> <name>getScale</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DialScale</name></type> <name>result</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>this</name>.<name>scales</name>.<name>size</name></name><argument_list>()</argument_list></call> &gt; <name>index</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = (<name>DialScale</name>) <call><name><name>this</name>.<name>scales</name>.<name>get</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Maps a dataset to a particular scale.
+     * 
+     * @param index  the dataset index (zero-based).
+     * @param scaleIndex  the scale index (zero-based).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>mapDatasetToScale</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name>int</name></type> <name>scaleIndex</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>this</name>.<name>datasetToScaleMap</name>.<name>set</name></name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr><name>scaleIndex</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>  
+        <expr_stmt><expr><call><name>notifyListeners</name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt> 
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the dial scale for a specific dataset.
+     * 
+     * @param datasetIndex  the dataset index.
+     * 
+     * @return The dial scale.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>DialScale</name></type> <name>getScaleForDataset</name><parameter_list>(<param><decl><type><name>int</name></type> <name>datasetIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>DialScale</name></type> <name>result</name> =<init> <expr>(<name>DialScale</name>) <call><name><name>this</name>.<name>scales</name>.<name>get</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>    
+        <decl_stmt><decl><type><name>Integer</name></type> <name>scaleIndex</name> =<init> <expr>(<name>Integer</name>) <call><name><name>this</name>.<name>datasetToScaleMap</name>.<name>get</name></name><argument_list>(<argument><expr><name>datasetIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>scaleIndex</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>result</name> = <call><name>getScale</name><argument_list>(<argument><expr><call><name><name>scaleIndex</name>.<name>intValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>result</name></expr>;</return>    
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * A utility method that computes a rectangle using relative radius values.
+     * 
+     * @param rect  the reference rectangle (&lt;code&gt;null&lt;/code&gt; not permitted).
+     * @param radiusW  the width radius (must be &gt; 0.0)
+     * @param radiusH  the height radius.
+     * 
+     * @return A new rectangle.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Rectangle2D</name></type> <name>rectangleByRadius</name><parameter_list>(<param><decl><type><name>Rectangle2D</name></type> <name>rect</name></decl></param>, 
+            <param><decl><type><name>double</name></type> <name>radiusW</name></decl></param>, <param><decl><type><name>double</name></type> <name>radiusH</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>rect</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Null 'rect' argument."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>double</name></type> <name>x</name> =<init> <expr><call><name><name>rect</name>.<name>getCenterX</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>y</name> =<init> <expr><call><name><name>rect</name>.<name>getCenterY</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>w</name> =<init> <expr><call><name><name>rect</name>.<name>getWidth</name></name><argument_list>()</argument_list></call> * <name>radiusW</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>double</name></type> <name>h</name> =<init> <expr><call><name><name>rect</name>.<name>getHeight</name></name><argument_list>()</argument_list></call> * <name>radiusH</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <call><name><name>Rectangle2D</name>.<name>Double</name></name><argument_list>(<argument><expr><name>x</name> - <name>w</name> / 2.0</expr></argument>, <argument><expr><name>y</name> - <name>h</name> / 2.0</expr></argument>, <argument><expr><name>w</name></expr></argument>, <argument><expr><name>h</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Receives notification when a layer has changed, and responds by 
+     * forwarding a {@link PlotChangeEvent} to all registered listeners.
+     * 
+     * @param event  the event.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>dialLayerChanged</name><parameter_list>(<param><decl><type><name>DialLayerChangeEvent</name></type> <name>event</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>this</name>.<name>notifyListeners</name></name><argument_list>(<argument><expr>new <call><name>PlotChangeEvent</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Tests this &lt;code&gt;DialPlot&lt;/code&gt; instance for equality with an 
+     * arbitrary object.  The plot's dataset(s) is (are) not included in 
+     * the test.
+     *
+     * @param obj  the object (&lt;code&gt;null&lt;/code&gt; permitted).
+     *
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>obj</name> == <name>this</name></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!(<name>obj</name> <name>instanceof</name> <name>DialPlot</name>)</expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>DialPlot</name></type> <name>that</name> =<init> <expr>(<name>DialPlot</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>ObjectUtilities</name>.<name>equal</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>background</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>background</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>ObjectUtilities</name>.<name>equal</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>cap</name></name></expr></argument>, <argument><expr><name><name>that</name>.<name>cap</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>this</name>.<name>dialFrame</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>dialFrame</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>viewX</name></name> != <name><name>that</name>.<name>viewX</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>viewY</name></name> != <name><name>that</name>.<name>viewY</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>viewW</name></name> != <name><name>that</name>.<name>viewW</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name><name>this</name>.<name>viewH</name></name> != <name><name>that</name>.<name>viewH</name></name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>this</name>.<name>layers</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>layers</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>this</name>.<name>pointers</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>pointers</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>super</name>.<name>equals</name></name><argument_list>(<argument><expr><name>obj</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a hash code for this instance.
+     * 
+     * @return The hash code.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>result</name> =<init> <expr>193</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call><name><name>ObjectUtilities</name>.<name>hashCode</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>background</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call><name><name>ObjectUtilities</name>.<name>hashCode</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>cap</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call><name><name>this</name>.<name>dialFrame</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>long</name></type> <name>temp</name> =<init> <expr><call><name><name>Double</name>.<name>doubleToLongBits</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>viewX</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call>(<name>int</name>) <argument_list>(<argument><expr><name>temp</name> ^ (<name>temp</name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>temp</name> = <call><name><name>Double</name>.<name>doubleToLongBits</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>viewY</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call>(<name>int</name>) <argument_list>(<argument><expr><name>temp</name> ^ (<name>temp</name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>temp</name> = <call><name><name>Double</name>.<name>doubleToLongBits</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>viewW</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call>(<name>int</name>) <argument_list>(<argument><expr><name>temp</name> ^ (<name>temp</name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>temp</name> = <call><name><name>Double</name>.<name>doubleToLongBits</name></name><argument_list>(<argument><expr><name><name>this</name>.<name>viewH</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>result</name> = 37 * <name>result</name> + <call>(<name>int</name>) <argument_list>(<argument><expr><name>temp</name> ^ (<name>temp</name> &gt;&gt;&gt; 32)</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the plot type.
+     * 
+     * @return &lt;code&gt;"DialPlot"&lt;/code&gt;
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getPlotType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>"DialPlot"</expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Provides serialization support.
+     *
+     * @param stream  the output stream.
+     *
+     * @throws IOException  if there is an I/O error.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><name>ObjectOutputStream</name></type> <name>stream</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>stream</name>.<name>defaultWriteObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Provides serialization support.
+     *
+     * @param stream  the input stream.
+     *
+     * @throws IOException  if there is an I/O error.
+     * @throws ClassNotFoundException  if there is a classpath problem.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>stream</name></decl></param>)</parameter_list> 
+            <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>stream</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    
+}</block></class>
+</unit>

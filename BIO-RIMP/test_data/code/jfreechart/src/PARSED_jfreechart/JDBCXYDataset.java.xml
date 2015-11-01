@@ -1,0 +1,589 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\jfreechart\src\org\jfree\data\jdbc\JDBCXYDataset.java"><comment type="block">/* ===========================================================
+ * JFreeChart : a free chart library for the Java(tm) platform
+ * ===========================================================
+ *
+ * (C) Copyright 2000-2006, by Object Refinery Limited and Contributors.
+ *
+ * Project Info:  http://www.jfree.org/jfreechart/index.html
+ *
+ * This library is free software; you can redistribute it and/or modify it 
+ * under the terms of the GNU Lesser General Public License as published by 
+ * the Free Software Foundation; either version 2.1 of the License, or 
+ * (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public 
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, 
+ * USA.  
+ *
+ * [Java is a trademark or registered trademark of Sun Microsystems, Inc. 
+ * in the United States and other countries.]
+ *
+ * ------------------
+ * JDBCXYDataset.java
+ * ------------------
+ * (C) Copyright 2002-2006, by Bryan Scott and Contributors.
+ *
+ * Original Author:  Bryan Scott;
+ * Contributor(s):   David Gilbert (for Object Refinery Limited);
+ *                   Eric Alexander;
+ *
+ *
+ * Changes
+ * -------
+ * 14-Mar-2002 : Version 1 contributed by Bryan Scott (DG);
+ * 19-Apr-2002 : Updated executeQuery, to close cursors and to improve support 
+ *               for types.
+ * 26-Apr-2002 : Renamed JdbcXYDataset to better fit in with the existing data 
+ *               source conventions.
+ * 26-Apr-2002 : Changed to extend AbstractDataset.
+ * 13-Aug-2002 : Updated Javadoc comments and imports (DG);
+ * 18-Sep-2002 : Updated to support BIGINT (BS);
+ * 21-Jan-2003 : Renamed JdbcXYDataset --&gt; JDBCXYDataset (DG);
+ * 01-Jul-2003 : Added support to query whether a timeseries (BS);
+ * 30-Jul-2003 : Added empty contructor and executeQuery(connection,string) 
+ *               method (BS);
+ * 24-Sep-2003 : Added a check to ensure at least two valid columns are 
+ *               returned by the query in executeQuery as suggest in online 
+ *               forum by anonymous (BS);
+ * 02-Dec-2003 : Throwing exceptions allows to handle errors, removed default 
+ *               constructor, as without a connection, a query can never be 
+ *               executed.
+ * 16-Mar-2004 : Added check for null values (EA);
+ * 05-May-2004 : Now extends AbstractXYDataset (DG);
+ * 21-May-2004 : Implemented TableXYDataset, added support for SMALLINT and 
+ *               fixed bug in code that determines the min and max values (see 
+ *               bug id 938138) (DG);
+ * 15-Jul-2004 : Switched getX() with getXValue() and getY() with 
+ *               getYValue() (DG);
+ * 18-Nov-2004 : Updated for changes in RangeInfo interface (DG);
+ * 11-Jan-2005 : Removed deprecated code in preparation for the 1.0.0 
+ *               release (DG);
+ * ------------- JFREECHART 1.0.x ---------------------------------------------
+ * 17-Oct-2006 : Deprecated unused methods - see bug 1578293 (DG);
+ * 
+ */</comment>
+
+<package>package <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>jdbc</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>sql</name>.<name>Connection</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>DriverManager</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>ResultSet</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>ResultSetMetaData</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>SQLException</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>Statement</name></name>;</import>
+<import>import <name><name>java</name>.<name>sql</name>.<name>Types</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Date</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>Range</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>RangeInfo</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>general</name>.<name>Dataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>AbstractXYDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>TableXYDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>data</name>.<name>xy</name>.<name>XYDataset</name></name>;</import>
+<import>import <name><name>org</name>.<name>jfree</name>.<name>util</name>.<name>Log</name></name>;</import>
+
+<comment type="javadoc">/**
+ * This class provides an {@link XYDataset} implementation over a database 
+ * JDBC result set.  The dataset is populated via a call to executeQuery with 
+ * the string sql query.  The sql query must return at least two columns.  
+ * The first column will be the x-axis and remaining columns y-axis values.
+ * executeQuery can be called a number of times.
+ *
+ * The database connection is read-only and no write back facility exists.
+ */</comment>
+<class><specifier>public</specifier> class <name>JDBCXYDataset</name> <super><extends>extends <name>AbstractXYDataset</name></extends> 
+                           <implements>implements <name>XYDataset</name>, 
+                                      <name>TableXYDataset</name>, 
+                                      <name>RangeInfo</name></implements></super> <block>{
+
+    <comment type="javadoc">/** The database connection. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>Connection</name></type> <name>connection</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Column names. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>String</name><index>[]</index></type> <name>columnNames</name> =<init> <expr><block>{}</block></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Rows. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ArrayList</name></type> <name>rows</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The maximum y value of the returned result set */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>maxValue</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The minimum y value of the returned result set */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>double</name></type> <name>minValue</name> =<init> <expr>0.0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Is this dataset a timeseries ? */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>isTimeSeries</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates a new JDBCXYDataset (initially empty) with no database 
+     * connection.
+     */</comment>
+    <constructor><specifier>private</specifier> <name>JDBCXYDataset</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>rows</name></name> = new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new dataset (initially empty) and establishes a new database 
+     * connection.
+     *
+     * @param  url  URL of the database connection.
+     * @param  driverName  the database driver class name.
+     * @param  user  the database user.
+     * @param  password  the database user's password.
+     * 
+     * @throws ClassNotFoundException if the driver cannot be found.
+     * @throws SQLException if there is a problem connecting to the database.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JDBCXYDataset</name><parameter_list>(<param><decl><type><name>String</name></type> <name>url</name></decl></param>,
+                         <param><decl><type><name>String</name></type> <name>driverName</name></decl></param>,
+                         <param><decl><type><name>String</name></type> <name>user</name></decl></param>,
+                         <param><decl><type><name>String</name></type> <name>password</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>SQLException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+        
+        <expr_stmt><expr><call><name>this</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Class</name>.<name>forName</name></name><argument_list>(<argument><expr><name>driverName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>connection</name></name> = <call><name><name>DriverManager</name>.<name>getConnection</name></name><argument_list>(<argument><expr><name>url</name></expr></argument>, <argument><expr><name>user</name></expr></argument>, <argument><expr><name>password</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new dataset (initially empty) using the specified database 
+     * connection.
+     *
+     * @param  con  the database connection.
+     * 
+     * @throws SQLException if there is a problem connecting to the database.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JDBCXYDataset</name><parameter_list>(<param><decl><type><name>Connection</name></type> <name>con</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>SQLException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>connection</name></name> = <name>con</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a new dataset using the specified database connection, and 
+     * populates it using data obtained with the supplied query.
+     *
+     * @param con  the connection.
+     * @param query  the SQL query.
+     * 
+     * @throws SQLException if there is a problem executing the query.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>JDBCXYDataset</name><parameter_list>(<param><decl><type><name>Connection</name></type> <name>con</name></decl></param>, <param><decl><type><name>String</name></type> <name>query</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>SQLException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>con</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>executeQuery</name><argument_list>(<argument><expr><name>query</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Returns &lt;code&gt;true&lt;/code&gt; if the dataset represents time series data, 
+     * and &lt;code&gt;false&lt;/code&gt; otherwise.
+     * 
+     * @return A boolean.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isTimeSeries</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>isTimeSeries</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets a flag that indicates whether or not the data represents a time 
+     * series.
+     * 
+     * @param timeSeries  the new value of the flag.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setTimeSeries</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>timeSeries</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>isTimeSeries</name></name> = <name>timeSeries</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * ExecuteQuery will attempt execute the query passed to it against the
+     * existing database connection.  If no connection exists then no action
+     * is taken.
+     *
+     * The results from the query are extracted and cached locally, thus
+     * applying an upper limit on how many rows can be retrieved successfully.
+     *
+     * @param  query  the query to be executed.
+     * 
+     * @throws SQLException if there is a problem executing the query.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>executeQuery</name><parameter_list>(<param><decl><type><name>String</name></type> <name>query</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>SQLException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>executeQuery</name><argument_list>(<argument><expr><name><name>this</name>.<name>connection</name></name></expr></argument>, <argument><expr><name>query</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * ExecuteQuery will attempt execute the query passed to it against the
+     * provided database connection.  If connection is null then no action is 
+     * taken.
+     *
+     * The results from the query are extracted and cached locally, thus
+     * applying an upper limit on how many rows can be retrieved successfully.
+     *
+     * @param  query  the query to be executed.
+     * @param  con  the connection the query is to be executed against.
+     * 
+     * @throws SQLException if there is a problem executing the query.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>executeQuery</name><parameter_list>(<param><decl><type><name>Connection</name></type> <name>con</name></decl></param>, <param><decl><type><name>String</name></type> <name>query</name></decl></param>)</parameter_list> 
+        <throws>throws <argument><expr><name>SQLException</name></expr></argument></throws> <block>{
+
+        <if>if <condition>(<expr><name>con</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>SQLException</name><argument_list>(
+                <argument><expr>"There is no database to execute the query."</expr></argument>
+            )</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>ResultSet</name></type> <name>resultSet</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Statement</name></type> <name>statement</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>statement</name> = <call><name><name>con</name>.<name>createStatement</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>resultSet</name> = <call><name><name>statement</name>.<name>executeQuery</name></name><argument_list>(<argument><expr><name>query</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>ResultSetMetaData</name></type> <name>metaData</name> =<init> <expr><call><name><name>resultSet</name>.<name>getMetaData</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <decl_stmt><decl><type><name>int</name></type> <name>numberOfColumns</name> =<init> <expr><call><name><name>metaData</name>.<name>getColumnCount</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>numberOfValidColumns</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>int</name> <index>[]</index></type> <name>columnTypes</name> =<init> <expr>new <name><name>int</name><index>[<expr><name>numberOfColumns</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>numberOfColumns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                <try>try <block>{
+                    <decl_stmt><decl><type><name>int</name></type> <name>type</name> =<init> <expr><call><name><name>metaData</name>.<name>getColumnType</name></name><argument_list>(<argument><expr><name>column</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <switch>switch <condition>(<expr><name>type</name></expr>)</condition> <block>{
+
+                        <case>case <expr><name><name>Types</name>.<name>NUMERIC</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>REAL</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>INTEGER</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>DOUBLE</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>FLOAT</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>DECIMAL</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>BIT</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>DATE</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>TIME</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>TIMESTAMP</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>BIGINT</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>SMALLINT</name></name></expr>:
+                            <expr_stmt><expr>++<name>numberOfValidColumns</name></expr>;</expr_stmt>
+                            <expr_stmt><expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> = <name>type</name></expr>;</expr_stmt>
+                            <break>break;</break>
+                        </case><default>default:
+                            <expr_stmt><expr><call><name><name>Log</name>.<name>warn</name></name><argument_list>(
+                                <argument><expr>"Unable to load column "
+                                + <name>column</name> + " (" + <name>type</name> + ","
+                                + <call><name><name>metaData</name>.<name>getColumnClassName</name></name><argument_list>(<argument><expr><name>column</name> + 1</expr></argument>)</argument_list></call> 
+                                + ")"</expr></argument>
+                            )</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> = <name><name>Types</name>.<name>NULL</name></name></expr>;</expr_stmt>
+                            <break>break;</break>
+                    </default>}</block></switch>
+                }</block>
+                <catch>catch (<param><decl><type><name>SQLException</name></type> <name>e</name></decl></param>) <block>{
+                    <expr_stmt><expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> = <name><name>Types</name>.<name>NULL</name></name></expr>;</expr_stmt>
+                    <throw>throw <expr><name>e</name></expr>;</throw>
+                }</block></catch></try>
+            }</block></for>
+
+
+            <if>if <condition>(<expr><name>numberOfValidColumns</name> &lt;= 1</expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>SQLException</name><argument_list>(
+                    <argument><expr>"Not enough valid columns where generated by query."</expr></argument>
+                )</argument_list></call></expr>;</throw>
+            }</block></then></if>
+
+            <comment type="line">/// First column is X data</comment>
+            <expr_stmt><expr><name><name>this</name>.<name>columnNames</name></name> = new <name><name>String</name><index>[<expr><name>numberOfValidColumns</name> - 1</expr>]</index></name></expr>;</expr_stmt>
+            <comment type="line">/// Get the column names and cache them.</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>currentColumn</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>numberOfColumns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                <if>if <condition>(<expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> != <name><name>Types</name>.<name>NULL</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name><name>this</name>.<name>columnNames</name><index>[<expr><name>currentColumn</name></expr>]</index></name> 
+                        = <call><name><name>metaData</name>.<name>getColumnLabel</name></name><argument_list>(<argument><expr><name>column</name> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr>++<name>currentColumn</name></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+
+            <comment type="line">// Might need to add, to free memory from any previous result sets</comment>
+            <if>if <condition>(<expr><name><name>this</name>.<name>rows</name></name> != <name>null</name></expr>)</condition><then> <block>{
+                <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <call><name><name>this</name>.<name>rows</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                    <decl_stmt><decl><type><name>ArrayList</name></type> <name>row</name> =<init> <expr>(<name>ArrayList</name>) <call><name><name>this</name>.<name>rows</name>.<name>get</name></name><argument_list>(<argument><expr><name>column</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>row</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>this</name>.<name>rows</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// Are we working with a time series.</comment>
+            <switch>switch <condition>(<expr><name><name>columnTypes</name><index>[<expr>0</expr>]</index></name></expr>)</condition> <block>{
+                <case>case <expr><name><name>Types</name>.<name>DATE</name></name></expr>:
+                </case><case>case <expr><name><name>Types</name>.<name>TIME</name></name></expr>:
+                </case><case>case <expr><name><name>Types</name>.<name>TIMESTAMP</name></name></expr>:
+                    <expr_stmt><expr><name><name>this</name>.<name>isTimeSeries</name></name> = true</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><default>default :
+                    <expr_stmt><expr><name><name>this</name>.<name>isTimeSeries</name></name> = false</expr>;</expr_stmt>
+                    <break>break;</break>
+            </default>}</block></switch>
+
+            <comment type="line">// Get all rows.</comment>
+            <comment type="line">// rows = new ArrayList();</comment>
+            <while>while <condition>(<expr><call><name><name>resultSet</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                <decl_stmt><decl><type><name>ArrayList</name></type> <name>newRow</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>numberOfColumns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                    <decl_stmt><decl><type><name>Object</name></type> <name>xObject</name> =<init> <expr><call><name><name>resultSet</name>.<name>getObject</name></name><argument_list>(<argument><expr><name>column</name> + 1</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <switch>switch <condition>(<expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name></expr>)</condition> <block>{
+                        <case>case <expr><name><name>Types</name>.<name>NUMERIC</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>REAL</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>INTEGER</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>DOUBLE</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>FLOAT</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>DECIMAL</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>BIGINT</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>SMALLINT</name></name></expr>:
+                            <expr_stmt><expr><call><name><name>newRow</name>.<name>add</name></name><argument_list>(<argument><expr><name>xObject</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <break>break;</break>
+
+                        </case><case>case <expr><name><name>Types</name>.<name>DATE</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>TIME</name></name></expr>:
+                        </case><case>case <expr><name><name>Types</name>.<name>TIMESTAMP</name></name></expr>:
+                            <expr_stmt><expr><call><name><name>newRow</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>Long</name><argument_list>(<argument><expr>((<name>Date</name>) <name>xObject</name>).<call><name>getTime</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <break>break;</break>
+                        </case><case>case <expr><name><name>Types</name>.<name>NULL</name></name></expr>:
+                            <break>break;</break>
+                        </case><default>default:
+                            <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"Unknown data"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                            <expr_stmt><expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> = <name><name>Types</name>.<name>NULL</name></name></expr>;</expr_stmt>
+                            <break>break;</break>
+                    </default>}</block></switch>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>this</name>.<name>rows</name>.<name>add</name></name><argument_list>(<argument><expr><name>newRow</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+
+            <comment type="line">/// a kludge to make everything work when no rows returned</comment>
+            <if>if <condition>(<expr><call><name><name>this</name>.<name>rows</name>.<name>size</name></name><argument_list>()</argument_list></call> == 0</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>ArrayList</name></type> <name>newRow</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>numberOfColumns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                    <if>if <condition>(<expr><name><name>columnTypes</name><index>[<expr><name>column</name></expr>]</index></name> != <name><name>Types</name>.<name>NULL</name></name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>newRow</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>Integer</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></for>
+                <expr_stmt><expr><call><name><name>this</name>.<name>rows</name>.<name>add</name></name><argument_list>(<argument><expr><name>newRow</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">/// Determine max and min values.</comment>
+            <if>if <condition>(<expr><call><name><name>this</name>.<name>rows</name>.<name>size</name></name><argument_list>()</argument_list></call> &lt; 1</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>this</name>.<name>maxValue</name></name> = 0.0</expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>this</name>.<name>minValue</name></name> = 0.0</expr>;</expr_stmt>
+            }</block></then>
+            <else>else <block>{
+                <decl_stmt><decl><type><name>ArrayList</name></type> <name>row</name> =<init> <expr>(<name>ArrayList</name>) <call><name><name>this</name>.<name>rows</name>.<name>get</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name><name>this</name>.<name>maxValue</name></name> = <name><name>Double</name>.<name>NEGATIVE_INFINITY</name></name></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>this</name>.<name>minValue</name></name> = <name><name>Double</name>.<name>POSITIVE_INFINITY</name></name></expr>;</expr_stmt>
+                <for>for (<init><decl><type><name>int</name></type> <name>rowNum</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>rowNum</name> &lt; <call><name><name>this</name>.<name>rows</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr>++<name>rowNum</name></expr></incr>) <block>{
+                    <expr_stmt><expr><name>row</name> = (<name>ArrayList</name>) <call><name><name>this</name>.<name>rows</name>.<name>get</name></name><argument_list>(<argument><expr><name>rowNum</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <for>for (<init><decl><type><name>int</name></type> <name>column</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>column</name> &lt; <name>numberOfColumns</name></expr>;</condition> <incr><expr><name>column</name>++</expr></incr>) <block>{
+                        <decl_stmt><decl><type><name>Object</name></type> <name>testValue</name> =<init> <expr><call><name><name>row</name>.<name>get</name></name><argument_list>(<argument><expr><name>column</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                        <if>if <condition>(<expr><name>testValue</name> != <name>null</name></expr>)</condition><then> <block>{
+                            <decl_stmt><decl><type><name>double</name></type> <name>test</name> =<init> <expr>((<name>Number</name>) <name>testValue</name>).<call><name>doubleValue</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                        
+                            <if>if <condition>(<expr><name>test</name> &lt; <name><name>this</name>.<name>minValue</name></name></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name><name>this</name>.<name>minValue</name></name> = <name>test</name></expr>;</expr_stmt>
+                            }</block></then></if>
+                            <if>if <condition>(<expr><name>test</name> &gt; <name><name>this</name>.<name>maxValue</name></name></expr>)</condition><then> <block>{
+                                <expr_stmt><expr><name><name>this</name>.<name>maxValue</name></name> = <name>test</name></expr>;</expr_stmt>
+                            }</block></then></if>
+                        }</block></then></if>
+                    }</block></for>
+                }</block></for>
+            }</block></else></if>
+
+            <expr_stmt><expr><call><name>fireDatasetChanged</name><argument_list>()</argument_list></call></expr>;</expr_stmt> <comment type="line">// Tell the listeners a new table has arrived.</comment>
+        }</block>
+        <finally>finally <block>{
+            <if>if <condition>(<expr><name>resultSet</name> != <name>null</name></expr>)</condition><then> <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>resultSet</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block>
+                <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+                    <comment type="line">// TODO: is this a good idea?</comment>
+                }</block></catch></try>
+            }</block></then></if>
+            <if>if <condition>(<expr><name>statement</name> != <name>null</name></expr>)</condition><then> <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>statement</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block>
+                <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+                    <comment type="line">// TODO: is this a good idea?</comment>
+                }</block></catch></try>
+            }</block></then></if>
+        }</block></finally></try>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the x-value for the specified series and item.  The
+     * implementation is responsible for ensuring that the x-values are
+     * presented in ascending order.
+     *
+     * @param  seriesIndex  the series (zero-based index).
+     * @param  itemIndex  the item (zero-based index).
+     *
+     * @return The x-value
+     *
+     * @see XYDataset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getX</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesIndex</name></decl></param>, <param><decl><type><name>int</name></type> <name>itemIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ArrayList</name></type> <name>row</name> =<init> <expr>(<name>ArrayList</name>) <call><name><name>this</name>.<name>rows</name>.<name>get</name></name><argument_list>(<argument><expr><name>itemIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>Number</name>) <call><name><name>row</name>.<name>get</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the y-value for the specified series and item.
+     *
+     * @param  seriesIndex  the series (zero-based index).
+     * @param  itemIndex  the item (zero-based index).
+     *
+     * @return The yValue value
+     *
+     * @see XYDataset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Number</name></type> <name>getY</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesIndex</name></decl></param>, <param><decl><type><name>int</name></type> <name>itemIndex</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ArrayList</name></type> <name>row</name> =<init> <expr>(<name>ArrayList</name>) <call><name><name>this</name>.<name>rows</name>.<name>get</name></name><argument_list>(<argument><expr><name>itemIndex</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>Number</name>) <call><name><name>row</name>.<name>get</name></name><argument_list>(<argument><expr><name>seriesIndex</name> + 1</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of items in the specified series.
+     *
+     * @param  seriesIndex  the series (zero-based index).
+     *
+     * @return The itemCount value
+     *
+     * @see XYDataset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getItemCount</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesIndex</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>this</name>.<name>rows</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of items in all series.  This method is defined by 
+     * the {@link TableXYDataset} interface.
+     * 
+     * @return The item count.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getItemCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getItemCount</name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the number of series in the dataset.
+     *
+     * @return The seriesCount value
+     *
+     * @see XYDataset
+     * @see Dataset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getSeriesCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>columnNames</name>.<name>length</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the key for the specified series.
+     *
+     * @param seriesIndex  the series (zero-based index).
+     *
+     * @return The seriesName value
+     *
+     * @see XYDataset
+     * @see Dataset
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Comparable</name></type> <name>getSeriesKey</name><parameter_list>(<param><decl><type><name>int</name></type> <name>seriesIndex</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr>(<name>seriesIndex</name> &lt; <name><name>this</name>.<name>columnNames</name>.<name>length</name></name>) 
+                &amp;&amp; (<name><name>this</name>.<name>columnNames</name><index>[<expr><name>seriesIndex</name></expr>]</index></name> != <name>null</name>)</expr>)</condition><then> <block>{
+            <return>return <expr><name><name>this</name>.<name>columnNames</name><index>[<expr><name>seriesIndex</name></expr>]</index></name></expr>;</return>
+        }</block></then>
+        <else>else <block>{
+            <return>return <expr>""</expr>;</return>
+        }</block></else></if>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the number of items that should be displayed in the legend.
+     *
+     * @return The legendItemCount value
+     *
+     * @deprecated This method is not used in JFreeChart 1.0.x (it was left in
+     *     the API by mistake and is officially deprecated from version 1.0.3
+     *     onwards).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>getLegendItemCount</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getSeriesCount</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the legend item labels.
+     *
+     * @return The legend item labels.
+     *
+     * @deprecated This method is not used in JFreeChart 1.0.x (it was left in
+     *     the API by mistake and is officially deprecated from version 1.0.3
+     *     onwards).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name><index>[]</index></type> <name>getLegendItemLabels</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>columnNames</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Close the database connection
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <block>{
+
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>this</name>.<name>connection</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block>
+        <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>err</name>.<name>println</name></name><argument_list>(<argument><expr>"JdbcXYDataset: swallowing exception."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the minimum y-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The minimum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeLowerBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>minValue</name></name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Returns the maximum y-value in the dataset.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The maximum value.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>double</name></type> <name>getRangeUpperBound</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><name><name>this</name>.<name>maxValue</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the range of the values in this dataset's range.
+     *
+     * @param includeInterval  a flag that determines whether or not the
+     *                         y-interval is taken into account.
+     * 
+     * @return The range.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Range</name></type> <name>getRangeBounds</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>includeInterval</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>Range</name><argument_list>(<argument><expr><name><name>this</name>.<name>minValue</name></name></expr></argument>, <argument><expr><name><name>this</name>.<name>maxValue</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\clogging\src\main\java\org\apache\commons\logging\impl\WeakHashtable.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>logging</name>.<name>impl</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>ReferenceQueue</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Enumeration</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashSet</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Hashtable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Implementation of &lt;code&gt;Hashtable&lt;/code&gt; that uses &lt;code&gt;WeakReference&lt;/code&gt;'s
+ * to hold its keys thus allowing them to be reclaimed by the garbage collector.
+ * The associated values are retained using strong references.
+ * &lt;p&gt;
+ * This class follows the semantics of &lt;code&gt;Hashtable&lt;/code&gt; as closely as
+ * possible. It therefore does not accept null values or keys.
+ * &lt;p&gt;
+ * &lt;strong&gt;Note:&lt;/strong&gt;
+ * This is &lt;em&gt;not&lt;/em&gt; intended to be a general purpose hash table replacement.
+ * This implementation is also tuned towards a particular purpose: for use as a replacement
+ * for &lt;code&gt;Hashtable&lt;/code&gt; in &lt;code&gt;LogFactory&lt;/code&gt;. This application requires
+ * good liveliness for &lt;code&gt;get&lt;/code&gt; and &lt;code&gt;put&lt;/code&gt;. Various tradeoffs
+ * have been made with this in mind.
+ * &lt;p&gt;
+ * &lt;strong&gt;Usage:&lt;/strong&gt; typical use case is as a drop-in replacement
+ * for the &lt;code&gt;Hashtable&lt;/code&gt; used in &lt;code&gt;LogFactory&lt;/code&gt; for J2EE environments
+ * running 1.3+ JVMs. Use of this class &lt;i&gt;in most cases&lt;/i&gt; (see below) will
+ * allow classloaders to be collected by the garbage collector without the need
+ * to call {@link org.apache.commons.logging.LogFactory#release(ClassLoader) LogFactory.release(ClassLoader)}.
+ * &lt;p&gt;
+ * &lt;code&gt;org.apache.commons.logging.LogFactory&lt;/code&gt; checks whether this class
+ * can be supported by the current JVM, and if so then uses it to store
+ * references to the &lt;code&gt;LogFactory&lt;/code&gt; implementation it loads
+ * (rather than using a standard Hashtable instance).
+ * Having this class used instead of &lt;code&gt;Hashtable&lt;/code&gt; solves
+ * certain issues related to dynamic reloading of applications in J2EE-style
+ * environments. However this class requires java 1.3 or later (due to its use
+ * of &lt;code&gt;java.lang.ref.WeakReference&lt;/code&gt; and associates).
+ * And by the way, this extends &lt;code&gt;Hashtable&lt;/code&gt; rather than &lt;code&gt;HashMap&lt;/code&gt;
+ * for backwards compatibility reasons. See the documentation
+ * for method &lt;code&gt;LogFactory.createFactoryStore&lt;/code&gt; for more details.
+ * &lt;p&gt;
+ * The reason all this is necessary is due to a issue which
+ * arises during hot deploy in a J2EE-like containers.
+ * Each component running in the container owns one or more classloaders; when
+ * the component loads a LogFactory instance via the component classloader
+ * a reference to it gets stored in the static LogFactory.factories member,
+ * keyed by the component's classloader so different components don't
+ * stomp on each other. When the component is later unloaded, the container
+ * sets the component's classloader to null with the intent that all the
+ * component's classes get garbage-collected. However there's still a
+ * reference to the component's classloader from a key in the "global"
+ * &lt;code&gt;LogFactory&lt;/code&gt;'s factories member! If &lt;code&gt;LogFactory.release()&lt;/code&gt;
+ * is called whenever component is unloaded, the classloaders will be correctly
+ * garbage collected; this &lt;i&gt;should&lt;/i&gt; be done by any container that
+ * bundles commons-logging by default. However, holding the classloader
+ * references weakly ensures that the classloader will be garbage collected
+ * without the container performing this step.
+ * &lt;p&gt;
+ * &lt;strong&gt;Limitations:&lt;/strong&gt;
+ * There is still one (unusual) scenario in which a component will not
+ * be correctly unloaded without an explicit release. Though weak references
+ * are used for its keys, it is necessary to use strong references for its values.
+ * &lt;p&gt;
+ * If the abstract class &lt;code&gt;LogFactory&lt;/code&gt; is
+ * loaded by the container classloader but a subclass of
+ * &lt;code&gt;LogFactory&lt;/code&gt; [LogFactory1] is loaded by the component's
+ * classloader and an instance stored in the static map associated with the
+ * base LogFactory class, then there is a strong reference from the LogFactory
+ * class to the LogFactory1 instance (as normal) and a strong reference from
+ * the LogFactory1 instance to the component classloader via
+ * &lt;code&gt;getClass().getClassLoader()&lt;/code&gt;. This chain of references will prevent
+ * collection of the child classloader.
+ * &lt;p&gt;
+ * Such a situation occurs when the commons-logging.jar is
+ * loaded by a parent classloader (e.g. a server level classloader in a
+ * servlet container) and a custom &lt;code&gt;LogFactory&lt;/code&gt; implementation is
+ * loaded by a child classloader (e.g. a web app classloader).
+ * &lt;p&gt;
+ * To avoid this scenario, ensure
+ * that any custom LogFactory subclass is loaded by the same classloader as
+ * the base &lt;code&gt;LogFactory&lt;/code&gt;. Creating custom LogFactory subclasses is,
+ * however, rare. The standard LogFactoryImpl class should be sufficient
+ * for most or all users.
+ *
+ * @version $Id: WeakHashtable.java 1435077 2013-01-18 10:51:35Z tn $
+ * @since 1.1
+ */</comment>
+<class><specifier>public</specifier> <specifier>final</specifier> class <name>WeakHashtable</name> <super><extends>extends <name>Hashtable</name></extends></super> <block>{
+
+    <comment type="javadoc">/** Serializable version identifier. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>-1546036869799732453L</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The maximum number of times put() or remove() can be called before
+     * the map will be purged of all cleared entries.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>MAX_CHANGES_BEFORE_PURGE</name> =<init> <expr>100</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The maximum number of times put() or remove() can be called before
+     * the map will be purged of one cleared entry.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>PARTIAL_PURGE_COUNT</name>     =<init> <expr>10</expr></init></decl>;</decl_stmt>
+
+    <comment type="block">/* ReferenceQueue we check for gc'd keys */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ReferenceQueue</name></type> <name>queue</name> =<init> <expr>new <call><name>ReferenceQueue</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="block">/* Counter used to control how often we purge gc'd entries */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>changeCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a WeakHashtable with the Hashtable default
+     * capacity and load factor.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WeakHashtable</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>containsKey</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// purge should not be required</comment>
+        <decl_stmt><decl><type><name>Referenced</name></type> <name>referenced</name> =<init> <expr>new <call><name>Referenced</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>containsKey</name></name><argument_list>(<argument><expr><name>referenced</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Enumeration</name></type> <name>elements</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>elements</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Set</name></type> <name>entrySet</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>Set</name></type> <name>referencedEntries</name> =<init> <expr><call><name><name>super</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Set</name></type> <name>unreferencedEntries</name> =<init> <expr>new <call><name>HashSet</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>it</name>=<init><expr><call><name><name>referencedEntries</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>it</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+            <decl_stmt><decl><type><name><name>Map</name>.<name>Entry</name></name></type> <name>entry</name> =<init> <expr>(<name><name>Map</name>.<name>Entry</name></name>) <call><name><name>it</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Referenced</name></type> <name>referencedKey</name> =<init> <expr>(<name>Referenced</name>) <call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Object</name></type> <name>key</name> =<init> <expr><call><name><name>referencedKey</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Object</name></type> <name>value</name> =<init> <expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>key</name> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Entry</name></type> <name>dereferencedEntry</name> =<init> <expr>new <call><name>Entry</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>unreferencedEntries</name>.<name>add</name></name><argument_list>(<argument><expr><name>dereferencedEntry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>unreferencedEntries</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Object</name></type> <name>get</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// for performance reasons, no purge</comment>
+        <decl_stmt><decl><type><name>Referenced</name></type> <name>referenceKey</name> =<init> <expr>new <call><name>Referenced</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>get</name></name><argument_list>(<argument><expr><name>referenceKey</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Enumeration</name></type> <name>keys</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Enumeration</name></type> <name>enumer</name> =<init> <expr><call><name><name>super</name>.<name>keys</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <class><super><name>Enumeration</name></super><argument_list>()</argument_list> <block>{
+            <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasMoreElements</name><parameter_list>()</parameter_list> <block>{
+                <return>return <expr><call><name><name>enumer</name>.<name>hasMoreElements</name></name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></function>
+            <function><type><specifier>public</specifier> <name>Object</name></type> <name>nextElement</name><parameter_list>()</parameter_list> <block>{
+                 <decl_stmt><decl><type><name>Referenced</name></type> <name>nextReference</name> =<init> <expr>(<name>Referenced</name>) <call><name><name>enumer</name>.<name>nextElement</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                 <return>return <expr><call><name><name>nextReference</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></function>
+        }</block></class></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Set</name></type> <name>keySet</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>Set</name></type> <name>referencedKeys</name> =<init> <expr><call><name><name>super</name>.<name>keySet</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Set</name></type> <name>unreferencedKeys</name> =<init> <expr>new <call><name>HashSet</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>Iterator</name></type> <name>it</name>=<init><expr><call><name><name>referencedKeys</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>it</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+            <decl_stmt><decl><type><name>Referenced</name></type> <name>referenceKey</name> =<init> <expr>(<name>Referenced</name>) <call><name><name>it</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>Object</name></type> <name>keyValue</name> =<init> <expr><call><name><name>referenceKey</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>keyValue</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>unreferencedKeys</name>.<name>add</name></name><argument_list>(<argument><expr><name>keyValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>unreferencedKeys</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>synchronized</specifier> <name>Object</name></type> <name>put</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// check for nulls, ensuring semantics match superclass</comment>
+        <if>if <condition>(<expr><name>key</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"Null keys are not allowed"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"Null values are not allowed"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <comment type="line">// for performance reasons, only purge every</comment>
+        <comment type="line">// MAX_CHANGES_BEFORE_PURGE times</comment>
+        <if>if <condition>(<expr><name>changeCount</name>++ &gt; <name>MAX_CHANGES_BEFORE_PURGE</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>changeCount</name> = 0</expr>;</expr_stmt>
+        }</block></then>
+        <comment type="line">// do a partial purge more often</comment>
+        <else>else <if>if <condition>(<expr><name>changeCount</name> % <name>PARTIAL_PURGE_COUNT</name> == 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>purgeOne</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+
+        <decl_stmt><decl><type><name>Referenced</name></type> <name>keyRef</name> =<init> <expr>new <call><name>Referenced</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>put</name></name><argument_list>(<argument><expr><name>keyRef</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>putAll</name><parameter_list>(<param><decl><type><name>Map</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>t</name> != <name>null</name></expr>)</condition><then> <block>{
+            <decl_stmt><decl><type><name>Set</name></type> <name>entrySet</name> =<init> <expr><call><name><name>t</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>Iterator</name></type> <name>it</name>=<init><expr><call><name><name>entrySet</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><call><name><name>it</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</condition><incr/>) <block>{
+                <decl_stmt><decl><type><name><name>Map</name>.<name>Entry</name></name></type> <name>entry</name> =<init> <expr>(<name><name>Map</name>.<name>Entry</name></name>) <call><name><name>it</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name>put</name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>Collection</name></type> <name>values</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>values</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>synchronized</specifier> <name>Object</name></type> <name>remove</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// for performance reasons, only purge every</comment>
+        <comment type="line">// MAX_CHANGES_BEFORE_PURGE times</comment>
+        <if>if <condition>(<expr><name>changeCount</name>++ &gt; <name>MAX_CHANGES_BEFORE_PURGE</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>changeCount</name> = 0</expr>;</expr_stmt>
+        }</block></then>
+        <comment type="line">// do a partial purge more often</comment>
+        <else>else <if>if <condition>(<expr><name>changeCount</name> % <name>PARTIAL_PURGE_COUNT</name> == 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>purgeOne</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+        <return>return <expr><call><name><name>super</name>.<name>remove</name></name><argument_list>(<argument><expr>new <call><name>Referenced</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isEmpty</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     *@see Hashtable
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>super</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * @see Hashtable
+     */</comment>
+    <function><type><specifier>protected</specifier> <name>void</name></type> <name>rehash</name><parameter_list>()</parameter_list> <block>{
+        <comment type="line">// purge here to save the effort of rehashing dead entries</comment>
+        <expr_stmt><expr><call><name>purge</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>super</name>.<name>rehash</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Purges all entries whose wrapped keys
+     * have been garbage collected.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>purge</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>List</name></type> <name>toRemove</name> =<init> <expr>new <call><name>ArrayList</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <synchronized>synchronized (<expr><name>queue</name></expr>) <block>{
+            <decl_stmt><decl><type><name>WeakKey</name></type> <name>key</name></decl>;</decl_stmt>
+            <while>while <condition>(<expr>(<name>key</name> = (<name>WeakKey</name>) <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition> <block>{
+                <expr_stmt><expr><call><name><name>toRemove</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>key</name>.<name>getReferenced</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+        }</block></synchronized>
+
+        <comment type="line">// LOGGING-119: do the actual removal of the keys outside the sync block</comment>
+        <comment type="line">// to prevent deadlock scenarios as purge() may be called from</comment>
+        <comment type="line">// non-synchronized methods too</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name> =<init> <expr><call><name><name>toRemove</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name><name>super</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>toRemove</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Purges one entry whose wrapped key
+     * has been garbage collected.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>purgeOne</name><parameter_list>()</parameter_list> <block>{
+        <synchronized>synchronized (<expr><name>queue</name></expr>) <block>{
+            <decl_stmt><decl><type><name>WeakKey</name></type> <name>key</name> =<init> <expr>(<name>WeakKey</name>) <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>key</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>super</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>key</name>.<name>getReferenced</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="javadoc">/** Entry implementation */</comment>
+    <class><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> class <name>Entry</name> <super><implements>implements <name>Map</name>.<name>Entry</name></implements></super> <block>{
+
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>key</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>value</name></decl>;</decl_stmt>
+
+        <constructor><specifier>private</specifier> <name>Entry</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>key</name></name> = <name>key</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>value</name></name> = <name>value</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>result</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>o</name> != <name>null</name> &amp;&amp; <name>o</name> <name>instanceof</name> <name><name>Map</name>.<name>Entry</name></name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name><name>Map</name>.<name>Entry</name></name></type> <name>entry</name> =<init> <expr>(<name><name>Map</name>.<name>Entry</name></name>) <name>o</name></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><name>result</name> =    (<call><name>getKey</name><argument_list>()</argument_list></call>==<name>null</name> ?
+                                            <call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call> == <name>null</name> :
+                                            <call><name>getKey</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>) &amp;&amp;
+                            (<call><name>getValue</name><argument_list>()</argument_list></call>==<name>null</name> ?
+                                            <call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call> == <name>null</name> :
+                                            <call><name>getValue</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>)</expr>;</expr_stmt>
+            }</block></then></if>
+            <return>return <expr><name>result</name></expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>(<call><name>getKey</name><argument_list>()</argument_list></call>==<name>null</name> ? 0 : <call><name>getKey</name><argument_list>()</argument_list></call>.<call><name>hashCode</name><argument_list>()</argument_list></call>) ^
+                (<call><name>getValue</name><argument_list>()</argument_list></call>==<name>null</name> ? 0 : <call><name>getValue</name><argument_list>()</argument_list></call>.<call><name>hashCode</name><argument_list>()</argument_list></call>)</expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>public</specifier> <name>Object</name></type> <name>setValue</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>(<argument><expr>"Entry.setValue is not supported."</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></function>
+
+        <function><type><specifier>public</specifier> <name>Object</name></type> <name>getValue</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>value</name></expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>public</specifier> <name>Object</name></type> <name>getKey</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>key</name></expr>;</return>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/** Wrapper giving correct symantics for equals and hashcode */</comment>
+    <class><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> class <name>Referenced</name> <block>{
+
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>WeakReference</name></type> <name>reference</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>int</name></type>           <name>hashCode</name></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         *
+         * @throws NullPointerException if referant is &lt;code&gt;null&lt;/code&gt;
+         */</comment>
+        <constructor><specifier>private</specifier> <name>Referenced</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>referant</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>reference</name> = new <call><name>WeakReference</name><argument_list>(<argument><expr><name>referant</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// Calc a permanent hashCode so calls to Hashtable.remove()</comment>
+            <comment type="line">// work if the WeakReference has been cleared</comment>
+            <expr_stmt><expr><name>hashCode</name>  = <call><name><name>referant</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <comment type="javadoc">/**
+         *
+         * @throws NullPointerException if key is &lt;code&gt;null&lt;/code&gt;
+         */</comment>
+        <constructor><specifier>private</specifier> <name>Referenced</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><name>ReferenceQueue</name></type> <name>queue</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>reference</name> = new <call><name>WeakKey</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// Calc a permanent hashCode so calls to Hashtable.remove()</comment>
+            <comment type="line">// work if the WeakReference has been cleared</comment>
+            <expr_stmt><expr><name>hashCode</name>  = <call><name><name>key</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        }</block></constructor>
+
+        <function><type><specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>hashCode</name></expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>private</specifier> <name>Object</name></type> <name>getValue</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>reference</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+            <decl_stmt><decl><type><name>boolean</name></type> <name>result</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>o</name> <name>instanceof</name> <name>Referenced</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>Referenced</name></type> <name>otherKey</name> =<init> <expr>(<name>Referenced</name>) <name>o</name></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Object</name></type> <name>thisKeyValue</name> =<init> <expr><call><name>getValue</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <decl_stmt><decl><type><name>Object</name></type> <name>otherKeyValue</name> =<init> <expr><call><name><name>otherKey</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>thisKeyValue</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><name>result</name> = <name>otherKeyValue</name> == <name>null</name></expr>;</expr_stmt>
+
+                    <comment type="line">// Since our hashcode was calculated from the original</comment>
+                    <comment type="line">// non-null referant, the above check breaks the</comment>
+                    <comment type="line">// hashcode/equals contract, as two cleared Referenced</comment>
+                    <comment type="line">// objects could test equal but have different hashcodes.</comment>
+                    <comment type="line">// We can reduce (not eliminate) the chance of this</comment>
+                    <comment type="line">// happening by comparing hashcodes.</comment>
+                    <expr_stmt><expr><name>result</name> = <name>result</name> &amp;&amp; <call><name><name>this</name>.<name>hashCode</name></name><argument_list>()</argument_list></call> == <call><name><name>otherKey</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <comment type="line">// In any case, as our c'tor does not allow null referants</comment>
+                    <comment type="line">// and Hashtable does not do equality checks between</comment>
+                    <comment type="line">// existing keys, normal hashtable operations should never</comment>
+                    <comment type="line">// result in an equals comparison between null referants</comment>
+                }</block></then>
+                <else>else
+                <block>{
+                    <expr_stmt><expr><name>result</name> = <call><name><name>thisKeyValue</name>.<name>equals</name></name><argument_list>(<argument><expr><name>otherKeyValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></then></if>
+            <return>return <expr><name>result</name></expr>;</return>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * WeakReference subclass that holds a hard reference to an
+     * associated &lt;code&gt;value&lt;/code&gt; and also makes accessible
+     * the Referenced object holding it.
+     */</comment>
+    <class><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> class <name>WeakKey</name> <super><extends>extends <name>WeakReference</name></extends></super> <block>{
+
+        <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Referenced</name></type> <name>referenced</name></decl>;</decl_stmt>
+
+        <constructor><specifier>private</specifier> <name>WeakKey</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>,
+                        <param><decl><type><name>ReferenceQueue</name></type> <name>queue</name></decl></param>,
+                        <param><decl><type><name>Referenced</name></type> <name>referenced</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>queue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name><name>this</name>.<name>referenced</name></name> = <name>referenced</name></expr>;</expr_stmt>
+        }</block></constructor>
+
+        <function><type><specifier>private</specifier> <name>Referenced</name></type> <name>getReferenced</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><name>referenced</name></expr>;</return>
+        }</block></function>
+     }</block></class>
+}</block></class>
+</unit>

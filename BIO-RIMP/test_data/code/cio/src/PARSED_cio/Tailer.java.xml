@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\input\Tailer.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>input</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileNotFoundException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>RandomAccessFile</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>FileUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>IOUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Simple implementation of the unix "tail -f" functionality.
+ * &lt;p&gt;
+ * &lt;h2&gt;1. Create a TailerListener implementation&lt;/h3&gt;
+ * &lt;p&gt;
+ * First you need to create a {@link TailerListener} implementation
+ * ({@link TailerListenerAdapter} is provided for convenience so that you don't have to
+ * implement every method).
+ * &lt;/p&gt;
+ *
+ * &lt;p&gt;For example:&lt;/p&gt;
+ * &lt;pre&gt;
+ *  public class MyTailerListener extends TailerListenerAdapter {
+ *      public void handle(String line) {
+ *          System.out.println(line);
+ *      }
+ *  }
+ * &lt;/pre&gt;
+ * 
+ * &lt;h2&gt;2. Using a Tailer&lt;/h2&gt;
+ *
+ * You can create and use a Tailer in one of three ways:
+ * &lt;ul&gt;
+ *   &lt;li&gt;Using one of the static helper methods:
+ *     &lt;ul&gt;
+ *       &lt;li&gt;{@link Tailer#create(File, TailerListener)}&lt;/li&gt;
+ *       &lt;li&gt;{@link Tailer#create(File, TailerListener, long)}&lt;/li&gt;
+ *       &lt;li&gt;{@link Tailer#create(File, TailerListener, long, boolean)}&lt;/li&gt;
+ *     &lt;/ul&gt;
+ *   &lt;/li&gt;
+ *   &lt;li&gt;Using an {@link java.util.concurrent.Executor}&lt;/li&gt;
+ *   &lt;li&gt;Using an {@link Thread}&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * An example of each of these is shown below.
+ * 
+ * &lt;h3&gt;2.1 Using the static helper method&lt;/h3&gt;
+ *
+ * &lt;pre&gt;
+ *      TailerListener listener = new MyTailerListener();
+ *      Tailer tailer = Tailer.create(file, listener, delay);
+ * &lt;/pre&gt;
+ *      
+ * &lt;h3&gt;2.2 Use an Executor&lt;/h3&gt;
+ * 
+ * &lt;pre&gt;
+ *      TailerListener listener = new MyTailerListener();
+ *      Tailer tailer = new Tailer(file, listener, delay);
+ *
+ *      // stupid executor impl. for demo purposes
+ *      Executor executor = new Executor() {
+ *          public void execute(Runnable command) {
+ *              command.run();
+ *           }
+ *      };
+ *
+ *      executor.execute(tailer);
+ * &lt;/pre&gt;
+ *      
+ *      
+ * &lt;h3&gt;2.3 Use a Thread&lt;/h3&gt;
+ * &lt;pre&gt;
+ *      TailerListener listener = new MyTailerListener();
+ *      Tailer tailer = new Tailer(file, listener, delay);
+ *      Thread thread = new Thread(tailer);
+ *      thread.setDaemon(true); // optional
+ *      thread.start();
+ * &lt;/pre&gt;
+ *
+ * &lt;h2&gt;3. Stop Tailing&lt;/h3&gt;
+ * &lt;p&gt;Remember to stop the tailer when you have done with it:&lt;/p&gt;
+ * &lt;pre&gt;
+ *      tailer.stop();
+ * &lt;/pre&gt;
+ *
+ * @see TailerListener
+ * @see TailerListenerAdapter
+ * @version $Id: Tailer.java 1304052 2012-03-22 20:55:29Z ggregory $
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>Tailer</name> <super><implements>implements <name>Runnable</name></implements></super> <block>{
+
+    <comment type="javadoc">/**
+     * The file which will be tailed.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>File</name></type> <name>file</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The amount of time to wait for the file to be updated.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>long</name></type> <name>delay</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Whether to tail from the end or start of file
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>end</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The listener to notify of events when tailing.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TailerListener</name></type> <name>listener</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The tailer will run as long as this value is true.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>boolean</name></type> <name>run</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates a Tailer for the given file, starting from the beginning, with the default delay of 1.0s.
+     * @param file The file to follow.
+     * @param listener the TailerListener to use.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>Tailer</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>, <argument><expr>1000</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Tailer for the given file, starting from the beginning.
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delay the delay between checks of the file for new content in milliseconds.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>Tailer</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>, <param><decl><type><name>long</name></type> <name>delay</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>, <argument><expr><name>delay</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates a Tailer for the given file, with a delay other than the default 1.0s.
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delay the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>Tailer</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>, <param><decl><type><name>long</name></type> <name>delay</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>end</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><name><name>this</name>.<name>file</name></name> = <name>file</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>delay</name></name> = <name>delay</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>end</name></name> = <name>end</name></expr>;</expr_stmt>
+
+        <comment type="line">// Save and prepare the listener</comment>
+        <expr_stmt><expr><name><name>this</name>.<name>listener</name></name> = <name>listener</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>listener</name>.<name>init</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Creates and starts a Tailer for the given file.
+     * 
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delay the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     * @return The new tailer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Tailer</name></type> <name>create</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>, <param><decl><type><name>long</name></type> <name>delay</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>end</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Tailer</name></type> <name>tailer</name> =<init> <expr>new <call><name>Tailer</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>, <argument><expr><name>delay</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Thread</name></type> <name>thread</name> =<init> <expr>new <call><name>Thread</name><argument_list>(<argument><expr><name>tailer</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>thread</name>.<name>setDaemon</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>thread</name>.<name>start</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>tailer</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates and starts a Tailer for the given file, starting at the beginning of the file
+     * 
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delay the delay between checks of the file for new content in milliseconds.
+     * @return The new tailer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Tailer</name></type> <name>create</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>, <param><decl><type><name>long</name></type> <name>delay</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>, <argument><expr><name>delay</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates and starts a Tailer for the given file, starting at the beginning of the file
+     * with the default delay of 1.0s
+     * 
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @return The new tailer
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>Tailer</name></type> <name>create</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>TailerListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>create</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>listener</name></expr></argument>, <argument><expr>1000</expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the file.
+     *
+     * @return the file
+     */</comment>
+    <function><type><specifier>public</specifier> <name>File</name></type> <name>getFile</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>file</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the delay.
+     *
+     * @return the delay
+     */</comment>
+    <function><type><specifier>public</specifier> <name>long</name></type> <name>getDelay</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>delay</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Follows changes in the file, calling the TailerListener's handle method for each new line.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>RandomAccessFile</name></type> <name>reader</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>long</name></type> <name>last</name> =<init> <expr>0</expr></init></decl>;</decl_stmt> <comment type="line">// The last time the file was checked for changes</comment>
+            <decl_stmt><decl><type><name>long</name></type> <name>position</name> =<init> <expr>0</expr></init></decl>;</decl_stmt> <comment type="line">// position within the file</comment>
+            <comment type="line">// Open the file</comment>
+            <while>while <condition>(<expr><name>run</name> &amp;&amp; <name>reader</name> == <name>null</name></expr>)</condition> <block>{
+                <try>try <block>{
+                    <expr_stmt><expr><name>reader</name> = new <call><name>RandomAccessFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr>"r"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>FileNotFoundException</name></type> <name>e</name></decl></param>) <block>{
+                    <expr_stmt><expr><call><name><name>listener</name>.<name>fileNotFound</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></catch></try>
+
+                <if>if <condition>(<expr><name>reader</name> == <name>null</name></expr>)</condition><then> <block>{
+                    <try>try <block>{
+                        <expr_stmt><expr><call><name><name>Thread</name>.<name>sleep</name></name><argument_list>(<argument><expr><name>delay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>e</name></decl></param>) <block>{
+                    }</block></catch></try>
+                }</block></then> <else>else <block>{
+                    <comment type="line">// The current position in the file</comment>
+                    <expr_stmt><expr><name>position</name> = <name>end</name> ? <call><name><name>file</name>.<name>length</name></name><argument_list>()</argument_list></call> : 0</expr>;</expr_stmt>
+                    <expr_stmt><expr><name>last</name> = <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>reader</name>.<name>seek</name></name><argument_list>(<argument><expr><name>position</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>                    
+                }</block></else></if>
+            }</block></while>
+
+
+            <while>while <condition>(<expr><name>run</name></expr>)</condition> <block>{
+
+                <comment type="line">// Check the file length to see if it was rotated</comment>
+                <decl_stmt><decl><type><name>long</name></type> <name>length</name> =<init> <expr><call><name><name>file</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+                <if>if <condition>(<expr><name>length</name> &lt; <name>position</name></expr>)</condition><then> <block>{
+
+                    <comment type="line">// File was rotated</comment>
+                    <expr_stmt><expr><call><name><name>listener</name>.<name>fileRotated</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+                    <comment type="line">// Reopen the reader after rotation</comment>
+                    <try>try <block>{
+                        <comment type="line">// Ensure that the old file is closed iff we re-open it successfully</comment>
+                        <decl_stmt><decl><type><name>RandomAccessFile</name></type> <name>save</name> =<init> <expr><name>reader</name></expr></init></decl>;</decl_stmt>
+                        <expr_stmt><expr><name>reader</name> = new <call><name>RandomAccessFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr>"r"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>position</name> = 0</expr>;</expr_stmt>
+                        <comment type="line">// close old file explicitly rather than relying on GC picking up previous RAF</comment>
+                        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>save</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block> <catch>catch (<param><decl><type><name>FileNotFoundException</name></type> <name>e</name></decl></param>) <block>{
+                        <comment type="line">// in this case we continue to use the previous reader and position values</comment>
+                        <expr_stmt><expr><call><name><name>listener</name>.<name>fileNotFound</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    }</block></catch></try>
+                    <continue>continue;</continue>
+                }</block></then> <else>else <block>{
+
+                    <comment type="line">// File was not rotated</comment>
+
+                    <comment type="line">// See if the file needs to be read again</comment>
+                    <if>if <condition>(<expr><name>length</name> &gt; <name>position</name></expr>)</condition><then> <block>{
+
+                        <comment type="line">// The file has more content than it did last time</comment>
+                        <expr_stmt><expr><name>last</name> = <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>position</name> = <call><name>readLines</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                    }</block></then> <else>else <if>if <condition>(<expr><call><name><name>FileUtils</name>.<name>isFileNewer</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>last</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+
+                        <comment type="block">/* This can happen if the file is truncated or overwritten
+                         * with the exact same length of information. In cases like
+                         * this, the file position needs to be reset
+                         */</comment>
+                        <expr_stmt><expr><name>position</name> = 0</expr>;</expr_stmt>
+                        <expr_stmt><expr><call><name><name>reader</name>.<name>seek</name></name><argument_list>(<argument><expr><name>position</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// cannot be null here</comment>
+
+                        <comment type="line">// Now we can read new lines</comment>
+                        <expr_stmt><expr><name>last</name> = <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>position</name> = <call><name>readLines</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if></else></if>
+                }</block></else></if>
+                <try>try <block>{
+                    <expr_stmt><expr><call><name><name>Thread</name>.<name>sleep</name></name><argument_list>(<argument><expr><name>delay</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>e</name></decl></param>) <block>{
+                }</block></catch></try>
+            }</block></while>
+
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+
+            <expr_stmt><expr><call><name><name>listener</name>.<name>handle</name></name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Allows the tailer to complete its current loop and return.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>stop</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>run</name></name> = false</expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read new lines.
+     *
+     * @param reader The file to read
+     * @return The new position after the lines have been read
+     * @throws java.io.IOException if an I/O error occurs.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>long</name></type> <name>readLines</name><parameter_list>(<param><decl><type><name>RandomAccessFile</name></type> <name>reader</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>long</name></type> <name>pos</name> =<init> <expr><call><name><name>reader</name>.<name>getFilePointer</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>line</name> =<init> <expr><call><name>readLine</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>line</name> != <name>null</name></expr>)</condition> <block>{
+            <expr_stmt><expr><name>pos</name> = <call><name><name>reader</name>.<name>getFilePointer</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>listener</name>.<name>handle</name></name><argument_list>(<argument><expr><name>line</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>line</name> = <call><name>readLine</name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+        <expr_stmt><expr><call><name><name>reader</name>.<name>seek</name></name><argument_list>(<argument><expr><name>pos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// Ensure we can re-read if necessary</comment>
+        <return>return <expr><name>pos</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Version of readline() that returns null on EOF rather than a partial line.
+     * @param reader the input file
+     * @return the line, or null if EOF reached before '\n' is seen.
+     * @throws IOException if an error occurs.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>String</name></type> <name>readLine</name><parameter_list>(<param><decl><type><name>RandomAccessFile</name></type> <name>reader</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>StringBuffer</name></type> <name>sb</name>  =<init> <expr>new <call><name>StringBuffer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>ch</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>seenCR</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <while>while<condition>(<expr>(<name>ch</name>=<call><name><name>reader</name>.<name>read</name></name><argument_list>()</argument_list></call>) != -1</expr>)</condition> <block>{
+            <switch>switch<condition>(<expr><name>ch</name></expr>)</condition> <block>{
+                <case>case <expr>'\n'</expr>:
+                    <return>return <expr><call><name><name>sb</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+                </case><case>case <expr>'\r'</expr>:
+                    <expr_stmt><expr><name>seenCR</name> = true</expr>;</expr_stmt>
+                    <break>break;</break>
+                </case><default>default:
+                    <if>if <condition>(<expr><name>seenCR</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><call><name><name>sb</name>.<name>append</name></name><argument_list>(<argument><expr>'\r'</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        <expr_stmt><expr><name>seenCR</name> = false</expr>;</expr_stmt>
+                    }</block></then></if>
+                    <expr_stmt><expr><call><name><name>sb</name>.<name>append</name></name><argument_list>(<argument><expr>(<name>char</name>)<name>ch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt> <comment type="line">// add character, not its ascii value</comment>
+            </default>}</block></switch>
+        }</block></while>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+}</block></class>
+</unit>

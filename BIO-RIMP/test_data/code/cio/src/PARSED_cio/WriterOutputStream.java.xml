@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\output\WriterOutputStream.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>output</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>ByteBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>CharBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>Charset</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CharsetDecoder</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CoderResult</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CodingErrorAction</name></name>;</import>
+
+<comment type="javadoc">/**
+ * {@link OutputStream} implementation that transforms a byte stream to a
+ * character stream using a specified charset encoding and writes the resulting
+ * stream to a {@link Writer}. The stream is transformed using a
+ * {@link CharsetDecoder} object, guaranteeing that all charset
+ * encodings supported by the JRE are handled correctly.
+ * &lt;p&gt;
+ * The output of the {@link CharsetDecoder} is buffered using a fixed size buffer.
+ * This implies that the data is written to the underlying {@link Writer} in chunks
+ * that are no larger than the size of this buffer. By default, the buffer is
+ * flushed only when it overflows or when {@link #flush()} or {@link #close()}
+ * is called. In general there is therefore no need to wrap the underlying {@link Writer}
+ * in a {@link java.io.BufferedWriter}. {@link WriterOutputStream} can also
+ * be instructed to flush the buffer after each write operation. In this case, all
+ * available data is written immediately to the underlying {@link Writer}, implying that
+ * the current position of the {@link Writer} is correlated to the current position
+ * of the {@link WriterOutputStream}.
+ * &lt;p&gt;
+ * {@link WriterOutputStream} implements the inverse transformation of {@link java.io.OutputStreamWriter};
+ * in the following example, writing to &lt;tt&gt;out2&lt;/tt&gt; would have the same result as writing to
+ * &lt;tt&gt;out&lt;/tt&gt; directly (provided that the byte sequence is legal with respect to the
+ * charset encoding):
+ * &lt;pre&gt;
+ * OutputStream out = ...
+ * Charset cs = ...
+ * OutputStreamWriter writer = new OutputStreamWriter(out, cs);
+ * WriterOutputStream out2 = new WriterOutputStream(writer, cs);&lt;/pre&gt;
+ * {@link WriterOutputStream} implements the same transformation as {@link java.io.InputStreamReader},
+ * except that the control flow is reversed: both classes transform a byte stream
+ * into a character stream, but {@link java.io.InputStreamReader} pulls data from the underlying stream,
+ * while {@link WriterOutputStream} pushes it to the underlying stream.
+ * &lt;p&gt;
+ * Note that while there are use cases where there is no alternative to using
+ * this class, very often the need to use this class is an indication of a flaw
+ * in the design of the code. This class is typically used in situations where an existing
+ * API only accepts an {@link OutputStream} object, but where the stream is known to represent
+ * character data that must be decoded for further use.
+ * &lt;p&gt;
+ * Instances of {@link WriterOutputStream} are not thread safe.
+ * 
+ * @see org.apache.commons.io.input.ReaderInputStream
+ * 
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>WriterOutputStream</name> <super><extends>extends <name>OutputStream</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_BUFFER_SIZE</name> =<init> <expr>1024</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Writer</name></type> <name>writer</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CharsetDecoder</name></type> <name>decoder</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>writeImmediately</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * ByteBuffer used as input for the decoder. This buffer can be small
+     * as it is used only to transfer the received data to the
+     * decoder.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ByteBuffer</name></type> <name>decoderIn</name> =<init> <expr><call><name><name>ByteBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr>128</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * CharBuffer used as output for the decoder. It should be
+     * somewhat larger as we write from this buffer to the
+     * underlying Writer.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CharBuffer</name></type> <name>decoderOut</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream} with a default output buffer size of
+     * 1024 characters. The output buffer will only be flushed when it overflows or when
+     * {@link #flush()} or {@link #close()} is called.
+     * 
+     * @param writer the target {@link Writer}
+     * @param decoder the charset decoder
+     * @since 2.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>CharsetDecoder</name></type> <name>decoder</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>decoder</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream}.
+     * 
+     * @param writer the target {@link Writer}
+     * @param decoder the charset decoder
+     * @param bufferSize the size of the output buffer in number of characters
+     * @param writeImmediately If &lt;tt&gt;true&lt;/tt&gt; the output buffer will be flushed after each
+     *                         write operation, i.e. all available data will be written to the
+     *                         underlying {@link Writer} immediately. If &lt;tt&gt;false&lt;/tt&gt;, the
+     *                         output buffer will only be flushed when it overflows or when
+     *                         {@link #flush()} or {@link #close()} is called.
+     * @since 2.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>CharsetDecoder</name></type> <name>decoder</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>writeImmediately</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>writer</name></name> = <name>writer</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>decoder</name></name> = <name>decoder</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>writeImmediately</name></name> = <name>writeImmediately</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>decoderOut</name> = <call><name><name>CharBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr><name>bufferSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream}.
+     * 
+     * @param writer the target {@link Writer}
+     * @param charset the charset encoding
+     * @param bufferSize the size of the output buffer in number of characters
+     * @param writeImmediately If &lt;tt&gt;true&lt;/tt&gt; the output buffer will be flushed after each
+     *                         write operation, i.e. all available data will be written to the
+     *                         underlying {@link Writer} immediately. If &lt;tt&gt;false&lt;/tt&gt;, the
+     *                         output buffer will only be flushed when it overflows or when
+     *                         {@link #flush()} or {@link #close()} is called.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>Charset</name></type> <name>charset</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>writeImmediately</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>,
+             <argument><expr><call><name><name>charset</name>.<name>newDecoder</name></name><argument_list>()</argument_list></call>
+                    .<call><name>onMalformedInput</name><argument_list>(<argument><expr><name><name>CodingErrorAction</name>.<name>REPLACE</name></name></expr></argument>)</argument_list></call>
+                    .<call><name>onUnmappableCharacter</name><argument_list>(<argument><expr><name><name>CodingErrorAction</name>.<name>REPLACE</name></name></expr></argument>)</argument_list></call>
+                    .<call><name>replaceWith</name><argument_list>(<argument><expr>"?"</expr></argument>)</argument_list></call></expr></argument>,
+             <argument><expr><name>bufferSize</name></expr></argument>,
+             <argument><expr><name>writeImmediately</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream} with a default output buffer size of
+     * 1024 characters. The output buffer will only be flushed when it overflows or when
+     * {@link #flush()} or {@link #close()} is called.
+     * 
+     * @param writer the target {@link Writer}
+     * @param charset the charset encoding
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>Charset</name></type> <name>charset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>charset</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream}.
+     * 
+     * @param writer the target {@link Writer}
+     * @param charsetName the name of the charset encoding
+     * @param bufferSize the size of the output buffer in number of characters
+     * @param writeImmediately If &lt;tt&gt;true&lt;/tt&gt; the output buffer will be flushed after each
+     *                         write operation, i.e. all available data will be written to the
+     *                         underlying {@link Writer} immediately. If &lt;tt&gt;false&lt;/tt&gt;, the
+     *                         output buffer will only be flushed when it overflows or when
+     *                         {@link #flush()} or {@link #close()} is called.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>charsetName</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>writeImmediately</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><call><name><name>Charset</name>.<name>forName</name></name><argument_list>(<argument><expr><name>charsetName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bufferSize</name></expr></argument>, <argument><expr><name>writeImmediately</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream} with a default output buffer size of
+     * 1024 characters. The output buffer will only be flushed when it overflows or when
+     * {@link #flush()} or {@link #close()} is called.
+     * 
+     * @param writer the target {@link Writer}
+     * @param charsetName the name of the charset encoding
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>, <param><decl><type><name>String</name></type> <name>charsetName</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><name>charsetName</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new {@link WriterOutputStream} that uses the default character encoding
+     * and with a default output buffer size of 1024 characters. The output buffer will only
+     * be flushed when it overflows or when {@link #flush()} or {@link #close()} is called.
+     * 
+     * @param writer the target {@link Writer}
+     */</comment>
+    <constructor><specifier>public</specifier> <name>WriterOutputStream</name><parameter_list>(<param><decl><type><name>Writer</name></type> <name>writer</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>writer</name></expr></argument>, <argument><expr><call><name><name>Charset</name>.<name>defaultCharset</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Write bytes from the specified byte array to the stream.
+     * 
+     * @param b the byte array containing the bytes to write
+     * @param off the start offset in the byte array
+     * @param len the number of bytes to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <while>while <condition>(<expr><name>len</name> &gt; 0</expr>)</condition> <block>{
+            <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>len</name></expr></argument>, <argument><expr><call><name><name>decoderIn</name>.<name>remaining</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>decoderIn</name>.<name>put</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>processInput</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>len</name> -= <name>c</name></expr>;</expr_stmt>
+            <expr_stmt><expr><name>off</name> += <name>c</name></expr>;</expr_stmt>
+        }</block></while>
+        <if>if <condition>(<expr><name>writeImmediately</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>flushOutput</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write bytes from the specified byte array to the stream.
+     * 
+     * @param b the byte array containing the bytes to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>b</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write a single byte to the stream.
+     * 
+     * @param b the byte to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>write</name><argument_list>(<argument><expr>new <name><name>byte</name><index>[]</index></name> <block>{ <expr>(<name>byte</name>)<name>b</name></expr> }</block></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Flush the stream. Any remaining content accumulated in the output buffer
+     * will be written to the underlying {@link Writer}. After that
+     * {@link Writer#flush()} will be called. 
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>flushOutput</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>writer</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Close the stream. Any remaining content accumulated in the output buffer
+     * will be written to the underlying {@link Writer}. After that
+     * {@link Writer#close()} will be called. 
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>processInput</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>flushOutput</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>writer</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Decode the contents of the input ByteBuffer into a CharBuffer.
+     * 
+     * @param endOfInput indicates end of input
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>processInput</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>endOfInput</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <comment type="line">// Prepare decoderIn for reading</comment>
+        <expr_stmt><expr><call><name><name>decoderIn</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>CoderResult</name></type> <name>coderResult</name></decl>;</decl_stmt>
+        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+            <expr_stmt><expr><name>coderResult</name> = <call><name><name>decoder</name>.<name>decode</name></name><argument_list>(<argument><expr><name>decoderIn</name></expr></argument>, <argument><expr><name>decoderOut</name></expr></argument>, <argument><expr><name>endOfInput</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><call><name><name>coderResult</name>.<name>isOverflow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>flushOutput</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <if>if <condition>(<expr><call><name><name>coderResult</name>.<name>isUnderflow</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <break>break;</break>
+            }</block></then> <else>else <block>{
+                <comment type="line">// The decoder is configured to replace malformed input and unmappable characters,</comment>
+                <comment type="line">// so we should not get here.</comment>
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Unexpected coder result"</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></else></if></else></if>
+        }</block></while>
+        <comment type="line">// Discard the bytes that have been read</comment>
+        <expr_stmt><expr><call><name><name>decoderIn</name>.<name>compact</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Flush the output.
+     * 
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>flushOutput</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><call><name><name>decoderOut</name>.<name>position</name></name><argument_list>()</argument_list></call> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>writer</name>.<name>write</name></name><argument_list>(<argument><expr><call><name><name>decoderOut</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>decoderOut</name>.<name>position</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>decoderOut</name>.<name>rewind</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+}</block></class>
+</unit>

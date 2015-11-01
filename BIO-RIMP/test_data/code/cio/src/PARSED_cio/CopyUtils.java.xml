@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\CopyUtils.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStreamWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>StringReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+
+<comment type="javadoc">/**
+ * This class provides static utility methods for buffered
+ * copying between sources (&lt;code&gt;InputStream&lt;/code&gt;, &lt;code&gt;Reader&lt;/code&gt;,
+ * &lt;code&gt;String&lt;/code&gt; and &lt;code&gt;byte[]&lt;/code&gt;) and destinations
+ * (&lt;code&gt;OutputStream&lt;/code&gt;, &lt;code&gt;Writer&lt;/code&gt;, &lt;code&gt;String&lt;/code&gt; and
+ * &lt;code&gt;byte[]&lt;/code&gt;).
+ * &lt;p&gt;
+ * Unless otherwise noted, these &lt;code&gt;copy&lt;/code&gt; methods do &lt;em&gt;not&lt;/em&gt;
+ * flush or close the streams. Often doing so would require making non-portable
+ * assumptions about the streams' origin and further use. This means that both
+ * streams' &lt;code&gt;close()&lt;/code&gt; methods must be called after copying. if one
+ * omits this step, then the stream resources (sockets, file descriptors) are
+ * released when the associated Stream is garbage-collected. It is not a good
+ * idea to rely on this mechanism. For a good overview of the distinction
+ * between "memory management" and "resource management", see
+ * &lt;a href="http://www.unixreview.com/articles/1998/9804/9804ja/ja.htm"&gt;this
+ * UnixReview article&lt;/a&gt;.
+ * &lt;p&gt;
+ * For byte-to-char methods, a &lt;code&gt;copy&lt;/code&gt; variant allows the encoding
+ * to be selected (otherwise the platform default is used). We would like to
+ * encourage you to always specify the encoding because relying on the platform
+ * default can lead to unexpected results.
+ * &lt;p
+ * We don't provide special variants for the &lt;code&gt;copy&lt;/code&gt; methods that
+ * let you specify the buffer size because in modern VMs the impact on speed
+ * seems to be minimal. We're using a default buffer size of 4 KB.
+ * &lt;p&gt;
+ * The &lt;code&gt;copy&lt;/code&gt; methods use an internal buffer when copying. It is
+ * therefore advisable &lt;em&gt;not&lt;/em&gt; to deliberately wrap the stream arguments
+ * to the &lt;code&gt;copy&lt;/code&gt; methods in &lt;code&gt;Buffered*&lt;/code&gt; streams. For
+ * example, don't do the following:
+ * &lt;pre&gt;
+ *  copy( new BufferedInputStream( in ), new BufferedOutputStream( out ) );
+ *  &lt;/pre&gt;
+ * The rationale is as follows:
+ * &lt;p&gt;
+ * Imagine that an InputStream's read() is a very expensive operation, which
+ * would usually suggest wrapping in a BufferedInputStream. The
+ * BufferedInputStream works by issuing infrequent
+ * {@link java.io.InputStream#read(byte[] b, int off, int len)} requests on the
+ * underlying InputStream, to fill an internal buffer, from which further
+ * &lt;code&gt;read&lt;/code&gt; requests can inexpensively get their data (until the buffer
+ * runs out).
+ * &lt;p&gt;
+ * However, the &lt;code&gt;copy&lt;/code&gt; methods do the same thing, keeping an
+ * internal buffer, populated by
+ * {@link InputStream#read(byte[] b, int off, int len)} requests. Having two
+ * buffers (or three if the destination stream is also buffered) is pointless,
+ * and the unnecessary buffer management hurts performance slightly (about 3%,
+ * according to some simple experiments).
+ * &lt;p&gt;
+ * Behold, intrepid explorers; a map of this class:
+ * &lt;pre&gt;
+ *       Method      Input               Output          Dependency
+ *       ------      -----               ------          -------
+ * 1     copy        InputStream         OutputStream    (primitive)
+ * 2     copy        Reader              Writer          (primitive)
+ *
+ * 3     copy        InputStream         Writer          2
+ *
+ * 4     copy        Reader              OutputStream    2
+ *
+ * 5     copy        String              OutputStream    2
+ * 6     copy        String              Writer          (trivial)
+ *
+ * 7     copy        byte[]              Writer          3
+ * 8     copy        byte[]              OutputStream    (trivial)
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * Note that only the first two methods shuffle bytes; the rest use these
+ * two, or (if possible) copy using native Java copy methods. As there are
+ * method variants to specify the encoding, each row may
+ * correspond to up to 2 methods.
+ * &lt;p&gt;
+ * Origin of code: Excalibur.
+ *
+ * @version $Id: CopyUtils.java 1302056 2012-03-18 03:03:38Z ggregory $
+ * @deprecated Use IOUtils. Will be removed in 2.0.
+ *  Methods renamed to IOUtils.write() or IOUtils.copy().
+ *  Null handling behaviour changed in IOUtils (null data does not
+ *  throw NullPointerException).
+ */</comment>
+<class><annotation>@<name>Deprecated</name></annotation>
+<specifier>public</specifier> class <name>CopyUtils</name> <block>{
+
+    <comment type="javadoc">/**
+     * The default size of the buffer.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_BUFFER_SIZE</name> =<init> <expr>1024 * 4</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Instances should NOT be constructed in standard programming.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>CopyUtils</name><parameter_list>()</parameter_list> <block>{ }</block></constructor>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// byte[] -&gt; OutputStream</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy bytes from a &lt;code&gt;byte[]&lt;/code&gt; to an &lt;code&gt;OutputStream&lt;/code&gt;.
+     * @param input the byte array to read from
+     * @param output the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>, <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// byte[] -&gt; Writer</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy and convert bytes from a &lt;code&gt;byte[]&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt;.
+     * The platform's default encoding is used for the byte-to-char conversion.
+     * @param input the byte array to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+            <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>in</name> =<init> <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * Copy and convert bytes from a &lt;code&gt;byte[]&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt;, using the specified encoding.
+     * @param input the byte array to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param encoding The name of a supported character encoding. See the
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA
+     * Charset Registry&lt;/a&gt; for a list of valid encoding types.
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>in</name> =<init> <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// Core copy methods</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy bytes from an &lt;code&gt;InputStream&lt;/code&gt; to an
+     * &lt;code&gt;OutputStream&lt;/code&gt;.
+     * @param input the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @return the number of bytes copied
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buffer</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr>-1 != (<name>n</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>count</name> += <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// Reader -&gt; Writer</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy chars from a &lt;code&gt;Reader&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * @param input the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @return the number of characters copied
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>int</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>Reader</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>buffer</name> =<init> <expr>new <name><name>char</name><index>[<expr><name>DEFAULT_BUFFER_SIZE</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>count</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>n</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr>-1 != (<name>n</name> = <call><name><name>input</name>.<name>read</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call>)</expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>count</name> += <name>n</name></expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><name>count</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// InputStream -&gt; Writer</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy and convert bytes from an &lt;code&gt;InputStream&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt;.
+     * The platform's default encoding is used for the byte-to-char conversion.
+     * @param input the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>in</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Copy and convert bytes from an &lt;code&gt;InputStream&lt;/code&gt; to chars on a
+     * &lt;code&gt;Writer&lt;/code&gt;, using the specified encoding.
+     * @param input the &lt;code&gt;InputStream&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @param encoding The name of a supported character encoding. See the
+     * &lt;a href="http://www.iana.org/assignments/character-sets"&gt;IANA
+     * Charset Registry&lt;/a&gt; for a list of valid encoding types.
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>InputStream</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStreamReader</name></type> <name>in</name> =<init> <expr>new <call><name>InputStreamReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// Reader -&gt; OutputStream</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Serialize chars from a &lt;code&gt;Reader&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, and flush the &lt;code&gt;OutputStream&lt;/code&gt;.
+     * @param input the &lt;code&gt;Reader&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>Reader</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>OutputStreamWriter</name></type> <name>out</name> =<init> <expr>new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// XXX Unless anyone is planning on rewriting OutputStreamWriter, we</comment>
+        <comment type="line">// have to flush here.</comment>
+        <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// String -&gt; OutputStream</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Serialize chars from a &lt;code&gt;String&lt;/code&gt; to bytes on an
+     * &lt;code&gt;OutputStream&lt;/code&gt;, and
+     * flush the &lt;code&gt;OutputStream&lt;/code&gt;.
+     * @param input the &lt;code&gt;String&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;OutputStream&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(
+            <param><decl><type><name>String</name></type> <name>input</name></decl></param>,
+            <param><decl><type><name>OutputStream</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>StringReader</name></type> <name>in</name> =<init> <expr>new <call><name>StringReader</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>OutputStreamWriter</name></type> <name>out</name> =<init> <expr>new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>output</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>copy</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// XXX Unless anyone is planning on rewriting OutputStreamWriter, we</comment>
+        <comment type="line">// have to flush here.</comment>
+        <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// ----------------------------------------------------------------</comment>
+    <comment type="line">// String -&gt; Writer</comment>
+    <comment type="line">// ----------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Copy chars from a &lt;code&gt;String&lt;/code&gt; to a &lt;code&gt;Writer&lt;/code&gt;.
+     * @param input the &lt;code&gt;String&lt;/code&gt; to read from
+     * @param output the &lt;code&gt;Writer&lt;/code&gt; to write to
+     * @throws IOException In case of an I/O problem
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>void</name></type> <name>copy</name><parameter_list>(<param><decl><type><name>String</name></type> <name>input</name></decl></param>, <param><decl><type><name>Writer</name></type> <name>output</name></decl></param>)</parameter_list>
+                <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>output</name>.<name>write</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+}</block></class>
+</unit>

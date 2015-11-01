@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\eventbus\Dispatcher.java"><comment type="block">/*
+ * Copyright (C) 2014 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>eventbus</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Queues</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Queue</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentLinkedQueue</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Handler for dispatching events to subscribers, providing different event ordering guarantees that
+ * make sense for different situations.
+ *
+ * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; The dispatcher is orthogonal to the subscriber's {@code Executor}. The dispatcher
+ * controls the order in which events are dispatched, while the executor controls how (i.e. on which
+ * thread) the subscriber is actually called when an event is dispatched to it.
+ *
+ * @author Colin Decker
+ */</comment>
+<class><specifier>abstract</specifier> class <name>Dispatcher</name> <block>{
+
+  <comment type="javadoc">/**
+   * Returns a dispatcher that queues events that are posted reentrantly on a thread that is already
+   * dispatching an event, guaranteeing that all events posted on a single thread are dispatched to
+   * all subscribers in the order they are posted.
+   *
+   * &lt;p&gt;When all subscribers are dispatched to using a &lt;i&gt;direct&lt;/i&gt; executor (which dispatches on
+   * the same thread that posts the event), this yields a breadth-first dispatch order on each
+   * thread. That is, all subscribers to a single event A will be called before any subscribers to
+   * any events B and C that are posted to the event bus by the subscribers to A.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>Dispatcher</name></type> <name>perThreadDispatchQueue</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>PerThreadQueuedDispatcher</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a dispatcher that queues events that are posted in a single global queue. This
+   * behavior matches the original behavior of AsyncEventBus exactly, but is otherwise not
+   * especially useful. For async dispatch, an {@linkplain #immediate() immediate} dispatcher
+   * should generally be preferable.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>Dispatcher</name></type> <name>legacyAsync</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>LegacyAsyncDispatcher</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a dispatcher that dispatches events to subscribers immediately as they're posted
+   * without using an intermediate queue to change the dispatch order. This is effectively a
+   * depth-first dispatch order, vs. breadth-first when using a queue.
+   */</comment>
+  <function><type><specifier>static</specifier> <name>Dispatcher</name></type> <name>immediate</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name><name>ImmediateDispatcher</name>.<name>INSTANCE</name></name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Dispatches the given {@code event} to the given {@code subscribers}.
+   */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>dispatch</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Implementation of a {@link #perThreadDispatchQueue()} dispatcher.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>PerThreadQueuedDispatcher</name> <super><extends>extends <name>Dispatcher</name></extends></super> <block>{
+
+    <comment type="line">// This dispatcher matches the original dispatch behavior of EventBus.</comment>
+
+    <comment type="javadoc">/**
+     * Per-thread queue of events to dispatch.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>ThreadLocal</name><argument_list>&lt;<argument><name><name>Queue</name><argument_list>&lt;<argument><name>Event</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>queue</name> =<init>
+        <expr>new <class><super><name><name>ThreadLocal</name><argument_list>&lt;<argument><name><name>Queue</name><argument_list>&lt;<argument><name>Event</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>protected</specifier> <name><name>Queue</name><argument_list>&lt;<argument><name>Event</name></argument>&gt;</argument_list></name></type> <name>initialValue</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>Queues</name>.<name>newArrayDeque</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Per-thread dispatch state, used to avoid reentrant event dispatching.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>ThreadLocal</name><argument_list>&lt;<argument><name>Boolean</name></argument>&gt;</argument_list></name></type> <name>dispatching</name> =<init>
+        <expr>new <class><super><name><name>ThreadLocal</name><argument_list>&lt;<argument><name>Boolean</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>protected</specifier> <name>Boolean</name></type> <name>initialValue</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>false</expr>;</return>
+          }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>dispatch</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>subscribers</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name><name>Queue</name><argument_list>&lt;<argument><name>Event</name></argument>&gt;</argument_list></name></type> <name>queueForThread</name> =<init> <expr><call><name><name>queue</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>queueForThread</name>.<name>offer</name></name><argument_list>(<argument><expr>new <call><name>Event</name><argument_list>(<argument><expr><name>event</name></expr></argument>, <argument><expr><name>subscribers</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <if>if <condition>(<expr>!<call><name><name>dispatching</name>.<name>get</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>dispatching</name>.<name>set</name></name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+          <decl_stmt><decl><type><name>Event</name></type> <name>nextEvent</name></decl>;</decl_stmt>
+          <while>while <condition>(<expr>(<name>nextEvent</name> = <call><name><name>queueForThread</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition> <block>{
+            <while>while <condition>(<expr><call><name><name>nextEvent</name>.<name>subscribers</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+              <expr_stmt><expr><call><name><name>nextEvent</name>.<name>subscribers</name>.<name>next</name></name><argument_list>()</argument_list></call>.<call><name>dispatchEvent</name><argument_list>(<argument><expr><name><name>nextEvent</name>.<name>event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></while>
+          }</block></while>
+        }</block> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>dispatching</name>.<name>remove</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><call><name><name>queue</name>.<name>remove</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+      }</block></then></if>
+    }</block></function>
+
+    <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>Event</name> <block>{
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>event</name></decl>;</decl_stmt>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl>;</decl_stmt>
+
+      <constructor><specifier>private</specifier> <name>Event</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>event</name></name> = <name>event</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>subscribers</name></name> = <name>subscribers</name></expr>;</expr_stmt>
+      }</block></constructor>
+    }</block></class>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Implementation of a {@link #legacyAsync()} dispatcher.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>LegacyAsyncDispatcher</name> <super><extends>extends <name>Dispatcher</name></extends></super> <block>{
+
+    <comment type="line">// This dispatcher matches the original dispatch behavior of AsyncEventBus.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// We can't really make any guarantees about the overall dispatch order for this dispatcher in</comment>
+    <comment type="line">// a multithreaded environment for a couple reasons:</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// 1. Subscribers to events posted on different threads can be interleaved with each other</comment>
+    <comment type="line">//    freely. (A event on one thread, B event on another could yield any of</comment>
+    <comment type="line">//    [a1, a2, a3, b1, b2], [a1, b2, a2, a3, b2], [a1, b2, b3, a2, a3], etc.)</comment>
+    <comment type="line">// 2. It's possible for subscribers to actually be dispatched to in a different order than they</comment>
+    <comment type="line">//    were added to the queue. It's easily possible for one thread to take the head of the</comment>
+    <comment type="line">//    queue, immediately followed by another thread taking the next element in the queue. That</comment>
+    <comment type="line">//    second thread can then dispatch to the subscriber it took before the first thread does.</comment>
+    <comment type="line">//</comment>
+    <comment type="line">// All this makes me really wonder if there's any value in queueing here at all. A dispatcher</comment>
+    <comment type="line">// that simply loops through the subscribers and dispatches the event to each would actually</comment>
+    <comment type="line">// probably provide a stronger order guarantee, though that order would obviously be different</comment>
+    <comment type="line">// in some cases.</comment>
+
+    <comment type="javadoc">/**
+     * Global event queue.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>ConcurrentLinkedQueue</name><argument_list>&lt;<argument><name>EventWithSubscriber</name></argument>&gt;</argument_list></name></type> <name>queue</name> =<init>
+        <expr><call><name><name>Queues</name>.<name>newConcurrentLinkedQueue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>dispatch</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <while>while <condition>(<expr><call><name><name>subscribers</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+        <expr_stmt><expr><call><name><name>queue</name>.<name>add</name></name><argument_list>(<argument><expr>new <call><name>EventWithSubscriber</name><argument_list>(<argument><expr><name>event</name></expr></argument>, <argument><expr><call><name><name>subscribers</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></while>
+
+      <decl_stmt><decl><type><name>EventWithSubscriber</name></type> <name>e</name></decl>;</decl_stmt>
+      <while>while <condition>(<expr>(<name>e</name> = <call><name><name>queue</name>.<name>poll</name></name><argument_list>()</argument_list></call>) != <name>null</name></expr>)</condition> <block>{
+        <expr_stmt><expr><call><name><name>e</name>.<name>subscriber</name>.<name>dispatchEvent</name></name><argument_list>(<argument><expr><name><name>e</name>.<name>event</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></while>
+    }</block></function>
+
+    <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>EventWithSubscriber</name> <block>{
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Object</name></type> <name>event</name></decl>;</decl_stmt>
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Subscriber</name></type> <name>subscriber</name></decl>;</decl_stmt>
+
+      <constructor><specifier>private</specifier> <name>EventWithSubscriber</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name>Subscriber</name></type> <name>subscriber</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>event</name></name> = <name>event</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>subscriber</name></name> = <name>subscriber</name></expr>;</expr_stmt>
+      }</block></constructor>
+    }</block></class>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Implementation of {@link #immediate()}.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>ImmediateDispatcher</name> <super><extends>extends <name>Dispatcher</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>ImmediateDispatcher</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>ImmediateDispatcher</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <name>void</name></type> <name>dispatch</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>event</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>Subscriber</name></argument>&gt;</argument_list></name></type> <name>subscribers</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <while>while <condition>(<expr><call><name><name>subscribers</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+        <expr_stmt><expr><call><name><name>subscribers</name>.<name>next</name></name><argument_list>()</argument_list></call>.<call><name>dispatchEvent</name><argument_list>(<argument><expr><name>event</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></while>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

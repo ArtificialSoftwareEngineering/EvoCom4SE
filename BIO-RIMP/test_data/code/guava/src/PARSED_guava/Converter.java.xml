@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\base\Converter.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A function from {@code A} to {@code B} with an associated &lt;i&gt;reverse&lt;/i&gt; function from {@code B}
+ * to {@code A}; used for converting back and forth between &lt;i&gt;different representations of the same
+ * information&lt;/i&gt;.
+ *
+ * &lt;h3&gt;Invertibility&lt;/h3&gt;
+ *
+ * &lt;p&gt;The reverse operation &lt;b&gt;may&lt;/b&gt; be a strict &lt;i&gt;inverse&lt;/i&gt; (meaning that {@code
+ * converter.reverse().convert(converter.convert(a)).equals(a)} is always true). However, it is
+ * very common (perhaps &lt;i&gt;more&lt;/i&gt; common) for round-trip conversion to be &lt;i&gt;lossy&lt;/i&gt;. Consider
+ * an example round-trip using {@link com.google.common.primitives.Doubles#stringConverter}:
+ *
+ * &lt;ol&gt;
+ * &lt;li&gt;{@code stringConverter().convert("1.00")} returns the {@code Double} value {@code 1.0}
+ * &lt;li&gt;{@code stringConverter().reverse().convert(1.0)} returns the string {@code "1.0"} --
+ *     &lt;i&gt;not&lt;/i&gt; the same string ({@code "1.00"}) we started with
+ * &lt;/ol&gt;
+ *
+ * &lt;p&gt;Note that it should still be the case that the round-tripped and original objects are
+ * &lt;i&gt;similar&lt;/i&gt;.
+ *
+ * &lt;h3&gt;Nullability&lt;/h3&gt;
+ *
+ * &lt;p&gt;A converter always converts {@code null} to {@code null} and non-null references to non-null
+ * references. It would not make sense to consider {@code null} and a non-null reference to be
+ * "different representations of the same information", since one is distinguishable from
+ * &lt;i&gt;missing&lt;/i&gt; information and the other is not. The {@link #convert} method handles this null
+ * behavior for all converters; implementations of {@link #doForward} and {@link #doBackward} are
+ * guaranteed to never be passed {@code null}, and must never return {@code null}.
+ *
+
+ * &lt;h3&gt;Common ways to use&lt;/h3&gt;
+ *
+ * &lt;p&gt;Getting a converter:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;Use a provided converter implementation, such as {@link Enums#stringConverter}, {@link
+ *     com.google.common.primitives.Ints#stringConverter Ints.stringConverter} or the {@linkplain
+ *     #reverse reverse} views of these.
+ * &lt;li&gt;Convert between specific preset values using {@link
+ *     com.google.common.collect.Maps#asConverter Maps.asConverter}. For example, use this to create
+ *     a "fake" converter for a unit test. It is unnecessary (and confusing) to &lt;i&gt;mock&lt;/i&gt; the
+ *     {@code Converter} type using a mocking framework.
+ * &lt;li&gt;Otherwise, extend this class and implement its {@link #doForward} and {@link #doBackward}
+ *     methods.
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;Using a converter:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;Convert one instance in the "forward" direction using {@code converter.convert(a)}.
+ * &lt;li&gt;Convert multiple instances "forward" using {@code converter.convertAll(as)}.
+ * &lt;li&gt;Convert in the "backward" direction using {@code converter.reverse().convert(b)} or {@code
+ *     converter.reverse().convertAll(bs)}.
+ * &lt;li&gt;Use {@code converter} or {@code converter.reverse()} anywhere a {@link Function} is accepted
+ * &lt;li&gt;&lt;b&gt;Do not&lt;/b&gt; call {@link #doForward} or {@link #doBackward} directly; these exist only to be
+ *     overridden.
+ * &lt;/ul&gt;
+ *
+ * @author Mike Ward
+ * @author Kurt Alfred Kluever
+ * @author Gregory Kick
+ * @since 16.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>GwtCompatible</name></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name> <super><implements>implements <name><name>Function</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></implements></super> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>handleNullAutomatically</name></decl>;</decl_stmt>
+
+  <comment type="line">// We lazily cache the reverse view to avoid allocating on every call to reverse().</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>A</name></argument>&gt;</argument_list></name></type> <name>reverse</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Constructor for use by subclasses. */</comment>
+  <constructor><specifier>protected</specifier> <name>Converter</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Constructor used only by {@code LegacyConverter} to suspend automatic null-handling.
+   */</comment>
+  <constructor><name>Converter</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>handleNullAutomatically</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>handleNullAutomatically</name></name> = <name>handleNullAutomatically</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="line">// SPI methods (what subclasses must implement)</comment>
+
+  <comment type="javadoc">/**
+   * Returns a representation of {@code a} as an instance of type {@code B}. If {@code a} cannot be
+   * converted, an unchecked exception (such as {@link IllegalArgumentException}) should be thrown.
+   *
+   * @param a the instance to convert; will never be null
+   * @return the converted instance; &lt;b&gt;must not&lt;/b&gt; be null
+   */</comment>
+  <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>B</name></type> <name>doForward</name><parameter_list>(<param><decl><type><name>A</name></type> <name>a</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns a representation of {@code b} as an instance of type {@code A}. If {@code b} cannot be
+   * converted, an unchecked exception (such as {@link IllegalArgumentException}) should be thrown.
+   *
+   * @param b the instance to convert; will never be null
+   * @return the converted instance; &lt;b&gt;must not&lt;/b&gt; be null
+   * @throws UnsupportedOperationException if backward conversion is not implemented; this should be
+   *     very rare. Note that if backward conversion is not only unimplemented but
+   *     unimplement&lt;i&gt;able&lt;/i&gt; (for example, consider a {@code Converter&lt;Chicken, ChickenNugget&gt;}),
+   *     then this is not logically a {@code Converter} at all, and should just implement {@link
+   *     Function}.
+   */</comment>
+  <function_decl><type><specifier>protected</specifier> <specifier>abstract</specifier> <name>A</name></type> <name>doBackward</name><parameter_list>(<param><decl><type><name>B</name></type> <name>b</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="line">// API (consumer-side) methods</comment>
+
+  <comment type="javadoc">/**
+   * Returns a representation of {@code a} as an instance of type {@code B}.
+   *
+   * @return the converted value; is null &lt;i&gt;if and only if&lt;/i&gt; {@code a} is null
+   */</comment>
+  <function><type><annotation>@<name>Nullable</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>B</name></type> <name>convert</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>correctedDoForward</name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Nullable</name></annotation>
+  <name>B</name></type> <name>correctedDoForward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>handleNullAutomatically</name></expr>)</condition><then> <block>{
+      <comment type="line">// TODO(kevinb): we shouldn't be checking for a null result at runtime. Assert?</comment>
+      <return>return <expr><name>a</name> == <name>null</name> ? <name>null</name> : <call><name>checkNotNull</name><argument_list>(<argument><expr><call><name>doForward</name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr><call><name>doForward</name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <function><type><annotation>@<name>Nullable</name></annotation>
+  <name>A</name></type> <name>correctedDoBackward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>B</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>handleNullAutomatically</name></expr>)</condition><then> <block>{
+      <comment type="line">// TODO(kevinb): we shouldn't be checking for a null result at runtime. Assert?</comment>
+      <return>return <expr><name>b</name> == <name>null</name> ? <name>null</name> : <call><name>checkNotNull</name><argument_list>(<argument><expr><call><name>doBackward</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr><call><name>doBackward</name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an iterable that applies {@code convert} to each element of {@code fromIterable}. The
+   * conversion is done lazily.
+   *
+   * &lt;p&gt;The returned iterable's iterator supports {@code remove()} if the input iterator does. After
+   * a successful {@code remove()} call, {@code fromIterable} no longer contains the corresponding
+   * element.
+   */</comment>
+  <function><type><specifier>public</specifier> <name><name>Iterable</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>convertAll</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>A</name></extends></argument>&gt;</argument_list></name></type> <name>fromIterable</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>fromIterable</name></expr></argument>, <argument><expr>"fromIterable"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name><name>Iterable</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name><name>Iterator</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></type> <name>iterator</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <class><super><name><name>Iterator</name><argument_list>&lt;<argument><name>B</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+          <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Iterator</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>A</name></extends></argument>&gt;</argument_list></name></type> <name>fromIterator</name> =<init> <expr><call><name><name>fromIterable</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>public</specifier> <name>boolean</name></type> <name>hasNext</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name><name>fromIterator</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>public</specifier> <name>B</name></type> <name>next</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr><call><name>convert</name><argument_list>(<argument><expr><call><name><name>fromIterator</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>public</specifier> <name>void</name></type> <name>remove</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>fromIterator</name>.<name>remove</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></function>
+        }</block></class></expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the reversed view of this converter, which converts {@code this.convert(a)} back to a
+   * value roughly equivalent to {@code a}.
+   *
+   * &lt;p&gt;The returned converter is serializable if {@code this} converter is.
+   */</comment>
+  <comment type="line">// TODO(kak): Make this method final</comment>
+  <function><type><specifier>public</specifier> <name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>A</name></argument>&gt;</argument_list></name></type> <name>reverse</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>A</name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><name>reverse</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name>result</name> == <name>null</name>) ? <name>reverse</name> = new <call><name><name>ReverseConverter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call> : <name>result</name></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ReverseConverter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>A</name></argument>&gt;</argument_list></name></extends>
+      <implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>original</name></decl>;</decl_stmt>
+
+    <constructor><name>ReverseConverter</name><parameter_list>(<param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>original</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>original</name></name> = <name>original</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="block">/*
+     * These gymnastics are a little confusing. Basically this class has neither legacy nor
+     * non-legacy behavior; it just needs to let the behavior of the backing converter shine
+     * through. So, we override the correctedDo* methods, after which the do* methods should never
+     * be reached.
+     */</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>A</name></type> <name>doForward</name><parameter_list>(<param><decl><type><name>B</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>B</name></type> <name>doBackward</name><parameter_list>(<param><decl><type><name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <annotation>@<name>Nullable</name></annotation>
+    <name>A</name></type> <name>correctedDoForward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>B</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>original</name>.<name>correctedDoBackward</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <annotation>@<name>Nullable</name></annotation>
+    <name>B</name></type> <name>correctedDoBackward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>original</name>.<name>correctedDoForward</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>reverse</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>original</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>ReverseConverter</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name><name>ReverseConverter</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name></type> <name>that</name> =<init> <expr>(<name><name>ReverseConverter</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name>) <name>object</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>this</name>.<name>original</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>original</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>~<call><name><name>original</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>original</name> + ".reverse()"</expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0L</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a converter whose {@code convert} method applies {@code secondConverter} to the result
+   * of this converter. Its {@code reverse} method applies the converters in reverse order.
+   *
+   * &lt;p&gt;The returned converter is serializable if {@code this} converter and {@code secondConverter}
+   * are.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>andThen</name><parameter_list>(<param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>secondConverter</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>doAndThen</name><argument_list>(<argument><expr><name>secondConverter</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Package-private non-final implementation of andThen() so only we can override it.
+   */</comment>
+  <function><type><argument_list>&lt;<argument><name>C</name></argument>&gt;</argument_list> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>doAndThen</name><parameter_list>(<param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>secondConverter</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>ConverterComposition</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>secondConverter</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>ConverterComposition</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></extends>
+      <implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>first</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>second</name></decl>;</decl_stmt>
+
+    <constructor><name>ConverterComposition</name><parameter_list>(<param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>first</name></decl></param>, <param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>B</name></argument>, <argument><name>C</name></argument>&gt;</argument_list></name></type> <name>second</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>first</name></name> = <name>first</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>second</name></name> = <name>second</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="block">/*
+     * These gymnastics are a little confusing. Basically this class has neither legacy nor
+     * non-legacy behavior; it just needs to let the behaviors of the backing converters shine
+     * through (which might even differ from each other!). So, we override the correctedDo* methods,
+     * after which the do* methods should never be reached.
+     */</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>C</name></type> <name>doForward</name><parameter_list>(<param><decl><type><name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>A</name></type> <name>doBackward</name><parameter_list>(<param><decl><type><name>C</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <annotation>@<name>Nullable</name></annotation>
+    <name>C</name></type> <name>correctedDoForward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>second</name>.<name>correctedDoForward</name></name><argument_list>(<argument><expr><call><name><name>first</name>.<name>correctedDoForward</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <annotation>@<name>Nullable</name></annotation>
+    <name>A</name></type> <name>correctedDoBackward</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>C</name></type> <name>c</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>first</name>.<name>correctedDoBackward</name></name><argument_list>(<argument><expr><call><name><name>second</name>.<name>correctedDoBackward</name></name><argument_list>(<argument><expr><name>c</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>ConverterComposition</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name><name>ConverterComposition</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name></type> <name>that</name> =<init> <expr>(<name><name>ConverterComposition</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name>) <name>object</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>this</name>.<name>first</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>first</name></name></expr></argument>)</argument_list></call> &amp;&amp; <call><name><name>this</name>.<name>second</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>second</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>31 * <call><name><name>first</name>.<name>hashCode</name></name><argument_list>()</argument_list></call> + <call><name><name>second</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>first</name> + ".andThen(" + <name>second</name> + ")"</expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0L</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * @deprecated Provided to satisfy the {@code Function} interface; use {@link #convert} instead.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <annotation>@<name>Nullable</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>B</name></type> <name>apply</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>convert</name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Indicates whether another object is equal to this converter.
+   *
+   * &lt;p&gt;Most implementations will have no reason to override the behavior of {@link Object#equals}.
+   * However, an implementation may also choose to return {@code true} whenever {@code object} is a
+   * {@link Converter} that it considers &lt;i&gt;interchangeable&lt;/i&gt; with this one. "Interchangeable"
+   * &lt;i&gt;typically&lt;/i&gt; means that {@code Objects.equal(this.convert(a), that.convert(a))} is true for
+   * all {@code a} of type {@code A} (and similarly for {@code reverse}). Note that a {@code false}
+   * result from this method does not imply that the converters are known &lt;i&gt;not&lt;/i&gt; to be
+   * interchangeable.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>super</name>.<name>equals</name></name><argument_list>(<argument><expr><name>object</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Static converters</comment>
+
+  <comment type="javadoc">/**
+   * Returns a converter based on &lt;i&gt;existing&lt;/i&gt; forward and backward functions. Note that it is
+   * unnecessary to create &lt;i&gt;new&lt;/i&gt; classes implementing {@code Function} just to pass them in
+   * here. Instead, simply subclass {@code Converter} and implement its {@link #doForward} and
+   * {@link #doBackward} methods directly.
+   *
+   * &lt;p&gt;These functions will never be passed {@code null} and must not under any circumstances
+   * return {@code null}. If a value cannot be converted, the function should throw an unchecked
+   * exception (typically, but not necessarily, {@link IllegalArgumentException}).
+   *
+   * &lt;p&gt;The returned converter is serializable if both provided functions are.
+   *
+   * @since 17.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list> <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></type> <name>from</name><parameter_list>(
+      <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>A</name></super></argument>, <argument><name>?</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list></name></type> <name>forwardFunction</name></decl></param>,
+      <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>B</name></super></argument>, <argument><name>?</name> <extends>extends <name>A</name></extends></argument>&gt;</argument_list></name></type> <name>backwardFunction</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>FunctionBasedConverter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>forwardFunction</name></expr></argument>, <argument><expr><name>backwardFunction</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>FunctionBasedConverter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Converter</name><argument_list>&lt;<argument><name>A</name></argument>, <argument><name>B</name></argument>&gt;</argument_list></name></extends>
+      <implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>A</name></super></argument>, <argument><name>?</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list></name></type> <name>forwardFunction</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>B</name></super></argument>, <argument><name>?</name> <extends>extends <name>A</name></extends></argument>&gt;</argument_list></name></type> <name>backwardFunction</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>FunctionBasedConverter</name><parameter_list>(
+        <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>A</name></super></argument>, <argument><name>?</name> <extends>extends <name>B</name></extends></argument>&gt;</argument_list></name></type> <name>forwardFunction</name></decl></param>,
+        <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>B</name></super></argument>, <argument><name>?</name> <extends>extends <name>A</name></extends></argument>&gt;</argument_list></name></type> <name>backwardFunction</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>forwardFunction</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>forwardFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>backwardFunction</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>backwardFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>B</name></type> <name>doForward</name><parameter_list>(<param><decl><type><name>A</name></type> <name>a</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>forwardFunction</name>.<name>apply</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>A</name></type> <name>doBackward</name><parameter_list>(<param><decl><type><name>B</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>backwardFunction</name>.<name>apply</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>object</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>object</name> <name>instanceof</name> <name>FunctionBasedConverter</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name><name>FunctionBasedConverter</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name></type> <name>that</name> =<init> <expr>(<name><name>FunctionBasedConverter</name><argument_list>&lt;<argument><name>?</name></argument>, <argument><name>?</name></argument>&gt;</argument_list></name>) <name>object</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>this</name>.<name>forwardFunction</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>forwardFunction</name></name></expr></argument>)</argument_list></call>
+            &amp;&amp; <call><name><name>this</name>.<name>backwardFunction</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>backwardFunction</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>forwardFunction</name>.<name>hashCode</name></name><argument_list>()</argument_list></call> * 31 + <call><name><name>backwardFunction</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>"Converter.from(" + <name>forwardFunction</name> + ", " + <name>backwardFunction</name> + ")"</expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Returns a serializable converter that always converts or reverses an object to itself.
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// implementation is "fully variant"</comment>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name><name>Converter</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>T</name></argument>&gt;</argument_list></name></type> <name>identity</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>IdentityConverter</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name>) <name><name>IdentityConverter</name>.<name>INSTANCE</name></name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * A converter that always converts or reverses an object to itself. Note that T is now a
+   * "pass-through type".
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>IdentityConverter</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>Converter</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>T</name></argument>&gt;</argument_list></name></extends> <implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>IdentityConverter</name></type> <name>INSTANCE</name> =<init> <expr>new <call><name>IdentityConverter</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>T</name></type> <name>doForward</name><parameter_list>(<param><decl><type><name>T</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>t</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name>T</name></type> <name>doBackward</name><parameter_list>(<param><decl><type><name>T</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>t</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>IdentityConverter</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>reverse</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name><name>Override</name>
+    <argument_list>&lt;<argument><name>S</name></argument>&gt;</argument_list></name></annotation> <name><name>Converter</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>S</name></argument>&gt;</argument_list></name></type> <name>doAndThen</name><parameter_list>(<param><decl><type><name><name>Converter</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>S</name></argument>&gt;</argument_list></name></type> <name>otherConverter</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>otherConverter</name></expr></argument>, <argument><expr>"otherConverter"</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="block">/*
+     * We *could* override convertAll() to return its input, but it's a rather pointless
+     * optimization and opened up a weird type-safety problem.
+     */</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>"Converter.identity()"</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>INSTANCE</name></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0L</expr></init></decl>;</decl_stmt>
+  }</block></class>
+}</block></class>
+</unit>

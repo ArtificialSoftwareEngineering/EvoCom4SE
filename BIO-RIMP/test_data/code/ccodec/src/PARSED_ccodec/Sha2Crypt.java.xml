@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\ccodec\src\main\java\org\apache\commons\codec\digest\Sha2Crypt.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>codec</name>.<name>digest</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>security</name>.<name>MessageDigest</name></name>;</import>
+<import>import <name><name>java</name>.<name>security</name>.<name>NoSuchAlgorithmException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>regex</name>.<name>Matcher</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>regex</name>.<name>Pattern</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>codec</name>.<name>Charsets</name></name>;</import>
+
+<comment type="javadoc">/**
+ * SHA2-based Unix crypt implementation.
+ * &lt;p&gt;
+ * Based on the C implementation released into the Public Domain by Ulrich Drepper &amp;lt;drepper@redhat.com&amp;gt;
+ * http://www.akkadia.org/drepper/SHA-crypt.txt
+ * &lt;p&gt;
+ * Conversion to Kotlin and from there to Java in 2012 by Christian Hammers &amp;lt;ch@lathspell.de&amp;gt; and likewise put
+ * into the Public Domain.
+ * &lt;p&gt;
+ * This class is immutable and thread-safe.
+ * 
+ * @version $Id: Sha2Crypt.java 1552696 2013-12-20 15:01:34Z ggregory $
+ * @since 1.7
+ */</comment>
+<class><specifier>public</specifier> class <name>Sha2Crypt</name> <block>{
+
+    <comment type="javadoc">/** Default number of rounds if not explicitly specified. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ROUNDS_DEFAULT</name> =<init> <expr>5000</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Maximum number of rounds. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ROUNDS_MAX</name> =<init> <expr>999999999</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Minimum number of rounds. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>ROUNDS_MIN</name> =<init> <expr>1000</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Prefix for optional rounds specification. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>ROUNDS_PREFIX</name> =<init> <expr>"rounds="</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The number of bytes the final hash value will have (SHA-256 variant). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SHA256_BLOCKSIZE</name> =<init> <expr>32</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The prefixes that can be used to identify this crypt() variant (SHA-256). */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>SHA256_PREFIX</name> =<init> <expr>"$5$"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The number of bytes the final hash value will have (SHA-512 variant). */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>SHA512_BLOCKSIZE</name> =<init> <expr>64</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The prefixes that can be used to identify this crypt() variant (SHA-512). */</comment>
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>SHA512_PREFIX</name> =<init> <expr>"$6$"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The pattern to match valid salt values. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Pattern</name></type> <name>SALT_PATTERN</name> =<init> <expr><call><name><name>Pattern</name>
+            .<name>compile</name></name><argument_list>(<argument><expr>"^\\$([56])\\$(rounds=(\\d+)\\$)?([\\.\\/a-zA-Z0-9]{1,16}).*"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Generates a libc crypt() compatible "$5$" hash value with random salt.
+     * &lt;p&gt;
+     * See {@link Crypt#crypt(String, String)} for details.
+     * 
+     * @param keyBytes
+     *            plaintext to hash
+     * @return complete hash value
+     * @throws RuntimeException
+     *             when a {@link java.security.NoSuchAlgorithmException} is caught.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>sha256Crypt</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>byte</name><index>[]</index></name></type> <name>keyBytes</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>sha256Crypt</name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Generates a libc6 crypt() compatible "$5$" hash value.
+     * &lt;p&gt;
+     * See {@link Crypt#crypt(String, String)} for details.
+     * 
+     * @param keyBytes
+     *            plaintext to hash
+     * @param salt
+     *            real salt value without prefix or "rounds="
+     * @return complete hash value including salt
+     * @throws IllegalArgumentException
+     *             if the salt does not match the allowed pattern
+     * @throws RuntimeException
+     *             when a {@link java.security.NoSuchAlgorithmException} is caught.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>sha256Crypt</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>byte</name><index>[]</index></name></type> <name>keyBytes</name></decl></param>, <param><decl><type><name>String</name></type> <name>salt</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>salt</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>salt</name> = <name>SHA256_PREFIX</name> + <call><name><name>B64</name>.<name>getRandomSalt</name></name><argument_list>(<argument><expr>8</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><call><name>sha2Crypt</name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>, <argument><expr><name>salt</name></expr></argument>, <argument><expr><name>SHA256_PREFIX</name></expr></argument>, <argument><expr><name>SHA256_BLOCKSIZE</name></expr></argument>, <argument><expr><name><name>MessageDigestAlgorithms</name>.<name>SHA_256</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Generates a libc6 crypt() compatible "$5$" or "$6$" SHA2 based hash value.
+     * &lt;p&gt;
+     * This is a nearly line by line conversion of the original C function. The numbered comments are from the algorithm
+     * description, the short C-style ones from the original C code and the ones with "Remark" from me.
+     * &lt;p&gt;
+     * See {@link Crypt#crypt(String, String)} for details.
+     * 
+     * @param keyBytes
+     *            plaintext to hash
+     * @param salt
+     *            real salt value without prefix or "rounds="
+     * @param saltPrefix
+     *            either $5$ or $6$
+     * @param blocksize
+     *            a value that differs between $5$ and $6$
+     * @param algorithm
+     *            {@link MessageDigest} algorithm identifier string
+     * @return complete hash value including prefix and salt
+     * @throws IllegalArgumentException
+     *             if the given salt is {@code null} or does not match the allowed pattern
+     * @throws IllegalArgumentException
+     *             when a {@link NoSuchAlgorithmException} is caught
+     * @see MessageDigestAlgorithms
+     */</comment>
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>sha2Crypt</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>byte</name><index>[]</index></name></type> <name>keyBytes</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>salt</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>saltPrefix</name></decl></param>,
+            <param><decl><type><specifier>final</specifier> <name>int</name></type> <name>blocksize</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>String</name></type> <name>algorithm</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>keyLen</name> =<init> <expr><name><name>keyBytes</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Extracts effective salt and the number of rounds from the given salt.</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>rounds</name> =<init> <expr><name>ROUNDS_DEFAULT</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>boolean</name></type> <name>roundsCustom</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>salt</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Salt must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Matcher</name></type> <name>m</name> =<init> <expr><call><name><name>SALT_PATTERN</name>.<name>matcher</name></name><argument_list>(<argument><expr><name>salt</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>m</name> == <name>null</name> || !<call><name><name>m</name>.<name>find</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Invalid salt value: " + <name>salt</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>m</name>.<name>group</name></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>rounds</name> = <call><name><name>Integer</name>.<name>parseInt</name></name><argument_list>(<argument><expr><call><name><name>m</name>.<name>group</name></name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>rounds</name> = <call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>ROUNDS_MIN</name></expr></argument>, <argument><expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><name>ROUNDS_MAX</name></expr></argument>, <argument><expr><name>rounds</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>roundsCustom</name> = true</expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>saltString</name> =<init> <expr><call><name><name>m</name>.<name>group</name></name><argument_list>(<argument><expr>4</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>saltBytes</name> =<init> <expr><call><name><name>saltString</name>.<name>getBytes</name></name><argument_list>(<argument><expr><name><name>Charsets</name>.<name>UTF_8</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>saltLen</name> =<init> <expr><name><name>saltBytes</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// 1. start digest A</comment>
+        <comment type="line">// Prepare for the real work.</comment>
+        <decl_stmt><decl><type><name>MessageDigest</name></type> <name>ctx</name> =<init> <expr><call><name><name>DigestUtils</name>.<name>getDigest</name></name><argument_list>(<argument><expr><name>algorithm</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// 2. the password string is added to digest A</comment>
+        <comment type="block">/*
+         * Add the key string.
+         */</comment>
+        <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 3. the salt string is added to digest A. This is just the salt string</comment>
+        <comment type="line">// itself without the enclosing '$', without the magic salt_prefix $5$ and</comment>
+        <comment type="line">// $6$ respectively and without the rounds=&lt;N&gt; specification.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// NB: the MD5 algorithm did add the $1$ salt_prefix. This is not deemed</comment>
+        <comment type="line">// necessary since it is a constant string and does not add security</comment>
+        <comment type="line">// and /possibly/ allows a plain text attack. Since the rounds=&lt;N&gt;</comment>
+        <comment type="line">// specification should never be added this would also create an</comment>
+        <comment type="line">// inconsistency.</comment>
+        <comment type="block">/*
+         * The last part is the salt string. This must be at most 16 characters and it ends at the first `$' character
+         * (for compatibility with existing implementations).
+         */</comment>
+        <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>saltBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 4. start digest B</comment>
+        <comment type="block">/*
+         * Compute alternate sha512 sum with input KEY, SALT, and KEY. The final result will be added to the first
+         * context.
+         */</comment>
+        <decl_stmt><decl><type><name>MessageDigest</name></type> <name>altCtx</name> =<init> <expr><call><name><name>DigestUtils</name>.<name>getDigest</name></name><argument_list>(<argument><expr><name>algorithm</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// 5. add the password to digest B</comment>
+        <comment type="block">/*
+         * Add key.
+         */</comment>
+        <expr_stmt><expr><call><name><name>altCtx</name>.<name>update</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 6. add the salt string to digest B</comment>
+        <comment type="block">/*
+         * Add salt.
+         */</comment>
+        <expr_stmt><expr><call><name><name>altCtx</name>.<name>update</name></name><argument_list>(<argument><expr><name>saltBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 7. add the password again to digest B</comment>
+        <comment type="block">/*
+         * Add key again.
+         */</comment>
+        <expr_stmt><expr><call><name><name>altCtx</name>.<name>update</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 8. finish digest B</comment>
+        <comment type="block">/*
+         * Now get result of this (32 bytes) and add it to the other context.
+         */</comment>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>altResult</name> =<init> <expr><call><name><name>altCtx</name>.<name>digest</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// 9. For each block of 32 or 64 bytes in the password string (excluding</comment>
+        <comment type="line">// the terminating NUL in the C representation), add digest B to digest A</comment>
+        <comment type="block">/*
+         * Add for any character in the key one byte of the alternate sum.
+         */</comment>
+        <comment type="block">/*
+         * (Remark: the C code comment seems wrong for key length &gt; 32!)
+         */</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>cnt</name> =<init> <expr><name><name>keyBytes</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>cnt</name> &gt; <name>blocksize</name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>altResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>cnt</name> -= <name>blocksize</name></expr>;</expr_stmt>
+        }</block></while>
+
+        <comment type="line">// 10. For the remaining N bytes of the password string add the first</comment>
+        <comment type="line">// N bytes of digest B to digest A</comment>
+        <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>altResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>cnt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 11. For each bit of the binary representation of the length of the</comment>
+        <comment type="line">// password string up to and including the highest 1-digit, starting</comment>
+        <comment type="line">// from to lowest bit position (numeric value 1):</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// a) for a 1-digit add digest B to digest A</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// b) for a 0-digit add the password string</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// NB: this step differs significantly from the MD5 algorithm. It</comment>
+        <comment type="line">// adds more randomness.</comment>
+        <comment type="block">/*
+         * Take the binary representation of the length of the key and for every 1 add the alternate sum, for every 0
+         * the key.
+         */</comment>
+        <expr_stmt><expr><name>cnt</name> = <name><name>keyBytes</name>.<name>length</name></name></expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>cnt</name> &gt; 0</expr>)</condition> <block>{
+            <if>if <condition>(<expr>(<name>cnt</name> &amp; 1) != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>altResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <expr_stmt><expr><name>cnt</name> &gt;&gt;= 1</expr>;</expr_stmt>
+        }</block></while>
+
+        <comment type="line">// 12. finish digest A</comment>
+        <comment type="block">/*
+         * Create intermediate result.
+         */</comment>
+        <expr_stmt><expr><name>altResult</name> = <call><name><name>ctx</name>.<name>digest</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 13. start digest DP</comment>
+        <comment type="block">/*
+         * Start computation of P byte sequence.
+         */</comment>
+        <expr_stmt><expr><name>altCtx</name> = <call><name><name>DigestUtils</name>.<name>getDigest</name></name><argument_list>(<argument><expr><name>algorithm</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 14. for every byte in the password (excluding the terminating NUL byte</comment>
+        <comment type="line">// in the C representation of the string)</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// add the password to digest DP</comment>
+        <comment type="block">/*
+         * For every character in the password add the entire password.
+         */</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= <name>keyLen</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name><name>altCtx</name>.<name>update</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <comment type="line">// 15. finish digest DP</comment>
+        <comment type="block">/*
+         * Finish the digest.
+         */</comment>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>tempResult</name> =<init> <expr><call><name><name>altCtx</name>.<name>digest</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// 16. produce byte sequence P of the same length as the password where</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// a) for each block of 32 or 64 bytes of length of the password string</comment>
+        <comment type="line">// the entire digest DP is used</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// b) for the remaining N (up to 31 or 63) bytes use the first N</comment>
+        <comment type="line">// bytes of digest DP</comment>
+        <comment type="block">/*
+         * Create byte sequence P.
+         */</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>pBytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>keyLen</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>cp</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>cp</name> &lt; <name>keyLen</name> - <name>blocksize</name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>tempResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>pBytes</name></expr></argument>, <argument><expr><name>cp</name></expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>cp</name> += <name>blocksize</name></expr>;</expr_stmt>
+        }</block></while>
+        <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>tempResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>pBytes</name></expr></argument>, <argument><expr><name>cp</name></expr></argument>, <argument><expr><name>keyLen</name> - <name>cp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 17. start digest DS</comment>
+        <comment type="block">/*
+         * Start computation of S byte sequence.
+         */</comment>
+        <expr_stmt><expr><name>altCtx</name> = <call><name><name>DigestUtils</name>.<name>getDigest</name></name><argument_list>(<argument><expr><name>algorithm</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 18. repeast the following 16+A[0] times, where A[0] represents the first</comment>
+        <comment type="line">// byte in digest A interpreted as an 8-bit unsigned value</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// add the salt to digest DS</comment>
+        <comment type="block">/*
+         * For every character in the password add the entire password.
+         */</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= 16 + (<name><name>altResult</name><index>[<expr>0</expr>]</index></name> &amp; 0xff)</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><call><name><name>altCtx</name>.<name>update</name></name><argument_list>(<argument><expr><name>saltBytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <comment type="line">// 19. finish digest DS</comment>
+        <comment type="block">/*
+         * Finish the digest.
+         */</comment>
+        <expr_stmt><expr><name>tempResult</name> = <call><name><name>altCtx</name>.<name>digest</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 20. produce byte sequence S of the same length as the salt string where</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// a) for each block of 32 or 64 bytes of length of the salt string</comment>
+        <comment type="line">// the entire digest DS is used</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// b) for the remaining N (up to 31 or 63) bytes use the first N</comment>
+        <comment type="line">// bytes of digest DS</comment>
+        <comment type="block">/*
+         * Create byte sequence S.
+         */</comment>
+        <comment type="line">// Remark: The salt is limited to 16 chars, how does this make sense?</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>byte</name><index>[]</index></type> <name>sBytes</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>saltLen</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>cp</name> = 0</expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>cp</name> &lt; <name>saltLen</name> - <name>blocksize</name></expr>)</condition> <block>{
+            <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>tempResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>sBytes</name></expr></argument>, <argument><expr><name>cp</name></expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>cp</name> += <name>blocksize</name></expr>;</expr_stmt>
+        }</block></while>
+        <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>tempResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>sBytes</name></expr></argument>, <argument><expr><name>cp</name></expr></argument>, <argument><expr><name>saltLen</name> - <name>cp</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// 21. repeat a loop according to the number specified in the rounds=&lt;N&gt;</comment>
+        <comment type="line">// specification in the salt (or the default value if none is</comment>
+        <comment type="line">// present). Each round is numbered, starting with 0 and up to N-1.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// The loop uses a digest as input. In the first round it is the</comment>
+        <comment type="line">// digest produced in step 12. In the latter steps it is the digest</comment>
+        <comment type="line">// produced in step 21.h. The following text uses the notation</comment>
+        <comment type="line">// "digest A/C" to describe this behavior.</comment>
+        <comment type="block">/*
+         * Repeatedly run the collected hash value through sha512 to burn CPU cycles.
+         */</comment>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt;= <name>rounds</name> - 1</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <comment type="line">// a) start digest C</comment>
+            <comment type="block">/*
+             * New context.
+             */</comment>
+            <expr_stmt><expr><name>ctx</name> = <call><name><name>DigestUtils</name>.<name>getDigest</name></name><argument_list>(<argument><expr><name>algorithm</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// b) for odd round numbers add the byte sequense P to digest C</comment>
+            <comment type="line">// c) for even round numbers add digest A/C</comment>
+            <comment type="block">/*
+             * Add key or last result.
+             */</comment>
+            <if>if <condition>(<expr>(<name>i</name> &amp; 1) != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>pBytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>keyLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>altResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+
+            <comment type="line">// d) for all round numbers not divisible by 3 add the byte sequence S</comment>
+            <comment type="block">/*
+             * Add salt for numbers not divisible by 3.
+             */</comment>
+            <if>if <condition>(<expr><name>i</name> % 3 != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>sBytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>saltLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// e) for all round numbers not divisible by 7 add the byte sequence P</comment>
+            <comment type="block">/*
+             * Add key for numbers not divisible by 7.
+             */</comment>
+            <if>if <condition>(<expr><name>i</name> % 7 != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>pBytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>keyLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <comment type="line">// f) for odd round numbers add digest A/C</comment>
+            <comment type="line">// g) for even round numbers add the byte sequence P</comment>
+            <comment type="block">/*
+             * Add key or last result.
+             */</comment>
+            <if>if <condition>(<expr>(<name>i</name> &amp; 1) != 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>altResult</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>blocksize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>ctx</name>.<name>update</name></name><argument_list>(<argument><expr><name>pBytes</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>keyLen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+
+            <comment type="line">// h) finish digest C.</comment>
+            <comment type="block">/*
+             * Create intermediate result.
+             */</comment>
+            <expr_stmt><expr><name>altResult</name> = <call><name><name>ctx</name>.<name>digest</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <comment type="line">// 22. Produce the output string. This is an ASCII string of the maximum</comment>
+        <comment type="line">// size specified above, consisting of multiple pieces:</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// a) the salt salt_prefix, $5$ or $6$ respectively</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// b) the rounds=&lt;N&gt; specification, if one was present in the input</comment>
+        <comment type="line">// salt string. A trailing '$' is added in this case to separate</comment>
+        <comment type="line">// the rounds specification from the following text.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// c) the salt string truncated to 16 characters</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// d) a '$' character</comment>
+        <comment type="block">/*
+         * Now we can construct the result string. It consists of three parts.
+         */</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>StringBuilder</name></type> <name>buffer</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr><name>saltPrefix</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>roundsCustom</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>ROUNDS_PREFIX</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>rounds</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"$"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr><name>saltString</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>buffer</name>.<name>append</name></name><argument_list>(<argument><expr>"$"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// e) the base-64 encoded final C digest. The encoding used is as</comment>
+        <comment type="line">// follows:</comment>
+        <comment type="line">// [...]</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// Each group of three bytes from the digest produces four</comment>
+        <comment type="line">// characters as output:</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// 1. character: the six low bits of the first byte</comment>
+        <comment type="line">// 2. character: the two high bits of the first byte and the</comment>
+        <comment type="line">// four low bytes from the second byte</comment>
+        <comment type="line">// 3. character: the four high bytes from the second byte and</comment>
+        <comment type="line">// the two low bits from the third byte</comment>
+        <comment type="line">// 4. character: the six high bits from the third byte</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// The groups of three bytes are as follows (in this sequence).</comment>
+        <comment type="line">// These are the indices into the byte array containing the</comment>
+        <comment type="line">// digest, starting with index 0. For the last group there are</comment>
+        <comment type="line">// not enough bytes left in the digest and the value zero is used</comment>
+        <comment type="line">// in its place. This group also produces only three or two</comment>
+        <comment type="line">// characters as output for SHA-512 and SHA-512 respectively.</comment>
+
+        <comment type="line">// This was just a safeguard in the C implementation:</comment>
+        <comment type="line">// int buflen = salt_prefix.length() - 1 + ROUNDS_PREFIX.length() + 9 + 1 + salt_string.length() + 1 + 86 + 1;</comment>
+
+        <if>if <condition>(<expr><name>blocksize</name> == 32</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>0</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>10</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>20</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>21</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>1</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>11</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>12</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>22</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>2</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>3</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>13</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>23</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>24</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>4</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>14</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>15</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>25</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>5</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>6</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>16</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>26</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>27</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>7</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>17</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>18</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>28</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>8</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>9</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>19</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>29</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr>(<name>byte</name>) 0</expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>31</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>30</expr>]</index></name></expr></argument>, <argument><expr>3</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>0</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>21</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>42</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>22</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>43</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>1</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>44</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>2</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>23</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>3</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>24</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>45</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>25</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>46</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>4</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>47</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>5</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>26</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>6</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>27</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>48</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>28</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>49</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>7</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>50</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>8</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>29</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>9</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>30</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>51</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>31</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>52</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>10</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>53</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>11</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>32</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>12</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>33</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>54</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>34</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>55</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>13</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>56</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>14</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>35</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>15</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>36</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>57</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>37</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>58</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>16</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>59</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>17</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>38</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>18</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>39</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>60</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>40</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>61</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>19</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr><name><name>altResult</name><index>[<expr>62</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>20</expr>]</index></name></expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>41</expr>]</index></name></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>B64</name>.<name>b64from24bit</name></name><argument_list>(<argument><expr>(<name>byte</name>) 0</expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>, <argument><expr><name><name>altResult</name><index>[<expr>63</expr>]</index></name></expr></argument>, <argument><expr>2</expr></argument>, <argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+
+        <comment type="block">/*
+         * Clear the buffer for the intermediate result so that people attaching to processes or reading core dumps
+         * cannot get any information.
+         */</comment>
+        <comment type="line">// Is there a better way to do this with the JVM?</comment>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>tempResult</name></expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>pBytes</name></expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>sBytes</name></expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>ctx</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>altCtx</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>saltBytes</name></expr></argument>, <argument><expr>(<name>byte</name>) 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><call><name><name>buffer</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Generates a libc crypt() compatible "$6$" hash value with random salt.
+     * &lt;p&gt;
+     * See {@link Crypt#crypt(String, String)} for details.
+     * 
+     * @param keyBytes
+     *            plaintext to hash
+     * @return complete hash value
+     * @throws RuntimeException
+     *             when a {@link java.security.NoSuchAlgorithmException} is caught.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>sha512Crypt</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>byte</name><index>[]</index></name></type> <name>keyBytes</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name>sha512Crypt</name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Generates a libc6 crypt() compatible "$6$" hash value.
+     * &lt;p&gt;
+     * See {@link Crypt#crypt(String, String)} for details.
+     * 
+     * @param keyBytes
+     *            plaintext to hash
+     * @param salt
+     *            real salt value without prefix or "rounds="
+     * @return complete hash value including salt
+     * @throws IllegalArgumentException
+     *             if the salt does not match the allowed pattern
+     * @throws RuntimeException
+     *             when a {@link java.security.NoSuchAlgorithmException} is caught.
+     */</comment>
+    <function><type><specifier>public</specifier> <specifier>static</specifier> <name>String</name></type> <name>sha512Crypt</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>byte</name><index>[]</index></name></type> <name>keyBytes</name></decl></param>, <param><decl><type><name>String</name></type> <name>salt</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>salt</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>salt</name> = <name>SHA512_PREFIX</name> + <call><name><name>B64</name>.<name>getRandomSalt</name></name><argument_list>(<argument><expr>8</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><call><name>sha2Crypt</name><argument_list>(<argument><expr><name>keyBytes</name></expr></argument>, <argument><expr><name>salt</name></expr></argument>, <argument><expr><name>SHA512_PREFIX</name></expr></argument>, <argument><expr><name>SHA512_BLOCKSIZE</name></expr></argument>, <argument><expr><name><name>MessageDigestAlgorithms</name>.<name>SHA_512</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+}</block></class>
+</unit>

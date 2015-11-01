@@ -1,0 +1,1228 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\reflect\TypeToken.java"><comment type="block">/*
+ * Copyright (C) 2006 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>reflect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Joiner</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Predicate</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>FluentIterable</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ForwardingSet</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableList</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableMap</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableSet</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Maps</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Ordering</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>primitives</name>.<name>Primitives</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Constructor</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>GenericArrayType</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>ParameterizedType</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Type</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>TypeVariable</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>WildcardType</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A {@link Type} with generics.
+ *
+ * &lt;p&gt;Operations that are otherwise only available in {@link Class} are implemented to support
+ * {@code Type}, for example {@link #isSubtypeOf}, {@link #isArray} and {@link #getComponentType}.
+ * It also provides additional utilities such as {@link #getTypes}, {@link #resolveType}, etc.
+ *
+ * &lt;p&gt;There are three ways to get a {@code TypeToken} instance: &lt;ul&gt;
+ * &lt;li&gt;Wrap a {@code Type} obtained via reflection. For example: {@code
+ * TypeToken.of(method.getGenericReturnType())}.
+ * &lt;li&gt;Capture a generic type with a (usually anonymous) subclass. For example: &lt;pre&gt;   {@code
+ *   new TypeToken&lt;List&lt;String&gt;&gt;() {}}&lt;/pre&gt;
+ * &lt;p&gt;Note that it's critical that the actual type argument is carried by a subclass.
+ * The following code is wrong because it only captures the {@code &lt;T&gt;} type variable
+ * of the {@code listType()} method signature; while {@code &lt;String&gt;} is lost in erasure:
+ * &lt;pre&gt;   {@code
+ *   class Util {
+ *     static &lt;T&gt; TypeToken&lt;List&lt;T&gt;&gt; listType() {
+ *       return new TypeToken&lt;List&lt;T&gt;&gt;() {};
+ *     }
+ *   }
+ *
+ *   TypeToken&lt;List&lt;String&gt;&gt; stringListType = Util.&lt;String&gt;listType();}&lt;/pre&gt;
+ * &lt;li&gt;Capture a generic type with a (usually anonymous) subclass and resolve it against
+ * a context class that knows what the type parameters are. For example: &lt;pre&gt;   {@code
+ *   abstract class IKnowMyType&lt;T&gt; {
+ *     TypeToken&lt;T&gt; type = new TypeToken&lt;T&gt;(getClass()) {};
+ *   }
+ *   new IKnowMyType&lt;String&gt;() {}.type =&gt; String}&lt;/pre&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;{@code TypeToken} is serializable when no type variable is contained in the type.
+ *
+ * &lt;p&gt;Note to Guice users: {@code} TypeToken is similar to Guice's {@code TypeLiteral} class
+ * except that it is serializable and offers numerous additional utility methods.
+ *
+ * @author Bob Lee
+ * @author Sven Mawson
+ * @author Ben Yu
+ * @since 12.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>SuppressWarnings</name><argument_list>("serial")</argument_list></annotation> <comment type="line">// SimpleTypeToken is the serialized form.</comment>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>TypeCapture</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></extends> <implements>implements <name>Serializable</name></implements></super> <block>{
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Type</name></type> <name>runtimeType</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/** Resolver for resolving types with {@link #runtimeType} as context. */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>TypeResolver</name></type> <name>typeResolver</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Constructs a new type token of {@code T}.
+   *
+   * &lt;p&gt;Clients create an empty anonymous subclass. Doing so embeds the type
+   * parameter in the anonymous class's type hierarchy so we can reconstitute
+   * it at runtime despite erasure.
+   *
+   * &lt;p&gt;For example: &lt;pre&gt;   {@code
+   *   TypeToken&lt;List&lt;String&gt;&gt; t = new TypeToken&lt;List&lt;String&gt;&gt;() {};}&lt;/pre&gt;
+   */</comment>
+  <constructor><specifier>protected</specifier> <name>TypeToken</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>runtimeType</name></name> = <call><name>capture</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr>!(<name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name>)</expr></argument>,
+        <argument><expr>"Cannot construct a TypeToken for a type variable.\n"
+        + "You probably meant to call new TypeToken&lt;%s&gt;(getClass()) "
+        + "that can resolve the type variable for you.\n"
+        + "If you do need to create a TypeToken of a type variable, "
+        + "please use TypeToken.of() instead."</expr></argument>, <argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Constructs a new type token of {@code T} while resolving free type variables in the context of
+   * {@code declaringClass}.
+   *
+   * &lt;p&gt;Clients create an empty anonymous subclass. Doing so embeds the type
+   * parameter in the anonymous class's type hierarchy so we can reconstitute
+   * it at runtime despite erasure.
+   *
+   * &lt;p&gt;For example: &lt;pre&gt;   {@code
+   *   abstract class IKnowMyType&lt;T&gt; {
+   *     TypeToken&lt;T&gt; getMyType() {
+   *       return new TypeToken&lt;T&gt;(getClass()) {};
+   *     }
+   *   }
+   *
+   *   new IKnowMyType&lt;String&gt;() {}.getMyType() =&gt; String}&lt;/pre&gt;
+   */</comment>
+  <constructor><specifier>protected</specifier> <name>TypeToken</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>declaringClass</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name></type> <name>captured</name> =<init> <expr><call><name><name>super</name>.<name>capture</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>captured</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>runtimeType</name></name> = <name>captured</name></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>runtimeType</name></name> = <call><name>of</name><argument_list>(<argument><expr><name>declaringClass</name></expr></argument>)</argument_list></call>.<call><name>resolveType</name><argument_list>(<argument><expr><name>captured</name></expr></argument>)</argument_list></call>.<name>runtimeType</name></expr>;</expr_stmt>
+    }</block></else></if>
+  }</block></constructor>
+
+  <constructor><specifier>private</specifier> <name>TypeToken</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>runtimeType</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/** Returns an instance of type token that wraps {@code type}. */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>SimpleTypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Returns an instance of type token that wraps {@code type}. */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>SimpleTypeToken</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the raw type of {@code T}. Formally speaking, if {@code T} is returned by
+   * {@link java.lang.reflect.Method#getGenericReturnType}, the raw type is what's returned by
+   * {@link java.lang.reflect.Method#getReturnType} of the same method object. Specifically:
+   * &lt;ul&gt;
+   * &lt;li&gt;If {@code T} is a {@code Class} itself, {@code T} itself is returned.
+   * &lt;li&gt;If {@code T} is a {@link ParameterizedType}, the raw type of the parameterized type is
+   *     returned.
+   * &lt;li&gt;If {@code T} is a {@link GenericArrayType}, the returned type is the corresponding array
+   *     class. For example: {@code List&lt;Integer&gt;[] =&gt; List[]}.
+   * &lt;li&gt;If {@code T} is a type variable or a wildcard type, the raw type of the first upper bound
+   *     is returned. For example: {@code &lt;X extends Foo&gt; =&gt; Foo}.
+   * &lt;/ul&gt;
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>getRawType</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// For wildcard or type variable, the first bound determines the runtime type.</comment>
+    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>rawType</name> =<init> <expr><call><name>getRawTypes</name><argument_list>()</argument_list></call>.<call><name>iterator</name><argument_list>()</argument_list></call>.<call><name>next</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// raw type is |T|</comment>
+    <name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>) <name>rawType</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Returns the represented type. */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>Type</name></type> <name>getType</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>runtimeType</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * &lt;p&gt;Returns a new {@code TypeToken} where type variables represented by {@code typeParam}
+   * are substituted by {@code typeArg}. For example, it can be used to construct
+   * {@code Map&lt;K, V&gt;} for any {@code K} and {@code V} type: &lt;pre&gt;   {@code
+   *   static &lt;K, V&gt; TypeToken&lt;Map&lt;K, V&gt;&gt; mapOf(
+   *       TypeToken&lt;K&gt; keyType, TypeToken&lt;V&gt; valueType) {
+   *     return new TypeToken&lt;Map&lt;K, V&gt;&gt;() {}
+   *         .where(new TypeParameter&lt;K&gt;() {}, keyType)
+   *         .where(new TypeParameter&lt;V&gt;() {}, valueType);
+   *   }}&lt;/pre&gt;
+   *
+   * @param &lt;X&gt; The parameter type
+   * @param typeParam the parameter type variable
+   * @param typeArg the actual type to substitute
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>where</name><parameter_list>(<param><decl><type><name><name>TypeParameter</name><argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list></name></type> <name>typeParam</name></decl></param>, <param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list></name></type> <name>typeArg</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>TypeResolver</name></type> <name>resolver</name> =<init> <expr>new <call><name>TypeResolver</name><argument_list>()</argument_list></call>
+        .<call><name>where</name><argument_list>(<argument><expr><call><name><name>ImmutableMap</name>.<name>of</name></name><argument_list>(
+            <argument><expr>new <call><name><name>TypeResolver</name>.<name>TypeVariableKey</name></name><argument_list>(<argument><expr><name><name>typeParam</name>.<name>typeVariable</name></name></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr><name><name>typeArg</name>.<name>runtimeType</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// If there's any type error, we'd report now rather than later.</comment>
+    <return>return <expr>new <call><name><name>SimpleTypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>resolver</name>.<name>resolveType</name></name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * &lt;p&gt;Returns a new {@code TypeToken} where type variables represented by {@code typeParam}
+   * are substituted by {@code typeArg}. For example, it can be used to construct
+   * {@code Map&lt;K, V&gt;} for any {@code K} and {@code V} type: &lt;pre&gt;   {@code
+   *   static &lt;K, V&gt; TypeToken&lt;Map&lt;K, V&gt;&gt; mapOf(
+   *       Class&lt;K&gt; keyType, Class&lt;V&gt; valueType) {
+   *     return new TypeToken&lt;Map&lt;K, V&gt;&gt;() {}
+   *         .where(new TypeParameter&lt;K&gt;() {}, keyType)
+   *         .where(new TypeParameter&lt;V&gt;() {}, valueType);
+   *   }}&lt;/pre&gt;
+   *
+   * @param &lt;X&gt; The parameter type
+   * @param typeParam the parameter type variable
+   * @param typeArg the actual type to substitute
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>where</name><parameter_list>(<param><decl><type><name><name>TypeParameter</name><argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list></name></type> <name>typeParam</name></decl></param>, <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>X</name></argument>&gt;</argument_list></name></type> <name>typeArg</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>where</name><argument_list>(<argument><expr><name>typeParam</name></expr></argument>, <argument><expr><call><name>of</name><argument_list>(<argument><expr><name>typeArg</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * &lt;p&gt;Resolves the given {@code type} against the type context represented by this type.
+   * For example: &lt;pre&gt;   {@code
+   *   new TypeToken&lt;List&lt;String&gt;&gt;() {}.resolveType(
+   *       List.class.getMethod("get", int.class).getGenericReturnType())
+   *   =&gt; String.class}&lt;/pre&gt;
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>resolveType</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>TypeResolver</name></type> <name>resolver</name> =<init> <expr><name>typeResolver</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>resolver</name> == <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>resolver</name> = (<name>typeResolver</name> = <call><name><name>TypeResolver</name>.<name>accordingTo</name></name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call>)</expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>resolver</name>.<name>resolveType</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>Type</name><index>[]</index></type> <name>resolveInPlace</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>types</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>types</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>types</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>resolveType</name><argument_list>(<argument><expr><name><name>types</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call>.<call><name>getType</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><name>types</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>resolveSupertype</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>supertype</name> =<init> <expr><call><name>resolveType</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// super types' type mapping is a subset of type mapping of this type.</comment>
+    <expr_stmt><expr><name><name>supertype</name>.<name>typeResolver</name></name> = <name>typeResolver</name></expr>;</expr_stmt>
+    <return>return <expr><name>supertype</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the generic superclass of this type or {@code null} if the type represents
+   * {@link Object} or an interface. This method is similar but different from {@link
+   * Class#getGenericSuperclass}. For example, {@code
+   * new TypeToken&lt;StringArrayList&gt;() {}.getGenericSuperclass()} will return {@code
+   * new TypeToken&lt;ArrayList&lt;String&gt;&gt;() {}}; while {@code
+   * StringArrayList.class.getGenericSuperclass()} will return {@code ArrayList&lt;E&gt;}, where {@code E}
+   * is the type variable declared by class {@code ArrayList}.
+   *
+   * &lt;p&gt;If this type is a type variable or wildcard, its first upper bound is examined and returned
+   * if the bound is a class or extends from a class. This means that the returned type could be a
+   * type variable too.
+   */</comment>
+  <function><type><annotation>@<name>Nullable</name></annotation>
+  <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>getGenericSuperclass</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+      <comment type="line">// First bound is always the super class, if one exists.</comment>
+      <return>return <expr><call><name>boundAsSuperclass</name><argument_list>(<argument><expr>((<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name>).<call><name>getBounds</name><argument_list>()</argument_list></call><index>[<expr>0</expr>]</index></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <comment type="line">// wildcard has one and only one upper bound.</comment>
+      <return>return <expr><call><name>boundAsSuperclass</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>runtimeType</name>).<call><name>getUpperBounds</name><argument_list>()</argument_list></call><index>[<expr>0</expr>]</index></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>Type</name></type> <name>superclass</name> =<init> <expr><call><name>getRawType</name><argument_list>()</argument_list></call>.<call><name>getGenericSuperclass</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>superclass</name> == <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// super class of T</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>superToken</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>) <call><name>resolveSupertype</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>superToken</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Nullable</name></annotation> <specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>boundAsSuperclass</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>bound</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>token</name> =<init> <expr><call><name>of</name><argument_list>(<argument><expr><name>bound</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name><name>token</name>.<name>getRawType</name></name><argument_list>()</argument_list></call>.<call><name>isInterface</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// only upper bound of T is passed in.</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>superclass</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>) <name>token</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>superclass</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the generic interfaces that this type directly {@code implements}. This method is
+   * similar but different from {@link Class#getGenericInterfaces()}. For example, {@code
+   * new TypeToken&lt;List&lt;String&gt;&gt;() {}.getGenericInterfaces()} will return a list that contains
+   * {@code new TypeToken&lt;Iterable&lt;String&gt;&gt;() {}}; while {@code List.class.getGenericInterfaces()}
+   * will return an array that contains {@code Iterable&lt;T&gt;}, where the {@code T} is the type
+   * variable declared by interface {@code Iterable}.
+   *
+   * &lt;p&gt;If this type is a type variable or wildcard, its upper bounds are examined and those that
+   * are either an interface or upper-bounded only by interfaces are returned. This means that the
+   * returned types could include type variables too.
+   */</comment>
+  <function><type><specifier>final</specifier> <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>getGenericInterfaces</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>boundsAsInterfaces</name><argument_list>(<argument><expr>((<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name>).<call><name>getBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>boundsAsInterfaces</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>runtimeType</name>).<call><name>getUpperBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name><name>ImmutableList</name>.<name><name>Builder</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></name></type> <name>builder</name> =<init> <expr><call><name><name>ImmutableList</name>.<name>builder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>Type</name></type> <name>interfaceType</name> :<range> <expr><call><name>getRawType</name><argument_list>()</argument_list></call>.<call><name>getGenericInterfaces</name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// interface of T</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>resolvedInterface</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>)
+          <call><name>resolveSupertype</name><argument_list>(<argument><expr><name>interfaceType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr><name>resolvedInterface</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><call><name><name>builder</name>.<name>build</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>boundsAsInterfaces</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>bounds</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>ImmutableList</name>.<name><name>Builder</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></name></type> <name>builder</name> =<init> <expr><call><name><name>ImmutableList</name>.<name>builder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>Type</name></type> <name>bound</name> :<range> <expr><name>bounds</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// upper bound of T</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>boundType</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>) <call><name>of</name><argument_list>(<argument><expr><name>bound</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><call><name><name>boundType</name>.<name>getRawType</name></name><argument_list>()</argument_list></call>.<call><name>isInterface</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr><name>boundType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr><call><name><name>builder</name>.<name>build</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the set of interfaces and classes that this type is or is a subtype of. The returned
+   * types are parameterized with proper type arguments.
+   *
+   * &lt;p&gt;Subtypes are always listed before supertypes. But the reverse is not true. A type isn't
+   * necessarily a subtype of all the types following. Order between types without subtype
+   * relationship is arbitrary and not guaranteed.
+   *
+   * &lt;p&gt;If this type is a type variable or wildcard, upper bounds that are themselves type variables
+   * aren't included (their super interfaces and superclasses are).
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>TypeSet</name></type> <name>getTypes</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name>TypeSet</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the generic form of {@code superclass}. For example, if this is
+   * {@code ArrayList&lt;String&gt;}, {@code Iterable&lt;String&gt;} is returned given the
+   * input {@code Iterable.class}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>getSupertype</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>superclass</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>this</name>.<name>someRawTypeIsSubclassOf</name></name><argument_list>(<argument><expr><name>superclass</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"%s is not a super class of %s"</expr></argument>, <argument><expr><name>superclass</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getSupertypeFromUpperBounds</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>, <argument><expr>((<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name>).<call><name>getBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getSupertypeFromUpperBounds</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>, <argument><expr>((<name>WildcardType</name>) <name>runtimeType</name>).<call><name>getUpperBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><call><name><name>superclass</name>.<name>isArray</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getArraySupertype</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// resolved supertype</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>supertype</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>)
+        <call><name>resolveSupertype</name><argument_list>(<argument><expr><call><name>toGenericType</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>)</argument_list></call>.<name>runtimeType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>supertype</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns subtype of {@code this} with {@code subclass} as the raw class.
+   * For example, if this is {@code Iterable&lt;String&gt;} and {@code subclass} is {@code List},
+   * {@code List&lt;String&gt;} is returned.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>getSubtype</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>subclass</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr>!(<name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name>)</expr></argument>,
+        <argument><expr>"Cannot get subtype of type variable &lt;%s&gt;"</expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getSubtypeFromLowerBounds</name><argument_list>(<argument><expr><name>subclass</name></expr></argument>, <argument><expr>((<name>WildcardType</name>) <name>runtimeType</name>).<call><name>getLowerBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// unwrap array type if necessary</comment>
+    <if>if <condition>(<expr><call><name>isArray</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>getArraySubtype</name><argument_list>(<argument><expr><name>subclass</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// At this point, it's either a raw class or parameterized type.</comment>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name>getRawType</name><argument_list>()</argument_list></call>.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><name>subclass</name></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"%s isn't a subclass of %s"</expr></argument>, <argument><expr><name>subclass</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// guarded by the isAssignableFrom() statement above</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>subtype</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name>)
+        <call><name>of</name><argument_list>(<argument><expr><call><name>resolveTypeArgsForSubclass</name><argument_list>(<argument><expr><name>subclass</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>subtype</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a supertype of the given {@code type}. "Supertype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @deprecated Use the method under its new name, {@link #isSupertypeOf(TypeToken)}. This method
+   *     will be removed in Guava release 20.0.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isAssignableFrom</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isSupertypeOf</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a supertype of the given {@code type}. "Supertype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @deprecated Use the method under its new name, {@link #isSupertypeOf(Type)}. This method will
+   *     be removed in Guava release 20.0.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isAssignableFrom</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isSupertypeOf</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a supertype of the given {@code type}. "Supertype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isSupertypeOf</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>type</name>.<name>isSubtypeOf</name></name><argument_list>(<argument><expr><call><name>getType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a supertype of the given {@code type}. "Supertype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isSupertypeOf</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>of</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><call><name>getType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a subtype of the given {@code type}. "Subtype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isSubtypeOf</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>isSubtypeOf</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is a subtype of the given {@code type}. "Subtype" is defined
+   * according to &lt;a href="http://docs.oracle.com/javase/specs/jls/se8/html/jls-4.html#jls-4.5.1"
+   * &gt;the rules for type arguments&lt;/a&gt; introduced with Java generics.
+   *
+   * @since 19.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isSubtypeOf</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>supertype</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>supertype</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <comment type="line">// if 'supertype' is &lt;? super Foo&gt;, 'this' can be:</comment>
+      <comment type="line">// Foo, SubFoo, &lt;? extends Foo&gt;.</comment>
+      <comment type="line">// if 'supertype' is &lt;? extends Foo&gt;, nothing is a subtype.</comment>
+      <return>return <expr><call><name>any</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>supertype</name>).<call><name>getLowerBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSupertypeOf</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// if 'this' is wildcard, it's a suptype of to 'supertype' if any of its "extends"</comment>
+    <comment type="line">// bounds is a subtype of 'supertype'.</comment>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <comment type="line">// &lt;? super Base&gt; is of no use in checking 'from' being a subtype of 'to'.</comment>
+      <return>return <expr><call><name>any</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>runtimeType</name>).<call><name>getUpperBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// if 'this' is type variable, it's a subtype if any of its "extends"</comment>
+    <comment type="line">// bounds is a subtype of 'supertype'.</comment>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>runtimeType</name>.<name>equals</name></name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call>
+          || <call><name>any</name><argument_list>(<argument><expr>((<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name>).<call><name>getBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call>.<call><name>isSuperTypeOfArray</name><argument_list>(<argument><expr>(<name>GenericArrayType</name>) <name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// Proceed to regular Type subtype check</comment>
+    <if>if <condition>(<expr><name>supertype</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>this</name>.<name>someRawTypeIsSubclassOf</name></name><argument_list>(<argument><expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>supertype</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>supertype</name> <name>instanceof</name> <name>ParameterizedType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>this</name>.<name>isSubtypeOfParameterizedType</name></name><argument_list>(<argument><expr>(<name>ParameterizedType</name>) <name>supertype</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>supertype</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>this</name>.<name>isSubTypeOfArrayType</name></name><argument_list>(<argument><expr>(<name>GenericArrayType</name>) <name>supertype</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{ <comment type="line">// to instanceof TypeVariable</comment>
+      <return>return <expr>false</expr>;</return>
+    }</block></else></if></else></if></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is known to be an array type, such as {@code int[]}, {@code T[]},
+   * {@code &lt;? extends Map&lt;String, Integer&gt;[]&gt;} etc.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isArray</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>getComponentType</name><argument_list>()</argument_list></call> != <name>null</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns true if this type is one of the nine primitive types (including {@code void}).
+   *
+   * @since 15.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>isPrimitive</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>runtimeType</name> <name>instanceof</name> <name>Class</name>) &amp;&amp; ((<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name>).<call><name>isPrimitive</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the corresponding wrapper type if this is a primitive type; otherwise returns
+   * {@code this} itself. Idempotent.
+   *
+   * @since 15.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>wrap</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name>isPrimitive</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// this is a primitive class</comment>
+      <name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>type</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name>) <name>runtimeType</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>Primitives</name>.<name>wrap</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>isWrapper</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>Primitives</name>.<name>allWrapperTypes</name></name><argument_list>()</argument_list></call>.<call><name>contains</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the corresponding primitive type if this is a wrapper type; otherwise returns
+   * {@code this} itself. Idempotent.
+   *
+   * @since 15.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>unwrap</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name>isWrapper</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// this is a wrapper class</comment>
+      <name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>type</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name>) <name>runtimeType</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>Primitives</name>.<name>unwrap</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the array component type if this type represents an array ({@code int[]}, {@code T[]},
+   * {@code &lt;? extends Map&lt;String, Integer&gt;[]&gt;} etc.), or else {@code null} is returned.
+   */</comment>
+  <function><type><annotation>@<name>Nullable</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getComponentType</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name></type> <name>componentType</name> =<init> <expr><call><name><name>Types</name>.<name>getComponentType</name></name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>componentType</name> == <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></then></if>
+    <return>return <expr><call><name>of</name><argument_list>(<argument><expr><name>componentType</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the {@link Invokable} for {@code method}, which must be a member of {@code T}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>Invokable</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>method</name><parameter_list>(<param><decl><type><name>Method</name></type> <name>method</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>this</name>.<name>someRawTypeIsSubclassOf</name></name><argument_list>(<argument><expr><call><name><name>method</name>.<name>getDeclaringClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>,
+        <argument><expr>"%s not declared by %s"</expr></argument>, <argument><expr><name>method</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name><name>Invokable</name>.<name><name>MethodInvokable</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></name></super><argument_list>(<argument><expr><name>method</name></expr></argument>)</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name></type> <name>getGenericReturnType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveType</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericReturnType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>getType</name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name><index>[]</index></type> <name>getGenericParameterTypes</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveInPlace</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericParameterTypes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name><index>[]</index></type> <name>getGenericExceptionTypes</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveInPlace</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericExceptionTypes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>getOwnerType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>TypeToken</name>.<name>this</name></name></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getOwnerType</name><argument_list>()</argument_list></call> + "." + <call><name><name>super</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the {@link Invokable} for {@code constructor}, which must be a member of {@code T}.
+   *
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name><name>Invokable</name><argument_list>&lt;<argument><name>T</name></argument>, <argument><name>T</name></argument>&gt;</argument_list></name></type> <name>constructor</name><parameter_list>(<param><decl><type><name><name>Constructor</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>constructor</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>constructor</name>.<name>getDeclaringClass</name></name><argument_list>()</argument_list></call> == <call><name>getRawType</name><argument_list>()</argument_list></call></expr></argument>,
+        <argument><expr>"%s not declared by %s"</expr></argument>, <argument><expr><name>constructor</name></expr></argument>, <argument><expr><call><name>getRawType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <class><super><name><name>Invokable</name>.<name><name>ConstructorInvokable</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></name></super><argument_list>(<argument><expr><name>constructor</name></expr></argument>)</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name></type> <name>getGenericReturnType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveType</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericReturnType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>getType</name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name><index>[]</index></type> <name>getGenericParameterTypes</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveInPlace</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericParameterTypes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>Type</name><index>[]</index></type> <name>getGenericExceptionTypes</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>resolveInPlace</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getGenericExceptionTypes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>getOwnerType</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name><name>TypeToken</name>.<name>this</name></name></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name>getOwnerType</name><argument_list>()</argument_list></call> + "(" + <call><name><name>Joiner</name>.<name>on</name></name><argument_list>(<argument><expr>", "</expr></argument>)</argument_list></call>.<call><name>join</name><argument_list>(<argument><expr><call><name>getGenericParameterTypes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> + ")"</expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * The set of interfaces and classes that {@code T} is or is a subtype of. {@link Object} is not
+   * included in the set if this type is an interface.
+   */</comment>
+  <class><specifier>public</specifier> class <name>TypeSet</name> <super><extends>extends <name><name>ForwardingSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></extends> <implements>implements <name>Serializable</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>types</name></decl>;</decl_stmt>
+
+    <constructor><name>TypeSet</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+    <comment type="javadoc">/** Returns the types that are interfaces implemented by this type. */</comment>
+    <function><type><specifier>public</specifier> <name>TypeSet</name></type> <name>interfaces</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name>InterfaceSet</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Returns the types that are classes. */</comment>
+    <function><type><specifier>public</specifier> <name>TypeSet</name></type> <name>classes</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name>ClassSet</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>delegate</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>filteredTypes</name> =<init> <expr><name>types</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>filteredTypes</name> == <name>null</name></expr>)</condition><then> <block>{
+        <comment type="line">// Java has no way to express ? super T when we parameterize TypeToken vs. Class.</comment>
+        <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+        <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>collectedTypes</name> =<init> <expr>(<name>ImmutableList</name>)
+            <call><name><name>TypeCollector</name>.<name>FOR_GENERIC_TYPE</name>.<name>collectTypes</name></name><argument_list>(<argument><expr><name><name>TypeToken</name>.<name>this</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>types</name> = <call><name><name>FluentIterable</name>.<name>from</name></name><argument_list>(<argument><expr><name>collectedTypes</name></expr></argument>)</argument_list></call>
+                .<call><name>filter</name><argument_list>(<argument><expr><name><name>TypeFilter</name>.<name>IGNORE_TYPE_VARIABLE_OR_WILDCARD</name></name></expr></argument>)</argument_list></call>
+                .<call><name>toSet</name><argument_list>()</argument_list></call>)</expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>filteredTypes</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/** Returns the raw types of the types in this set, in the same order. */</comment>
+    <function><type><specifier>public</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>rawTypes</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// Java has no way to express ? super T when we parameterize TypeToken vs. Class.</comment>
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+      <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>collectedTypes</name> =<init> <expr>(<name>ImmutableList</name>)
+          <call><name><name>TypeCollector</name>.<name>FOR_RAW_TYPE</name>.<name>collectTypes</name></name><argument_list>(<argument><expr><call><name>getRawTypes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>ImmutableSet</name>.<name>copyOf</name></name><argument_list>(<argument><expr><name>collectedTypes</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <class><specifier>private</specifier> <specifier>final</specifier> class <name>InterfaceSet</name> <super><extends>extends <name>TypeSet</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>transient</name> <name>TypeSet</name></type> <name>allTypes</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>interfaces</name></decl>;</decl_stmt>
+
+    <constructor><name>InterfaceSet</name><parameter_list>(<param><decl><type><name>TypeSet</name></type> <name>allTypes</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>allTypes</name></name> = <name>allTypes</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>delegate</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><name>interfaces</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr>(<name>interfaces</name> = <call><name><name>FluentIterable</name>.<name>from</name></name><argument_list>(<argument><expr><name>allTypes</name></expr></argument>)</argument_list></call>
+            .<call><name>filter</name><argument_list>(<argument><expr><name><name>TypeFilter</name>.<name>INTERFACE_ONLY</name></name></expr></argument>)</argument_list></call>
+            .<call><name>toSet</name><argument_list>()</argument_list></call>)</expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>result</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>TypeSet</name></type> <name>interfaces</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>rawTypes</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// Java has no way to express ? super T when we parameterize TypeToken vs. Class.</comment>
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+      <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>collectedTypes</name> =<init> <expr>(<name>ImmutableList</name>)
+          <call><name><name>TypeCollector</name>.<name>FOR_RAW_TYPE</name>.<name>collectTypes</name></name><argument_list>(<argument><expr><call><name>getRawTypes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>FluentIterable</name>.<name>from</name></name><argument_list>(<argument><expr><name>collectedTypes</name></expr></argument>)</argument_list></call>
+          .<call><name>filter</name><argument_list>(<argument><expr>new <class><super><name><name>Predicate</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+            <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>apply</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+              <return>return <expr><call><name><name>type</name>.<name>isInterface</name></name><argument_list>()</argument_list></call></expr>;</return>
+            }</block></function>
+          }</block></class></expr></argument>)</argument_list></call>
+          .<call><name>toSet</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>TypeSet</name></type> <name>classes</name><parameter_list>()</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>(<argument><expr>"interfaces().classes() not supported."</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>getTypes</name><argument_list>()</argument_list></call>.<call><name>interfaces</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <class><specifier>private</specifier> <specifier>final</specifier> class <name>ClassSet</name> <super><extends>extends <name>TypeSet</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>classes</name></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>delegate</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><name>classes</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+        <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>collectedTypes</name> =<init> <expr>(<name>ImmutableList</name>)
+            <call><name><name>TypeCollector</name>.<name>FOR_GENERIC_TYPE</name>.<name>classesOnly</name></name><argument_list>()</argument_list></call>.<call><name>collectTypes</name><argument_list>(<argument><expr><name><name>TypeToken</name>.<name>this</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>classes</name> = <call><name><name>FluentIterable</name>.<name>from</name></name><argument_list>(<argument><expr><name>collectedTypes</name></expr></argument>)</argument_list></call>
+            .<call><name>filter</name><argument_list>(<argument><expr><name><name>TypeFilter</name>.<name>IGNORE_TYPE_VARIABLE_OR_WILDCARD</name></name></expr></argument>)</argument_list></call>
+            .<call><name>toSet</name><argument_list>()</argument_list></call>)</expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>result</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>TypeSet</name></type> <name>classes</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>rawTypes</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// Java has no way to express ? super T when we parameterize TypeToken vs. Class.</comment>
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+      <name><name>ImmutableList</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>collectedTypes</name> =<init> <expr>(<name>ImmutableList</name>)
+          <call><name><name>TypeCollector</name>.<name>FOR_RAW_TYPE</name>.<name>classesOnly</name></name><argument_list>()</argument_list></call>.<call><name>collectTypes</name><argument_list>(<argument><expr><call><name>getRawTypes</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>ImmutableSet</name>.<name>copyOf</name></name><argument_list>(<argument><expr><name>collectedTypes</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>TypeSet</name></type> <name>interfaces</name><parameter_list>()</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>(<argument><expr>"classes().interfaces() not supported."</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>getTypes</name><argument_list>()</argument_list></call>.<call><name>classes</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <enum><specifier>private</specifier> enum <name>TypeFilter</name> implements <name><name>Predicate</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name> <block>{
+
+    <expr><name>IGNORE_TYPE_VARIABLE_OR_WILDCARD</name> <block>{
+      @<expr><name>Override</name> public <name>boolean</name> <call><name>apply</name><argument_list>(<argument><expr><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name> <name>type</name></expr></argument>)</argument_list></call> <block>{
+        <return>return <expr>!(<name><name>type</name>.<name>runtimeType</name></name> <name>instanceof</name> <name>TypeVariable</name>
+            || <name><name>type</name>.<name>runtimeType</name></name> <name>instanceof</name> <name>WildcardType</name>)</expr>;</return></block></expr></block></expr>
+      }</block></enum>
+    }</block></class>,
+    <expr_stmt><expr><name>INTERFACE_ONLY</name> <block>{
+      @<expr><name>Override</name> public <name>boolean</name> <call><name>apply</name><argument_list>(<argument><expr><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name> <name>type</name></expr></argument>)</argument_list></call> <block>{
+        <return>return <expr><call><name><name>type</name>.<name>getRawType</name></name><argument_list>()</argument_list></call>.<call><name>isInterface</name><argument_list>()</argument_list></call></expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    }
+  }
+
+  <comment type="javadoc">/**
+   * Returns true if {@code o} is another {@code TypeToken} that represents the same {@link Type}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>o</name> <name>instanceof</name> <name>TypeToken</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>that</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>o</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>runtimeType</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>that</name>.<name>runtimeType</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>runtimeType</name>.<name>hashCode</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>Types</name>.<name>toString</name></name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Implemented to support serialization of subclasses. */</comment>
+  <function><type><specifier>protected</specifier> <name>Object</name></type> <name>writeReplace</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// TypeResolver just transforms the type to our own impls that are Serializable</comment>
+    <comment type="line">// except TypeVariable.</comment>
+    <return>return <expr><call><name>of</name><argument_list>(<argument><expr>new <call><name>TypeResolver</name><argument_list>()</argument_list></call>.<call><name>resolveType</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Ensures that this type token doesn't contain type variables, which can cause unchecked type
+   * errors for callers like {@link TypeToInstanceMap}.
+   */</comment>
+  <function><type><specifier>final</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>rejectTypeVariables</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr>new <class><super><name>TypeVisitor</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitTypeVariable</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(
+            <argument><expr><name>runtimeType</name> + "contains a type variable and is not safe for the operation"</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitWildcardType</name><parameter_list>(<param><decl><type><name>WildcardType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getLowerBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getOwnerType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitGenericArrayType</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+    }</block></class>.<call><name>visit</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>someRawTypeIsSubclassOf</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>superclass</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>rawType</name> :<range> <expr><call><name>getRawTypes</name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+      <if>if <condition>(<expr><call><name><name>superclass</name>.<name>isAssignableFrom</name></name><argument_list>(<argument><expr><name>rawType</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>true</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>isSubtypeOfParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>supertype</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>matchedClass</name> =<init> <expr><call><name>of</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call>.<call><name>getRawType</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!<call><name><name>this</name>.<name>someRawTypeIsSubclassOf</name></name><argument_list>(<argument><expr><name>matchedClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>typeParams</name> =<init> <expr><call><name><name>matchedClass</name>.<name>getTypeParameters</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>toTypeArgs</name> =<init> <expr><call><name><name>supertype</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>typeParams</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <comment type="line">// If 'supertype' is "List&lt;? extends CharSequence&gt;"</comment>
+      <comment type="line">// and 'this' is StringArrayList,</comment>
+      <comment type="line">// First step is to figure out StringArrayList "is-a" List&lt;E&gt; and &lt;E&gt; is</comment>
+      <comment type="line">// String.</comment>
+      <comment type="line">// typeParams[0] is E and fromTypeToken.get(typeParams[0]) will resolve to</comment>
+      <comment type="line">// String.</comment>
+      <comment type="line">// String is then matched against &lt;? extends CharSequence&gt;.</comment>
+      <if>if <condition>(<expr>!<call><name>resolveType</name><argument_list>(<argument><expr><name><name>typeParams</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call>.<call><name>is</name><argument_list>(<argument><expr><name><name>toTypeArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>isSubTypeOfArrayType</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>supertype</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>fromClass</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<call><name><name>fromClass</name>.<name>isArray</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>fromClass</name>.<name>getComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><call><name><name>supertype</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>GenericArrayType</name></type> <name>fromArrayType</name> =<init> <expr>(<name>GenericArrayType</name>) <name>runtimeType</name></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>fromArrayType</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>isSubtypeOf</name><argument_list>(<argument><expr><call><name><name>supertype</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></else></if></else></if>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>isSuperTypeOfArray</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>subtype</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>thisClass</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>runtimeType</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<call><name><name>thisClass</name>.<name>isArray</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><call><name><name>thisClass</name>.<name>isAssignableFrom</name></name><argument_list>(<argument><expr><name><name>Object</name><index>[]</index></name>.class</expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>subtype</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><call><name><name>thisClass</name>.<name>getComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>subtype</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          .<call><name>isSubtypeOf</name><argument_list>(<argument><expr>((<name>GenericArrayType</name>) <name>runtimeType</name>).<call><name>getGenericComponentType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></else></if></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Return true if any of the following conditions is met: &lt;ul&gt;
+   * &lt;li&gt;'this' and {@code formalType} are equal
+   * &lt;li&gt;{@code formalType} is {@code &lt;? extends Foo&gt;} and 'this' is a subtype of {@code Foo}
+   * &lt;li&gt;{@code formalType} is {@code &lt;? super Foo&gt;} and 'this' is a supertype of {@code Foo}
+   * &lt;/ul&gt;
+   */</comment>
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>is</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>formalType</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>runtimeType</name>.<name>equals</name></name><argument_list>(<argument><expr><name>formalType</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>formalType</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <comment type="line">// if "formalType" is &lt;? extends Foo&gt;, "this" can be:</comment>
+      <comment type="line">// Foo, SubFoo, &lt;? extends Foo&gt;, &lt;? extends SubFoo&gt;, &lt;T extends Foo&gt; or</comment>
+      <comment type="line">// &lt;T extends SubFoo&gt;.</comment>
+      <comment type="line">// if "formalType" is &lt;? super Foo&gt;, "this" can be:</comment>
+      <comment type="line">// Foo, SuperFoo, &lt;? super Foo&gt; or &lt;? super SuperFoo&gt;.</comment>
+      <return>return <expr><call><name>every</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>formalType</name>).<call><name>getUpperBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSupertypeOf</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call>
+          &amp;&amp; <call><name>every</name><argument_list>(<argument><expr>((<name>WildcardType</name>) <name>formalType</name>).<call><name>getLowerBounds</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr>false</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Bounds</name></type> <name>every</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>bounds</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Every bound must match. On any false, result is false.</comment>
+    <return>return <expr>new <call><name>Bounds</name><argument_list>(<argument><expr><name>bounds</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Bounds</name></type> <name>any</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>bounds</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Any bound matches. On any true, result is true.</comment>
+    <return>return <expr>new <call><name>Bounds</name><argument_list>(<argument><expr><name>bounds</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>Bounds</name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Type</name><index>[]</index></type> <name>bounds</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>target</name></decl>;</decl_stmt>
+
+    <constructor><name>Bounds</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>bounds</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>target</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>bounds</name></name> = <name>bounds</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>target</name></name> = <name>target</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><name>boolean</name></type> <name>isSubtypeOf</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>supertype</name></decl></param>)</parameter_list> <block>{
+      <for>for (<init><decl><type><name>Type</name></type> <name>bound</name> :<range> <expr><name>bounds</name></expr></range></decl></init>) <block>{
+        <if>if <condition>(<expr><call><name>of</name><argument_list>(<argument><expr><name>bound</name></expr></argument>)</argument_list></call>.<call><name>isSubtypeOf</name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call> == <name>target</name></expr>)</condition><then> <block>{
+          <return>return <expr><name>target</name></expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>!<name>target</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>boolean</name></type> <name>isSupertypeOf</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>subtype</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name> =<init> <expr><call><name>of</name><argument_list>(<argument><expr><name>subtype</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>Type</name></type> <name>bound</name> :<range> <expr><name>bounds</name></expr></range></decl></init>) <block>{
+        <if>if <condition>(<expr><call><name><name>type</name>.<name>isSubtypeOf</name></name><argument_list>(<argument><expr><name>bound</name></expr></argument>)</argument_list></call> == <name>target</name></expr>)</condition><then> <block>{
+          <return>return <expr><name>target</name></expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr>!<name>target</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <function><type><specifier>private</specifier> <name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>getRawTypes</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>ImmutableSet</name>.<name><name>Builder</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></name></type> <name>builder</name> =<init> <expr><call><name><name>ImmutableSet</name>.<name>builder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr>new <class><super><name>TypeVisitor</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitTypeVariable</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitWildcardType</name><parameter_list>(<param><decl><type><name>WildcardType</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <call><name><name>t</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitClass</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitGenericArrayType</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>Types</name>.<name>getArrayClass</name></name><argument_list>(
+            <argument><expr><call><name>of</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<call><name>getRawType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+
+    }</block></class>.<call><name>visit</name><argument_list>(<argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <comment type="line">// Cast from ImmutableSet&lt;Class&lt;?&gt;&gt; to ImmutableSet&lt;Class&lt;? super T&gt;&gt;</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"unchecked", "rawtypes"})</argument_list></annotation>
+    <name><name>ImmutableSet</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr>(<name>ImmutableSet</name>) <call><name><name>builder</name>.<name>build</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the type token representing the generic type declaration of {@code cls}. For example:
+   * {@code TypeToken.getGenericType(Iterable.class)} returns {@code Iterable&lt;T&gt;}.
+   *
+   * &lt;p&gt;If {@code cls} isn't parameterized and isn't a generic array, the type token of the class is
+   * returned.
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>toGenericType</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>cls</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>cls</name>.<name>isArray</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name>Type</name></type> <name>arrayOfGenericType</name> =<init> <expr><call><name><name>Types</name>.<name>newArrayType</name></name><argument_list>(
+          <comment type="line">// If we are passed with int[].class, don't turn it to GenericArrayType</comment>
+          <argument><expr><call><name>toGenericType</name><argument_list>(<argument><expr><call><name><name>cls</name>.<name>getComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>.<name>runtimeType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// array is covariant</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name>) <call><name>of</name><argument_list>(<argument><expr><name>arrayOfGenericType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name><index>[]</index></type> <name>typeParams</name> =<init> <expr><call><name><name>cls</name>.<name>getTypeParameters</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>typeParams</name>.<name>length</name></name> &gt; 0</expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// Like, it's Iterable&lt;T&gt; for Iterable.class</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>type</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name>)
+          <call><name>of</name><argument_list>(<argument><expr><call><name><name>Types</name>.<name>newParameterizedType</name></name><argument_list>(<argument><expr><name>cls</name></expr></argument>, <argument><expr><name>typeParams</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr><name>type</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr><call><name>of</name><argument_list>(<argument><expr><name>cls</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>getSupertypeFromUpperBounds</name><parameter_list>(
+      <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>supertype</name></decl></param>, <param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>upperBounds</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init><decl><type><name>Type</name></type> <name>upperBound</name> :<range> <expr><name>upperBounds</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// T's upperbound is &lt;? super T&gt;.</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>bound</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>) <call><name>of</name><argument_list>(<argument><expr><name>upperBound</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><call><name><name>bound</name>.<name>isSubtypeOf</name></name><argument_list>(<argument><expr><name>supertype</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"rawtypes", "unchecked"})</argument_list></annotation> <comment type="line">// guarded by the isSubtypeOf check.</comment>
+        <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><call><name><name>bound</name>.<name>getSupertype</name></name><argument_list>(<argument><expr>(<name>Class</name>) <name>supertype</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>result</name></expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><name>supertype</name> + " isn't a super type of " + <name>this</name></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>getSubtypeFromLowerBounds</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>subclass</name></decl></param>, <param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>lowerBounds</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init><decl><type><name>Type</name></type> <name>lowerBound</name> :<range> <expr><name>lowerBounds</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// T's lower bound is &lt;? extends T&gt;</comment>
+      <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>bound</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name>) <call><name>of</name><argument_list>(<argument><expr><name>lowerBound</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <comment type="line">// Java supports only one lowerbound anyway.</comment>
+      <return>return <expr><call><name><name>bound</name>.<name>getSubtype</name></name><argument_list>(<argument><expr><name>subclass</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></for>
+    <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><name>subclass</name> + " isn't a subclass of " + <name>this</name></expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>getArraySupertype</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>supertype</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// with component type, we have lost generic type information</comment>
+    <comment type="line">// Use raw type so that compiler allows us to call getSupertype()</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("rawtypes")</argument_list></annotation>
+    <name>TypeToken</name></type> <name>componentType</name> =<init> <expr><call><name>checkNotNull</name><argument_list>(<argument><expr><call><name>getComponentType</name><argument_list>()</argument_list></call></expr></argument>,
+        <argument><expr>"%s isn't a super type of %s"</expr></argument>, <argument><expr><name>supertype</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// array is covariant. component type is super type, so is the array type.</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// going from raw type back to generics</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>componentSupertype</name> =<init> <expr><call><name><name>componentType</name>.<name>getSupertype</name></name><argument_list>(<argument><expr><call><name><name>supertype</name>.<name>getComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// component type is super type, so is array type.</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <super>super <name>T</name></super></argument>&gt;</argument_list></name>)
+        <comment type="line">// If we are passed with int[].class, don't turn it to GenericArrayType</comment>
+        <call><name>of</name><argument_list>(<argument><expr><call><name>newArrayClassOrGenericArrayType</name><argument_list>(<argument><expr><name><name>componentSupertype</name>.<name>runtimeType</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>getArraySubtype</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>subclass</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// array is covariant. component type is subtype, so is the array type.</comment>
+    <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>componentSubtype</name> =<init> <expr><call><name>getComponentType</name><argument_list>()</argument_list></call>
+        .<call><name>getSubtype</name><argument_list>(<argument><expr><call><name><name>subclass</name>.<name>getComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// component type is subtype, so is array type.</comment>
+    <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr>(<name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>T</name></extends></argument>&gt;</argument_list></name>)
+        <comment type="line">// If we are passed with int[].class, don't turn it to GenericArrayType</comment>
+        <call><name>of</name><argument_list>(<argument><expr><call><name>newArrayClassOrGenericArrayType</name><argument_list>(<argument><expr><name><name>componentSubtype</name>.<name>runtimeType</name></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>Type</name></type> <name>resolveTypeArgsForSubclass</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>subclass</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>runtimeType</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+      <comment type="line">// no resolution needed</comment>
+      <return>return <expr><name>subclass</name></expr>;</return>
+    }</block></then></if>
+    <comment type="line">// class Base&lt;A, B&gt; {}</comment>
+    <comment type="line">// class Sub&lt;X, Y&gt; extends Base&lt;X, Y&gt; {}</comment>
+    <comment type="line">// Base&lt;String, Integer&gt;.subtype(Sub.class):</comment>
+
+    <comment type="line">// Sub&lt;X, Y&gt;.getSupertype(Base.class) =&gt; Base&lt;X, Y&gt;</comment>
+    <comment type="line">// =&gt; X=String, Y=Integer</comment>
+    <comment type="line">// =&gt; Sub&lt;X, Y&gt;=Sub&lt;String, Integer&gt;</comment>
+    <decl_stmt><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>genericSubtype</name> =<init> <expr><call><name>toGenericType</name><argument_list>(<argument><expr><name>subclass</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>({"rawtypes", "unchecked"})</argument_list></annotation> <comment type="line">// subclass isn't &lt;? extends T&gt;</comment>
+    <name>Type</name></type> <name>supertypeWithArgsFromSubtype</name> =<init> <expr><call><name><name>genericSubtype</name>
+        .<name>getSupertype</name></name><argument_list>(<argument><expr>(<name>Class</name>) <call><name>getRawType</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+        .<name>runtimeType</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr>new <call><name>TypeResolver</name><argument_list>()</argument_list></call>.<call><name>where</name><argument_list>(<argument><expr><name>supertypeWithArgsFromSubtype</name></expr></argument>, <argument><expr><name>runtimeType</name></expr></argument>)</argument_list></call>
+        .<call><name>resolveType</name><argument_list>(<argument><expr><name><name>genericSubtype</name>.<name>runtimeType</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates an array class if {@code componentType} is a class, or else, a
+   * {@link GenericArrayType}. This is what Java7 does for generic array type
+   * parameters.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>Type</name></type> <name>newArrayClassOrGenericArrayType</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>componentType</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Types</name>.<name>JavaVersion</name>.<name>JAVA7</name>.<name>newArrayType</name></name><argument_list>(<argument><expr><name>componentType</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>SimpleTypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>TypeToken</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></extends></super> <block>{
+
+    <constructor><name>SimpleTypeToken</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Collects parent types from a sub type.
+   *
+   * @param &lt;K&gt; The type "kind". Either a TypeToken, or Class.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name><name>TypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name> <block>{
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>TypeCollector</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>FOR_GENERIC_TYPE</name> =<init>
+        <expr>new <class><super><name><name>TypeCollector</name><argument_list>&lt;<argument><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getRawType</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>type</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Override</name></annotation> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name></type> <name>getInterfaces</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>type</name>.<name>getGenericInterfaces</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Nullable</name></annotation>
+          <annotation>@<name>Override</name></annotation> <name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getSuperclass</name><parameter_list>(<param><decl><type><name><name>TypeToken</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>type</name>.<name>getGenericSuperclass</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>TypeCollector</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>FOR_RAW_TYPE</name> =<init>
+        <expr>new <class><super><name><name>TypeCollector</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getRawType</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><name>type</name></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Override</name></annotation> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name></type> <name>getInterfaces</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getInterfaces</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Nullable</name></annotation>
+          <annotation>@<name>Override</name></annotation> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getSuperclass</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>type</name>.<name>getSuperclass</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** For just classes, we don't have to traverse interfaces. */</comment>
+    <function><type><specifier>final</specifier> <name><name>TypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>classesOnly</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <class><super><name><name>ForwardingTypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></super><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>&gt;</argument_list></name></type> <name>getInterfaces</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+          <return>return <expr><call><name><name>ImmutableSet</name>.<name>of</name></name><argument_list>()</argument_list></call></expr>;</return>
+        }</block></function>
+        <function><type><annotation>@<name>Override</name></annotation> <name><name>ImmutableList</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>collectTypes</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>&gt;</argument_list></name></type> <name>types</name></decl></param>)</parameter_list> <block>{
+          <decl_stmt><decl><type><name><name>ImmutableList</name>.<name><name>Builder</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></name></type> <name>builder</name> =<init> <expr><call><name><name>ImmutableList</name>.<name>builder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+          <for>for (<init><decl><type><name>K</name></type> <name>type</name> :<range> <expr><name>types</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr>!<call><name>getRawType</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call>.<call><name>isInterface</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+              <expr_stmt><expr><call><name><name>builder</name>.<name>add</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+          }</block></for>
+          <return>return <expr><call><name><name>super</name>.<name>collectTypes</name></name><argument_list>(<argument><expr><call><name><name>builder</name>.<name>build</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+      }</block></class></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>final</specifier> <name><name>ImmutableList</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>collectTypes</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>collectTypes</name><argument_list>(<argument><expr><call><name><name>ImmutableList</name>.<name>of</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><name><name>ImmutableList</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>collectTypes</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>&gt;</argument_list></name></type> <name>types</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// type -&gt; order number. 1 for Object, 2 for anything directly below, so on so forth.</comment>
+      <decl_stmt><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>Integer</name></argument>&gt;</argument_list></name></type> <name>map</name> =<init> <expr><call><name><name>Maps</name>.<name>newHashMap</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>K</name></type> <name>type</name> :<range> <expr><name>types</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><call><name>collectTypes</name><argument_list>(<argument><expr><name>type</name></expr></argument>, <argument><expr><name>map</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><call><name>sortKeysByValue</name><argument_list>(<argument><expr><name>map</name></expr></argument>, <argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call>.<call><name>reverse</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Collects all types to map, and returns the total depth from T up to Object. */</comment>
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>collectTypes</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>, <param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>Integer</name></argument>&gt;</argument_list></name></type> <name>map</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>Integer</name></type> <name>existing</name> =<init> <expr><call><name><name>map</name>.<name>get</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+        <comment type="line">// short circuit: if set contains type it already contains its supertypes</comment>
+        <return>return <expr><name>existing</name></expr>;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>int</name></type> <name>aboveMe</name> =<init> <expr><call><name>getRawType</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call>.<call><name>isInterface</name><argument_list>()</argument_list></call>
+          ? 1 <comment type="line">// interfaces should be listed before Object</comment>
+          : 0</expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>K</name></type> <name>interfaceType</name> :<range> <expr><call><name>getInterfaces</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><name>aboveMe</name> = <call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>aboveMe</name></expr></argument>, <argument><expr><call><name>collectTypes</name><argument_list>(<argument><expr><name>interfaceType</name></expr></argument>, <argument><expr><name>map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <decl_stmt><decl><type><name>K</name></type> <name>superclass</name> =<init> <expr><call><name>getSuperclass</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>superclass</name> != <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>aboveMe</name> = <call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>aboveMe</name></expr></argument>, <argument><expr><call><name>collectTypes</name><argument_list>(<argument><expr><name>superclass</name></expr></argument>, <argument><expr><name>map</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <comment type="block">/*
+       * TODO(benyu): should we include Object for interface?
+       * Also, CharSequence[] and Object[] for String[]?
+       *
+       */</comment>
+      <expr_stmt><expr><call><name><name>map</name>.<name>put</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>, <argument><expr><name>aboveMe</name> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>aboveMe</name> + 1</expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>ImmutableList</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>sortKeysByValue</name><parameter_list>(
+        <param><decl><type><specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>map</name></decl></param>, <param><decl><type><specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>V</name></super></argument>&gt;</argument_list></name></type> <name>valueComparator</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>Ordering</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>keyOrdering</name> =<init> <expr>new <class><super><name><name>Ordering</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>compare</name><parameter_list>(<param><decl><type><name>K</name></type> <name>left</name></decl></param>, <param><decl><type><name>K</name></type> <name>right</name></decl></param>)</parameter_list> <block>{
+          <return>return <expr><call><name><name>valueComparator</name>.<name>compare</name></name><argument_list>(<argument><expr><call><name><name>map</name>.<name>get</name></name><argument_list>(<argument><expr><name>left</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>map</name>.<name>get</name></name><argument_list>(<argument><expr><name>right</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+      }</block></class></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name><name>keyOrdering</name>.<name>immutableSortedCopy</name></name><argument_list>(<argument><expr><call><name><name>map</name>.<name>keySet</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function_decl><type><specifier>abstract</specifier> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getRawType</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list>;</function_decl>
+    <function_decl><type><specifier>abstract</specifier> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>&gt;</argument_list></name></type> <name>getInterfaces</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list>;</function_decl>
+    <function_decl><type><annotation>@<name>Nullable</name></annotation> <specifier>abstract</specifier> <name>K</name></type> <name>getSuperclass</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list>;</function_decl>
+
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name><name>ForwardingTypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>TypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></extends></super> <block>{
+
+      <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>TypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>delegate</name></decl>;</decl_stmt>
+
+      <constructor><name>ForwardingTypeCollector</name><parameter_list>(<param><decl><type><name><name>TypeCollector</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>delegate</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>delegate</name></name> = <name>delegate</name></expr>;</expr_stmt>
+      }</block></constructor>
+
+      <function><type><annotation>@<name>Override</name></annotation> <name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>getRawType</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>delegate</name>.<name>getRawType</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation> <name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>&gt;</argument_list></name></type> <name>getInterfaces</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>delegate</name>.<name>getInterfaces</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation> <name>K</name></type> <name>getSuperclass</name><parameter_list>(<param><decl><type><name>K</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>delegate</name>.<name>getSuperclass</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class>
+  }</block></class>
+}
+</unit>

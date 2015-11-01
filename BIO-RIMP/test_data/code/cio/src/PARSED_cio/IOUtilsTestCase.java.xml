@@ -1,0 +1,1057 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\test\java\org\apache\commons\io\IOUtilsTestCase.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>BufferedReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ByteArrayOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>CharArrayReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>CharArrayWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Closeable</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>EOFException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStreamReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>StringReader</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>ServerSocket</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>Socket</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URI</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>URL</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>channels</name>.<name>Selector</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>testtools</name>.<name>FileBasedTestCase</name></name>;</import>
+
+<comment type="line">// Note: jdk1.2 dependency</comment>
+
+<comment type="javadoc">/**
+ * This is used to test IOUtils for correctness. The following checks are performed:
+ * &lt;ul&gt;
+ * &lt;li&gt;The return must not be null, must be the same type and equals() to the method's second arg&lt;/li&gt;
+ * &lt;li&gt;All bytes must have been read from the source (available() == 0)&lt;/li&gt;
+ * &lt;li&gt;The source and destination content must be identical (byte-wise comparison check)&lt;/li&gt;
+ * &lt;li&gt;The output stream must not have been closed (a byte/char is written to test this, and subsequent size checked)&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Due to interdependencies in IOUtils and IOUtilsTestlet, one bug may cause multiple tests to fail.
+ */</comment>
+<class><specifier>public</specifier> class <name>IOUtilsTestCase</name> <super><extends>extends <name>FileBasedTestCase</name></extends></super> <block>{
+
+    <comment type="javadoc">/** Determine if this is windows. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>WINDOWS</name> =<init> <expr><name><name>File</name>.<name>separatorChar</name></name> == '\\'</expr></init></decl>;</decl_stmt>
+    <comment type="block">/*
+     * Note: this is not particularly beautiful code. A better way to check for flush and close status would be to
+     * implement "trojan horse" wrapper implementations of the various stream classes, which set a flag when relevant
+     * methods are called. (JT)
+     */</comment>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>FILE_SIZE</name> =<init> <expr>1024 * 4 + 1</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>File</name></type> <name>m_testFile</name></decl>;</decl_stmt>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>setUp</name><parameter_list>()</parameter_list> <block>{
+        <try>try <block>{
+            <expr_stmt><expr><call><name>getTestDirectory</name><argument_list>()</argument_list></call>.<call><name>mkdirs</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>m_testFile</name> = new <call><name>File</name><argument_list>(<argument><expr><call><name>getTestDirectory</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>"file2-test.txt"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name>createFile</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"Can't run this test because " + "environment could not be built: "
+                    + <call><name><name>ioe</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+        <comment type="line">// Create and init a byte array as input data</comment>
+        <expr_stmt><expr><name>iarr</name> = new <name><name>byte</name><index>[<expr>200</expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>( <argument><expr><name>iarr</name></expr></argument>, <argument><expr>(<name>byte</name>)-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for( <init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt; 80</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>)<block>{
+            <expr_stmt><expr><name><name>iarr</name><index>[<expr><name>i</name></expr>]</index></name> = (<name>byte</name>) <name>i</name></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><name>carr</name> = new <name><name>char</name><index>[<expr>200</expr>]</index></name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>( <argument><expr><name>carr</name></expr></argument>, <argument><expr>(<name>char</name>)-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for( <init><decl><type><name>int</name></type> <name>i</name>=<init><expr>0</expr></init></decl>;</init> <condition><expr><name>i</name>&lt; 80</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>)<block>{
+            <expr_stmt><expr><name><name>carr</name><index>[<expr><name>i</name></expr>]</index></name> = (<name>char</name>) <name>i</name></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>tearDown</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><name>carr</name> = <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>iarr</name> = <name>null</name></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>FileUtils</name>.<name>deleteDirectory</name></name><argument_list>(<argument><expr><call><name>getTestDirectory</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ioe</name></decl></param>) <block>{
+            <throw>throw <expr>new <call><name>RuntimeException</name><argument_list>(<argument><expr>"Could not clear up " + <call><name>getTestDirectory</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></catch></try>
+    }</block></function>
+
+    <constructor><specifier>public</specifier> <name>IOUtilsTestCase</name><parameter_list>(<param><decl><type><name>String</name></type> <name>name</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>name</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCloseQuietlyNullSelector</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Selector</name></type> <name>selector</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>selector</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCloseableCloseQuietlyOnException</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>new <class><super><name>Closeable</name></super><argument_list>()</argument_list> <block>{            
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSocketCloseQuietlyOnException</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>new <class><super><name>Socket</name></super><argument_list>()</argument_list> <block>{            
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testServerSocketCloseQuietlyOnException</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>new <class><super><name>ServerSocket</name></super><argument_list>()</argument_list> <block>{            
+            <function><type><specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></function>
+        }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSocketCloseQuietly</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>(<name>Socket</name>) <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>new <call><name>Socket</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testServerSocketCloseQuietly</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>(<name>ServerSocket</name>) <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr>new <call><name>ServerSocket</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCloseQuietlySelector</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Selector</name></type> <name>selector</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>selector</name> = <call><name><name>Selector</name>.<name>open</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>selector</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCloseQuietlySelectorIOException</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Selector</name></type> <name>selector</name> =<init> <expr>new <class><super><name>SelectorAdapter</name></super><argument_list>()</argument_list> <block>{
+            <function><type><annotation>@<name>Override</name></annotation>
+            <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>()</argument_list></call></expr>;</throw>
+            }</block></function>
+        }</block></class></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>selector</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCloseQuietlySelectorTwice</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Selector</name></type> <name>selector</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><name>selector</name> = <call><name><name>Selector</name>.<name>open</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>e</name></decl></param>) <block>{
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>selector</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>selector</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="line">// -----------------------------------------------------------------------</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testConstants</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>'/'</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>DIR_SEPARATOR_UNIX</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>'\\'</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>DIR_SEPARATOR_WINDOWS</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"\n"</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>LINE_SEPARATOR_UNIX</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"\r\n"</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>LINE_SEPARATOR_WINDOWS</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>WINDOWS</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>'\\'</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>DIR_SEPARATOR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"\r\n"</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>LINE_SEPARATOR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>'/'</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>DIR_SEPARATOR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"\n"</expr></argument>, <argument><expr><name><name>IOUtils</name>.<name>LINE_SEPARATOR</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="line">// -----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/** Assert that the contents of two byte arrays are the same. */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>assertEqualContent</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b0</name></decl></param>, <param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b1</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr>"Content not equal according to java.util.Arrays#equals()"</expr></argument>, <argument><expr><call><name><name>Arrays</name>.<name>equals</name></name><argument_list>(<argument><expr><name>b0</name></expr></argument>, <argument><expr><name>b1</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToString</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all bytes were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReaderToString</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>fin</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testStringToOutputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>destination</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"copy5.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>fin</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>str</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create our String. Rely on testReaderToString() to make sure this is valid.</comment>
+            <expr_stmt><expr><name>str</name> = <call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+        <decl_stmt><decl><type><name>FileOutputStream</name></type> <name>fout</name> =<init> <expr>new <call><name>FileOutputStream</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>CopyUtils</name>.<name>copy</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// Note: this method *does* flush. It is equivalent to:</comment>
+            <comment type="line">// OutputStreamWriter _out = new OutputStreamWriter(fout);</comment>
+            <comment type="line">// CopyUtils.copy( str, _out, 4096 ); // copy( Reader, Writer, int );</comment>
+            <comment type="line">// _out.flush();</comment>
+            <comment type="line">// out = fout;</comment>
+            <comment type="line">// note: we don't flush here; this IOUtils method does it for us</comment>
+
+            <expr_stmt><expr><call><name>checkFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>checkWrite</name><argument_list>(<argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fout</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+        <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testStringToWriter</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>destination</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"copy6.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>fin</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>str</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create our String. Rely on testReaderToString() to make sure this is valid.</comment>
+            <expr_stmt><expr><name>str</name> = <call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+        <decl_stmt><decl><type><name>FileWriter</name></type> <name>fout</name> =<init> <expr>new <call><name>FileWriter</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>CopyUtils</name>.<name>copy</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>fout</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name>checkFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>checkWrite</name><argument_list>(<argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fout</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+        <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all bytes were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray_Size</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr><call><name><name>m_testFile</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all bytes were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size: out.length=" + <name><name>out</name>.<name>length</name></name> + "!=" + <name>FILE_SIZE</name></expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray_NegativeSize</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"IllegalArgumentException excepted"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>exc</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr>"Exception message does not start with \"Size must be equal or greater than zero\""</expr></argument>, <argument><expr><call><name><name>exc</name>
+                    .<name>getMessage</name></name><argument_list>()</argument_list></call>.<call><name>startsWith</name><argument_list>(<argument><expr>"Size must be equal or greater than zero"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray_ZeroSize</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr>"Out cannot be null"</expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Out length must be 0"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray_IllegalSize</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr><call><name><name>m_testFile</name>.<name>length</name></name><argument_list>()</argument_list></call> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"IOException excepted"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>exc</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr>"Exception message does not start with \"Unexpected readed size\""</expr></argument>,
+                    <argument><expr><call><name><name>exc</name>.<name>getMessage</name></name><argument_list>()</argument_list></call>.<call><name>startsWith</name><argument_list>(<argument><expr>"Unexpected readed size"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToByteArray_LongSize</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr>(<name>long</name>) <name><name>Integer</name>.<name>MAX_VALUE</name></name> + 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"IOException excepted"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>exc</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr>"Exception message does not start with \"Size cannot be greater than Integer max value\""</expr></argument>, <argument><expr><call><name><name>exc</name>
+                    .<name>getMessage</name></name><argument_list>()</argument_list></call>.<call><name>startsWith</name><argument_list>(<argument><expr>"Size cannot be greater than Integer max value"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToBufferedInputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>InputStream</name></type> <name>in</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toBufferedInputStream</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all bytes were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testStringToByteArray</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>fin</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create our String. Rely on testReaderToString() to make sure this is valid.</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>str</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testByteArrayToWriter</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>destination</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"copy7.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>in</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create our byte[]. Rely on testInputStreamToByteArray() to make sure this is valid.</comment>
+            <expr_stmt><expr><name>in</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+        <decl_stmt><decl><type><name>FileWriter</name></type> <name>fout</name> =<init> <expr>new <call><name>FileWriter</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>CopyUtils</name>.<name>copy</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>fout</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>checkFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>checkWrite</name><argument_list>(<argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fout</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+        <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testByteArrayToString</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>in</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <comment type="line">// Create our byte[]. Rely on testInputStreamToByteArray() to make sure this is valid.</comment>
+            <decl_stmt><decl><type><name>String</name></type> <name>str</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><call><name><name>str</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Test for {@link IOUtils#toInputStream(CharSequence)} and {@link IOUtils#toInputStream(CharSequence, String)}.
+     * Note, this test utilizes on {@link IOUtils#toByteArray(java.io.InputStream)} and so relies on
+     * {@link #testInputStreamToByteArray()} to ensure this method functions correctly.
+     * 
+     * @throws Exception
+     *             on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharSequenceToInputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharSequence</name></type> <name>csq</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr>"Abc123Xyz!"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>inStream</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>csq</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>csq</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>inStream</name> = <call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>csq</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bytes</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>csq</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>inStream</name> = <call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>csq</name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bytes</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>csq</name>.<name>toString</name></name><argument_list>()</argument_list></call>.<call><name>getBytes</name><argument_list>(<argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Test for {@link IOUtils#toInputStream(String)} and {@link IOUtils#toInputStream(String, String)}. Note, this test
+     * utilizes on {@link IOUtils#toByteArray(java.io.InputStream)} and so relies on
+     * {@link #testInputStreamToByteArray()} to ensure this method functions correctly.
+     * 
+     * @throws Exception
+     *             on error
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testStringToInputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>String</name></type> <name>str</name> =<init> <expr>"Abc123Xyz!"</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>inStream</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>inStream</name> = <call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bytes</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>getBytes</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>inStream</name> = <call><name><name>IOUtils</name>.<name>toInputStream</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>bytes</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>inStream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><call><name><name>str</name>.<name>getBytes</name></name><argument_list>(<argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("deprecation")</argument_list></annotation>
+    <comment type="line">// testing deprecated method</comment>
+    <specifier>public</specifier> <name>void</name></type> <name>testByteArrayToOutputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>destination</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"copy8.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>in</name></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create our byte[]. Rely on testInputStreamToByteArray() to make sure this is valid.</comment>
+            <expr_stmt><expr><name>in</name> = <call><name><name>IOUtils</name>.<name>toByteArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+
+        <decl_stmt><decl><type><name>FileOutputStream</name></type> <name>fout</name> =<init> <expr>new <call><name>FileOutputStream</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>CopyUtils</name>.<name>copy</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name><name>fout</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><call><name>checkFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>checkWrite</name><argument_list>(<argument><expr><name>fout</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fout</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+        <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>destination</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToCharArray</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toCharArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all chars were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testInputStreamToCharArrayWithEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileInputStream</name></type> <name>fin</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toCharArray</name></name><argument_list>(<argument><expr><name>fin</name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Not all chars were read"</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><call><name><name>fin</name>.<name>available</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fin</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReaderToCharArray</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>fr</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toCharArray</name></name><argument_list>(<argument><expr><name>fr</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><name><name>out</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEqualContent</name><argument_list>(<argument><expr><name>out</name></expr></argument>, <argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>fr</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="line">// -----------------------------------------------------------------------</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadLines_InputStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>file</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"lines.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>in</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>data</name> =<init> <expr>new <name><name>String</name><index>[]</index></name> <block>{ <expr>"hello"</expr>, <expr>"world"</expr>, <expr>""</expr>, <expr>"this is"</expr>, <expr>"some text"</expr> }</block></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>createLineBasedFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>in</name> = new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>lines</name> =<init> <expr><call><name><name>IOUtils</name>.<name>readLines</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>lines</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>-1</expr></argument>, <argument><expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="line">// -----------------------------------------------------------------------</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadLines_InputStream_String</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>file</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"lines.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>in</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>data</name> =<init> <expr>new <name><name>String</name><index>[]</index></name> <block>{ <expr>"hello"</expr>, <expr>"/u1234"</expr>, <expr>""</expr>, <expr>"this is"</expr>, <expr>"some text"</expr> }</block></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>createLineBasedFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>in</name> = new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>lines</name> =<init> <expr><call><name><name>IOUtils</name>.<name>readLines</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>lines</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>-1</expr></argument>, <argument><expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="line">// -----------------------------------------------------------------------</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadLines_Reader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>File</name></type> <name>file</name> =<init> <expr><call><name>newFile</name><argument_list>(<argument><expr>"lines.txt"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Reader</name></type> <name>in</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>data</name> =<init> <expr>new <name><name>String</name><index>[]</index></name> <block>{ <expr>"hello"</expr>, <expr>"/u1234"</expr>, <expr>""</expr>, <expr>"this is"</expr>, <expr>"some text"</expr> }</block></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>createLineBasedFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>data</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <expr_stmt><expr><name>in</name> = new <call><name>InputStreamReader</name><argument_list>(<argument><expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>lines</name> =<init> <expr><call><name><name>IOUtils</name>.<name>readLines</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>data</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>lines</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>-1</expr></argument>, <argument><expr><call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>deleteFile</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkipStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name> =<init> <expr>1027</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>input</name> =<init> <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr>new <name><name>byte</name><index>[<expr><name>size</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IllegalArgumentException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>size</name> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IOException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkipReader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name> =<init> <expr>1027</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>Reader</name></type> <name>input</name> =<init> <expr>new <call><name>CharArrayReader</name><argument_list>(<argument><expr>new <name><name>char</name><index>[<expr><name>size</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>size</name> - 3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IllegalArgumentException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>skipFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr>5</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IOException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkipFileReader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>FileReader</name></type> <name>in</name> =<init> <expr>new <call><name>FileReader</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr><name>FILE_SIZE</name> - 10</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>FILE_SIZE</name> - 10</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>10</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr>20</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr>10</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>in</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkipFileInput</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>in</name> =<init> <expr>new <call><name>FileInputStream</name><argument_list>(<argument><expr><name>m_testFile</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr><name>FILE_SIZE</name> - 10</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr><name>FILE_SIZE</name> - 10</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>10</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr>20</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>skip</name></name><argument_list>(<argument><expr><name>in</name></expr></argument>, <argument><expr>10</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>in</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>testURIToString</name><parameter_list>(<param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>URI</name></type> <name>url</name> =<init> <expr><call><name><name>m_testFile</name>.<name>toURI</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>url</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURIToStringNoEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>URI</name></type> <name>url</name> =<init> <expr><call><name><name>m_testFile</name>.<name>toURI</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>url</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURIToStringNullEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>testURIToString</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURIToStringUsAciiEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>testURIToString</name><argument_list>(<argument><expr>"US-ASCII"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>testURLToString</name><parameter_list>(<param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>URL</name></type> <name>url</name> =<init> <expr><call><name><name>m_testFile</name>.<name>toURI</name></name><argument_list>()</argument_list></call>.<call><name>toURL</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>url</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURLToStringNoEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>URL</name></type> <name>url</name> =<init> <expr><call><name><name>m_testFile</name>.<name>toURI</name></name><argument_list>()</argument_list></call>.<call><name>toURL</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name></type> <name>out</name> =<init> <expr><call><name><name>IOUtils</name>.<name>toString</name></name><argument_list>(<argument><expr><name>url</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>assertNotNull</name><argument_list>(<argument><expr><name>out</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"Wrong output size"</expr></argument>, <argument><expr><name>FILE_SIZE</name></expr></argument>, <argument><expr><call><name><name>out</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURLToStringNullEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>testURLToString</name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testURLToStringUsAciiEncoding</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>testURLToString</name><argument_list>(<argument><expr>"US-ASCII"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testContentEqualsIgnoreEOL</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Reader</name></type> <name>r1</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Reader</name></type> <name>r2</name></decl>;</decl_stmt>
+
+        <expr_stmt><expr><name>r1</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>r2</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEqualsIgnoreEOL</name></name><argument_list>(<argument><expr><name>r1</name></expr></argument>, <argument><expr><name>r2</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>r1</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"1".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>r2</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"1".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEqualsIgnoreEOL</name></name><argument_list>(<argument><expr><name>r1</name></expr></argument>, <argument><expr><name>r2</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>r1</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"1".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>r2</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"2".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertFalse</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEqualsIgnoreEOL</name></name><argument_list>(<argument><expr><name>r1</name></expr></argument>, <argument><expr><name>r2</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>r1</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"123\rabc".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>r2</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"123\nabc".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEqualsIgnoreEOL</name></name><argument_list>(<argument><expr><name>r1</name></expr></argument>, <argument><expr><name>r2</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <expr_stmt><expr><name>r1</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"321".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>r2</name> = new <call><name>CharArrayReader</name><argument_list>(<argument><expr>"321\r\n".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEqualsIgnoreEOL</name></name><argument_list>(<argument><expr><name>r1</name></expr></argument>, <argument><expr><name>r2</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testContentEqualsReaderReader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEquals</name></name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>""</expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>""</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEquals</name></name><argument_list>(<argument><expr>new <call><name>BufferedReader</name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>""</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>BufferedReader</name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>""</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertTrue</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEquals</name></name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABC"</expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABC"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertFalse</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEquals</name></name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABCD"</expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABC"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertFalse</name><argument_list>(<argument><expr><call><name><name>IOUtils</name>.<name>contentEquals</name></name><argument_list>(<argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABC"</expr></argument>)</argument_list></call></expr></argument>, <argument><expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"ABCD"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadStream</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name> =<init> <expr>1027</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buffer</name> =<init> <expr>new <name><name>byte</name><index>[<expr><name>size</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>InputStream</name></type> <name>input</name> =<init> <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr>new <name><name>byte</name><index>[<expr><name>size</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IllegalArgumentException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>size</name> - 1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>2</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with EOFxception"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>EOFException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadReader</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>size</name> =<init> <expr>1027</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>buffer</name> =<init> <expr>new <name><name>char</name><index>[<expr><name>size</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><name>Reader</name></type> <name>input</name> =<init> <expr>new <call><name>CharArrayReader</name><argument_list>(<argument><expr>new <name><name>char</name><index>[<expr><name>size</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>size</name> - 3</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with IllegalArgumentException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>IllegalArgumentException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>5</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>(<argument><expr>"Should have failed with EOFException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>EOFException</name></type> <name>expected</name></decl></param>) <block>{
+            <comment type="line">// expected</comment>
+        }</block></catch></try>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadReaderWithOffset</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>Reader</name></type> <name>reader</name> =<init> <expr>new <call><name>StringReader</name><argument_list>(<argument><expr>"abcd1234"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>buffer</name> =<init> <expr>"wx00000000".<call><name>toCharArray</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>2</expr></argument>, <argument><expr>8</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"wxabcd1234"</expr></argument>, <argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>reader</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testReadStreamWithOffset</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>bytes</name> =<init> <expr>"abcd1234".<call><name>getBytes</name><argument_list>(<argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>stream</name> =<init> <expr>new <call><name>ByteArrayInputStream</name><argument_list>(<argument><expr><name>bytes</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>buffer</name> =<init> <expr>"wx00000000".<call><name>getBytes</name><argument_list>(<argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>readFully</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>buffer</name></expr></argument>, <argument><expr>2</expr></argument>, <argument><expr>8</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>"wxabcd1234"</expr></argument>, <argument><expr>new <call><name>String</name><argument_list>(<argument><expr><name>buffer</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buffer</name>.<name>length</name></name></expr></argument>, <argument><expr>"UTF-8"</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="line">// Tests from IO-305</comment>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <name>byte</name><index>[]</index></type> <name>iarr</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+    
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testNoSkip</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>ByteArrayInputStream</name><argument_list>( <argument><expr><name>iarr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>100</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>100</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>-1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkip</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>ByteArrayInputStream</name><argument_list>( <argument><expr><name>iarr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>100</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>10</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>100</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>11</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>69</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>-1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>70</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testSkipInvalid</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>ByteArrayInputStream</name><argument_list>( <argument><expr><name>iarr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>1000</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>( <argument><expr>"Should have thrown EOFException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block>
+        <catch>catch( <param><decl><type><name>EOFException</name></type> <name>eofe</name></decl></param>)<block>{
+        }</block></catch>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testFullLength</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>ByteArrayInputStream</name><argument_list>( <argument><expr><name>iarr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>200</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>200</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>-1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testExtraLength</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>ByteArrayInputStream</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ByteArrayOutputStream</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>ByteArrayInputStream</name><argument_list>( <argument><expr><name>iarr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>ByteArrayOutputStream</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method</comment>
+            <comment type="line">// for extra length, it reads till EOF</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>200</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>2000</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>byte</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toByteArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>200</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>-1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>char</name><index>[]</index></type> <name>carr</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharNoSkip</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayReader</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>CharArrayReader</name><argument_list>( <argument><expr><name>carr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>100</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>100</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>(<name>char</name>) -1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharSkip</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayReader</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>CharArrayReader</name><argument_list>( <argument><expr><name>carr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>100</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>10</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>100</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>11</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>69</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>(<name>char</name>) -1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>70</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharSkipInvalid</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayReader</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>CharArrayReader</name><argument_list>( <argument><expr><name>carr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>1000</expr></argument>, <argument><expr>100</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>fail</name><argument_list>( <argument><expr>"Should have thrown EOFException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block>
+        <catch>catch( <param><decl><type><name>EOFException</name></type> <name>eofe</name></decl></param>)<block>{
+        }</block></catch>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharFullLength</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayReader</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>CharArrayReader</name><argument_list>( <argument><expr><name>carr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method </comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>200</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>-1</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>200</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>(<name>char</name>) -1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>testCharExtraLength</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>CharArrayReader</name></type> <name>is</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>CharArrayWriter</name></type> <name>os</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <comment type="line">// Create streams</comment>
+            <expr_stmt><expr><name>is</name> = new <call><name>CharArrayReader</name><argument_list>( <argument><expr><name>carr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>os</name> = new <call><name>CharArrayWriter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Test our copy method</comment>
+            <comment type="line">// for extra length, it reads till EOF</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>200</expr></argument>, <argument><expr><call><name><name>IOUtils</name>.<name>copyLarge</name></name><argument_list>( <argument><expr><name>is</name></expr></argument>, <argument><expr><name>os</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr>2000</expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>char</name><index>[]</index></type> <name>oarr</name> =<init> <expr><call><name><name>os</name>.<name>toCharArray</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// check that output length is correct</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>200</expr></argument>, <argument><expr><name><name>oarr</name>.<name>length</name></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <comment type="line">// check that output data corresponds to input data</comment>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>1</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>( <argument><expr>79</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>79</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>assertEquals</name><argument_list>(<argument><expr>(<name>char</name>) -1</expr></argument>, <argument><expr><name><name>oarr</name><index>[<expr>80</expr>]</index></name></expr></argument> )</argument_list></call></expr>;</expr_stmt>
+            
+        }</block>
+        <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>is</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>os</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+}</block></class>
+</unit>

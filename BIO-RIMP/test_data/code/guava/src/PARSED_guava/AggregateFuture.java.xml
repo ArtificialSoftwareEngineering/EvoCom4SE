@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\AggregateFuture.java"><comment type="block">/*
+ * Copyright (C) 2006 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>MoreExecutors</name>.<name>directExecutor</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>Uninterruptibles</name>.<name>getUninterruptibly</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableCollection</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ExecutionException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>Future</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A future made up of a collection of sub-futures.
+ *
+ * @param &lt;InputT&gt; the type of the individual inputs
+ * @param &lt;OutputT&gt; the type of the output (i.e. this) future
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name></annotation>
+<specifier>abstract</specifier> class <name><name>AggregateFuture</name><argument_list>&lt;<argument><name>InputT</name></argument>, <argument><name>OutputT</name></argument>&gt;</argument_list></name> <super><extends>extends <name>AbstractFuture</name>.<name><name>TrustedFuture</name><argument_list>&lt;<argument><name>OutputT</name></argument>&gt;</argument_list></name></extends></super> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init>
+      <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(<argument><expr><name><name>AggregateFuture</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <name>RunningState</name></type> <name>runningState</name></decl>;</decl_stmt>
+
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>final</specifier> <name>void</name></type> <name>done</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>super</name>.<name>done</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// Let go of the memory held by the running state</comment>
+    <expr_stmt><expr><name><name>this</name>.<name>runningState</name></name> = <name>null</name></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="line">// TODO(cpovirk): Use maybePropagateCancellation() if the performance is OK and the code is clean.</comment>
+  <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>cancel</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>mayInterruptIfRunning</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Must get a reference to the futures before we cancel, as they'll be cleared out.</comment>
+    <decl_stmt><decl><type><name>RunningState</name></type> <name>localRunningState</name> =<init> <expr><name>runningState</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>ImmutableCollection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name></type> <name>futures</name> =<init>
+        <expr>(<name>localRunningState</name> != <name>null</name>) ? <name><name>localRunningState</name>.<name>futures</name></name> : <name>null</name></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Cancel all the component futures.</comment>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>cancelled</name> =<init> <expr><call><name><name>super</name>.<name>cancel</name></name><argument_list>(<argument><expr><name>mayInterruptIfRunning</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// &amp; is faster than the branch required for &amp;&amp;</comment>
+    <if>if <condition>(<expr><name>cancelled</name> &amp; <name>futures</name> != <name>null</name></expr>)</condition><then> <block>{
+      <for>for (<init><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>future</name> :<range> <expr><name>futures</name></expr></range></decl></init>) <block>{
+        <expr_stmt><expr><call><name><name>future</name>.<name>cancel</name></name><argument_list>(<argument><expr><name>mayInterruptIfRunning</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></then></if>
+    <return>return <expr><name>cancelled</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("Interruption not supported")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation> <specifier>protected</specifier> <specifier>final</specifier> <name>void</name></type> <name>interruptTask</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>RunningState</name></type> <name>localRunningState</name> =<init> <expr><name>runningState</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>localRunningState</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>localRunningState</name>.<name>interruptTask</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Must be called at the end of each sub-class's constructor.
+   */</comment>
+  <function><type><specifier>final</specifier> <name>void</name></type> <name>init</name><parameter_list>(<param><decl><type><name>RunningState</name></type> <name>runningState</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>runningState</name></name> = <name>runningState</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>runningState</name>.<name>init</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <class><specifier>abstract</specifier> class <name>RunningState</name> <super><extends>extends <name>AggregateFutureState</name></extends> <implements>implements <name>Runnable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>ImmutableCollection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name></type> <name>futures</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>allMustSucceed</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>collectsValues</name></decl>;</decl_stmt>
+
+    <constructor><name>RunningState</name><parameter_list>(<param><decl><type><name><name>ImmutableCollection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name></type> <name>futures</name></decl></param>,
+        <param><decl><type><name>boolean</name></type> <name>allMustSucceed</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>collectsValues</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><call><name><name>futures</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>futures</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>futures</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>allMustSucceed</name></name> = <name>allMustSucceed</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>collectsValues</name></name> = <name>collectsValues</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="block">/* Used in the !allMustSucceed case so we don't have to instantiate a listener. */</comment>
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>decrementCountAndMaybeComplete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * The "real" initialization; we can't put this in the constructor because, in the case where
+     * futures are already complete, we would not initialize the subclass before calling
+     * {@link #handleOneInputDone}. As this is called after the subclass is constructed, we're
+     * guaranteed to have properly initialized the subclass.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>init</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// Corner case: List is empty.</comment>
+      <if>if <condition>(<expr><call><name><name>futures</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>handleAllCompleted</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return;</return>
+      }</block></then></if>
+
+      <comment type="line">// NOTE: If we ever want to use a custom executor here, have a look at</comment>
+      <comment type="line">// CombinedFuture as we'll need to handle RejectedExecutionException</comment>
+
+      <if>if <condition>(<expr><name>allMustSucceed</name></expr>)</condition><then> <block>{
+        <comment type="line">// We need fail fast, so we have to keep track of which future failed so we can propagate</comment>
+        <comment type="line">// the exception immediately</comment>
+
+        <comment type="line">// Register a listener on each Future in the list to update</comment>
+        <comment type="line">// the state of this future.</comment>
+        <comment type="line">// Note that if all the futures on the list are done prior to completing</comment>
+        <comment type="line">// this loop, the last call to addListener() will callback to</comment>
+        <comment type="line">// setOneValue(), transitively call our cleanup listener, and set</comment>
+        <comment type="line">// this.futures to null.</comment>
+        <comment type="line">// This is not actually a problem, since the foreach only needs</comment>
+        <comment type="line">// this.futures to be non-null at the beginning of the loop.</comment>
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><specifier>final</specifier> <name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></type> <name>listenable</name> :<range> <expr><name>futures</name></expr></range></decl></init>) <block>{
+          <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>index</name> =<init> <expr><name>i</name>++</expr></init></decl>;</decl_stmt>
+          <expr_stmt><expr><call><name><name>listenable</name>.<name>addListener</name></name><argument_list>(<argument><expr>new <class><super><name>Runnable</name></super><argument_list>()</argument_list> <block>{
+            <function><type><annotation>@<name>Override</name></annotation>
+            <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+              <try>try <block>{
+                <expr_stmt><expr><call><name>handleOneInputDone</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>listenable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              }</block> <finally>finally <block>{
+                <expr_stmt><expr><call><name>decrementCountAndMaybeComplete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+              }</block></finally></try>
+            }</block></function>
+          }</block></class></expr></argument>, <argument><expr><call><name>directExecutor</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></then> <else>else <block>{
+        <comment type="line">// We'll only call the callback when all futures complete, regardless of whether some failed</comment>
+        <comment type="line">// Hold off on calling setOneValue until all complete, so we can share the same listener</comment>
+        <for>for (<init><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></type> <name>listenable</name> :<range> <expr><name>futures</name></expr></range></decl></init>) <block>{
+          <expr_stmt><expr><call><name><name>listenable</name>.<name>addListener</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><call><name>directExecutor</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fails this future with the given Throwable if {@link #allMustSucceed} is
+     * true. Also, logs the throwable if it is an {@link Error} or if
+     * {@link #allMustSucceed} is {@code true}, the throwable did not cause
+     * this future to fail, and it is the first time we've seen that particular Throwable.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>handleException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <decl_stmt><decl><type><name>boolean</name></type> <name>completedWithFailure</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>boolean</name></type> <name>firstTimeSeeingThisException</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>allMustSucceed</name></expr>)</condition><then> <block>{
+        <comment type="line">// As soon as the first one fails, throw the exception up.</comment>
+        <comment type="line">// The result of all other inputs is then ignored.</comment>
+        <expr_stmt><expr><name>completedWithFailure</name> = <call><name>setException</name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>completedWithFailure</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name>releaseResourcesAfterFailure</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+          <comment type="line">// Go up the causal chain to see if we've already seen this cause; if we have,</comment>
+          <comment type="line">// even if it's wrapped by a different exception, don't log it.</comment>
+          <expr_stmt><expr><name>firstTimeSeeingThisException</name> = <call><name>addCausalChain</name><argument_list>(<argument><expr><call><name>getOrInitSeenExceptions</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+      }</block></then></if>
+
+      <comment type="line">// | and &amp; used because it's faster than the branch required for || and &amp;&amp;</comment>
+      <if>if <condition>(<expr><name>throwable</name> <name>instanceof</name> <name>Error</name>
+          | (<name>allMustSucceed</name> &amp; !<name>completedWithFailure</name> &amp; <name>firstTimeSeeingThisException</name>)</expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"input future failed."</expr></argument>, <argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>final</specifier> <name>void</name></type> <name>addInitialException</name><parameter_list>(<param><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>seen</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr>!<call><name>isCancelled</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>addCausalChain</name><argument_list>(<argument><expr><name>seen</name></expr></argument>, <argument><expr><call><name>trustedGetException</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Handles the input at the given index completing.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>handleOneInputDone</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><name><name>Future</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></type> <name>future</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// The only cases in which this Future should already be done are (a) if</comment>
+      <comment type="line">// it was cancelled or (b) if an input failed and we propagated that</comment>
+      <comment type="line">// immediately because of allMustSucceed.</comment>
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>allMustSucceed</name> || !<call><name>isDone</name><argument_list>()</argument_list></call> || <call><name>isCancelled</name><argument_list>()</argument_list></call></expr></argument>,
+          <argument><expr>"Future was done before all dependencies completed"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <try>try <block>{
+        <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><call><name><name>future</name>.<name>isDone</name></name><argument_list>()</argument_list></call></expr></argument>,
+            <argument><expr>"Tried to set value from future which is not done"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>allMustSucceed</name></expr>)</condition><then> <block>{
+          <if>if <condition>(<expr><call><name><name>future</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// this.cancel propagates the cancellation to children; we use super.cancel</comment>
+            <comment type="line">// to set our own state but let the input futures keep running</comment>
+            <comment type="line">// as some of them may be used elsewhere.</comment>
+            <expr_stmt><expr><call><name><name>AggregateFuture</name>.<name>super</name>.<name>cancel</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then> <else>else <block>{
+            <comment type="line">// We always get the result so that we can have fail-fast, even if we don't collect</comment>
+            <decl_stmt><decl><type><name>InputT</name></type> <name>result</name> =<init> <expr><call><name>getUninterruptibly</name><argument_list>(<argument><expr><name>future</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>collectsValues</name></expr>)</condition><then> <block>{
+              <expr_stmt><expr><call><name>collectOneValue</name><argument_list>(<argument><expr><name>allMustSucceed</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><name>result</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+          }</block></else></if>
+        }</block></then> <else>else <if>if <condition>(<expr><name>collectsValues</name> &amp;&amp; !<call><name><name>future</name>.<name>isCancelled</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name>collectOneValue</name><argument_list>(<argument><expr><name>allMustSucceed</name></expr></argument>, <argument><expr><name>index</name></expr></argument>, <argument><expr><call><name>getUninterruptibly</name><argument_list>(<argument><expr><name>future</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+      }</block> <catch>catch (<param><decl><type><name>ExecutionException</name></type> <name>e</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name>handleException</name><argument_list>(<argument><expr><call><name><name>e</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <expr_stmt><expr><call><name>handleException</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></catch></try>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>decrementCountAndMaybeComplete</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>newRemaining</name> =<init> <expr><call><name>decrementRemainingAndGet</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>newRemaining</name> &gt;= 0</expr></argument>, <argument><expr>"Less than 0 remaining futures"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>newRemaining</name> == 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>processCompleted</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>processCompleted</name><parameter_list>()</parameter_list> <block>{
+      <comment type="line">// Collect the values if (a) our output requires collecting them and (b) we haven't been</comment>
+      <comment type="line">// collecting them as we go. (We've collected them as we go only if we needed to fail fast)</comment>
+      <if>if <condition>(<expr><name>collectsValues</name> &amp; !<name>allMustSucceed</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name><name>ListenableFuture</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>InputT</name></extends></argument>&gt;</argument_list></name></type> <name>listenable</name> :<range> <expr><name>futures</name></expr></range></decl></init>) <block>{
+          <expr_stmt><expr><call><name>handleOneInputDone</name><argument_list>(<argument><expr><name>i</name>++</expr></argument>, <argument><expr><name>listenable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></then></if>
+      <expr_stmt><expr><call><name>handleAllCompleted</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Listeners implicitly keep a reference to {@link RunningState} as they're inner classes,
+     * so we free resources here as well for the allMustSucceed=true case (i.e. when a future fails,
+     * we immediately release resources we no longer need); additionally, the future will release
+     * its reference to {@link RunningState}, which should free all associated memory when all the
+     * futures complete &amp; the listeners are released.
+     *
+     * TODO(user): Write tests for memory retention
+     */</comment>
+    <function><type><name>void</name></type> <name>releaseResourcesAfterFailure</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>futures</name></name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Called only if {@code collectsValues} is true.
+     *
+     * &lt;p&gt;If {@code allMustSucceed} is true, called as each future completes; otherwise,
+     * called for each future when all futures complete.
+     */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>collectOneValue</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>allMustSucceed</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>InputT</name></type> <name>returnValue</name></decl></param>)</parameter_list>;</function_decl>
+
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>handleAllCompleted</name><parameter_list>()</parameter_list>;</function_decl>
+
+    <function><type><name>void</name></type> <name>interruptTask</name><parameter_list>()</parameter_list> <block>{}</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Adds the chain to the seen set, and returns whether all the chain was new to us. */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>addCausalChain</name><parameter_list>(<param><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>Throwable</name></argument>&gt;</argument_list></name></type> <name>seen</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+    <for>for (<init>;</init> <condition><expr><name>t</name> != <name>null</name></expr>;</condition> <incr><expr><name>t</name> = <call><name><name>t</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+      <decl_stmt><decl><type><name>boolean</name></type> <name>firstTimeSeen</name> =<init> <expr><call><name><name>seen</name>.<name>add</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<name>firstTimeSeen</name></expr>)</condition><then> <block>{
+        <comment type="block">/*
+         * We've seen this, so we've seen its causes, too. No need to re-add them. (There's one case
+         * where this isn't true, but we ignore it: If we record an exception, then someone calls
+         * initCause() on it, and then we examine it again, we'll conclude that we've seen the whole
+         * chain before when it fact we haven't. But this should be rare.)
+         */</comment>
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block></for>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

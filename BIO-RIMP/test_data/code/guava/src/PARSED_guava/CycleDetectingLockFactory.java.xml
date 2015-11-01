@@ -1,0 +1,1034 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\CycleDetectingLockFactory.java"><comment type="block">/*
+ * Copyright (C) 2011 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableSet</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Lists</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMaker</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Maps</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Sets</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collections</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>EnumMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantLock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantReadWriteLock</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Level</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>logging</name>.<name>Logger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>ThreadSafe</name></name>;</import>
+
+<comment type="javadoc">/**
+ * The {@code CycleDetectingLockFactory} creates {@link ReentrantLock} instances and
+ * {@link ReentrantReadWriteLock} instances that detect potential deadlock by checking
+ * for cycles in lock acquisition order.
+ * &lt;p&gt;
+ * Potential deadlocks detected when calling the {@code lock()},
+ * {@code lockInterruptibly()}, or {@code tryLock()} methods will result in the
+ * execution of the {@link Policy} specified when creating the factory. The
+ * currently available policies are:
+ * &lt;ul&gt;
+ * &lt;li&gt;DISABLED
+ * &lt;li&gt;WARN
+ * &lt;li&gt;THROW
+ * &lt;/ul&gt;
+ * &lt;p&gt;The locks created by a factory instance will detect lock acquisition cycles
+ * with locks created by other {@code CycleDetectingLockFactory} instances
+ * (except those with {@code Policy.DISABLED}). A lock's behavior when a cycle
+ * is detected, however, is defined by the {@code Policy} of the factory that
+ * created it. This allows detection of cycles across components while
+ * delegating control over lock behavior to individual components.
+ * &lt;p&gt;
+ * Applications are encouraged to use a {@code CycleDetectingLockFactory} to
+ * create any locks for which external/unmanaged code is executed while the lock
+ * is held. (See caveats under &lt;strong&gt;Performance&lt;/strong&gt;).
+ * &lt;p&gt;
+ * &lt;strong&gt;Cycle Detection&lt;/strong&gt;
+ * &lt;p&gt;
+ * Deadlocks can arise when locks are acquired in an order that forms a cycle.
+ * In a simple example involving two locks and two threads, deadlock occurs
+ * when one thread acquires Lock A, and then Lock B, while another thread
+ * acquires Lock B, and then Lock A:
+ * &lt;pre&gt;
+ * Thread1: acquire(LockA) --X acquire(LockB)
+ * Thread2: acquire(LockB) --X acquire(LockA)
+ * &lt;/pre&gt;
+ * &lt;p&gt;Neither thread will progress because each is waiting for the other. In more
+ * complex applications, cycles can arise from interactions among more than 2
+ * locks:
+ * &lt;pre&gt;
+ * Thread1: acquire(LockA) --X acquire(LockB)
+ * Thread2: acquire(LockB) --X acquire(LockC)
+ * ...
+ * ThreadN: acquire(LockN) --X acquire(LockA)
+ * &lt;/pre&gt;
+ * &lt;p&gt;The implementation detects cycles by constructing a directed graph in which
+ * each lock represents a node and each edge represents an acquisition ordering
+ * between two locks.
+ * &lt;ul&gt;
+ * &lt;li&gt;Each lock adds (and removes) itself to/from a ThreadLocal Set of acquired
+ *   locks when the Thread acquires its first hold (and releases its last
+ *   remaining hold).
+ * &lt;li&gt;Before the lock is acquired, the lock is checked against the current set
+ *   of acquired locks---to each of the acquired locks, an edge from the
+ *   soon-to-be-acquired lock is either verified or created.
+ * &lt;li&gt;If a new edge needs to be created, the outgoing edges of the acquired
+ *   locks are traversed to check for a cycle that reaches the lock to be
+ *   acquired. If no cycle is detected, a new "safe" edge is created.
+ * &lt;li&gt;If a cycle is detected, an "unsafe" (cyclic) edge is created to represent
+ *   a potential deadlock situation, and the appropriate Policy is executed.
+ * &lt;/ul&gt;
+ * &lt;p&gt;Note that detection of potential deadlock does not necessarily indicate that
+ * deadlock will happen, as it is possible that higher level application logic
+ * prevents the cyclic lock acquisition from occurring. One example of a false
+ * positive is:
+ * &lt;pre&gt;
+ * LockA -&amp;gt; LockB -&amp;gt; LockC
+ * LockA -&amp;gt; LockC -&amp;gt; LockB
+ * &lt;/pre&gt;
+ *
+ * &lt;strong&gt;ReadWriteLocks&lt;/strong&gt;
+ * &lt;p&gt;
+ * While {@code ReadWriteLock} instances have different properties and can form cycles
+ * without potential deadlock, this class treats {@code ReadWriteLock} instances as
+ * equivalent to traditional exclusive locks. Although this increases the false
+ * positives that the locks detect (i.e. cycles that will not actually result in
+ * deadlock), it simplifies the algorithm and implementation considerably. The
+ * assumption is that a user of this factory wishes to eliminate any cyclic
+ * acquisition ordering.
+ * &lt;p&gt;
+ * &lt;strong&gt;Explicit Lock Acquisition Ordering&lt;/strong&gt;
+ * &lt;p&gt;
+ * The {@link CycleDetectingLockFactory.WithExplicitOrdering} class can be used
+ * to enforce an application-specific ordering in addition to performing general
+ * cycle detection.
+ * &lt;p&gt;
+ * &lt;strong&gt;Garbage Collection&lt;/strong&gt;
+ * &lt;p&gt;
+ * In order to allow proper garbage collection of unused locks, the edges of
+ * the lock graph are weak references.
+ * &lt;p&gt;
+ * &lt;strong&gt;Performance&lt;/strong&gt;
+ * &lt;p&gt;
+ * The extra bookkeeping done by cycle detecting locks comes at some cost to
+ * performance. Benchmarks (as of December 2011) show that:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;for an unnested {@code lock()} and {@code unlock()}, a cycle detecting
+ *   lock takes 38ns as opposed to the 24ns taken by a plain lock.
+ * &lt;li&gt;for nested locking, the cost increases with the depth of the nesting:
+ *   &lt;ul&gt;
+ *   &lt;li&gt; 2 levels: average of 64ns per lock()/unlock()
+ *   &lt;li&gt; 3 levels: average of 77ns per lock()/unlock()
+ *   &lt;li&gt; 4 levels: average of 99ns per lock()/unlock()
+ *   &lt;li&gt; 5 levels: average of 103ns per lock()/unlock()
+ *   &lt;li&gt;10 levels: average of 184ns per lock()/unlock()
+ *   &lt;li&gt;20 levels: average of 393ns per lock()/unlock()
+ *   &lt;/ul&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;As such, the CycleDetectingLockFactory may not be suitable for
+ * performance-critical applications which involve tightly-looped or
+ * deeply-nested locking algorithms.
+ *
+ * @author Darick Tong
+ * @since 13.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<annotation>@<name>ThreadSafe</name></annotation>
+<specifier>public</specifier> class <name>CycleDetectingLockFactory</name> <block>{
+
+  <comment type="javadoc">/**
+   * Encapsulates the action to be taken when a potential deadlock is
+   * encountered. Clients can use one of the predefined {@link Policies} or
+   * specify a custom implementation. Implementations must be thread-safe.
+   *
+   * @since 13.0
+   */</comment>
+  <class type="interface"><annotation>@<name>Beta</name></annotation>
+  <annotation>@<name>ThreadSafe</name></annotation>
+  <specifier>public</specifier> interface <name>Policy</name> <block>{
+
+    <comment type="javadoc">/**
+     * Called when a potential deadlock is encountered. Implementations can
+     * throw the given {@code exception} and/or execute other desired logic.
+     * &lt;p&gt;
+     * Note that the method will be called even upon an invocation of
+     * {@code tryLock()}. Although {@code tryLock()} technically recovers from
+     * deadlock by eventually timing out, this behavior is chosen based on the
+     * assumption that it is the application's wish to prohibit any cyclical
+     * lock acquisitions.
+     */</comment>
+    <function_decl><type><name>void</name></type> <name>handlePotentialDeadlock</name><parameter_list>(<param><decl><type><name>PotentialDeadlockException</name></type> <name>exception</name></decl></param>)</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Pre-defined {@link Policy} implementations.
+   *
+   * @since 13.0
+   */</comment>
+  <enum><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> enum <name>Policies</name> <super><implements>implements <name>Policy</name></implements></super> <block>{
+    <comment type="javadoc">/**
+     * When potential deadlock is detected, this policy results in the throwing
+     * of the {@code PotentialDeadlockException} indicating the potential
+     * deadlock, which includes stack traces illustrating the cycle in lock
+     * acquisition order.
+     */</comment>
+    <expr_stmt><expr><name>THROW</name> <block>{
+      @<expr><name>Override</name>
+      public <name>void</name> <call><name>handlePotentialDeadlock</name><argument_list>(<argument><expr><name>PotentialDeadlockException</name> <name>e</name></expr></argument>)</argument_list></call> <block>{
+        <throw>throw <expr><name>e</name></expr>;</throw></block></expr></block></expr></expr_stmt>
+      }</block></enum>
+    }</block></class>,
+
+    <comment type="javadoc">/**
+     * When potential deadlock is detected, this policy results in the logging
+     * of a {@link Level#SEVERE} message indicating the potential deadlock,
+     * which includes stack traces illustrating the cycle in lock acquisition
+     * order.
+     */</comment>
+    <expr_stmt><expr><name>WARN</name> <block>{
+      @<expr><name>Override</name>
+      public <name>void</name> <call><name>handlePotentialDeadlock</name><argument_list>(<argument><expr><name>PotentialDeadlockException</name> <name>e</name></expr></argument>)</argument_list></call> <block>{
+        <expr><call><name><name>logger</name>.<name>log</name></name><argument_list>(<argument><expr><name><name>Level</name>.<name>SEVERE</name></name></expr></argument>, <argument><expr>"Detected potential deadlock"</expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;
+      }</block></expr>
+    }</block></expr>,
+
+    <comment type="javadoc">/**
+     * Disables cycle detection. This option causes the factory to return
+     * unmodified lock implementations provided by the JDK, and is provided to
+     * allow applications to easily parameterize when cycle detection is
+     * enabled.
+     * &lt;p&gt;
+     * Note that locks created by a factory with this policy will &lt;em&gt;not&lt;/em&gt;
+     * participate the cycle detection performed by locks created by other
+     * factories.
+     */</comment>
+    <expr><name>DISABLED</name> <block>{
+      @<expr><name>Override</name>
+      public <name>void</name> <call><name>handlePotentialDeadlock</name><argument_list>(<argument><expr><name>PotentialDeadlockException</name> <name>e</name></expr></argument>)</argument_list></call> <block>{
+      }</block></expr>
+    }</block></expr>;</expr_stmt>
+  }
+
+  <comment type="javadoc">/**
+   * Creates a new factory with the specified policy.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>CycleDetectingLockFactory</name></type> <name>newInstance</name><parameter_list>(<param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>CycleDetectingLockFactory</name><argument_list>(<argument><expr><name>policy</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Equivalent to {@code newReentrantLock(lockName, false)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>ReentrantLock</name></type> <name>newReentrantLock</name><parameter_list>(<param><decl><type><name>String</name></type> <name>lockName</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>newReentrantLock</name><argument_list>(<argument><expr><name>lockName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@link ReentrantLock} with the given fairness policy. The
+   * {@code lockName} is used in the warning or exception output to help
+   * identify the locks involved in the detected deadlock.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>ReentrantLock</name></type> <name>newReentrantLock</name><parameter_list>(<param><decl><type><name>String</name></type> <name>lockName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><name>policy</name> == <name><name>Policies</name>.<name>DISABLED</name></name> ? new <call><name>ReentrantLock</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call>
+        : new <call><name>CycleDetectingReentrantLock</name><argument_list>(
+            <argument><expr>new <call><name>LockGraphNode</name><argument_list>(<argument><expr><name>lockName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Equivalent to {@code newReentrantReadWriteLock(lockName, false)}.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>ReentrantReadWriteLock</name></type> <name>newReentrantReadWriteLock</name><parameter_list>(<param><decl><type><name>String</name></type> <name>lockName</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>newReentrantReadWriteLock</name><argument_list>(<argument><expr><name>lockName</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@link ReentrantReadWriteLock} with the given fairness policy.
+   * The {@code lockName} is used in the warning or exception output to help
+   * identify the locks involved in the detected deadlock.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>ReentrantReadWriteLock</name></type> <name>newReentrantReadWriteLock</name><parameter_list>(
+      <param><decl><type><name>String</name></type> <name>lockName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><name>policy</name> == <name><name>Policies</name>.<name>DISABLED</name></name> ? new <call><name>ReentrantReadWriteLock</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call>
+        : new <call><name>CycleDetectingReentrantReadWriteLock</name><argument_list>(
+            <argument><expr>new <call><name>LockGraphNode</name><argument_list>(<argument><expr><name>lockName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// A static mapping from an Enum type to its set of LockGraphNodes.</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>ConcurrentMap</name><argument_list>&lt;<argument><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>&gt;</argument_list></name></argument>,
+      <argument><name><name>Map</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>lockGraphNodesPerType</name> =<init>
+          <expr>new <call><name>MapMaker</name><argument_list>()</argument_list></call>.<call><name>weakKeys</name><argument_list>()</argument_list></call>.<call><name>makeMap</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Creates a {@code CycleDetectingLockFactory.WithExplicitOrdering&lt;E&gt;}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Enum</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>WithExplicitOrdering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type>
+      <name>newInstanceWithExplicitOrdering</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>enumClass</name></decl></param>, <param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// createNodes maps each enumClass to a Map with the corresponding enum key</comment>
+    <comment type="line">// type.</comment>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>enumClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>policy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>Map</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>lockGraphNodes</name> =<init>
+        <expr>(<name><name>Map</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name>) <call><name>getOrCreateNodes</name><argument_list>(<argument><expr><name>enumClass</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>new <call><name><name>WithExplicitOrdering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>policy</name></expr></argument>, <argument><expr><name>lockGraphNodes</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>getOrCreateNodes</name><parameter_list>(
+      <param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>&gt;</argument_list></name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>existing</name> =<init>
+        <expr><call><name><name>lockGraphNodesPerType</name>.<name>get</name></name><argument_list>(<argument><expr><name>clazz</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>existing</name> != <name>null</name></expr>)</condition><then> <block>{
+      <return>return <expr><name>existing</name></expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>Enum</name></extends></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>created</name> =<init> <expr><call><name>createNodes</name><argument_list>(<argument><expr><name>clazz</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name>existing</name> = <call><name><name>lockGraphNodesPerType</name>.<name>putIfAbsent</name></name><argument_list>(<argument><expr><name>clazz</name></expr></argument>, <argument><expr><name>created</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>existing</name></expr></argument>, <argument><expr><name>created</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * For a given Enum type, creates an immutable map from each of the Enum's
+   * values to a corresponding LockGraphNode, with the
+   * {@code allowedPriorLocks} and {@code disallowedPriorLocks} prepopulated
+   * with nodes according to the natural ordering of the associated Enum values.
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Enum</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Map</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>createNodes</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>EnumMap</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>map</name> =<init> <expr><call><name><name>Maps</name>.<name>newEnumMap</name></name><argument_list>(<argument><expr><name>clazz</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>E</name><index>[]</index></type> <name>keys</name> =<init> <expr><call><name><name>clazz</name>.<name>getEnumConstants</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>numKeys</name> =<init> <expr><name><name>keys</name>.<name>length</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>nodes</name> =<init>
+        <expr><call><name><name>Lists</name>.<name>newArrayListWithCapacity</name></name><argument_list>(<argument><expr><name>numKeys</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <comment type="line">// Create a LockGraphNode for each enum value.</comment>
+    <for>for (<init><decl><type><name>E</name></type> <name>key</name> :<range> <expr><name>keys</name></expr></range></decl></init>) <block>{
+      <decl_stmt><decl><type><name>LockGraphNode</name></type> <name>node</name> =<init> <expr>new <call><name>LockGraphNode</name><argument_list>(<argument><expr><call><name>getLockName</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>nodes</name>.<name>add</name></name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>map</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <comment type="line">// Pre-populate all allowedPriorLocks with nodes of smaller ordinal.</comment>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>numKeys</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><call><name><name>nodes</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call>.<call><name>checkAcquiredLocks</name><argument_list>(<argument><expr><name><name>Policies</name>.<name>THROW</name></name></expr></argument>, <argument><expr><call><name><name>nodes</name>.<name>subList</name></name><argument_list>(<argument><expr>0</expr></argument>, <argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <comment type="line">// Pre-populate all disallowedPriorLocks with nodes of larger ordinal.</comment>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>numKeys</name> - 1</expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><call><name><name>nodes</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call>.<call><name>checkAcquiredLocks</name><argument_list>(
+          <argument><expr><name><name>Policies</name>.<name>DISABLED</name></name></expr></argument>, <argument><expr><call><name><name>nodes</name>.<name>subList</name></name><argument_list>(<argument><expr><name>i</name> + 1</expr></argument>, <argument><expr><name>numKeys</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><call><name><name>Collections</name>.<name>unmodifiableMap</name></name><argument_list>(<argument><expr><name>map</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * For the given Enum value {@code rank}, returns the value's
+   * {@code "EnumClass.name"}, which is used in exception and warning
+   * output.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>String</name></type> <name>getLockName</name><parameter_list>(<param><decl><type><name><name>Enum</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>rank</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>rank</name>.<name>getDeclaringClass</name></name><argument_list>()</argument_list></call>.<call><name>getSimpleName</name><argument_list>()</argument_list></call> + "." + <call><name><name>rank</name>.<name>name</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * &lt;p&gt;A {@code CycleDetectingLockFactory.WithExplicitOrdering} provides the
+   * additional enforcement of an application-specified ordering of lock
+   * acquisitions. The application defines the allowed ordering with an
+   * {@code Enum} whose values each correspond to a lock type. The order in
+   * which the values are declared dictates the allowed order of lock
+   * acquisition. In other words, locks corresponding to smaller values of
+   * {@link Enum#ordinal()} should only be acquired before locks with larger
+   * ordinals. Example:
+   *
+   * &lt;pre&gt;   {@code
+   * enum MyLockOrder {
+   *   FIRST, SECOND, THIRD;
+   * }
+   *
+   * CycleDetectingLockFactory.WithExplicitOrdering&lt;MyLockOrder&gt; factory =
+   *   CycleDetectingLockFactory.newInstanceWithExplicitOrdering(Policies.THROW);
+   *
+   * Lock lock1 = factory.newReentrantLock(MyLockOrder.FIRST);
+   * Lock lock2 = factory.newReentrantLock(MyLockOrder.SECOND);
+   * Lock lock3 = factory.newReentrantLock(MyLockOrder.THIRD);
+   *
+   * lock1.lock();
+   * lock3.lock();
+   * lock2.lock();  // will throw an IllegalStateException}&lt;/pre&gt;
+   *
+   * &lt;p&gt;As with all locks created by instances of {@code CycleDetectingLockFactory}
+   * explicitly ordered locks participate in general cycle detection with all
+   * other cycle detecting locks, and a lock's behavior when detecting a cyclic
+   * lock acquisition is defined by the {@code Policy} of the factory that
+   * created it.
+   *
+   * &lt;p&gt;Note, however, that although multiple locks can be created for a given Enum
+   * value, whether it be through separate factory instances or through multiple
+   * calls to the same factory, attempting to acquire multiple locks with the
+   * same Enum value (within the same thread) will result in an
+   * IllegalStateException regardless of the factory's policy. For example:
+   *
+   * &lt;pre&gt;   {@code
+   * CycleDetectingLockFactory.WithExplicitOrdering&lt;MyLockOrder&gt; factory1 =
+   *   CycleDetectingLockFactory.newInstanceWithExplicitOrdering(...);
+   * CycleDetectingLockFactory.WithExplicitOrdering&lt;MyLockOrder&gt; factory2 =
+   *   CycleDetectingLockFactory.newInstanceWithExplicitOrdering(...);
+   *
+   * Lock lockA = factory1.newReentrantLock(MyLockOrder.FIRST);
+   * Lock lockB = factory1.newReentrantLock(MyLockOrder.FIRST);
+   * Lock lockC = factory2.newReentrantLock(MyLockOrder.FIRST);
+   *
+   * lockA.lock();
+   *
+   * lockB.lock();  // will throw an IllegalStateException
+   * lockC.lock();  // will throw an IllegalStateException
+   *
+   * lockA.lock();  // reentrant acquisition is okay}&lt;/pre&gt;
+   *
+   * &lt;p&gt;It is the responsibility of the application to ensure that multiple lock
+   * instances with the same rank are never acquired in the same thread.
+   *
+   * @param &lt;E&gt; The Enum type representing the explicit lock ordering.
+   * @since 13.0
+   */</comment>
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>WithExplicitOrdering</name><argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Enum</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list></name>
+      <super><extends>extends <name>CycleDetectingLockFactory</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>lockGraphNodes</name></decl>;</decl_stmt>
+
+    <constructor><annotation>@<name>VisibleForTesting</name></annotation>
+    <name>WithExplicitOrdering</name><parameter_list>(
+        <param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>, <param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>E</name></argument>, <argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>lockGraphNodes</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>policy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>lockGraphNodes</name></name> = <name>lockGraphNodes</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Equivalent to {@code newReentrantLock(rank, false)}.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ReentrantLock</name></type> <name>newReentrantLock</name><parameter_list>(<param><decl><type><name>E</name></type> <name>rank</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>newReentrantLock</name><argument_list>(<argument><expr><name>rank</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates a {@link ReentrantLock} with the given fairness policy and rank.
+     * The values returned by {@link Enum#getDeclaringClass()} and
+     * {@link Enum#name()} are used to describe the lock in warning or
+     * exception output.
+     *
+     * @throws IllegalStateException If the factory has already created a
+     *    {@code Lock} with the specified rank.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ReentrantLock</name></type> <name>newReentrantLock</name><parameter_list>(<param><decl><type><name>E</name></type> <name>rank</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>policy</name> == <name><name>Policies</name>.<name>DISABLED</name></name> ? new <call><name>ReentrantLock</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call>
+          : new <call><name>CycleDetectingReentrantLock</name><argument_list>(<argument><expr><call><name><name>lockGraphNodes</name>.<name>get</name></name><argument_list>(<argument><expr><name>rank</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Equivalent to {@code newReentrantReadWriteLock(rank, false)}.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ReentrantReadWriteLock</name></type> <name>newReentrantReadWriteLock</name><parameter_list>(<param><decl><type><name>E</name></type> <name>rank</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>newReentrantReadWriteLock</name><argument_list>(<argument><expr><name>rank</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates a {@link ReentrantReadWriteLock} with the given fairness policy
+     * and rank. The values returned by {@link Enum#getDeclaringClass()} and
+     * {@link Enum#name()} are used to describe the lock in warning or exception
+     * output.
+     *
+     * @throws IllegalStateException If the factory has already created a
+     *    {@code Lock} with the specified rank.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ReentrantReadWriteLock</name></type> <name>newReentrantReadWriteLock</name><parameter_list>(
+        <param><decl><type><name>E</name></type> <name>rank</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>policy</name> == <name><name>Policies</name>.<name>DISABLED</name></name> ? new <call><name>ReentrantReadWriteLock</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call>
+          : new <call><name>CycleDetectingReentrantReadWriteLock</name><argument_list>(
+              <argument><expr><call><name><name>lockGraphNodes</name>.<name>get</name></name><argument_list>(<argument><expr><name>rank</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">//////// Implementation /////////</comment>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>Logger</name></type> <name>logger</name> =<init> <expr><call><name><name>Logger</name>.<name>getLogger</name></name><argument_list>(
+      <argument><expr><name><name>CycleDetectingLockFactory</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>final</specifier> <name>Policy</name></type> <name>policy</name></decl>;</decl_stmt>
+
+  <constructor><specifier>private</specifier> <name>CycleDetectingLockFactory</name><parameter_list>(<param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>policy</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>policy</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Tracks the currently acquired locks for each Thread, kept up to date by
+   * calls to {@link #aboutToAcquire(CycleDetectingLock)} and
+   * {@link #lockStateChanged(CycleDetectingLock)}.
+   */</comment>
+  <comment type="line">// This is logically a Set, but an ArrayList is used to minimize the amount</comment>
+  <comment type="line">// of allocation done on lock()/unlock().</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>ThreadLocal</name><argument_list>&lt;<argument><name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type>
+      <name>acquiredLocks</name> =<init> <expr>new <class><super><name><name>ThreadLocal</name><argument_list>&lt;<argument><name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>protected</specifier> <name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>initialValue</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name><name>Lists</name>.<name><name/></name></name>&lt;<name>LockGraphNode</name>&gt;<call><name>newArrayListWithCapacity</name><argument_list>(<argument><expr>3</expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * A Throwable used to record a stack trace that illustrates an example of
+   * a specific lock acquisition ordering. The top of the stack trace is
+   * truncated such that it starts with the acquisition of the lock in
+   * question, e.g.
+   *
+   * &lt;pre&gt;
+   * com...ExampleStackTrace: LockB -&amp;gt; LockC
+   *   at com...CycleDetectingReentrantLock.lock(CycleDetectingLockFactory.java:443)
+   *   at ...
+   *   at ...
+   *   at com...MyClass.someMethodThatAcquiresLockB(MyClass.java:123)
+   * &lt;/pre&gt;
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>ExampleStackTrace</name> <super><extends>extends <name>IllegalStateException</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>StackTraceElement</name><index>[]</index></type> <name>EMPTY_STACK_TRACE</name> =<init>
+        <expr>new <name><name>StackTraceElement</name><index>[<expr>0</expr>]</index></name></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name><name>Set</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>EXCLUDED_CLASS_NAMES</name> =<init> <expr><call><name><name>ImmutableSet</name>.<name>of</name></name><argument_list>(
+        <argument><expr><name><name>CycleDetectingLockFactory</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>,
+        <argument><expr><name><name>ExampleStackTrace</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>,
+        <argument><expr><name><name>LockGraphNode</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <constructor><name>ExampleStackTrace</name><parameter_list>(<param><decl><type><name>LockGraphNode</name></type> <name>node1</name></decl></param>, <param><decl><type><name>LockGraphNode</name></type> <name>node2</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><call><name><name>node1</name>.<name>getLockName</name></name><argument_list>()</argument_list></call> + " -&gt; " + <call><name><name>node2</name>.<name>getLockName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name>StackTraceElement</name><index>[]</index></type> <name>origStackTrace</name> =<init> <expr><call><name>getStackTrace</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init>, <name>n</name> =<init> <expr><name><name>origStackTrace</name>.<name>length</name></name></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>n</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <if>if <condition>(<expr><name><name>WithExplicitOrdering</name>.<name><name/></name></name>class.<call><name>getName</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(
+                <argument><expr><name><name>origStackTrace</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getClassName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <comment type="line">// For pre-populated disallowedPriorLocks edges, omit the stack trace.</comment>
+          <expr_stmt><expr><call><name>setStackTrace</name><argument_list>(<argument><expr><name>EMPTY_STACK_TRACE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>EXCLUDED_CLASS_NAMES</name>.<name>contains</name></name><argument_list>(<argument><expr><name><name>origStackTrace</name><index>[<expr><name>i</name></expr>]</index></name>.<call><name>getClassName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name>setStackTrace</name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>copyOfRange</name></name><argument_list>(<argument><expr><name>origStackTrace</name></expr></argument>, <argument><expr><name>i</name></expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        }</block></then></if>
+      }</block></for>
+    }</block></constructor>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Represents a detected cycle in lock acquisition ordering. The exception
+   * includes a causal chain of {@code ExampleStackTrace} instances to illustrate the
+   * cycle, e.g.
+   *
+   * &lt;pre&gt;
+   * com....PotentialDeadlockException: Potential Deadlock from LockC -&amp;gt; ReadWriteA
+   *   at ...
+   *   at ...
+   * Caused by: com...ExampleStackTrace: LockB -&amp;gt; LockC
+   *   at ...
+   *   at ...
+   * Caused by: com...ExampleStackTrace: ReadWriteA -&amp;gt; LockB
+   *   at ...
+   *   at ...
+   * &lt;/pre&gt;
+   *
+   * &lt;p&gt;Instances are logged for the {@code Policies.WARN}, and thrown for
+   * {@code Policies.THROW}.
+   *
+   * @since 13.0
+   */</comment>
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>PotentialDeadlockException</name>
+      <super><extends>extends <name>ExampleStackTrace</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ExampleStackTrace</name></type> <name>conflictingStackTrace</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>PotentialDeadlockException</name><parameter_list>(
+        <param><decl><type><name>LockGraphNode</name></type> <name>node1</name></decl></param>,
+        <param><decl><type><name>LockGraphNode</name></type> <name>node2</name></decl></param>,
+        <param><decl><type><name>ExampleStackTrace</name></type> <name>conflictingStackTrace</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>node1</name></expr></argument>, <argument><expr><name>node2</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>conflictingStackTrace</name></name> = <name>conflictingStackTrace</name></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>initCause</name><argument_list>(<argument><expr><name>conflictingStackTrace</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><specifier>public</specifier> <name>ExampleStackTrace</name></type> <name>getConflictingStackTrace</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>conflictingStackTrace</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Appends the chain of messages from the {@code conflictingStackTrace} to
+     * the original {@code message}.
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>getMessage</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><name>StringBuilder</name></type> <name>message</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>(<argument><expr><call><name><name>super</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>Throwable</name></type> <name>t</name> =<init> <expr><name>conflictingStackTrace</name></expr></init></decl>;</init> <condition><expr><name>t</name> != <name>null</name></expr>;</condition> <incr><expr><name>t</name> = <call><name><name>t</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></incr>) <block>{
+        <expr_stmt><expr><call><name><name>message</name>.<name>append</name></name><argument_list>(<argument><expr>", "</expr></argument>)</argument_list></call>.<call><name>append</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><call><name><name>message</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Internal Lock implementations implement the {@code CycleDetectingLock}
+   * interface, allowing the detection logic to treat all locks in the same
+   * manner.
+   */</comment>
+  <class type="interface"><specifier>private</specifier> interface <name>CycleDetectingLock</name> <block>{
+
+    <comment type="javadoc">/** @return the {@link LockGraphNode} associated with this lock. */</comment>
+    <function_decl><type><name>LockGraphNode</name></type> <name>getLockGraphNode</name><parameter_list>()</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/** @return {@code true} if the current thread has acquired this lock. */</comment>
+    <function_decl><type><name>boolean</name></type> <name>isAcquiredByCurrentThread</name><parameter_list>()</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * A {@code LockGraphNode} associated with each lock instance keeps track of
+   * the directed edges in the lock acquisition graph.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>LockGraphNode</name> <block>{
+
+    <comment type="javadoc">/**
+     * The map tracking the locks that are known to be acquired before this
+     * lock, each associated with an example stack trace. Locks are weakly keyed
+     * to allow proper garbage collection when they are no longer referenced.
+     */</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>, <argument><name>ExampleStackTrace</name></argument>&gt;</argument_list></name></type> <name>allowedPriorLocks</name> =<init>
+        <expr>new <call><name>MapMaker</name><argument_list>()</argument_list></call>.<call><name>weakKeys</name><argument_list>()</argument_list></call>.<call><name>makeMap</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * The map tracking lock nodes that can cause a lock acquisition cycle if
+     * acquired before this node.
+     */</comment>
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>, <argument><name>PotentialDeadlockException</name></argument>&gt;</argument_list></name></type>
+        <name>disallowedPriorLocks</name> =<init> <expr>new <call><name>MapMaker</name><argument_list>()</argument_list></call>.<call><name>weakKeys</name><argument_list>()</argument_list></call>.<call><name>makeMap</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>lockName</name></decl>;</decl_stmt>
+
+    <constructor><name>LockGraphNode</name><parameter_list>(<param><decl><type><name>String</name></type> <name>lockName</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>lockName</name></name> = <call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>lockName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><name>String</name></type> <name>getLockName</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>lockName</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>checkAcquiredLocks</name><parameter_list>(
+        <param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>, <param><decl><type><name><name>List</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>acquiredLocks</name></decl></param>)</parameter_list> <block>{
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init>, <name>size</name> =<init> <expr><call><name><name>acquiredLocks</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><call><name>checkAcquiredLock</name><argument_list>(<argument><expr><name>policy</name></expr></argument>, <argument><expr><call><name><name>acquiredLocks</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Checks the acquisition-ordering between {@code this}, which is about to
+     * be acquired, and the specified {@code acquiredLock}.
+     * &lt;p&gt;
+     * When this method returns, the {@code acquiredLock} should be in either
+     * the {@code preAcquireLocks} map, for the case in which it is safe to
+     * acquire {@code this} after the {@code acquiredLock}, or in the
+     * {@code disallowedPriorLocks} map, in which case it is not safe.
+     */</comment>
+    <function><type><name>void</name></type> <name>checkAcquiredLock</name><parameter_list>(<param><decl><type><name>Policy</name></type> <name>policy</name></decl></param>, <param><decl><type><name>LockGraphNode</name></type> <name>acquiredLock</name></decl></param>)</parameter_list> <block>{
+      <comment type="line">// checkAcquiredLock() should never be invoked by a lock that has already</comment>
+      <comment type="line">// been acquired. For unordered locks, aboutToAcquire() ensures this by</comment>
+      <comment type="line">// checking isAcquiredByCurrentThread(). For ordered locks, however, this</comment>
+      <comment type="line">// can happen because multiple locks may share the same LockGraphNode. In</comment>
+      <comment type="line">// this situation, throw an IllegalStateException as defined by contract</comment>
+      <comment type="line">// described in the documentation of WithExplicitOrdering.</comment>
+      <expr_stmt><expr><call><name><name>Preconditions</name>.<name>checkState</name></name><argument_list>(<argument><expr><name>this</name> != <name>acquiredLock</name></expr></argument>,
+          <argument><expr>"Attempted to acquire multiple locks with the same rank %s"</expr></argument>, <argument><expr><call><name><name>acquiredLock</name>.<name>getLockName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+      <if>if <condition>(<expr><call><name><name>allowedPriorLocks</name>.<name>containsKey</name></name><argument_list>(<argument><expr><name>acquiredLock</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <comment type="line">// The acquisition ordering from "acquiredLock" to "this" has already</comment>
+        <comment type="line">// been verified as safe. In a properly written application, this is</comment>
+        <comment type="line">// the common case.</comment>
+        <return>return;</return>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>PotentialDeadlockException</name></type> <name>previousDeadlockException</name> =<init>
+          <expr><call><name><name>disallowedPriorLocks</name>.<name>get</name></name><argument_list>(<argument><expr><name>acquiredLock</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>previousDeadlockException</name> != <name>null</name></expr>)</condition><then> <block>{
+        <comment type="line">// Previously determined to be an unsafe lock acquisition.</comment>
+        <comment type="line">// Create a new PotentialDeadlockException with the same causal chain</comment>
+        <comment type="line">// (the example cycle) as that of the cached exception.</comment>
+        <decl_stmt><decl><type><name>PotentialDeadlockException</name></type> <name>exception</name> =<init> <expr>new <call><name>PotentialDeadlockException</name><argument_list>(
+            <argument><expr><name>acquiredLock</name></expr></argument>, <argument><expr><name>this</name></expr></argument>,
+            <argument><expr><call><name><name>previousDeadlockException</name>.<name>getConflictingStackTrace</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>policy</name>.<name>handlePotentialDeadlock</name></name><argument_list>(<argument><expr><name>exception</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return;</return>
+      }</block></then></if>
+      <comment type="line">// Otherwise, it's the first time seeing this lock relationship. Look for</comment>
+      <comment type="line">// a path from the acquiredLock to this.</comment>
+      <decl_stmt><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>seen</name> =<init> <expr><call><name><name>Sets</name>.<name>newIdentityHashSet</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>ExampleStackTrace</name></type> <name>path</name> =<init> <expr><call><name><name>acquiredLock</name>.<name>findPathTo</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>seen</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+      <if>if <condition>(<expr><name>path</name> == <name>null</name></expr>)</condition><then> <block>{
+        <comment type="line">// this can be safely acquired after the acquiredLock.</comment>
+        <comment type="line">//</comment>
+        <comment type="line">// Note that there is a race condition here which can result in missing</comment>
+        <comment type="line">// a cyclic edge: it's possible for two threads to simultaneous find</comment>
+        <comment type="line">// "safe" edges which together form a cycle. Preventing this race</comment>
+        <comment type="line">// condition efficiently without _introducing_ deadlock is probably</comment>
+        <comment type="line">// tricky. For now, just accept the race condition---missing a warning</comment>
+        <comment type="line">// now and then is still better than having no deadlock detection.</comment>
+        <expr_stmt><expr><call><name><name>allowedPriorLocks</name>.<name>put</name></name><argument_list>(
+            <argument><expr><name>acquiredLock</name></expr></argument>, <argument><expr>new <call><name>ExampleStackTrace</name><argument_list>(<argument><expr><name>acquiredLock</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <comment type="line">// Unsafe acquisition order detected. Create and cache a</comment>
+        <comment type="line">// PotentialDeadlockException.</comment>
+        <decl_stmt><decl><type><name>PotentialDeadlockException</name></type> <name>exception</name> =<init>
+            <expr>new <call><name>PotentialDeadlockException</name><argument_list>(<argument><expr><name>acquiredLock</name></expr></argument>, <argument><expr><name>this</name></expr></argument>, <argument><expr><name>path</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>disallowedPriorLocks</name>.<name>put</name></name><argument_list>(<argument><expr><name>acquiredLock</name></expr></argument>, <argument><expr><name>exception</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>policy</name>.<name>handlePotentialDeadlock</name></name><argument_list>(<argument><expr><name>exception</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Performs a depth-first traversal of the graph edges defined by each
+     * node's {@code allowedPriorLocks} to find a path between {@code this} and
+     * the specified {@code lock}.
+     *
+     * @return If a path was found, a chained {@link ExampleStackTrace}
+     *     illustrating the path to the {@code lock}, or {@code null} if no path
+     *     was found.
+     */</comment>
+    <function><type><annotation>@<name>Nullable</name></annotation>
+    <specifier>private</specifier> <name>ExampleStackTrace</name></type> <name>findPathTo</name><parameter_list>(
+        <param><decl><type><name>LockGraphNode</name></type> <name>node</name></decl></param>, <param><decl><type><name><name>Set</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>seen</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr>!<call><name><name>seen</name>.<name>add</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>  <comment type="line">// Already traversed this node.</comment>
+      }</block></then></if>
+      <decl_stmt><decl><type><name>ExampleStackTrace</name></type> <name>found</name> =<init> <expr><call><name><name>allowedPriorLocks</name>.<name>get</name></name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>found</name> != <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>found</name></expr>;</return>  <comment type="line">// Found a path ending at the node!</comment>
+      }</block></then></if>
+      <comment type="line">// Recurse the edges.</comment>
+      <for>for (<init><decl><type><name><name>Map</name>.<name><name>Entry</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>, <argument><name>ExampleStackTrace</name></argument>&gt;</argument_list></name></name></type> <name>entry</name> :<range>
+               <expr><call><name><name>allowedPriorLocks</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+        <decl_stmt><decl><type><name>LockGraphNode</name></type> <name>preAcquiredLock</name> =<init> <expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name>found</name> = <call><name><name>preAcquiredLock</name>.<name>findPathTo</name></name><argument_list>(<argument><expr><name>node</name></expr></argument>, <argument><expr><name>seen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>found</name> != <name>null</name></expr>)</condition><then> <block>{
+          <comment type="line">// One of this node's allowedPriorLocks found a path. Prepend an</comment>
+          <comment type="line">// ExampleStackTrace(preAcquiredLock, this) to the returned chain of</comment>
+          <comment type="line">// ExampleStackTraces.</comment>
+          <decl_stmt><decl><type><name>ExampleStackTrace</name></type> <name>path</name> =<init>
+              <expr>new <call><name>ExampleStackTrace</name><argument_list>(<argument><expr><name>preAcquiredLock</name></expr></argument>, <argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <expr_stmt><expr><call><name><name>path</name>.<name>setStackTrace</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call>.<call><name>getStackTrace</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><call><name><name>path</name>.<name>initCause</name></name><argument_list>(<argument><expr><name>found</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <return>return <expr><name>path</name></expr>;</return>
+        }</block></then></if>
+      }</block></for>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * CycleDetectingLock implementations must call this method before attempting
+   * to acquire the lock.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>aboutToAcquire</name><parameter_list>(<param><decl><type><name>CycleDetectingLock</name></type> <name>lock</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr>!<call><name><name>lock</name>.<name>isAcquiredByCurrentThread</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>acquiredLockList</name> =<init> <expr><call><name><name>acquiredLocks</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>LockGraphNode</name></type> <name>node</name> =<init> <expr><call><name><name>lock</name>.<name>getLockGraphNode</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>node</name>.<name>checkAcquiredLocks</name></name><argument_list>(<argument><expr><name>policy</name></expr></argument>, <argument><expr><name>acquiredLockList</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>acquiredLockList</name>.<name>add</name></name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * CycleDetectingLock implementations must call this method in a
+   * {@code finally} clause after any attempt to change the lock state,
+   * including both lock and unlock attempts. Failure to do so can result in
+   * corrupting the acquireLocks set.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>lockStateChanged</name><parameter_list>(<param><decl><type><name>CycleDetectingLock</name></type> <name>lock</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr>!<call><name><name>lock</name>.<name>isAcquiredByCurrentThread</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>ArrayList</name><argument_list>&lt;<argument><name>LockGraphNode</name></argument>&gt;</argument_list></name></type> <name>acquiredLockList</name> =<init> <expr><call><name><name>acquiredLocks</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>LockGraphNode</name></type> <name>node</name> =<init> <expr><call><name><name>lock</name>.<name>getLockGraphNode</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <comment type="line">// Iterate in reverse because locks are usually locked/unlocked in a</comment>
+      <comment type="line">// LIFO order.</comment>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr><call><name><name>acquiredLockList</name>.<name>size</name></name><argument_list>()</argument_list></call> - 1</expr></init></decl>;</init> <condition><expr><name>i</name> &gt;= 0</expr>;</condition> <incr><expr><name>i</name>--</expr></incr>) <block>{
+        <if>if <condition>(<expr><call><name><name>acquiredLockList</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> == <name>node</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>acquiredLockList</name>.<name>remove</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <break>break;</break>
+        }</block></then></if>
+      }</block></for>
+    }</block></then></if>
+  }</block></function>
+
+  <class><specifier>final</specifier> class <name>CycleDetectingReentrantLock</name>
+      <super><extends>extends <name>ReentrantLock</name></extends> <implements>implements <name>CycleDetectingLock</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>LockGraphNode</name></type> <name>lockGraphNode</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>CycleDetectingReentrantLock</name><parameter_list>(
+        <param><decl><type><name>LockGraphNode</name></type> <name>lockGraphNode</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>lockGraphNode</name></name> = <call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>lockGraphNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">///// CycleDetectingLock methods. /////</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>LockGraphNode</name></type> <name>getLockGraphNode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>lockGraphNode</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isAcquiredByCurrentThread</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>isHeldByCurrentThread</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="line">///// Overridden ReentrantLock methods. /////</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lockInterruptibly</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>unlock</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>final</specifier> class <name>CycleDetectingReentrantReadWriteLock</name>
+      <super><extends>extends <name>ReentrantReadWriteLock</name></extends> <implements>implements <name>CycleDetectingLock</name></implements></super> <block>{
+
+    <comment type="line">// These ReadLock/WriteLock implementations shadow those in the</comment>
+    <comment type="line">// ReentrantReadWriteLock superclass. They are simply wrappers around the</comment>
+    <comment type="line">// internal Sync object, so this is safe since the shadowed locks are never</comment>
+    <comment type="line">// exposed or used.</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CycleDetectingReentrantReadLock</name></type> <name>readLock</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CycleDetectingReentrantWriteLock</name></type> <name>writeLock</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>LockGraphNode</name></type> <name>lockGraphNode</name></decl>;</decl_stmt>
+
+    <constructor><specifier>private</specifier> <name>CycleDetectingReentrantReadWriteLock</name><parameter_list>(
+        <param><decl><type><name>LockGraphNode</name></type> <name>lockGraphNode</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>readLock</name></name> = new <call><name>CycleDetectingReentrantReadLock</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>writeLock</name></name> = new <call><name>CycleDetectingReentrantWriteLock</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>lockGraphNode</name></name> = <call><name><name>Preconditions</name>.<name>checkNotNull</name></name><argument_list>(<argument><expr><name>lockGraphNode</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">///// Overridden ReentrantReadWriteLock methods. /////</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>ReadLock</name></type> <name>readLock</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>readLock</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>WriteLock</name></type> <name>writeLock</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>writeLock</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">///// CycleDetectingLock methods. /////</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>LockGraphNode</name></type> <name>getLockGraphNode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>lockGraphNode</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isAcquiredByCurrentThread</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name>isWriteLockedByCurrentThread</name><argument_list>()</argument_list></call> || <call><name>getReadHoldCount</name><argument_list>()</argument_list></call> &gt; 0</expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>private</specifier> class <name>CycleDetectingReentrantReadLock</name>
+      <super><extends>extends <name>ReentrantReadWriteLock</name>.<name>ReadLock</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name>CycleDetectingReentrantReadWriteLock</name></type> <name>readWriteLock</name></decl>;</decl_stmt>
+
+    <constructor><name>CycleDetectingReentrantReadLock</name><parameter_list>(
+        <param><decl><type><name>CycleDetectingReentrantReadWriteLock</name></type> <name>readWriteLock</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>readWriteLock</name></name> = <name>readWriteLock</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lockInterruptibly</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>unlock</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>private</specifier> class <name>CycleDetectingReentrantWriteLock</name>
+      <super><extends>extends <name>ReentrantReadWriteLock</name>.<name>WriteLock</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name>CycleDetectingReentrantReadWriteLock</name></type> <name>readWriteLock</name></decl>;</decl_stmt>
+
+    <constructor><name>CycleDetectingReentrantWriteLock</name><parameter_list>(
+        <param><decl><type><name>CycleDetectingReentrantReadWriteLock</name></type> <name>readWriteLock</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>readWriteLock</name></name> = <name>readWriteLock</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>lockInterruptibly</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>tryLock</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+        <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+      <expr_stmt><expr><call><name>aboutToAcquire</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>super</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>unlock</name><parameter_list>()</parameter_list> <block>{
+      <try>try <block>{
+        <expr_stmt><expr><call><name><name>super</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> <finally>finally <block>{
+        <expr_stmt><expr><call><name>lockStateChanged</name><argument_list>(<argument><expr><name>readWriteLock</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></finally></try>
+    }</block></function>
+  }</block></class>
+}
+</unit>

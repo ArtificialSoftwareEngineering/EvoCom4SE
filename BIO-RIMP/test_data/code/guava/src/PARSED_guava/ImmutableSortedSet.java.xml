@@ -1,0 +1,789 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\ImmutableSortedSet.java"><comment type="block">/*
+ * Copyright (C) 2008 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ObjectArrays</name>.<name>checkElementsNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>InvalidObjectException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>NavigableSet</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>SortedSet</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A {@link NavigableSet} whose contents will never change, with many other important properties
+ * detailed at {@link ImmutableCollection}.
+ *
+ * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; as with any sorted collection, you are strongly advised not to use a {@link
+ * Comparator} or {@link Comparable} type whose comparison behavior is &lt;i&gt;inconsistent with
+ * equals&lt;/i&gt;. That is, {@code a.compareTo(b)} or {@code comparator.compare(a, b)} should equal zero
+ * &lt;i&gt;if and only if&lt;/i&gt; {@code a.equals(b)}. If this advice is not followed, the resulting
+ * collection will not correctly obey its specification.
+ *
+ * &lt;p&gt;See the Guava User Guide article on &lt;a href=
+ * "https://github.com/google/guava/wiki/ImmutableCollectionsExplained"&gt;
+ * immutable collections&lt;/a&gt;.
+ *
+ * @author Jared Levy
+ * @author Louis Wasserman
+ * @since 2.0 (implements {@code NavigableSet} since 12.0)
+ */</comment>
+<comment type="line">// TODO(benyu): benchmark and optimize all creation paths, which are a mess now</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(serializable = true, emulated = true)</argument_list></annotation>
+<annotation>@<name>SuppressWarnings</name><argument_list>("serial")</argument_list></annotation> <comment type="line">// we're overriding default serialization</comment>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>ImmutableSortedSetFauxverideShim</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends>
+    <implements>implements <name><name>NavigableSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>, <name><name>SortedIterable</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></implements></super> <block>{
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name></type> <name>NATURAL_ORDER</name> =<init> <expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name></type> <name>NATURAL_EMPTY_SET</name> =<init>
+      <expr>new <call><name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>Comparable</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name><name>ImmutableList</name>.<name><name/></name></name>&lt;<name>Comparable</name>&gt;<call><name>of</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>NATURAL_ORDER</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+  <function><type><specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>emptySet</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>NATURAL_ORDER</name>.<name>equals</name></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>(<name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name>NATURAL_EMPTY_SET</name></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr>new <call><name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name><name>ImmutableList</name>.<name><name/></name></name>&lt;<name>E</name>&gt;<call><name>of</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the empty immutable sorted set.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name>NATURAL_EMPTY_SET</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing a single element.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name>E</name></type> <name>element</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>ImmutableList</name>.<name>of</name></name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any element is null
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e1</name></decl></param>, <param><decl><type><name>E</name></type> <name>e2</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>2</expr></argument>, <argument><expr><name>e1</name></expr></argument>, <argument><expr><name>e2</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any element is null
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e1</name></decl></param>, <param><decl><type><name>E</name></type> <name>e2</name></decl></param>, <param><decl><type><name>E</name></type> <name>e3</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>3</expr></argument>, <argument><expr><name>e1</name></expr></argument>, <argument><expr><name>e2</name></expr></argument>, <argument><expr><name>e3</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any element is null
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e1</name></decl></param>, <param><decl><type><name>E</name></type> <name>e2</name></decl></param>, <param><decl><type><name>E</name></type> <name>e3</name></decl></param>, <param><decl><type><name>E</name></type> <name>e4</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>4</expr></argument>, <argument><expr><name>e1</name></expr></argument>, <argument><expr><name>e2</name></expr></argument>, <argument><expr><name>e3</name></expr></argument>, <argument><expr><name>e4</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any element is null
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(
+      <param><decl><type><name>E</name></type> <name>e1</name></decl></param>, <param><decl><type><name>E</name></type> <name>e2</name></decl></param>, <param><decl><type><name>E</name></type> <name>e3</name></decl></param>, <param><decl><type><name>E</name></type> <name>e4</name></decl></param>, <param><decl><type><name>E</name></type> <name>e5</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>5</expr></argument>, <argument><expr><name>e1</name></expr></argument>, <argument><expr><name>e2</name></expr></argument>, <argument><expr><name>e3</name></expr></argument>, <argument><expr><name>e4</name></expr></argument>, <argument><expr><name>e5</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any element is null
+   * @since 3.0 (source-compatible since 2.0)
+   */</comment>
+  <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+  <specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>of</name><parameter_list>(
+      <param><decl><type><name>E</name></type> <name>e1</name></decl></param>, <param><decl><type><name>E</name></type> <name>e2</name></decl></param>, <param><decl><type><name>E</name></type> <name>e3</name></decl></param>, <param><decl><type><name>E</name></type> <name>e4</name></decl></param>, <param><decl><type><name>E</name></type> <name>e5</name></decl></param>, <param><decl><type><name>E</name></type> <name>e6</name></decl></param>, <param><decl><type><name>E</name>...</type> <name>remaining</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Comparable</name><index>[]</index></type> <name>contents</name> =<init> <expr>new <name><name>Comparable</name><index>[<expr>6 + <name><name>remaining</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>0</expr>]</index></name> = <name>e1</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>1</expr>]</index></name> = <name>e2</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>2</expr>]</index></name> = <name>e3</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>3</expr>]</index></name> = <name>e4</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>4</expr>]</index></name> = <name>e5</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>contents</name><index>[<expr>5</expr>]</index></name> = <name>e6</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>System</name>.<name>arraycopy</name></name><argument_list>(<argument><expr><name>remaining</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>contents</name></expr></argument>, <argument><expr>6</expr></argument>, <argument><expr><name><name>remaining</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>contents</name>.<name>length</name></name></expr></argument>, <argument><expr>(<name><name>E</name><index>[]</index></name>) <name>contents</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// TODO(kevinb): Consider factory methods that reject duplicates</comment>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@link Comparable#compareTo}, only the first one specified is included.
+   *
+   * @throws NullPointerException if any of {@code elements} is null
+   * @since 3.0
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(<param><decl><type><name><name>E</name><index>[]</index></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>elements</name>.<name>length</name></name></expr></argument>, <argument><expr><call><name><name>elements</name>.<name>clone</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@code compareTo()}, only the first one specified is included. To create a
+   * copy of a {@code SortedSet} that preserves the comparator, call {@link
+   * #copyOfSorted} instead. This method iterates over {@code elements} at most
+   * once.
+
+   *
+   * &lt;p&gt;Note that if {@code s} is a {@code Set&lt;String&gt;}, then {@code
+   * ImmutableSortedSet.copyOf(s)} returns an {@code ImmutableSortedSet&lt;String&gt;}
+   * containing each of the strings in {@code s}, while {@code
+   * ImmutableSortedSet.of(s)} returns an {@code
+   * ImmutableSortedSet&lt;Set&lt;String&gt;&gt;} containing one element (the given set
+   * itself).
+   *
+   * &lt;p&gt;Despite the method name, this method attempts to avoid actually copying
+   * the data when it is safe to do so. The exact circumstances under which a
+   * copy will or will not be performed are undocumented and subject to change.
+   *
+   * &lt;p&gt;This method is not type-safe, as it may be called on elements that are
+   * not mutually comparable.
+   *
+   * @throws ClassCastException if the elements are not mutually comparable
+   * @throws NullPointerException if any of {@code elements} is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Hack around E not being a subtype of Comparable.</comment>
+    <comment type="line">// Unsafe, see ImmutableSortedSetFauxverideShim.</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>naturalOrder</name> =<init> <expr>(<name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name><name>Ordering</name>.<name><name/></name></name>&lt;<name>Comparable</name>&gt;<call><name>natural</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>copyOf</name><argument_list>(<argument><expr><name>naturalOrder</name></expr></argument>, <argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@code compareTo()}, only the first one specified is included. To create a
+   * copy of a {@code SortedSet} that preserves the comparator, call
+   * {@link #copyOfSorted} instead. This method iterates over {@code elements}
+   * at most once.
+   *
+   * &lt;p&gt;Note that if {@code s} is a {@code Set&lt;String&gt;}, then
+   * {@code ImmutableSortedSet.copyOf(s)} returns an
+   * {@code ImmutableSortedSet&lt;String&gt;} containing each of the strings in
+   * {@code s}, while {@code ImmutableSortedSet.of(s)} returns an
+   * {@code ImmutableSortedSet&lt;Set&lt;String&gt;&gt;} containing one element (the given
+   * set itself).
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; Despite what the method name suggests, if {@code elements}
+   * is an {@code ImmutableSortedSet}, it may be returned instead of a copy.
+   *
+   * &lt;p&gt;This method is not type-safe, as it may be called on elements that are
+   * not mutually comparable.
+   *
+   * &lt;p&gt;This method is safe to use even when {@code elements} is a synchronized
+   * or concurrent collection that is currently being modified by another
+   * thread.
+   *
+   * @throws ClassCastException if the elements are not mutually comparable
+   * @throws NullPointerException if any of {@code elements} is null
+   * @since 7.0 (source-compatible since 2.0)
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(<param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Hack around E not being a subtype of Comparable.</comment>
+    <comment type="line">// Unsafe, see ImmutableSortedSetFauxverideShim.</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>naturalOrder</name> =<init> <expr>(<name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name><name>Ordering</name>.<name><name/></name></name>&lt;<name>Comparable</name>&gt;<call><name>natural</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>copyOf</name><argument_list>(<argument><expr><name>naturalOrder</name></expr></argument>, <argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * their natural ordering. When multiple elements are equivalent according to
+   * {@code compareTo()}, only the first one specified is included.
+   *
+   * &lt;p&gt;This method is not type-safe, as it may be called on elements that are
+   * not mutually comparable.
+   *
+   * @throws ClassCastException if the elements are not mutually comparable
+   * @throws NullPointerException if any of {@code elements} is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(<param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Hack around E not being a subtype of Comparable.</comment>
+    <comment type="line">// Unsafe, see ImmutableSortedSetFauxverideShim.</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>naturalOrder</name> =<init> <expr>(<name><name>Ordering</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name><name>Ordering</name>.<name><name/></name></name>&lt;<name>Comparable</name>&gt;<call><name>natural</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>copyOf</name><argument_list>(<argument><expr><name>naturalOrder</name></expr></argument>, <argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * the given {@code Comparator}. When multiple elements are equivalent
+   * according to {@code compareTo()}, only the first one specified is
+   * included.
+   *
+   * @throws NullPointerException if {@code comparator} or any of
+   *     {@code elements} is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(
+      <param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call>.<call><name>addAll</name><argument_list>(<argument><expr><name>elements</name></expr></argument>)</argument_list></call>.<call><name>build</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * the given {@code Comparator}. When multiple elements are equivalent
+   * according to {@code compare()}, only the first one specified is
+   * included. This method iterates over {@code elements} at most once.
+   *
+   * &lt;p&gt;Despite the method name, this method attempts to avoid actually copying
+   * the data when it is safe to do so. The exact circumstances under which a
+   * copy will or will not be performed are undocumented and subject to change.
+   *
+   * @throws NullPointerException if {@code comparator} or any of {@code
+   *         elements} is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(
+      <param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>hasSameComparator</name> =<init> <expr><call><name><name>SortedIterables</name>.<name>hasSameComparator</name></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <if>if <condition>(<expr><name>hasSameComparator</name> &amp;&amp; (<name>elements</name> <name>instanceof</name> <name>ImmutableSortedSet</name>)</expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+      <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>original</name> =<init> <expr>(<name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name>) <name>elements</name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<call><name><name>original</name>.<name>isPartialView</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr><name>original</name></expr>;</return>
+      }</block></then></if>
+    }</block></then></if>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// elements only contains E's; it's safe.</comment>
+    <name>E</name><index>[]</index></type> <name>array</name> =<init> <expr>(<name><name>E</name><index>[]</index></name>) <call><name><name>Iterables</name>.<name>toArray</name></name><argument_list>(<argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>construct</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr><name><name>array</name>.<name>length</name></name></expr></argument>, <argument><expr><name>array</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the given elements sorted by
+   * the given {@code Comparator}. When multiple elements are equivalent
+   * according to {@code compareTo()}, only the first one specified is
+   * included.
+   *
+   * &lt;p&gt;Despite the method name, this method attempts to avoid actually copying
+   * the data when it is safe to do so. The exact circumstances under which a
+   * copy will or will not be performed are undocumented and subject to change.
+   *
+   * &lt;p&gt;This method is safe to use even when {@code elements} is a synchronized
+   * or concurrent collection that is currently being modified by another
+   * thread.
+   *
+   * @throws NullPointerException if {@code comparator} or any of
+   *     {@code elements} is null
+   * @since 7.0 (source-compatible since 2.0)
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOf</name><parameter_list>(
+      <param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name><name>Collection</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>copyOf</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr>(<name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name>) <name>elements</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an immutable sorted set containing the elements of a sorted set,
+   * sorted by the same {@code Comparator}. That behavior differs from {@link
+   * #copyOf(Iterable)}, which always uses the natural ordering of the
+   * elements.
+   *
+   * &lt;p&gt;Despite the method name, this method attempts to avoid actually copying
+   * the data when it is safe to do so. The exact circumstances under which a
+   * copy will or will not be performed are undocumented and subject to change.
+   *
+   * &lt;p&gt;This method is safe to use even when {@code sortedSet} is a synchronized
+   * or concurrent collection that is currently being modified by another
+   * thread.
+   *
+   * @throws NullPointerException if {@code sortedSet} or any of its elements
+   *     is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>copyOfSorted</name><parameter_list>(<param><decl><type><name><name>SortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>sortedSet</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name> =<init> <expr><call><name><name>SortedIterables</name>.<name>comparator</name></name><argument_list>(<argument><expr><name>sortedSet</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>ImmutableList</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>list</name> =<init> <expr><call><name><name>ImmutableList</name>.<name>copyOf</name></name><argument_list>(<argument><expr><name>sortedSet</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><call><name><name>list</name>.<name>isEmpty</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>emptySet</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <return>return <expr>new <call><name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>list</name></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Constructs an {@code ImmutableSortedSet} from the first {@code n} elements of
+   * {@code contents}.  If {@code k} is the size of the returned {@code ImmutableSortedSet}, then
+   * the sorted unique elements are in the first {@code k} positions of {@code contents}, and
+   * {@code contents[i] == null} for {@code k &lt;= i &lt; n}.
+   *
+   * &lt;p&gt;If {@code k == contents.length}, then {@code contents} may no longer be safe for
+   * modification.
+   *
+   * @throws NullPointerException if any of the first {@code n} elements of {@code contents} is
+   *          null
+   */</comment>
+  <function><type><specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>construct</name><parameter_list>(
+      <param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name>int</name></type> <name>n</name></decl></param>, <param><decl><type><name>E</name>...</type> <name>contents</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>n</name> == 0</expr>)</condition><then> <block>{
+      <return>return <expr><call><name>emptySet</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <expr_stmt><expr><call><name>checkElementsNotNull</name><argument_list>(<argument><expr><name>contents</name></expr></argument>, <argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>Arrays</name>.<name>sort</name></name><argument_list>(<argument><expr><name>contents</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>n</name></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>uniques</name> =<init> <expr>1</expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>1</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>n</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><name>E</name></type> <name>cur</name> =<init> <expr><name><name>contents</name><index>[<expr><name>i</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>E</name></type> <name>prev</name> =<init> <expr><name><name>contents</name><index>[<expr><name>uniques</name> - 1</expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><call><name><name>comparator</name>.<name>compare</name></name><argument_list>(<argument><expr><name>cur</name></expr></argument>, <argument><expr><name>prev</name></expr></argument>)</argument_list></call> != 0</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>contents</name><index>[<expr><name>uniques</name>++</expr>]</index></name> = <name>cur</name></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></for>
+    <expr_stmt><expr><call><name><name>Arrays</name>.<name>fill</name></name><argument_list>(<argument><expr><name>contents</name></expr></argument>, <argument><expr><name>uniques</name></expr></argument>, <argument><expr><name>n</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>new <call><name><name>RegularImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(
+        <argument><expr><name><name>ImmutableList</name>.<name><name/></name></name>&lt;<name>E</name>&gt;<call><name>asImmutableList</name><argument_list>(<argument><expr><name>contents</name></expr></argument>, <argument><expr><name>uniques</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a builder that creates immutable sorted sets with an explicit
+   * comparator. If the comparator has a more general type than the set being
+   * generated, such as creating a {@code SortedSet&lt;Integer&gt;} with a
+   * {@code Comparator&lt;Number&gt;}, use the {@link Builder} constructor instead.
+   *
+   * @throws NullPointerException if {@code comparator} is null
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>orderedBy</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a builder that creates immutable sorted sets whose elements are
+   * ordered by the reverse of their natural ordering.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>reverseOrder</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call>.<call><name>reverse</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a builder that creates immutable sorted sets whose elements are
+   * ordered by their natural ordering. The sorted sets use {@link
+   * Ordering#natural()} as the comparator. This method provides more
+   * type-safety than {@link #builder}, as it can be called only for classes
+   * that implement {@link Comparable}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>E</name> <extends>extends <name><name>Comparable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></extends></argument>&gt;</argument_list> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>naturalOrder</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name><name>Ordering</name>.<name>natural</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * A builder for creating immutable sorted set instances, especially {@code
+   * public static final} sets ("constant sets"), with a given comparator.
+   * Example: &lt;pre&gt;   {@code
+   *
+   *   public static final ImmutableSortedSet&lt;Number&gt; LUCKY_NUMBERS =
+   *       new ImmutableSortedSet.Builder&lt;Number&gt;(ODDS_FIRST_COMPARATOR)
+   *           .addAll(SINGLE_DIGIT_PRIMES)
+   *           .add(42)
+   *           .build();}&lt;/pre&gt;
+   *
+   * &lt;p&gt;Builder instances can be reused; it is safe to call {@link #build} multiple
+   * times to build multiple sets in series. Each set is a superset of the set
+   * created before it.
+   *
+   * @since 2.0
+   */</comment>
+  <class><specifier>public</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name> <super><extends>extends <name>ImmutableSet</name>.<name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Creates a new builder. The returned builder is equivalent to the builder
+     * generated by {@link ImmutableSortedSet#orderedBy}.
+     */</comment>
+    <constructor><specifier>public</specifier> <name>Builder</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Adds {@code element} to the {@code ImmutableSortedSet}.  If the
+     * {@code ImmutableSortedSet} already contains {@code element}, then
+     * {@code add} has no effect. (only the previously added element
+     * is retained).
+     *
+     * @param element the element to add
+     * @return this {@code Builder} object
+     * @throws NullPointerException if {@code element} is null
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>add</name><parameter_list>(<param><decl><type><name>E</name></type> <name>element</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>super</name>.<name>add</name></name><argument_list>(<argument><expr><name>element</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds each element of {@code elements} to the {@code ImmutableSortedSet},
+     * ignoring duplicate elements (only the first duplicate element is added).
+     *
+     * @param elements the elements to add
+     * @return this {@code Builder} object
+     * @throws NullPointerException if {@code elements} contains a null element
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>add</name><parameter_list>(<param><decl><type><name>E</name>...</type> <name>elements</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>super</name>.<name>add</name></name><argument_list>(<argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds each element of {@code elements} to the {@code ImmutableSortedSet},
+     * ignoring duplicate elements (only the first duplicate element is added).
+     *
+     * @param elements the elements to add to the {@code ImmutableSortedSet}
+     * @return this {@code Builder} object
+     * @throws NullPointerException if {@code elements} contains a null element
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>addAll</name><parameter_list>(<param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>super</name>.<name>addAll</name></name><argument_list>(<argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Adds each element of {@code elements} to the {@code ImmutableSortedSet},
+     * ignoring duplicate elements (only the first duplicate element is added).
+     *
+     * @param elements the elements to add to the {@code ImmutableSortedSet}
+     * @return this {@code Builder} object
+     * @throws NullPointerException if {@code elements} contains a null element
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>addAll</name><parameter_list>(<param><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>E</name></extends></argument>&gt;</argument_list></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name><name>super</name>.<name>addAll</name></name><argument_list>(<argument><expr><name>elements</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>this</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns a newly-created {@code ImmutableSortedSet} based on the contents
+     * of the {@code Builder} and its comparator.
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>build</name><parameter_list>()</parameter_list> <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// we're careful to put only E's in here</comment>
+      <name>E</name><index>[]</index></type> <name>contentsArray</name> =<init> <expr>(<name><name>E</name><index>[]</index></name>) <name>contents</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><call><name>construct</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr><name>size</name></expr></argument>, <argument><expr><name>contentsArray</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>size</name></name> = <call><name><name>result</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt> <comment type="line">// we eliminated duplicates in-place in contentsArray</comment>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <function><type><name>int</name></type> <name>unsafeCompare</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>a</name></decl></param>, <param><decl><type><name>Object</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>unsafeCompare</name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>static</specifier> <name>int</name></type> <name>unsafeCompare</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name>Object</name></type> <name>a</name></decl></param>, <param><decl><type><name>Object</name></type> <name>b</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// Pretend the comparator can compare anything. If it turns out it can't</comment>
+    <comment type="line">// compare a and b, we should get a CCE on the subsequent line. Only methods</comment>
+    <comment type="line">// that are spec'd to throw CCE should call this.</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>Comparator</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>unsafeComparator</name> =<init> <expr>(<name><name>Comparator</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name>) <name>comparator</name></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name><name>unsafeComparator</name>.<name>compare</name></name><argument_list>(<argument><expr><name>a</name></expr></argument>, <argument><expr><name>b</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <decl_stmt><decl><type><specifier>final</specifier> <name>transient</name> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl>;</decl_stmt>
+
+  <constructor><name>ImmutableSortedSet</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <name>comparator</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Returns the comparator that orders the elements, which is
+   * {@link Ordering#natural()} when the natural ordering of the
+   * elements is used. Note that its behavior is not consistent with
+   * {@link SortedSet#comparator()}, which returns {@code null} to indicate
+   * natural ordering.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>comparator</name></expr>;</return>
+  }</block></function>
+
+  <function_decl><type><annotation>@<name>Override</name></annotation> <comment type="line">// needed to unify the iterator() methods in Collection and SortedIterable</comment>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name><name>UnmodifiableIterator</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>iterator</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;This method returns a serializable {@code ImmutableSortedSet}.
+   *
+   * &lt;p&gt;The {@link SortedSet#headSet} documentation states that a subset of a
+   * subset throws an {@link IllegalArgumentException} if passed a
+   * {@code toElement} greater than an earlier {@code toElement}. However, this
+   * method doesn't throw an exception in that situation, but instead keeps the
+   * original {@code toElement}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>headSet</name><parameter_list>(<param><decl><type><name>E</name></type> <name>toElement</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>headSet</name><argument_list>(<argument><expr><name>toElement</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>headSet</name><parameter_list>(<param><decl><type><name>E</name></type> <name>toElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>inclusive</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>headSetImpl</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>toElement</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>inclusive</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;This method returns a serializable {@code ImmutableSortedSet}.
+   *
+   * &lt;p&gt;The {@link SortedSet#subSet} documentation states that a subset of a
+   * subset throws an {@link IllegalArgumentException} if passed a
+   * {@code fromElement} smaller than an earlier {@code fromElement}. However,
+   * this method doesn't throw an exception in that situation, but instead keeps
+   * the original {@code fromElement}. Similarly, this method keeps the
+   * original {@code toElement}, instead of throwing an exception, if passed a
+   * {@code toElement} greater than an earlier {@code toElement}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>subSet</name><parameter_list>(<param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>, <param><decl><type><name>E</name></type> <name>toElement</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>subSet</name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name>toElement</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>subSet</name><parameter_list>(
+      <param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fromInclusive</name></decl></param>, <param><decl><type><name>E</name></type> <name>toElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>toInclusive</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>toElement</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>comparator</name>.<name>compare</name></name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>, <argument><expr><name>toElement</name></expr></argument>)</argument_list></call> &lt;= 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>subSetImpl</name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>, <argument><expr><name>fromInclusive</name></expr></argument>, <argument><expr><name>toElement</name></expr></argument>, <argument><expr><name>toInclusive</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;This method returns a serializable {@code ImmutableSortedSet}.
+   *
+   * &lt;p&gt;The {@link SortedSet#tailSet} documentation states that a subset of a
+   * subset throws an {@link IllegalArgumentException} if passed a
+   * {@code fromElement} smaller than an earlier {@code fromElement}. However,
+   * this method doesn't throw an exception in that situation, but instead keeps
+   * the original {@code fromElement}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>tailSet</name><parameter_list>(<param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>tailSet</name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>tailSet</name><parameter_list>(<param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>inclusive</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>tailSetImpl</name><argument_list>(<argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>fromElement</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>inclusive</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="block">/*
+   * These methods perform most headSet, subSet, and tailSet logic, besides
+   * parameter validation.
+   */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>headSetImpl</name><parameter_list>(<param><decl><type><name>E</name></type> <name>toElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>inclusive</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>subSetImpl</name><parameter_list>(
+      <param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>fromInclusive</name></decl></param>, <param><decl><type><name>E</name></type> <name>toElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>toInclusive</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function_decl><type><specifier>abstract</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>tailSetImpl</name><parameter_list>(<param><decl><type><name>E</name></type> <name>fromElement</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>inclusive</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>lower</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Iterators</name>.<name>getNext</name></name><argument_list>(<argument><expr><call><name>headSet</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call>.<call><name>descendingIterator</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>floor</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Iterators</name>.<name>getNext</name></name><argument_list>(<argument><expr><call><name>headSet</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call>.<call><name>descendingIterator</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>ceiling</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Iterables</name>.<name>getFirst</name></name><argument_list>(<argument><expr><call><name>tailSet</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>higher</name><parameter_list>(<param><decl><type><name>E</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>Iterables</name>.<name>getFirst</name></name><argument_list>(<argument><expr><call><name>tailSet</name><argument_list>(<argument><expr><name>e</name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>first</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>iterator</name><argument_list>()</argument_list></call>.<call><name>next</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>E</name></type> <name>last</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>descendingIterator</name><argument_list>()</argument_list></call>.<call><name>next</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Guaranteed to throw an exception and leave the set unmodified.
+   *
+   * @since 12.0
+   * @throws UnsupportedOperationException always
+   * @deprecated Unsupported operation.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>E</name></type> <name>pollFirst</name><parameter_list>()</parameter_list> <block>{
+    <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Guaranteed to throw an exception and leave the set unmodified.
+   *
+   * @since 12.0
+   * @throws UnsupportedOperationException always
+   * @deprecated Unsupported operation.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <specifier>final</specifier> <name>E</name></type> <name>pollLast</name><parameter_list>()</parameter_list> <block>{
+    <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <decl_stmt><decl><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <name>transient</name> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>descendingSet</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>descendingSet</name><parameter_list>()</parameter_list> <block>{
+    <comment type="line">// racy single-check idiom</comment>
+    <decl_stmt><decl><type><name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>result</name> =<init> <expr><name>descendingSet</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>result</name> == <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name>result</name> = <name>descendingSet</name> = <call><name>createDescendingSet</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>result</name>.<name>descendingSet</name></name> = <name>this</name></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <name><name>ImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>createDescendingSet</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>DescendingImmutableSortedSet</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @since 12.0
+   */</comment>
+  <function_decl><type><annotation>@<name>GwtIncompatible</name><argument_list>("NavigableSet")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <name><name>UnmodifiableIterator</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name></type> <name>descendingIterator</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the position of an element within the set, or -1 if not present.
+   */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>int</name></type> <name>indexOf</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>target</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="block">/*
+   * This class is used to serialize all ImmutableSortedSet instances,
+   * regardless of implementation type. It captures their "logical contents"
+   * only. This is necessary to ensure that the existence of a particular
+   * implementation type is an implementation detail.
+   */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name><name>SerializedForm</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name> <super><implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name><index>[]</index></type> <name>elements</name></decl>;</decl_stmt>
+
+    <constructor><specifier>public</specifier> <name>SerializedForm</name><parameter_list>(<param><decl><type><name><name>Comparator</name><argument_list>&lt;<argument><name>?</name> <super>super <name>E</name></super></argument>&gt;</argument_list></name></type> <name>comparator</name></decl></param>, <param><decl><type><name><name>Object</name><index>[]</index></name></type> <name>elements</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <name>comparator</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>elements</name></name> = <name>elements</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name>Object</name></type> <name>readResolve</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <call><name><name>Builder</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>)</argument_list></call>.<call><name>add</name><argument_list>(<argument><expr>(<name><name>E</name><index>[]</index></name>) <name>elements</name></expr></argument>)</argument_list></call>.<call><name>build</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+  }</block></class>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>stream</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InvalidObjectException</name></expr></argument></throws> <block>{
+    <throw>throw <expr>new <call><name>InvalidObjectException</name><argument_list>(<argument><expr>"Use SerializedForm"</expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name>Object</name></type> <name>writeReplace</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>SerializedForm</name><argument_list>&lt;<argument><name>E</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>comparator</name></expr></argument>, <argument><expr><call><name>toArray</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

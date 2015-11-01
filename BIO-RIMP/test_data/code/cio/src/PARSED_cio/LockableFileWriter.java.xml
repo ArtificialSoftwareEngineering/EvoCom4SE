@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\output\LockableFileWriter.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>output</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>OutputStreamWriter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Writer</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>FileUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>IOUtils</name></name>;</import>
+
+<comment type="javadoc">/**
+ * FileWriter that will create and honor lock files to allow simple
+ * cross thread file lock handling.
+ * &lt;p&gt;
+ * This class provides a simple alternative to &lt;code&gt;FileWriter&lt;/code&gt;
+ * that will use a lock file to prevent duplicate writes.
+ * &lt;p&gt;
+ * &lt;b&gt;N.B.&lt;/b&gt; the lock file is deleted when {@link #close()} is called
+ * - or if the main file cannot be opened initially.
+ * In the (unlikely) event that the lockfile cannot be deleted, 
+ * this is not reported, and subsequent requests using
+ * the same lockfile will fail.
+ * &lt;p&gt;
+ * By default, the file will be overwritten, but this may be changed to append.
+ * The lock directory may be specified, but defaults to the system property
+ * &lt;code&gt;java.io.tmpdir&lt;/code&gt;.
+ * The encoding may also be specified, and defaults to the platform default.
+ *
+ * @version $Id: LockableFileWriter.java 1302056 2012-03-18 03:03:38Z ggregory $
+ */</comment>
+<class><specifier>public</specifier> class <name>LockableFileWriter</name> <super><extends>extends <name>Writer</name></extends></super> <block>{
+    <comment type="line">// Cannot extend ProxyWriter, as requires writer to be</comment>
+    <comment type="line">// known when super() is called</comment>
+
+    <comment type="javadoc">/** The extension for the lock file. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>LCK</name> =<init> <expr>".lck"</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The writer to decorate. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Writer</name></type> <name>out</name></decl>;</decl_stmt>
+    <comment type="javadoc">/** The lock file. */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>File</name></type> <name>lockFile</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     * If the file exists, it is overwritten.
+     *
+     * @param fileName  the file to write to, not null
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>String</name></type> <name>fileName</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>fileName</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     *
+     * @param fileName  file to write to, not null
+     * @param append  true if content should be appended, false to overwrite
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>String</name></type> <name>fileName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>fileName</name></expr></argument>, <argument><expr><name>append</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     *
+     * @param fileName  the file to write to, not null
+     * @param append  true if content should be appended, false to overwrite
+     * @param lockDir  the directory in which the lock file should be held
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>String</name></type> <name>fileName</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>, <param><decl><type><name>String</name></type> <name>lockDir</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>File</name><argument_list>(<argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>append</name></expr></argument>, <argument><expr><name>lockDir</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     * If the file exists, it is overwritten.
+     *
+     * @param file  the file to write to, not null
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     *
+     * @param file  the file to write to, not null
+     * @param append  true if content should be appended, false to overwrite
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>append</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter.
+     *
+     * @param file  the file to write to, not null
+     * @param append  true if content should be appended, false to overwrite
+     * @param lockDir  the directory in which the lock file should be held
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>, <param><decl><type><name>String</name></type> <name>lockDir</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>null</name></expr></argument>, <argument><expr><name>append</name></expr></argument>, <argument><expr><name>lockDir</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter with a file encoding.
+     *
+     * @param file  the file to write to, not null
+     * @param encoding  the encoding to use, null means platform default
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a LockableFileWriter with a file encoding.
+     *
+     * @param file  the file to write to, not null
+     * @param encoding  the encoding to use, null means platform default
+     * @param append  true if content should be appended, false to overwrite
+     * @param lockDir  the directory in which the lock file should be held
+     * @throws NullPointerException if the file is null
+     * @throws IOException in case of an I/O error
+     */</comment>
+    <constructor><specifier>public</specifier> <name>LockableFileWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>,
+            <param><decl><type><name>String</name></type> <name>lockDir</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <comment type="line">// init file to create/append</comment>
+        <expr_stmt><expr><name>file</name> = <call><name><name>file</name>.<name>getAbsoluteFile</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><call><name><name>file</name>.<name>getParentFile</name></name><argument_list>()</argument_list></call> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>FileUtils</name>.<name>forceMkdir</name></name><argument_list>(<argument><expr><call><name><name>file</name>.<name>getParentFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>file</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"File specified is a directory"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        
+        <comment type="line">// init lock file</comment>
+        <if>if <condition>(<expr><name>lockDir</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>lockDir</name> = <call><name><name>System</name>.<name>getProperty</name></name><argument_list>(<argument><expr>"java.io.tmpdir"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>File</name></type> <name>lockDirFile</name> =<init> <expr>new <call><name>File</name><argument_list>(<argument><expr><name>lockDir</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>FileUtils</name>.<name>forceMkdir</name></name><argument_list>(<argument><expr><name>lockDirFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>testLockDir</name><argument_list>(<argument><expr><name>lockDirFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>lockFile</name> = new <call><name>File</name><argument_list>(<argument><expr><name>lockDirFile</name></expr></argument>, <argument><expr><call><name><name>file</name>.<name>getName</name></name><argument_list>()</argument_list></call> + <name>LCK</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <comment type="line">// check if locked</comment>
+        <expr_stmt><expr><call><name>createLock</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        
+        <comment type="line">// init wrapped writer</comment>
+        <expr_stmt><expr><name>out</name> = <call><name>initWriter</name><argument_list>(<argument><expr><name>file</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>, <argument><expr><name>append</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Tests that we can write to the lock directory.
+     *
+     * @param lockDir  the File representing the lock directory
+     * @throws IOException if we cannot write to the lock directory
+     * @throws IOException if we cannot find the lock file
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>testLockDir</name><parameter_list>(<param><decl><type><name>File</name></type> <name>lockDir</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr>!<call><name><name>lockDir</name>.<name>exists</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IOException</name><argument_list>(
+                    <argument><expr>"Could not find lockDir: " + <call><name><name>lockDir</name>.<name>getAbsolutePath</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr>!<call><name><name>lockDir</name>.<name>canWrite</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IOException</name><argument_list>(
+                    <argument><expr>"Could not write to lockDir: " + <call><name><name>lockDir</name>.<name>getAbsolutePath</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates the lock file.
+     *
+     * @throws IOException if we cannot create the file
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>createLock</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <synchronized>synchronized (<expr><name><name>LockableFileWriter</name>.<name><name/></name></name>class</expr>) <block>{
+            <if>if <condition>(<expr>!<call><name><name>lockFile</name>.<name>createNewFile</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <throw>throw <expr>new <call><name>IOException</name><argument_list>(<argument><expr>"Can't write file, lock " +
+                        <call><name><name>lockFile</name>.<name>getAbsolutePath</name></name><argument_list>()</argument_list></call> + " exists"</expr></argument>)</argument_list></call></expr>;</throw>
+            }</block></then></if>
+            <expr_stmt><expr><call><name><name>lockFile</name>.<name>deleteOnExit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></synchronized>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Initialise the wrapped file writer.
+     * Ensure that a cleanup occurs if the writer creation fails.
+     *
+     * @param file  the file to be accessed
+     * @param encoding  the encoding to use
+     * @param append  true to append
+     * @return The initialised writer
+     * @throws IOException if an error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>Writer</name></type> <name>initWriter</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>, <param><decl><type><name>String</name></type> <name>encoding</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>append</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>boolean</name></type> <name>fileExistedAlready</name> =<init> <expr><call><name><name>file</name>.<name>exists</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>OutputStream</name></type> <name>stream</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Writer</name></type> <name>writer</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <try>try <block>{
+            <if>if <condition>(<expr><name>encoding</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>writer</name> = new <call><name>FileWriter</name><argument_list>(<argument><expr><call><name><name>file</name>.<name>getAbsolutePath</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>append</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>stream</name> = new <call><name>FileOutputStream</name><argument_list>(<argument><expr><call><name><name>file</name>.<name>getAbsolutePath</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>append</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>writer</name> = new <call><name>OutputStreamWriter</name><argument_list>(<argument><expr><name>stream</name></expr></argument>, <argument><expr><name>encoding</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block> <catch>catch (<param><decl><type><name>IOException</name></type> <name>ex</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>FileUtils</name>.<name>deleteQuietly</name></name><argument_list>(<argument><expr><name>lockFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>fileExistedAlready</name> == false</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>FileUtils</name>.<name>deleteQuietly</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <throw>throw <expr><name>ex</name></expr>;</throw>
+        }</block></catch> <catch>catch (<param><decl><type><name>RuntimeException</name></type> <name>ex</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>writer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>IOUtils</name>.<name>closeQuietly</name></name><argument_list>(<argument><expr><name>stream</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>FileUtils</name>.<name>deleteQuietly</name></name><argument_list>(<argument><expr><name>lockFile</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>fileExistedAlready</name> == false</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>FileUtils</name>.<name>deleteQuietly</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+            <throw>throw <expr><name>ex</name></expr>;</throw>
+        }</block></catch></try>
+        <return>return <expr><name>writer</name></expr>;</return>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Closes the file writer and deletes the lockfile (if possible).
+     *
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>out</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <finally>finally <block>{
+            <expr_stmt><expr><call><name><name>lockFile</name>.<name>delete</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+    }</block></function>
+
+    <comment type="line">//-----------------------------------------------------------------------</comment>
+    <comment type="javadoc">/**
+     * Write a character.
+     * @param idx the character to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>int</name></type> <name>idx</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>idx</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the characters from an array.
+     * @param chr the characters to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chr</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>chr</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the specified characters from an array.
+     * @param chr the characters to write
+     * @param st The start offset
+     * @param end The number of characters to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name><name>char</name><index>[]</index></name></type> <name>chr</name></decl></param>, <param><decl><type><name>int</name></type> <name>st</name></decl></param>, <param><decl><type><name>int</name></type> <name>end</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>chr</name></expr></argument>, <argument><expr><name>st</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the characters from a string.
+     * @param str the string to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Write the specified characters from a string.
+     * @param str the string to write
+     * @param st The start offset
+     * @param end The number of characters to write
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>write</name><parameter_list>(<param><decl><type><name>String</name></type> <name>str</name></decl></param>, <param><decl><type><name>int</name></type> <name>st</name></decl></param>, <param><decl><type><name>int</name></type> <name>end</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>write</name></name><argument_list>(<argument><expr><name>str</name></expr></argument>, <argument><expr><name>st</name></expr></argument>, <argument><expr><name>end</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Flush the stream.
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>flush</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>out</name>.<name>flush</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+}</block></class>
+</unit>

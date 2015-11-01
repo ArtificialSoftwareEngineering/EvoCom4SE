@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\RateLimiter.java"><comment type="block">/*
+ * Copyright (C) 2012 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>java</name>.<name>lang</name>.<name>Math</name>.<name>max</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name>.<name>MICROSECONDS</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name>.<name>SECONDS</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>VisibleForTesting</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Stopwatch</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>SmoothRateLimiter</name>.<name>SmoothBursty</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name>.<name>SmoothRateLimiter</name>.<name>SmoothWarmingUp</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>Locale</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>ThreadSafe</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A rate limiter. Conceptually, a rate limiter distributes permits at a
+ * configurable rate. Each {@link #acquire()} blocks if necessary until a permit is
+ * available, and then takes it. Once acquired, permits need not be released.
+ *
+ * &lt;p&gt;Rate limiters are often used to restrict the rate at which some
+ * physical or logical resource is accessed. This is in contrast to {@link
+ * java.util.concurrent.Semaphore} which restricts the number of concurrent
+ * accesses instead of the rate (note though that concurrency and rate are closely related,
+ * e.g. see &lt;a href="http://en.wikipedia.org/wiki/Little's_law"&gt;Little's Law&lt;/a&gt;).
+ *
+ * &lt;p&gt;A {@code RateLimiter} is defined primarily by the rate at which permits
+ * are issued. Absent additional configuration, permits will be distributed at a
+ * fixed rate, defined in terms of permits per second. Permits will be distributed
+ * smoothly, with the delay between individual permits being adjusted to ensure
+ * that the configured rate is maintained.
+ *
+ * &lt;p&gt;It is possible to configure a {@code RateLimiter} to have a warmup
+ * period during which time the permits issued each second steadily increases until
+ * it hits the stable rate.
+ *
+ * &lt;p&gt;As an example, imagine that we have a list of tasks to execute, but we don't want to
+ * submit more than 2 per second:
+ *&lt;pre&gt;  {@code
+ *  final RateLimiter rateLimiter = RateLimiter.create(2.0); // rate is "2 permits per second"
+ *  void submitTasks(List&lt;Runnable&gt; tasks, Executor executor) {
+ *    for (Runnable task : tasks) {
+ *      rateLimiter.acquire(); // may wait
+ *      executor.execute(task);
+ *    }
+ *  }
+ *}&lt;/pre&gt;
+ *
+ * &lt;p&gt;As another example, imagine that we produce a stream of data, and we want to cap it
+ * at 5kb per second. This could be accomplished by requiring a permit per byte, and specifying
+ * a rate of 5000 permits per second:
+ *&lt;pre&gt;  {@code
+ *  final RateLimiter rateLimiter = RateLimiter.create(5000.0); // rate = 5000 permits per second
+ *  void submitPacket(byte[] packet) {
+ *    rateLimiter.acquire(packet.length);
+ *    networkService.send(packet);
+ *  }
+ *}&lt;/pre&gt;
+ *
+ * &lt;p&gt;It is important to note that the number of permits requested &lt;i&gt;never&lt;/i&gt;
+ * affects the throttling of the request itself (an invocation to {@code acquire(1)}
+ * and an invocation to {@code acquire(1000)} will result in exactly the same throttling, if any),
+ * but it affects the throttling of the &lt;i&gt;next&lt;/i&gt; request. I.e., if an expensive task
+ * arrives at an idle RateLimiter, it will be granted immediately, but it is the &lt;i&gt;next&lt;/i&gt;
+ * request that will experience extra throttling, thus paying for the cost of the expensive
+ * task.
+ *
+ * &lt;p&gt;Note: {@code RateLimiter} does not provide fairness guarantees.
+ *
+ * @author Dimitris Andreou
+ * @since 13.0
+ */</comment>
+<comment type="line">// TODO(user): switch to nano precision. A natural unit of cost is "bytes", and a micro precision</comment>
+<comment type="line">//     would mean a maximum rate of "1MB/s", which might be small in some cases.</comment>
+<class><annotation>@<name>ThreadSafe</name></annotation>
+<annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>abstract</specifier> class <name>RateLimiter</name> <block>{
+  <comment type="javadoc">/**
+   * Creates a {@code RateLimiter} with the specified stable throughput, given as
+   * "permits per second" (commonly referred to as &lt;i&gt;QPS&lt;/i&gt;, queries per second).
+   *
+   * &lt;p&gt;The returned {@code RateLimiter} ensures that on average no more than {@code
+   * permitsPerSecond} are issued during any given second, with sustained requests
+   * being smoothly spread over each second. When the incoming request rate exceeds
+   * {@code permitsPerSecond} the rate limiter will release one permit every {@code
+   * (1.0 / permitsPerSecond)} seconds. When the rate limiter is unused,
+   * bursts of up to {@code permitsPerSecond} permits will be allowed, with subsequent
+   * requests being smoothly limited at the stable rate of {@code permitsPerSecond}.
+   *
+   * @param permitsPerSecond the rate of the returned {@code RateLimiter}, measured in
+   *        how many permits become available per second
+   * @throws IllegalArgumentException if {@code permitsPerSecond} is negative or zero
+   */</comment>
+  <comment type="line">// TODO(user): "This is equivalent to</comment>
+  <comment type="line">//                 {@code createWithCapacity(permitsPerSecond, 1, TimeUnit.SECONDS)}".</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>RateLimiter</name></type> <name>create</name><parameter_list>(<param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>)</parameter_list> <block>{
+    <comment type="block">/*
+     * The default RateLimiter configuration can save the unused permits of up to one second.
+     * This is to avoid unnecessary stalls in situations like this: A RateLimiter of 1qps,
+     * and 4 threads, all calling acquire() at these moments:
+     *
+     * T0 at 0 seconds
+     * T1 at 1.05 seconds
+     * T2 at 2 seconds
+     * T3 at 3 seconds
+     *
+     * Due to the slight delay of T1, T2 would have to sleep till 2.05 seconds,
+     * and T3 would also have to sleep till 3.05 seconds.
+     */</comment>
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>SleepingStopwatch</name>.<name>createFromSystemTimer</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>permitsPerSecond</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="block">/*
+   * TODO(cpovirk): make SleepingStopwatch the last parameter throughout the class so that the
+   * overloads follow the usual convention: Foo(int), Foo(int, SleepingStopwatch)
+   */</comment>
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>static</specifier> <name>RateLimiter</name></type> <name>create</name><parameter_list>(<param><decl><type><name>SleepingStopwatch</name></type> <name>stopwatch</name></decl></param>, <param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>RateLimiter</name></type> <name>rateLimiter</name> =<init> <expr>new <call><name>SmoothBursty</name><argument_list>(<argument><expr><name>stopwatch</name></expr></argument>, <argument><expr>1.0</expr></argument> <comment type="block">/* maxBurstSeconds */</comment>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>rateLimiter</name>.<name>setRate</name></name><argument_list>(<argument><expr><name>permitsPerSecond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>rateLimiter</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Creates a {@code RateLimiter} with the specified stable throughput, given as
+   * "permits per second" (commonly referred to as &lt;i&gt;QPS&lt;/i&gt;, queries per second), and a
+   * &lt;i&gt;warmup period&lt;/i&gt;, during which the {@code RateLimiter} smoothly ramps up its rate,
+   * until it reaches its maximum rate at the end of the period (as long as there are enough
+   * requests to saturate it). Similarly, if the {@code RateLimiter} is left &lt;i&gt;unused&lt;/i&gt; for
+   * a duration of {@code warmupPeriod}, it will gradually return to its "cold" state,
+   * i.e. it will go through the same warming up process as when it was first created.
+   *
+   * &lt;p&gt;The returned {@code RateLimiter} is intended for cases where the resource that actually
+   * fulfills the requests (e.g., a remote server) needs "warmup" time, rather than
+   * being immediately accessed at the stable (maximum) rate.
+   *
+   * &lt;p&gt;The returned {@code RateLimiter} starts in a "cold" state (i.e. the warmup period
+   * will follow), and if it is left unused for long enough, it will return to that state.
+   *
+   * @param permitsPerSecond the rate of the returned {@code RateLimiter}, measured in
+   *        how many permits become available per second
+   * @param warmupPeriod the duration of the period where the {@code RateLimiter} ramps up its
+   *        rate, before reaching its stable (maximum) rate
+   * @param unit the time unit of the warmupPeriod argument
+   * @throws IllegalArgumentException if {@code permitsPerSecond} is negative or zero or
+   *     {@code warmupPeriod} is negative
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <name>RateLimiter</name></type> <name>create</name><parameter_list>(<param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>, <param><decl><type><name>long</name></type> <name>warmupPeriod</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>warmupPeriod</name> &gt;= 0</expr></argument>, <argument><expr>"warmupPeriod must not be negative: %s"</expr></argument>, <argument><expr><name>warmupPeriod</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>create</name><argument_list>(<argument><expr><call><name><name>SleepingStopwatch</name>.<name>createFromSystemTimer</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>permitsPerSecond</name></expr></argument>, <argument><expr><name>warmupPeriod</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>,
+                  <argument><expr>3.0</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>static</specifier> <name>RateLimiter</name></type> <name>create</name><parameter_list>(
+      <param><decl><type><name>SleepingStopwatch</name></type> <name>stopwatch</name></decl></param>, <param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>, <param><decl><type><name>long</name></type> <name>warmupPeriod</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>,
+      <param><decl><type><name>double</name></type> <name>coldFactor</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>RateLimiter</name></type> <name>rateLimiter</name> =<init> <expr>new <call><name>SmoothWarmingUp</name><argument_list>(<argument><expr><name>stopwatch</name></expr></argument>, <argument><expr><name>warmupPeriod</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>, <argument><expr><name>coldFactor</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>rateLimiter</name>.<name>setRate</name></name><argument_list>(<argument><expr><name>permitsPerSecond</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>rateLimiter</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * The underlying timer; used both to measure elapsed time and sleep as necessary. A separate
+   * object to facilitate testing.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>SleepingStopwatch</name></type> <name>stopwatch</name></decl>;</decl_stmt>
+
+  <comment type="line">// Can't be initialized in the constructor because mocks don't call the constructor.</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>Object</name></type> <name>mutexDoNotUseDirectly</name></decl>;</decl_stmt>
+
+  <function><type><specifier>private</specifier> <name>Object</name></type> <name>mutex</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Object</name></type> <name>mutex</name> =<init> <expr><name>mutexDoNotUseDirectly</name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>mutex</name> == <name>null</name></expr>)</condition><then> <block>{
+      <synchronized>synchronized (<expr><name>this</name></expr>) <block>{
+        <expr_stmt><expr><name>mutex</name> = <name>mutexDoNotUseDirectly</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>mutex</name> == <name>null</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><name>mutexDoNotUseDirectly</name> = <name>mutex</name> = new <call><name>Object</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+      }</block></synchronized>
+    }</block></then></if>
+    <return>return <expr><name>mutex</name></expr>;</return>
+  }</block></function>
+
+  <constructor><name>RateLimiter</name><parameter_list>(<param><decl><type><name>SleepingStopwatch</name></type> <name>stopwatch</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>stopwatch</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>stopwatch</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Updates the stable rate of this {@code RateLimiter}, that is, the
+   * {@code permitsPerSecond} argument provided in the factory method that
+   * constructed the {@code RateLimiter}. Currently throttled threads will &lt;b&gt;not&lt;/b&gt;
+   * be awakened as a result of this invocation, thus they do not observe the new rate;
+   * only subsequent requests will.
+   *
+   * &lt;p&gt;Note though that, since each request repays (by waiting, if necessary) the cost
+   * of the &lt;i&gt;previous&lt;/i&gt; request, this means that the very next request
+   * after an invocation to {@code setRate} will not be affected by the new rate;
+   * it will pay the cost of the previous request, which is in terms of the previous rate.
+   *
+   * &lt;p&gt;The behavior of the {@code RateLimiter} is not modified in any other way,
+   * e.g. if the {@code RateLimiter} was configured with a warmup period of 20 seconds,
+   * it still has a warmup period of 20 seconds after this method invocation.
+   *
+   * @param permitsPerSecond the new stable rate of this {@code RateLimiter}
+   * @throws IllegalArgumentException if {@code permitsPerSecond} is negative or zero
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>void</name></type> <name>setRate</name><parameter_list>(<param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+        <argument><expr><name>permitsPerSecond</name> &gt; 0.0 &amp;&amp; !<call><name><name>Double</name>.<name>isNaN</name></name><argument_list>(<argument><expr><name>permitsPerSecond</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>"rate must be positive"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <synchronized>synchronized (<expr><call><name>mutex</name><argument_list>()</argument_list></call></expr>) <block>{
+      <expr_stmt><expr><call><name>doSetRate</name><argument_list>(<argument><expr><name>permitsPerSecond</name></expr></argument>, <argument><expr><call><name><name>stopwatch</name>.<name>readMicros</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></synchronized>
+  }</block></function>
+
+  <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>doSetRate</name><parameter_list>(<param><decl><type><name>double</name></type> <name>permitsPerSecond</name></decl></param>, <param><decl><type><name>long</name></type> <name>nowMicros</name></decl></param>)</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Returns the stable rate (as {@code permits per seconds}) with which this
+   * {@code RateLimiter} is configured with. The initial value of this is the same as
+   * the {@code permitsPerSecond} argument passed in the factory method that produced
+   * this {@code RateLimiter}, and it is only updated after invocations
+   * to {@linkplain #setRate}.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>final</specifier> <name>double</name></type> <name>getRate</name><parameter_list>()</parameter_list> <block>{
+    <synchronized>synchronized (<expr><call><name>mutex</name><argument_list>()</argument_list></call></expr>) <block>{
+      <return>return <expr><call><name>doGetRate</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></synchronized>
+  }</block></function>
+
+  <function_decl><type><specifier>abstract</specifier> <name>double</name></type> <name>doGetRate</name><parameter_list>()</parameter_list>;</function_decl>
+
+  <comment type="javadoc">/**
+   * Acquires a single permit from this {@code RateLimiter}, blocking until the
+   * request can be granted. Tells the amount of time slept, if any.
+   *
+   * &lt;p&gt;This method is equivalent to {@code acquire(1)}.
+   *
+   * @return time spent sleeping to enforce rate, in seconds; 0.0 if not rate-limited
+   * @since 16.0 (present in 13.0 with {@code void} return type})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>double</name></type> <name>acquire</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>acquire</name><argument_list>(<argument><expr>1</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Acquires the given number of permits from this {@code RateLimiter}, blocking until the
+   * request can be granted. Tells the amount of time slept, if any.
+   *
+   * @param permits the number of permits to acquire
+   * @return time spent sleeping to enforce rate, in seconds; 0.0 if not rate-limited
+   * @throws IllegalArgumentException if the requested number of permits is negative or zero
+   * @since 16.0 (present in 13.0 with {@code void} return type})
+   */</comment>
+  <function><type><specifier>public</specifier> <name>double</name></type> <name>acquire</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>microsToWait</name> =<init> <expr><call><name>reserve</name><argument_list>(<argument><expr><name>permits</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>stopwatch</name>.<name>sleepMicrosUninterruptibly</name></name><argument_list>(<argument><expr><name>microsToWait</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>1.0 * <name>microsToWait</name> / <call><name><name>SECONDS</name>.<name>toMicros</name></name><argument_list>(<argument><expr>1L</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Reserves the given number of permits from this {@code RateLimiter} for future use, returning
+   * the number of microseconds until the reservation can be consumed.
+   *
+   * @return time in microseconds to wait until the resource can be acquired, never negative
+   */</comment>
+  <function><type><specifier>final</specifier> <name>long</name></type> <name>reserve</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkPermits</name><argument_list>(<argument><expr><name>permits</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <synchronized>synchronized (<expr><call><name>mutex</name><argument_list>()</argument_list></call></expr>) <block>{
+      <return>return <expr><call><name>reserveAndGetWaitLength</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr><call><name><name>stopwatch</name>.<name>readMicros</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></synchronized>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Acquires a permit from this {@code RateLimiter} if it can be obtained
+   * without exceeding the specified {@code timeout}, or returns {@code false}
+   * immediately (without waiting) if the permit would not have been granted
+   * before the timeout expired.
+   *
+   * &lt;p&gt;This method is equivalent to {@code tryAcquire(1, timeout, unit)}.
+   *
+   * @param timeout the maximum time to wait for the permit. Negative values are treated as zero.
+   * @param unit the time unit of the timeout argument
+   * @return {@code true} if the permit was acquired, {@code false} otherwise
+   * @throws IllegalArgumentException if the requested number of permits is negative or zero
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryAcquire</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>tryAcquire</name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr><name>timeout</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Acquires permits from this {@link RateLimiter} if it can be acquired immediately without delay.
+   *
+   * &lt;p&gt;
+   * This method is equivalent to {@code tryAcquire(permits, 0, anyUnit)}.
+   *
+   * @param permits the number of permits to acquire
+   * @return {@code true} if the permits were acquired, {@code false} otherwise
+   * @throws IllegalArgumentException if the requested number of permits is negative or zero
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryAcquire</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>tryAcquire</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>MICROSECONDS</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Acquires a permit from this {@link RateLimiter} if it can be acquired immediately without
+   * delay.
+   *
+   * &lt;p&gt;
+   * This method is equivalent to {@code tryAcquire(1)}.
+   *
+   * @return {@code true} if the permit was acquired, {@code false} otherwise
+   * @since 14.0
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryAcquire</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>tryAcquire</name><argument_list>(<argument><expr>1</expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name>MICROSECONDS</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Acquires the given number of permits from this {@code RateLimiter} if it can be obtained
+   * without exceeding the specified {@code timeout}, or returns {@code false}
+   * immediately (without waiting) if the permits would not have been granted
+   * before the timeout expired.
+   *
+   * @param permits the number of permits to acquire
+   * @param timeout the maximum time to wait for the permits. Negative values are treated as zero.
+   * @param unit the time unit of the timeout argument
+   * @return {@code true} if the permits were acquired, {@code false} otherwise
+   * @throws IllegalArgumentException if the requested number of permits is negative or zero
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryAcquire</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>, <param><decl><type><name>long</name></type> <name>timeout</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>timeoutMicros</name> =<init> <expr><call><name>max</name><argument_list>(<argument><expr><call><name><name>unit</name>.<name>toMicros</name></name><argument_list>(<argument><expr><name>timeout</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>checkPermits</name><argument_list>(<argument><expr><name>permits</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>microsToWait</name></decl>;</decl_stmt>
+    <synchronized>synchronized (<expr><call><name>mutex</name><argument_list>()</argument_list></call></expr>) <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>nowMicros</name> =<init> <expr><call><name><name>stopwatch</name>.<name>readMicros</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr>!<call><name>canAcquire</name><argument_list>(<argument><expr><name>nowMicros</name></expr></argument>, <argument><expr><name>timeoutMicros</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>microsToWait</name> = <call><name>reserveAndGetWaitLength</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr><name>nowMicros</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></synchronized>
+    <expr_stmt><expr><call><name><name>stopwatch</name>.<name>sleepMicrosUninterruptibly</name></name><argument_list>(<argument><expr><name>microsToWait</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>boolean</name></type> <name>canAcquire</name><parameter_list>(<param><decl><type><name>long</name></type> <name>nowMicros</name></decl></param>, <param><decl><type><name>long</name></type> <name>timeoutMicros</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>queryEarliestAvailable</name><argument_list>(<argument><expr><name>nowMicros</name></expr></argument>)</argument_list></call> - <name>timeoutMicros</name> &lt;= <name>nowMicros</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Reserves next ticket and returns the wait time that the caller must wait for.
+   *
+   * @return the required wait time, never negative
+   */</comment>
+  <function><type><specifier>final</specifier> <name>long</name></type> <name>reserveAndGetWaitLength</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>, <param><decl><type><name>long</name></type> <name>nowMicros</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>momentAvailable</name> =<init> <expr><call><name>reserveEarliestAvailable</name><argument_list>(<argument><expr><name>permits</name></expr></argument>, <argument><expr><name>nowMicros</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name>max</name><argument_list>(<argument><expr><name>momentAvailable</name> - <name>nowMicros</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the earliest time that permits are available (with one caveat).
+   *
+   * @return the time that permits are available, or, if permits are available immediately, an
+   *     arbitrary past or present time
+   */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>long</name></type> <name>queryEarliestAvailable</name><parameter_list>(<param><decl><type><name>long</name></type> <name>nowMicros</name></decl></param>)</parameter_list>;</function_decl>
+
+    <comment type="javadoc">/**
+   * Reserves the requested number of permits and returns the time that those permits can be used
+   * (with one caveat).
+     *
+   * @return the time that the permits may be used, or, if the permits may be used immediately, an
+   *     arbitrary past or present time
+     */</comment>
+  <function_decl><type><specifier>abstract</specifier> <name>long</name></type> <name>reserveEarliestAvailable</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>, <param><decl><type><name>long</name></type> <name>nowMicros</name></decl></param>)</parameter_list>;</function_decl>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>String</name>.<name>format</name></name><argument_list>(<argument><expr><name><name>Locale</name>.<name>ROOT</name></name></expr></argument>, <argument><expr>"RateLimiter[stableRate=%3.1fqps]"</expr></argument>, <argument><expr><call><name>getRate</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <class><annotation>@<name>VisibleForTesting</name></annotation>
+  <specifier>abstract</specifier> <specifier>static</specifier> class <name>SleepingStopwatch</name> <block>{
+    <comment type="block">/*
+     * We always hold the mutex when calling this. TODO(cpovirk): Is that important? Perhaps we need
+     * to guarantee that each call to reserveEarliestAvailable, etc. sees a value &gt;= the previous?
+     * Also, is it OK that we don't hold the mutex when sleeping?
+     */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>long</name></type> <name>readMicros</name><parameter_list>()</parameter_list>;</function_decl>
+
+    <function_decl><type><specifier>abstract</specifier> <name>void</name></type> <name>sleepMicrosUninterruptibly</name><parameter_list>(<param><decl><type><name>long</name></type> <name>micros</name></decl></param>)</parameter_list>;</function_decl>
+
+    <function><type><specifier>static</specifier> <specifier>final</specifier> <name>SleepingStopwatch</name></type> <name>createFromSystemTimer</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr>new <class><super><name>SleepingStopwatch</name></super><argument_list>()</argument_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Stopwatch</name></type> <name>stopwatch</name> =<init> <expr><call><name><name>Stopwatch</name>.<name>createStarted</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <name>long</name></type> <name>readMicros</name><parameter_list>()</parameter_list> <block>{
+          <return>return <expr><call><name><name>stopwatch</name>.<name>elapsed</name></name><argument_list>(<argument><expr><name>MICROSECONDS</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+
+        <function><type><annotation>@<name>Override</name></annotation>
+        <name>void</name></type> <name>sleepMicrosUninterruptibly</name><parameter_list>(<param><decl><type><name>long</name></type> <name>micros</name></decl></param>)</parameter_list> <block>{
+          <if>if <condition>(<expr><name>micros</name> &gt; 0</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Uninterruptibles</name>.<name>sleepUninterruptibly</name></name><argument_list>(<argument><expr><name>micros</name></expr></argument>, <argument><expr><name>MICROSECONDS</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block></function>
+      }</block></class></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>checkPermits</name><parameter_list>(<param><decl><type><name>int</name></type> <name>permits</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>permits</name> &gt; 0</expr></argument>, <argument><expr>"Requested permits (%s) must be positive"</expr></argument>, <argument><expr><name>permits</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>permits</name></expr>;</return>
+  }</block></function>
+}</block></class>
+</unit>

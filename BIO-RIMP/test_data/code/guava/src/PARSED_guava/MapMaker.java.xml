@@ -1,0 +1,897 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\MapMaker.java"><comment type="block">/*
+ * Copyright (C) 2009 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMakerInternalMap</name>.<name>Strength</name>.<name>SOFT</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Ascii</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Equivalence</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Function</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>MoreObjects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Throwables</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Ticker</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>MapMakerInternalMap</name>.<name>Strength</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>SoftReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>AbstractMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collections</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ConcurrentModificationException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentHashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ConcurrentMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>ExecutionException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;A builder of {@link ConcurrentMap} instances having any combination of the following features:
+ *
+ * &lt;ul&gt;
+ * &lt;li&gt;keys or values automatically wrapped in {@linkplain WeakReference weak} or {@linkplain
+ *     SoftReference soft} references
+ * &lt;li&gt;notification of evicted (or otherwise removed) entries
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;Usage example: &lt;pre&gt;   {@code
+ *
+ *   ConcurrentMap&lt;Request, Stopwatch&gt; timers = new MapMaker()
+ *       .concurrencyLevel(4)
+ *       .weakKeys()
+ *       .makeMap();}&lt;/pre&gt;
+ *
+ * &lt;p&gt;These features are all optional; {@code new MapMaker().makeMap()} returns a valid concurrent
+ * map that behaves similarly to a {@link ConcurrentHashMap}.
+ *
+ * &lt;p&gt;The returned map is implemented as a hash table with similar performance characteristics to
+ * {@link ConcurrentHashMap}. It supports all optional operations of the {@code ConcurrentMap}
+ * interface. It does not permit null keys or values.
+ *
+ * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; by default, the returned map uses equality comparisons (the {@link Object#equals
+ * equals} method) to determine equality for keys or values. However, if {@link #weakKeys} was
+ * specified, the map uses identity ({@code ==}) comparisons instead for keys. Likewise, if {@link
+ * #weakValues} or {@link #softValues} was specified, the map uses identity comparisons for values.
+ *
+ * &lt;p&gt;The view collections of the returned map have &lt;i&gt;weakly consistent iterators&lt;/i&gt;. This means
+ * that they are safe for concurrent use, but if other threads modify the map after the iterator is
+ * created, it is undefined which of these changes, if any, are reflected in that iterator. These
+ * iterators never throw {@link ConcurrentModificationException}.
+ *
+ * &lt;p&gt;If {@link #weakKeys}, {@link #weakValues}, or {@link #softValues} are requested, it is
+ * possible for a key or value present in the map to be reclaimed by the garbage collector. Entries
+ * with reclaimed keys or values may be removed from the map on each map modification or on
+ * occasional map accesses; such entries may be counted by {@link Map#size}, but will never be
+ * visible to read or write operations. A partially-reclaimed entry is never exposed to the user.
+ * Any {@link java.util.Map.Entry} instance retrieved from the map's
+ * {@linkplain Map#entrySet entry set} is a snapshot of that entry's state at the time of
+ * retrieval; such entries do, however, support {@link java.util.Map.Entry#setValue}, which simply
+ * calls {@link Map#put} on the entry's key.
+ *
+ * &lt;p&gt;The maps produced by {@code MapMaker} are serializable, and the deserialized maps retain all
+ * the configuration properties of the original map. During deserialization, if the original map had
+ * used soft or weak references, the entries are reconstructed as they were, but it's not unlikely
+ * they'll be quickly garbage-collected before they are ever accessed.
+ *
+ * &lt;p&gt;{@code new MapMaker().weakKeys().makeMap()} is a recommended replacement for {@link
+ * java.util.WeakHashMap}, but note that it compares keys using object identity whereas {@code
+ * WeakHashMap} uses {@link Object#equals}.
+ *
+ * @author Bob Lee
+ * @author Charles Fry
+ * @author Kevin Bourrillion
+ * @since 2.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(emulated = true)</argument_list></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>MapMaker</name> <super><extends>extends <name><name>GenericMapMaker</name><argument_list>&lt;<argument><name>Object</name></argument>, <argument><name>Object</name></argument>&gt;</argument_list></name></extends></super> <block>{
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_INITIAL_CAPACITY</name> =<init> <expr>16</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_CONCURRENCY_LEVEL</name> =<init> <expr>4</expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_EXPIRATION_NANOS</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>UNSET_INT</name> =<init> <expr>-1</expr></init></decl>;</decl_stmt>
+
+  <comment type="line">// TODO(kevinb): dispense with this after benchmarking</comment>
+  <decl_stmt><decl><type><name>boolean</name></type> <name>useCustomMap</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>int</name></type> <name>initialCapacity</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>int</name></type> <name>concurrencyLevel</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>int</name></type> <name>maximumSize</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>Strength</name></type> <name>keyStrength</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>Strength</name></type> <name>valueStrength</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>long</name></type> <name>expireAfterWriteNanos</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+  <decl_stmt><decl><type><name>long</name></type> <name>expireAfterAccessNanos</name> =<init> <expr><name>UNSET_INT</name></expr></init></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>RemovalCause</name></type> <name>nullRemovalCause</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>keyEquivalence</name></decl>;</decl_stmt>
+
+  <decl_stmt><decl><type><name>Ticker</name></type> <name>ticker</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Constructs a new {@code MapMaker} instance with default settings, including strong keys, strong
+   * values, and no automatic eviction of any kind.
+   */</comment>
+  <constructor><specifier>public</specifier> <name>MapMaker</name><parameter_list>()</parameter_list> <block>{}</block></constructor>
+
+  <comment type="javadoc">/**
+   * Sets a custom {@code Equivalence} strategy for comparing keys.
+   *
+   * &lt;p&gt;By default, the map uses {@link Equivalence#identity} to determine key equality when {@link
+   * #weakKeys} is specified, and {@link Equivalence#equals()} otherwise. The only place this is
+   * used is in {@link Interners.WeakInterner}.
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <name>MapMaker</name></type> <name>keyEquivalence</name><parameter_list>(<param><decl><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>equivalence</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>keyEquivalence</name> == <name>null</name></expr></argument>, <argument><expr>"key equivalence was already set to %s"</expr></argument>, <argument><expr><name>keyEquivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>keyEquivalence</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>equivalence</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>useCustomMap</name></name> = true</expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name><name>Equivalence</name><argument_list>&lt;<argument><name>Object</name></argument>&gt;</argument_list></name></type> <name>getKeyEquivalence</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>keyEquivalence</name></expr></argument>, <argument><expr><call><name>getKeyStrength</name><argument_list>()</argument_list></call>.<call><name>defaultEquivalence</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Sets the minimum total size for the internal hash tables. For example, if the initial capacity
+   * is {@code 60}, and the concurrency level is {@code 8}, then eight segments are created, each
+   * having a hash table of size eight. Providing a large enough estimate at construction time
+   * avoids the need for expensive resizing operations later, but setting this value unnecessarily
+   * high wastes memory.
+   *
+   * @throws IllegalArgumentException if {@code initialCapacity} is negative
+   * @throws IllegalStateException if an initial capacity was already set
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>MapMaker</name></type> <name>initialCapacity</name><parameter_list>(<param><decl><type><name>int</name></type> <name>initialCapacity</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>initialCapacity</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"initial capacity was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>initialCapacity</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>initialCapacity</name> &gt;= 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>initialCapacity</name></name> = <name>initialCapacity</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>int</name></type> <name>getInitialCapacity</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>initialCapacity</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_INITIAL_CAPACITY</name> : <name>initialCapacity</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies the maximum number of entries the map may contain. Note that the map &lt;b&gt;may evict an
+   * entry before this limit is exceeded&lt;/b&gt;. As the map size grows close to the maximum, the map
+   * evicts entries that are less likely to be used again. For example, the map may evict an entry
+   * because it hasn't been used recently or very often.
+   *
+   * &lt;p&gt;When {@code size} is zero, elements can be successfully added to the map, but are evicted
+   * immediately. This has the same effect as invoking {@link #expireAfterWrite
+   * expireAfterWrite}{@code (0, unit)} or {@link #expireAfterAccess expireAfterAccess}{@code (0,
+   * unit)}. It can be useful in testing, or to disable caching temporarily without a code change.
+   *
+   * &lt;p&gt;Caching functionality in {@code MapMaker} has been moved to
+   * {@link com.google.common.cache.CacheBuilder}.
+   *
+   * @param size the maximum size of the map
+   * @throws IllegalArgumentException if {@code size} is negative
+   * @throws IllegalStateException if a maximum size was already set
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to
+   *     {@link com.google.common.cache.CacheBuilder}, with {@link #maximumSize} being
+   *     replaced by {@link com.google.common.cache.CacheBuilder#maximumSize}. Note that {@code
+   *     CacheBuilder} is simply an enhanced API for an implementation which was branched from
+   *     {@code MapMaker}.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <name>MapMaker</name></type> <name>maximumSize</name><parameter_list>(<param><decl><type><name>int</name></type> <name>size</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>maximumSize</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"maximum size was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>maximumSize</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>size</name> &gt;= 0</expr></argument>, <argument><expr>"maximum size must not be negative"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>maximumSize</name></name> = <name>size</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>useCustomMap</name></name> = true</expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>maximumSize</name> == 0</expr>)</condition><then> <block>{
+      <comment type="line">// SIZE trumps EXPIRED</comment>
+      <expr_stmt><expr><name><name>this</name>.<name>nullRemovalCause</name></name> = <name><name>RemovalCause</name>.<name>SIZE</name></name></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Guides the allowed concurrency among update operations. Used as a hint for internal sizing. The
+   * table is internally partitioned to try to permit the indicated number of concurrent updates
+   * without contention. Because assignment of entries to these partitions is not necessarily
+   * uniform, the actual concurrency observed may vary. Ideally, you should choose a value to
+   * accommodate as many threads as will ever concurrently modify the table. Using a significantly
+   * higher value than you need can waste space and time, and a significantly lower value can lead
+   * to thread contention. But overestimates and underestimates within an order of magnitude do not
+   * usually have much noticeable impact. A value of one permits only one thread to modify the map
+   * at a time, but since read operations can proceed concurrently, this still yields higher
+   * concurrency than full synchronization. Defaults to 4.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; Prior to Guava release 9.0, the default was 16. It is possible the default will
+   * change again in the future. If you care about this value, you should always choose it
+   * explicitly.
+   *
+   * @throws IllegalArgumentException if {@code concurrencyLevel} is nonpositive
+   * @throws IllegalStateException if a concurrency level was already set
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>MapMaker</name></type> <name>concurrencyLevel</name><parameter_list>(<param><decl><type><name>int</name></type> <name>concurrencyLevel</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>concurrencyLevel</name></name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"concurrency level was already set to %s"</expr></argument>,
+        <argument><expr><name><name>this</name>.<name>concurrencyLevel</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>concurrencyLevel</name> &gt; 0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>concurrencyLevel</name></name> = <name>concurrencyLevel</name></expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>int</name></type> <name>getConcurrencyLevel</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>concurrencyLevel</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_CONCURRENCY_LEVEL</name> : <name>concurrencyLevel</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each key (not value) stored in the map should be wrapped in a {@link
+   * WeakReference} (by default, strong references are used).
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; when this method is used, the resulting map will use identity ({@code ==})
+   * comparison to determine equality of keys, which is a technical violation of the {@link Map}
+   * specification, and may not be what you expect.
+   *
+   * @throws IllegalStateException if the key strength was already set
+   * @see WeakReference
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.WeakReference")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>MapMaker</name></type> <name>weakKeys</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setKeyStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><name>MapMaker</name></type> <name>setKeyStrength</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>keyStrength</name> == <name>null</name></expr></argument>, <argument><expr>"Key strength was already set to %s"</expr></argument>, <argument><expr><name>keyStrength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>keyStrength</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>strength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>keyStrength</name> != <name>SOFT</name></expr></argument>, <argument><expr>"Soft keys are not supported"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>strength</name> != <name><name>Strength</name>.<name>STRONG</name></name></expr>)</condition><then> <block>{
+      <comment type="line">// STRONG could be used during deserialization.</comment>
+      <expr_stmt><expr><name>useCustomMap</name> = true</expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Strength</name></type> <name>getKeyStrength</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>keyStrength</name></expr></argument>, <argument><expr><name><name>Strength</name>.<name>STRONG</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each value (not key) stored in the map should be wrapped in a
+   * {@link WeakReference} (by default, strong references are used).
+   *
+   * &lt;p&gt;Weak values will be garbage collected once they are weakly reachable. This makes them a poor
+   * candidate for caching; consider {@link #softValues} instead.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; when this method is used, the resulting map will use identity ({@code ==})
+   * comparison to determine equality of values. This technically violates the specifications of
+   * the methods {@link Map#containsValue containsValue},
+   * {@link ConcurrentMap#remove(Object, Object) remove(Object, Object)} and
+   * {@link ConcurrentMap#replace(Object, Object, Object) replace(K, V, V)}, and may not be what you
+   * expect.
+   *
+   * @throws IllegalStateException if the value strength was already set
+   * @see WeakReference
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.WeakReference")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>MapMaker</name></type> <name>weakValues</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setValueStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>WEAK</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each value (not key) stored in the map should be wrapped in a
+   * {@link SoftReference} (by default, strong references are used). Softly-referenced objects will
+   * be garbage-collected in a &lt;i&gt;globally&lt;/i&gt; least-recently-used manner, in response to memory
+   * demand.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; in most circumstances it is better to set a per-cache {@linkplain
+   * #maximumSize maximum size} instead of using soft references. You should only use this method if
+   * you are well familiar with the practical consequences of soft references.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; when this method is used, the resulting map will use identity ({@code ==})
+   * comparison to determine equality of values. This technically violates the specifications of
+   * the methods {@link Map#containsValue containsValue},
+   * {@link ConcurrentMap#remove(Object, Object) remove(Object, Object)} and
+   * {@link ConcurrentMap#replace(Object, Object, Object) replace(K, V, V)}, and may not be what you
+   * expect.
+   *
+   * @throws IllegalStateException if the value strength was already set
+   * @see SoftReference
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to {@link
+   *     com.google.common.cache.CacheBuilder}, with {@link #softValues} being replaced by {@link
+   *     com.google.common.cache.CacheBuilder#softValues}. Note that {@code CacheBuilder} is simply
+   *     an enhanced API for an implementation which was branched from {@code MapMaker}.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("java.lang.ref.SoftReference")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <name>MapMaker</name></type> <name>softValues</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name>setValueStrength</name><argument_list>(<argument><expr><name><name>Strength</name>.<name>SOFT</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><name>MapMaker</name></type> <name>setValueStrength</name><parameter_list>(<param><decl><type><name>Strength</name></type> <name>strength</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>valueStrength</name> == <name>null</name></expr></argument>, <argument><expr>"Value strength was already set to %s"</expr></argument>, <argument><expr><name>valueStrength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>valueStrength</name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>strength</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>strength</name> != <name><name>Strength</name>.<name>STRONG</name></name></expr>)</condition><then> <block>{
+      <comment type="line">// STRONG could be used during deserialization.</comment>
+      <expr_stmt><expr><name>useCustomMap</name> = true</expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Strength</name></type> <name>getValueStrength</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>valueStrength</name></expr></argument>, <argument><expr><name><name>Strength</name>.<name>STRONG</name></name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each entry should be automatically removed from the map once a fixed duration
+   * has elapsed after the entry's creation, or the most recent replacement of its value.
+   *
+   * &lt;p&gt;When {@code duration} is zero, elements can be successfully added to the map, but are
+   * evicted immediately. This has a very similar effect to invoking {@link #maximumSize
+   * maximumSize}{@code (0)}. It can be useful in testing, or to disable caching temporarily without
+   * a code change.
+   *
+   * &lt;p&gt;Expired entries may be counted by {@link Map#size}, but will never be visible to read or
+   * write operations. Expired entries are currently cleaned up during write operations, or during
+   * occasional read operations in the absense of writes; though this behavior may change in the
+   * future.
+   *
+   * @param duration the length of time after an entry is created that it should be automatically
+   *     removed
+   * @param unit the unit that {@code duration} is expressed in
+   * @throws IllegalArgumentException if {@code duration} is negative
+   * @throws IllegalStateException if the time to live or time to idle was already set
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to
+   *     {@link com.google.common.cache.CacheBuilder}, with {@link #expireAfterWrite} being
+   *     replaced by {@link com.google.common.cache.CacheBuilder#expireAfterWrite}. Note that {@code
+   *     CacheBuilder} is simply an enhanced API for an implementation which was branched from
+   *     {@code MapMaker}.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <name>MapMaker</name></type> <name>expireAfterWrite</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkExpiration</name><argument_list>(<argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>expireAfterWriteNanos</name></name> = <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>duration</name> == 0 &amp;&amp; <name><name>this</name>.<name>nullRemovalCause</name></name> == <name>null</name></expr>)</condition><then> <block>{
+      <comment type="line">// SIZE trumps EXPIRED</comment>
+      <expr_stmt><expr><name><name>this</name>.<name>nullRemovalCause</name></name> = <name><name>RemovalCause</name>.<name>EXPIRED</name></name></expr>;</expr_stmt>
+    }</block></then></if>
+    <expr_stmt><expr><name>useCustomMap</name> = true</expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>checkExpiration</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>expireAfterWriteNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"expireAfterWrite was already set to %s ns"</expr></argument>,
+        <argument><expr><name>expireAfterWriteNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>expireAfterAccessNanos</name> == <name>UNSET_INT</name></expr></argument>, <argument><expr>"expireAfterAccess was already set to %s ns"</expr></argument>,
+        <argument><expr><name>expireAfterAccessNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>duration</name> &gt;= 0</expr></argument>, <argument><expr>"duration cannot be negative: %s %s"</expr></argument>, <argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getExpireAfterWriteNanos</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>expireAfterWriteNanos</name> == <name>UNSET_INT</name>) ? <name>DEFAULT_EXPIRATION_NANOS</name> : <name>expireAfterWriteNanos</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies that each entry should be automatically removed from the map once a fixed duration
+   * has elapsed after the entry's last read or write access.
+   *
+   * &lt;p&gt;When {@code duration} is zero, elements can be successfully added to the map, but are
+   * evicted immediately. This has a very similar effect to invoking {@link #maximumSize
+   * maximumSize}{@code (0)}. It can be useful in testing, or to disable caching temporarily without
+   * a code change.
+   *
+   * &lt;p&gt;Expired entries may be counted by {@link Map#size}, but will never be visible to read or
+   * write operations. Expired entries are currently cleaned up during write operations, or during
+   * occasional read operations in the absense of writes; though this behavior may change in the
+   * future.
+   *
+   * @param duration the length of time after an entry is last accessed that it should be
+   *     automatically removed
+   * @param unit the unit that {@code duration} is expressed in
+   * @throws IllegalArgumentException if {@code duration} is negative
+   * @throws IllegalStateException if the time to idle or time to live was already set
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to
+   *     {@link com.google.common.cache.CacheBuilder}, with {@link #expireAfterAccess} being
+   *     replaced by {@link com.google.common.cache.CacheBuilder#expireAfterAccess}. Note that
+   *     {@code CacheBuilder} is simply an enhanced API for an implementation which was branched
+   *     from {@code MapMaker}.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <annotation>@<name>Override</name></annotation>
+  <name>MapMaker</name></type> <name>expireAfterAccess</name><parameter_list>(<param><decl><type><name>long</name></type> <name>duration</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkExpiration</name><argument_list>(<argument><expr><name>duration</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>expireAfterAccessNanos</name></name> = <call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>duration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>duration</name> == 0 &amp;&amp; <name><name>this</name>.<name>nullRemovalCause</name></name> == <name>null</name></expr>)</condition><then> <block>{
+      <comment type="line">// SIZE trumps EXPIRED</comment>
+      <expr_stmt><expr><name><name>this</name>.<name>nullRemovalCause</name></name> = <name><name>RemovalCause</name>.<name>EXPIRED</name></name></expr>;</expr_stmt>
+    }</block></then></if>
+    <expr_stmt><expr><name>useCustomMap</name> = true</expr>;</expr_stmt>
+    <return>return <expr><name>this</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>long</name></type> <name>getExpireAfterAccessNanos</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name>expireAfterAccessNanos</name> == <name>UNSET_INT</name>)
+        ? <name>DEFAULT_EXPIRATION_NANOS</name> : <name>expireAfterAccessNanos</name></expr>;</return>
+  }</block></function>
+
+  <function><type><name>Ticker</name></type> <name>getTicker</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>MoreObjects</name>.<name>firstNonNull</name></name><argument_list>(<argument><expr><name>ticker</name></expr></argument>, <argument><expr><call><name><name>Ticker</name>.<name>systemTicker</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Specifies a listener instance, which all maps built using this {@code MapMaker} will notify
+   * each time an entry is removed from the map by any means.
+   *
+   * &lt;p&gt;Each map built by this map maker after this method is called invokes the supplied listener
+   * after removing an element for any reason (see removal causes in {@link RemovalCause}). It will
+   * invoke the listener during invocations of any of that map's public methods (even read-only
+   * methods).
+   *
+   * &lt;p&gt;&lt;b&gt;Important note:&lt;/b&gt; Instead of returning &lt;i&gt;this&lt;/i&gt; as a {@code MapMaker} instance,
+   * this method returns {@code GenericMapMaker&lt;K, V&gt;}. From this point on, either the original
+   * reference or the returned reference may be used to complete configuration and build the map,
+   * but only the "generic" one is type-safe. That is, it will properly prevent you from building
+   * maps whose key or value types are incompatible with the types accepted by the listener already
+   * provided; the {@code MapMaker} type cannot do this. For best results, simply use the standard
+   * method-chaining idiom, as illustrated in the documentation at top, configuring a {@code
+   * MapMaker} and building your {@link Map} all in a single statement.
+   *
+   * &lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; if you ignore the above advice, and use this {@code MapMaker} to build a map
+   * or cache whose key or value type is incompatible with the listener, you will likely experience
+   * a {@link ClassCastException} at some &lt;i&gt;undefined&lt;/i&gt; point in the future.
+   *
+   * @throws IllegalStateException if a removal listener was already set
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to
+   *     {@link com.google.common.cache.CacheBuilder}, with {@link #removalListener} being
+   *     replaced by {@link com.google.common.cache.CacheBuilder#removalListener}. Note that {@code
+   *     CacheBuilder} is simply an enhanced API for an implementation which was branched from
+   *     {@code MapMaker}.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("To be supported")</argument_list></annotation>
+  <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>GenericMapMaker</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>removalListener</name><parameter_list>(<param><decl><type><name><name>RemovalListener</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>this</name>.<name>removalListener</name></name> == <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+    <comment type="line">// safely limiting the kinds of maps this can produce</comment>
+    <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <name><name>GenericMapMaker</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>me</name> =<init> <expr>(<name><name>GenericMapMaker</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name>) <name>this</name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><name><name>me</name>.<name>removalListener</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>useCustomMap</name> = true</expr>;</expr_stmt>
+    <return>return <expr><name>me</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Builds a thread-safe map. This method does not alter the state of this {@code MapMaker}
+   * instance, so it can be invoked again to create multiple independent maps.
+   *
+   * &lt;p&gt;The bulk operations {@code putAll}, {@code equals}, and {@code clear} are not guaranteed to
+   * be performed atomically on the returned map. Additionally, {@code size} and {@code
+   * containsValue} are implemented as bulk read operations, and thus may fail to observe concurrent
+   * writes.
+   *
+   * @return a serializable concurrent map having the requested features
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>ConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>makeMap</name><parameter_list>()</parameter_list> <block>{
+    <if>if <condition>(<expr>!<name>useCustomMap</name></expr>)</condition><then> <block>{
+      <return>return <expr>new <call><name><name>ConcurrentHashMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><call><name>getInitialCapacity</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr>0.75f</expr></argument>, <argument><expr><call><name>getConcurrencyLevel</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then></if>
+    <return>return <expr>(<name>nullRemovalCause</name> == <name>null</name>)
+        ? new <call><name><name>MapMakerInternalMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call>
+        : new <call><name><name>NullConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a MapMakerInternalMap for the benefit of internal callers that use features of
+   * that class not exposed through ConcurrentMap.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <annotation>@<name>GwtIncompatible</name><argument_list>("MapMakerInternalMap")</argument_list></annotation>
+  <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>MapMakerInternalMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>makeCustomMap</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>MapMakerInternalMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Builds a map that supports atomic, on-demand computation of values. {@link Map#get} either
+   * returns an already-computed value for the given key, atomically computes it using the supplied
+   * function, or, if another thread is currently computing the value for this key, simply waits for
+   * that thread to finish and returns its computed value. Note that the function may be executed
+   * concurrently by multiple threads, but only for distinct keys.
+   *
+   * &lt;p&gt;New code should use {@link com.google.common.cache.CacheBuilder}, which supports
+   * {@linkplain com.google.common.cache.CacheStats statistics} collection, introduces the
+   * {@link com.google.common.cache.CacheLoader} interface for loading entries into the cache
+   * (allowing checked exceptions to be thrown in the process), and more cleanly separates
+   * computation from the cache's {@code Map} view.
+   *
+   * &lt;p&gt;If an entry's value has not finished computing yet, query methods besides {@code get} return
+   * immediately as if an entry doesn't exist. In other words, an entry isn't externally visible
+   * until the value's computation completes.
+   *
+   * &lt;p&gt;{@link Map#get} on the returned map will never return {@code null}. It may throw:
+   *
+   * &lt;ul&gt;
+   * &lt;li&gt;{@link NullPointerException} if the key is null or the computing function returns a null
+   *     result
+   * &lt;li&gt;{@link ComputationException} if an exception was thrown by the computing function. If that
+   * exception is already of type {@link ComputationException} it is propagated directly; otherwise
+   * it is wrapped.
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; Callers of {@code get} &lt;i&gt;must&lt;/i&gt; ensure that the key argument is of type
+   * {@code K}. The {@code get} method accepts {@code Object}, so the key type is not checked at
+   * compile time. Passing an object of a type other than {@code K} can result in that object being
+   * unsafely passed to the computing function as type {@code K}, and unsafely stored in the map.
+   *
+   * &lt;p&gt;If {@link Map#put} is called before a computation completes, other threads waiting on the
+   * computation will wake up and return the stored value.
+   *
+   * &lt;p&gt;This method does not alter the state of this {@code MapMaker} instance, so it can be invoked
+   * again to create multiple independent maps.
+   *
+   * &lt;p&gt;Insertion, removal, update, and access operations on the returned map safely execute
+   * concurrently by multiple threads. Iterators on the returned map are weakly consistent,
+   * returning elements reflecting the state of the map at some point at or since the creation of
+   * the iterator. They do not throw {@link ConcurrentModificationException}, and may proceed
+   * concurrently with other operations.
+   *
+   * &lt;p&gt;The bulk operations {@code putAll}, {@code equals}, and {@code clear} are not guaranteed to
+   * be performed atomically on the returned map. Additionally, {@code size} and {@code
+   * containsValue} are implemented as bulk read operations, and thus may fail to observe concurrent
+   * writes.
+   *
+   * @param computingFunction the function used to compute new values
+   * @return a serializable concurrent map having the requested features
+   * @deprecated Caching functionality in {@code MapMaker} has been moved to
+   *     {@link com.google.common.cache.CacheBuilder}, with {@link #makeComputingMap} being replaced
+   *     by {@link com.google.common.cache.CacheBuilder#build}. See the
+   *     &lt;a href="https://github.com/google/guava/wiki/MapMakerMigration"&gt;MapMaker
+   *     Migration Guide&lt;/a&gt; for more details.
+   */</comment>
+  <function><type><annotation>@<name>Deprecated</name></annotation>
+  <annotation>@<name><name>Override</name>
+  <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></annotation> <name><name>ConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>makeComputingMap</name><parameter_list>(
+      <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>(<name>nullRemovalCause</name> == <name>null</name>)
+        ? new <call><name><name>MapMaker</name>.<name><name>ComputingMapAdapter</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call>
+        : new <call><name><name>NullComputingConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>this</name></expr></argument>, <argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a string representation for this MapMaker instance. The exact form of the returned
+   * string is not specificed.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>MoreObjects</name>.<name>ToStringHelper</name></name></type> <name>s</name> =<init> <expr><call><name><name>MoreObjects</name>.<name>toStringHelper</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>initialCapacity</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"initialCapacity"</expr></argument>, <argument><expr><name>initialCapacity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>concurrencyLevel</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"concurrencyLevel"</expr></argument>, <argument><expr><name>concurrencyLevel</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>maximumSize</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"maximumSize"</expr></argument>, <argument><expr><name>maximumSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>expireAfterWriteNanos</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"expireAfterWrite"</expr></argument>, <argument><expr><name>expireAfterWriteNanos</name> + "ns"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>expireAfterAccessNanos</name> != <name>UNSET_INT</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"expireAfterAccess"</expr></argument>, <argument><expr><name>expireAfterAccessNanos</name> + "ns"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>keyStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"keyStrength"</expr></argument>, <argument><expr><call><name><name>Ascii</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><call><name><name>keyStrength</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>valueStrength</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>add</name></name><argument_list>(<argument><expr>"valueStrength"</expr></argument>, <argument><expr><call><name><name>Ascii</name>.<name>toLowerCase</name></name><argument_list>(<argument><expr><call><name><name>valueStrength</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>keyEquivalence</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>addValue</name></name><argument_list>(<argument><expr>"keyEquivalence"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <if>if <condition>(<expr><name>removalListener</name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name><name>s</name>.<name>addValue</name></name><argument_list>(<argument><expr>"removalListener"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <return>return <expr><call><name><name>s</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * An object that can receive a notification when an entry is removed from a map. The removal
+   * resulting in notification could have occured to an entry being manually removed or replaced, or
+   * due to eviction resulting from timed expiration, exceeding a maximum size, or garbage
+   * collection.
+   *
+   * &lt;p&gt;An instance may be called concurrently by multiple threads to process different entries.
+   * Implementations of this interface should avoid performing blocking calls or synchronizing on
+   * shared resources.
+   *
+   * @param &lt;K&gt; the most general type of keys this listener can listen for; for
+   *     example {@code Object} if any key is acceptable
+   * @param &lt;V&gt; the most general type of values this listener can listen for; for
+   *     example {@code Object} if any key is acceptable
+   */</comment>
+  <class type="interface">interface <name><name>RemovalListener</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <block>{
+    <comment type="javadoc">/**
+     * Notifies the listener that a removal occurred at some point in the past.
+     */</comment>
+    <function_decl><type><name>void</name></type> <name>onRemoval</name><parameter_list>(<param><decl><type><name><name>RemovalNotification</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>notification</name></decl></param>)</parameter_list>;</function_decl>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * A notification of the removal of a single entry. The key or value may be null if it was already
+   * garbage collected.
+   *
+   * &lt;p&gt;Like other {@code Map.Entry} instances associated with MapMaker, this class holds strong
+   * references to the key and value, regardless of the type of references the map may be using.
+   */</comment>
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name><name>RemovalNotification</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>ImmutableEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>RemovalCause</name></type> <name>cause</name></decl>;</decl_stmt>
+
+    <constructor><name>RemovalNotification</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>, <param><decl><type><name>RemovalCause</name></type> <name>cause</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>cause</name></name> = <name>cause</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Returns the cause for which the entry was removed.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>RemovalCause</name></type> <name>getCause</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>cause</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns {@code true} if there was an automatic removal due to eviction (the cause is neither
+     * {@link RemovalCause#EXPLICIT} nor {@link RemovalCause#REPLACED}).
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>wasEvicted</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>cause</name>.<name>wasEvicted</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * The reason why an entry was removed.
+   */</comment>
+  <enum>enum <name>RemovalCause</name> <block>{
+    <comment type="javadoc">/**
+     * The entry was manually removed by the user. This can result from the user invoking
+     * {@link Map#remove}, {@link ConcurrentMap#remove}, or {@link java.util.Iterator#remove}.
+     */</comment>
+    <expr_stmt><expr><name>EXPLICIT</name> <block>{
+      @<expr><name>Override</name>
+      <name>boolean</name> <call><name>wasEvicted</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>false</expr>;</return></block></expr></block></expr></expr_stmt>
+      }</block></enum>
+    }</block></class>,
+
+    <comment type="javadoc">/**
+     * The entry itself was not actually removed, but its value was replaced by the user. This can
+     * result from the user invoking {@link Map#put}, {@link Map#putAll},
+     * {@link ConcurrentMap#replace(Object, Object)}, or
+     * {@link ConcurrentMap#replace(Object, Object, Object)}.
+     */</comment>
+    <expr_stmt><expr><name>REPLACED</name> <block>{
+      @<expr><name>Override</name>
+      <name>boolean</name> <call><name>wasEvicted</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>false</expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    },
+
+    <comment type="javadoc">/**
+     * The entry was removed automatically because its key or value was garbage-collected. This can
+     * occur when using {@link #softValues}, {@link #weakKeys}, or {@link #weakValues}.
+     */</comment>
+    <expr_stmt><expr><name>COLLECTED</name> <block>{
+      @<expr><name>Override</name>
+      <name>boolean</name> <call><name>wasEvicted</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>true</expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    },
+
+    <comment type="javadoc">/**
+     * The entry's expiration timestamp has passed. This can occur when using {@link
+     * #expireAfterWrite} or {@link #expireAfterAccess}.
+     */</comment>
+    <expr_stmt><expr><name>EXPIRED</name> <block>{
+      @<expr><name>Override</name>
+      <name>boolean</name> <call><name>wasEvicted</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>true</expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    },
+
+    <comment type="javadoc">/**
+     * The entry was evicted due to size constraints. This can occur when using {@link
+     * #maximumSize}.
+     */</comment>
+    <expr_stmt><expr><name>SIZE</name> <block>{
+      @<expr><name>Override</name>
+      <name>boolean</name> <call><name>wasEvicted</name><argument_list>()</argument_list></call> <block>{
+        <return>return <expr>true</expr>;</return></block></expr></block></expr></expr_stmt>
+      }
+    }<empty_stmt>;</empty_stmt>
+
+    <comment type="javadoc">/**
+     * Returns {@code true} if there was an automatic removal due to eviction (the cause is neither
+     * {@link #EXPLICIT} nor {@link #REPLACED}).
+     */</comment>
+    <function_decl><type><specifier>abstract</specifier> <name>boolean</name></type> <name>wasEvicted</name><parameter_list>()</parameter_list>;</function_decl>
+  }
+
+  <comment type="javadoc">/** A map that is always empty and evicts on insertion. */</comment>
+  <class><specifier>static</specifier> class <name><name>NullConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends>
+      <implements>implements <name><name>ConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name>, <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>RemovalListener</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>removalListener</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>RemovalCause</name></type> <name>removalCause</name></decl>;</decl_stmt>
+
+    <constructor><name>NullConcurrentMap</name><parameter_list>(<param><decl><type><name>MapMaker</name></type> <name>mapMaker</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name>removalListener</name> = <call><name><name>mapMaker</name>.<name>getRemovalListener</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>removalCause</name> = <name><name>mapMaker</name>.<name>nullRemovalCause</name></name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="line">// implements ConcurrentMap</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>containsKey</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>containsValue</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><name>void</name></type> <name>notifyRemoval</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>RemovalNotification</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>notification</name> =<init>
+          <expr>new <call><name><name>RemovalNotification</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>removalCause</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>removalListener</name>.<name>onRemoval</name></name><argument_list>(<argument><expr><name>notification</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>put</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>notifyRemoval</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>putIfAbsent</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name>put</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>remove</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>remove</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>replace</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>replace</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>oldValue</name></decl></param>, <param><decl><type><name>V</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>newValue</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr>false</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Set</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>entrySet</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>Collections</name>.<name>emptySet</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** Computes on retrieval and evicts the result. */</comment>
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name><name>NullComputingConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>NullConcurrentMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl>;</decl_stmt>
+
+    <constructor><name>NullComputingConcurrentMap</name><parameter_list>(
+        <param><decl><type><name>MapMaker</name></type> <name>mapMaker</name></decl></param>, <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>mapMaker</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>computingFunction</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// unsafe, which is why Cache is preferred</comment>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>k</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>K</name></type> <name>key</name> =<init> <expr>(<name>K</name>) <name>k</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>V</name></type> <name>value</name> =<init> <expr><call><name>compute</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>value</name></expr></argument>, <argument><expr>"%s returned null for key %s."</expr></argument>, <argument><expr><name>computingFunction</name></expr></argument>, <argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>notifyRemoval</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>V</name></type> <name>compute</name><parameter_list>(<param><decl><type><name>K</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <try>try <block>{
+        <return>return <expr><call><name><name>computingFunction</name>.<name>apply</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block> <catch>catch (<param><decl><type><name>ComputationException</name></type> <name>e</name></decl></param>) <block>{
+        <throw>throw <expr><name>e</name></expr>;</throw>
+      }</block></catch> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>t</name></decl></param>) <block>{
+        <throw>throw <expr>new <call><name>ComputationException</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Overrides get() to compute on demand. Also throws an exception when {@code null} is returned
+   * from a computation.
+   */</comment>
+  <comment type="block">/*
+   * This might make more sense in ComputingConcurrentHashMap, but it causes a javac crash in some
+   * cases there: http://code.google.com/p/guava-libraries/issues/detail?id=950
+   */</comment>
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name><name>ComputingMapAdapter</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name>
+      <super><extends>extends <name><name>ComputingConcurrentHashMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends> <implements>implements <name>Serializable</name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <constructor><name>ComputingMapAdapter</name><parameter_list>(<param><decl><type><name>MapMaker</name></type> <name>mapMaker</name></decl></param>,
+        <param><decl><type><name><name>Function</name><argument_list>&lt;<argument><name>?</name> <super>super <name>K</name></super></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>computingFunction</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>mapMaker</name></expr></argument>, <argument><expr><name>computingFunction</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// unsafe, which is one advantage of Cache over Map</comment>
+    <annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>get</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>V</name></type> <name>value</name></decl>;</decl_stmt>
+      <try>try <block>{
+        <expr_stmt><expr><name>value</name> = <call><name>getOrCompute</name><argument_list>(<argument><expr>(<name>K</name>) <name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> <catch>catch (<param><decl><type><name>ExecutionException</name></type> <name>e</name></decl></param>) <block>{
+        <decl_stmt><decl><type><name>Throwable</name></type> <name>cause</name> =<init> <expr><call><name><name>e</name>.<name>getCause</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>Throwables</name>.<name>propagateIfInstanceOf</name></name><argument_list>(<argument><expr><name>cause</name></expr></argument>, <argument><expr><name><name>ComputationException</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <throw>throw <expr>new <call><name>ComputationException</name><argument_list>(<argument><expr><name>cause</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></catch></try>
+
+      <if>if <condition>(<expr><name>value</name> == <name>null</name></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr><name>computingFunction</name> + " returned null for key " + <name>key</name> + "."</expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></then></if>
+      <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+}
+</unit>

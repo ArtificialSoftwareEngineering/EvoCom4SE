@@ -1,0 +1,826 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\collect\LinkedListMultimap.java"><comment type="block">/*
+ * Copyright (C) 2007 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkPositionIndex</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>CollectPreconditions</name>.<name>checkRemove</name></name>;</import>
+<import>import static <name><name>java</name>.<name>util</name>.<name>Collections</name>.<name>unmodifiableList</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtCompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>GwtIncompatible</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>j2objc</name>.<name>annotations</name>.<name>WeakOuter</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectInputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>ObjectOutputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>AbstractSequentialList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Collection</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ConcurrentModificationException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Iterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ListIterator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name>.<name>Entry</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>NoSuchElementException</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * An implementation of {@code ListMultimap} that supports deterministic
+ * iteration order for both keys and values. The iteration order is preserved
+ * across non-distinct key values. For example, for the following multimap
+ * definition: &lt;pre&gt;   {@code
+ *
+ *   Multimap&lt;K, V&gt; multimap = LinkedListMultimap.create();
+ *   multimap.put(key1, foo);
+ *   multimap.put(key2, bar);
+ *   multimap.put(key1, baz);}&lt;/pre&gt;
+ *
+ * ... the iteration order for {@link #keys()} is {@code [key1, key2, key1]},
+ * and similarly for {@link #entries()}. Unlike {@link LinkedHashMultimap}, the
+ * iteration order is kept consistent between keys, entries and values. For
+ * example, calling: &lt;pre&gt;   {@code
+ *
+ *   map.remove(key1, foo);}&lt;/pre&gt;
+ *
+ * &lt;p&gt;changes the entries iteration order to {@code [key2=bar, key1=baz]} and the
+ * key iteration order to {@code [key2, key1]}. The {@link #entries()} iterator
+ * returns mutable map entries, and {@link #replaceValues} attempts to preserve
+ * iteration order as much as possible.
+ *
+ * &lt;p&gt;The collections returned by {@link #keySet()} and {@link #asMap} iterate
+ * through the keys in the order they were first added to the multimap.
+ * Similarly, {@link #get}, {@link #removeAll}, and {@link #replaceValues}
+ * return collections that iterate through the values in the order they were
+ * added. The collections generated by {@link #entries()}, {@link #keys()}, and
+ * {@link #values} iterate across the key-value mappings in the order they were
+ * added to the multimap.
+ *
+ * &lt;p&gt;The {@link #values()} and {@link #entries()} methods both return a
+ * {@code List}, instead of the {@code Collection} specified by the {@link
+ * ListMultimap} interface.
+ *
+ * &lt;p&gt;The methods {@link #get}, {@link #keySet()}, {@link #keys()},
+ * {@link #values}, {@link #entries()}, and {@link #asMap} return collections
+ * that are views of the multimap. If the multimap is modified while an
+ * iteration over any of those collections is in progress, except through the
+ * iterator's methods, the results of the iteration are undefined.
+ *
+ * &lt;p&gt;Keys and values may be null. All optional multimap methods are supported,
+ * and all returned views are modifiable.
+ *
+ * &lt;p&gt;This class is not threadsafe when any concurrent operations update the
+ * multimap. Concurrent read operations will work correctly. To allow concurrent
+ * update operations, wrap your multimap with a call to {@link
+ * Multimaps#synchronizedListMultimap}.
+ *
+ * &lt;p&gt;See the Guava User Guide article on &lt;a href=
+ * "https://github.com/google/guava/wiki/NewCollectionTypesExplained#multimap"&gt;
+ * {@code Multimap}&lt;/a&gt;.
+ *
+ * @author Mike Bostock
+ * @since 2.0
+ */</comment>
+<class><annotation>@<name>GwtCompatible</name><argument_list>(serializable = true, emulated = true)</argument_list></annotation>
+<specifier>public</specifier> class <name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends>
+    <implements>implements <name><name>ListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name>, <name>Serializable</name></implements></super> <block>{
+  <comment type="block">/*
+   * Order is maintained using a linked list containing all key-value pairs. In
+   * addition, a series of disjoint linked lists of "siblings", each containing
+   * the values for a specific key, is used to implement {@link
+   * ValueForKeyIterator} in constant time.
+   */</comment>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <super><extends>extends <name><name>AbstractMapEntry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>K</name></type> <name>key</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>V</name></type> <name>value</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>next</name></decl>;</decl_stmt> <comment type="line">// the next node (with any key)</comment>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>previous</name></decl>;</decl_stmt> <comment type="line">// the previous node (with any key)</comment>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>nextSibling</name></decl>;</decl_stmt> <comment type="line">// the next node with the same key</comment>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>previousSibling</name></decl>;</decl_stmt> <comment type="line">// the previous node with the same key</comment>
+
+    <constructor><name>Node</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>key</name></name> = <name>key</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>value</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>K</name></type> <name>getKey</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>key</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>getValue</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>value</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>setValue</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>newValue</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>V</name></type> <name>result</name> =<init> <expr><name>value</name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>value</name></name> = <name>newValue</name></expr>;</expr_stmt>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+  
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name> <block>{
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>head</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>tail</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>count</name></decl>;</decl_stmt>
+    
+    <constructor><name>KeyList</name><parameter_list>(<param><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>firstNode</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>head</name></name> = <name>firstNode</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>tail</name></name> = <name>firstNode</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>firstNode</name>.<name>previousSibling</name></name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>firstNode</name>.<name>nextSibling</name></name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>count</name></name> = 1</expr>;</expr_stmt>
+    }</block></constructor>
+  }</block></class>
+
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>head</name></decl>;</decl_stmt> <comment type="line">// the head for all keys</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>tail</name></decl>;</decl_stmt> <comment type="line">// the tail for all keys</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name><name>Map</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>keyToKeyList</name></decl>;</decl_stmt>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>int</name></type> <name>size</name></decl>;</decl_stmt>
+  
+  <comment type="block">/*
+   * Tracks modifications to keyToKeyList so that addition or removal of keys invalidates
+   * preexisting iterators. This does *not* track simple additions and removals of values
+   * that are not the first to be added or last to be removed for their key.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <name>transient</name> <name>int</name></type> <name>modCount</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Creates a new, empty {@code LinkedListMultimap} with the default initial
+   * capacity.
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Constructs an empty {@code LinkedListMultimap} with enough capacity to hold
+   * the specified number of keys without rehashing.
+   *
+   * @param expectedKeys the expected number of distinct keys
+   * @throws IllegalArgumentException if {@code expectedKeys} is negative
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>(<param><decl><type><name>int</name></type> <name>expectedKeys</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>expectedKeys</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Constructs a {@code LinkedListMultimap} with the same mappings as the
+   * specified {@code Multimap}. The new multimap has the same
+   * {@link Multimap#entries()} iteration order as the input multimap.
+   *
+   * @param multimap the multimap whose contents are copied to this multimap
+   */</comment>
+  <function><type><specifier>public</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list> <name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>create</name><parameter_list>(
+      <param><decl><type><name><name>Multimap</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>multimap</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>LinkedListMultimap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>multimap</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <constructor><name>LinkedListMultimap</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name>keyToKeyList</name> = <call><name><name>Maps</name>.<name>newHashMap</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <constructor><specifier>private</specifier> <name>LinkedListMultimap</name><parameter_list>(<param><decl><type><name>int</name></type> <name>expectedKeys</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name>keyToKeyList</name> = new <call><name><name>HashMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>expectedKeys</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <constructor><specifier>private</specifier> <name>LinkedListMultimap</name><parameter_list>(<param><decl><type><name><name>Multimap</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>K</name></extends></argument>, <argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>multimap</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><call><name><name>multimap</name>.<name>keySet</name></name><argument_list>()</argument_list></call>.<call><name>size</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name>putAll</name><argument_list>(<argument><expr><name>multimap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Adds a new node for the specified key-value pair before the specified
+   * {@code nextSibling} element, or at the end of the list if {@code
+   * nextSibling} is null. Note: if {@code nextSibling} is specified, it MUST be
+   * for an node for the same {@code key}!
+   */</comment>
+  <function><type><specifier>private</specifier> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>addNode</name><parameter_list>(
+      <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>nextSibling</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>node</name> =<init> <expr>new <call><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>head</name> == <name>null</name></expr>)</condition><then> <block>{ <comment type="line">// empty list</comment>
+      <expr_stmt><expr><name>head</name> = <name>tail</name> = <name>node</name></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>keyToKeyList</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr>new <call><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+    }</block></then> <else>else <if>if <condition>(<expr><name>nextSibling</name> == <name>null</name></expr>)</condition><then> <block>{ <comment type="line">// non-empty list, add to tail</comment>
+      <expr_stmt><expr><name><name>tail</name>.<name>next</name></name> = <name>node</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>node</name>.<name>previous</name></name> = <name>tail</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>tail</name> = <name>node</name></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>keyList</name> == <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>keyToKeyList</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>keyList</name> = new <call><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>node</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>keyList</name>.<name>count</name></name>++</expr>;</expr_stmt>
+        <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyTail</name> =<init> <expr><name><name>keyList</name>.<name>tail</name></name></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><name><name>keyTail</name>.<name>nextSibling</name></name> = <name>node</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>node</name>.<name>previousSibling</name></name> = <name>keyTail</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>keyList</name>.<name>tail</name></name> = <name>node</name></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></then> <else>else <block>{ <comment type="line">// non-empty list, insert before nextSibling</comment>
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>keyList</name>.<name>count</name></name>++</expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>node</name>.<name>previous</name></name> = <name><name>nextSibling</name>.<name>previous</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>node</name>.<name>previousSibling</name></name> = <name><name>nextSibling</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>node</name>.<name>next</name></name> = <name>nextSibling</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>node</name>.<name>nextSibling</name></name> = <name>nextSibling</name></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name><name>nextSibling</name>.<name>previousSibling</name></name> == <name>null</name></expr>)</condition><then> <block>{ <comment type="line">// nextSibling was key head</comment>
+        <expr_stmt><expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call>.<name>head</name> = <name>node</name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>nextSibling</name>.<name>previousSibling</name>.<name>nextSibling</name></name> = <name>node</name></expr>;</expr_stmt>
+      }</block></else></if>
+      <if>if <condition>(<expr><name><name>nextSibling</name>.<name>previous</name></name> == <name>null</name></expr>)</condition><then> <block>{ <comment type="line">// nextSibling was head</comment>
+        <expr_stmt><expr><name>head</name> = <name>node</name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>nextSibling</name>.<name>previous</name>.<name>next</name></name> = <name>node</name></expr>;</expr_stmt>
+      }</block></else></if>
+      <expr_stmt><expr><name><name>nextSibling</name>.<name>previous</name></name> = <name>node</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>nextSibling</name>.<name>previousSibling</name></name> = <name>node</name></expr>;</expr_stmt>
+    }</block></else></if></else></if>
+    <expr_stmt><expr><name>size</name>++</expr>;</expr_stmt>
+    <return>return <expr><name>node</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Removes the specified node from the linked list. This method is only
+   * intended to be used from the {@code Iterator} classes. See also {@link
+   * LinkedListMultimap#removeAllNodes(Object)}.
+   */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>removeNode</name><parameter_list>(<param><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>node</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>node</name>.<name>previous</name></name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name><name>node</name>.<name>previous</name>.<name>next</name></name> = <name><name>node</name>.<name>next</name></name></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{ <comment type="line">// node was head</comment>
+      <expr_stmt><expr><name>head</name> = <name><name>node</name>.<name>next</name></name></expr>;</expr_stmt>
+    }</block></else></if>
+    <if>if <condition>(<expr><name><name>node</name>.<name>next</name></name> != <name>null</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><name><name>node</name>.<name>next</name>.<name>previous</name></name> = <name><name>node</name>.<name>previous</name></name></expr>;</expr_stmt>
+    }</block></then> <else>else <block>{ <comment type="line">// node was tail</comment>
+      <expr_stmt><expr><name>tail</name> = <name><name>node</name>.<name>previous</name></name></expr>;</expr_stmt>
+    }</block></else></if>
+    <if>if <condition>(<expr><name><name>node</name>.<name>previousSibling</name></name> == <name>null</name> &amp;&amp; <name><name>node</name>.<name>nextSibling</name></name> == <name>null</name></expr>)</condition><then> <block>{
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>remove</name></name><argument_list>(<argument><expr><name><name>node</name>.<name>key</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>keyList</name>.<name>count</name></name> = 0</expr>;</expr_stmt>
+      <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name><name>node</name>.<name>key</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name><name>keyList</name>.<name>count</name></name>--</expr>;</expr_stmt>
+
+      <if>if <condition>(<expr><name><name>node</name>.<name>previousSibling</name></name> == <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>keyList</name>.<name>head</name></name> = <name><name>node</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>node</name>.<name>previousSibling</name>.<name>nextSibling</name></name> = <name><name>node</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+      }</block></else></if>
+      
+      <if>if <condition>(<expr><name><name>node</name>.<name>nextSibling</name></name> == <name>null</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name><name>keyList</name>.<name>tail</name></name> = <name><name>node</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name><name>node</name>.<name>nextSibling</name>.<name>previousSibling</name></name> = <name><name>node</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+      }</block></else></if>
+    }</block></else></if>
+    <expr_stmt><expr><name>size</name>--</expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/** Removes all nodes for the specified key. */</comment>
+  <function><type><specifier>private</specifier> <name>void</name></type> <name>removeAllNodes</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>Iterators</name>.<name>clear</name></name><argument_list>(<argument><expr>new <call><name>ValueForKeyIterator</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/** Helper method for verifying that an iterator element is present. */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>checkElement</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>node</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>node</name> == <name>null</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>NoSuchElementException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/** An {@code Iterator} over all nodes. */</comment>
+  <class><specifier>private</specifier> class <name>NodeIterator</name> <super><implements>implements <name><name>ListIterator</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>nextIndex</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>next</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>current</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>previous</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>expectedModCount</name> =<init> <expr><name>modCount</name></expr></init></decl>;</decl_stmt>
+
+    <constructor><name>NodeIterator</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>int</name></type> <name>size</name> =<init> <expr><call><name>size</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>index</name> &gt;= (<name>size</name> / 2)</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>previous</name> = <name>tail</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>nextIndex</name> = <name>size</name></expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>index</name>++ &lt; <name>size</name></expr>)</condition> <block>{
+          <expr_stmt><expr><call><name>previous</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>next</name> = <name>head</name></expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>index</name>-- &gt; 0</expr>)</condition> <block>{
+          <expr_stmt><expr><call><name>next</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+      }</block></else></if>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></constructor>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>checkForConcurrentModification</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr><name>modCount</name> != <name>expectedModCount</name></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>ConcurrentModificationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></then></if>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>hasNext</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>next</name> != <name>null</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>next</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkElement</name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>previous</name> = <name>current</name> = <name>next</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>next</name> = <name><name>next</name>.<name>next</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>nextIndex</name>++</expr>;</expr_stmt>
+      <return>return <expr><name>current</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>remove</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkRemove</name><argument_list>(<argument><expr><name>current</name> != <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>current</name> != <name>next</name></expr>)</condition><then> <block>{ <comment type="line">// after call to next()</comment>
+        <expr_stmt><expr><name>previous</name> = <name><name>current</name>.<name>previous</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>nextIndex</name>--</expr>;</expr_stmt>
+      }</block></then> <else>else <block>{ <comment type="line">// after call to previous()</comment>
+        <expr_stmt><expr><name>next</name> = <name><name>current</name>.<name>next</name></name></expr>;</expr_stmt>
+      }</block></else></if>
+      <expr_stmt><expr><call><name>removeNode</name><argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>expectedModCount</name> = <name>modCount</name></expr>;</expr_stmt>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>hasPrevious</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>previous</name> != <name>null</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>previous</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkElement</name><argument_list>(<argument><expr><name>previous</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>next</name> = <name>current</name> = <name>previous</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>previous</name> = <name><name>previous</name>.<name>previous</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>nextIndex</name>--</expr>;</expr_stmt>
+      <return>return <expr><name>current</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>nextIndex</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>nextIndex</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>previousIndex</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>nextIndex</name> - 1</expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>set</name><parameter_list>(<param><decl><type><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>add</name><parameter_list>(<param><decl><type><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+      <throw>throw <expr>new <call><name>UnsupportedOperationException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></function>
+    <function><type><name>void</name></type> <name>setValue</name><parameter_list>(<param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>current</name> != <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>current</name>.<name>value</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** An {@code Iterator} over distinct keys in key head order. */</comment>
+  <class><specifier>private</specifier> class <name>DistinctKeyIterator</name> <super><implements>implements <name><name>Iterator</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name><name>Set</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>seenKeys</name> =<init> <expr><name><name>Sets</name>.<name><name/></name></name>&lt;<name>K</name>&gt;<call><name>newHashSetWithExpectedSize</name><argument_list>(<argument><expr><call><name>keySet</name><argument_list>()</argument_list></call>.<call><name>size</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>next</name> =<init> <expr><name>head</name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>current</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>expectedModCount</name> =<init> <expr><name>modCount</name></expr></init></decl>;</decl_stmt>
+    
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>checkForConcurrentModification</name><parameter_list>()</parameter_list> <block>{
+      <if>if <condition>(<expr><name>modCount</name> != <name>expectedModCount</name></expr>)</condition><then> <block>{
+        <throw>throw <expr>new <call><name>ConcurrentModificationException</name><argument_list>()</argument_list></call></expr>;</throw>
+      }</block></then></if>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>hasNext</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><name>next</name> != <name>null</name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>K</name></type> <name>next</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkElement</name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>next</name></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>seenKeys</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>current</name>.<name>key</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <do>do <block>{ <comment type="line">// skip ahead to next unseen key</comment>
+        <expr_stmt><expr><name>next</name> = <name><name>next</name>.<name>next</name></name></expr>;</expr_stmt>
+      }</block> while <condition>(<expr>(<name>next</name> != <name>null</name>) &amp;&amp; !<call><name><name>seenKeys</name>.<name>add</name></name><argument_list>(<argument><expr><name><name>next</name>.<name>key</name></name></expr></argument>)</argument_list></call></expr>)</condition>;</do>
+      <return>return <expr><name><name>current</name>.<name>key</name></name></expr>;</return>
+    }</block></function>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>remove</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkForConcurrentModification</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>checkRemove</name><argument_list>(<argument><expr><name>current</name> != <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>removeAllNodes</name><argument_list>(<argument><expr><name><name>current</name>.<name>key</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>expectedModCount</name> = <name>modCount</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/** A {@code ListIterator} over values for a specified key. */</comment>
+  <class><specifier>private</specifier> class <name>ValueForKeyIterator</name> <super><implements>implements <name><name>ListIterator</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></implements></super> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Object</name></type> <name>key</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>nextIndex</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>next</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>current</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Node</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>previous</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** Constructs a new iterator over all values for the specified key. */</comment>
+    <constructor><name>ValueForKeyIterator</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>key</name></name> = <name>key</name></expr>;</expr_stmt>
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><name>next</name> = (<name>keyList</name> == <name>null</name>) ? <name>null</name> : <name><name>keyList</name>.<name>head</name></name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new iterator over all values for the specified key starting
+     * at the specified index. This constructor is optimized so that it starts
+     * at either the head or the tail, depending on which is closer to the
+     * specified index. This allows adds to the tail to be done in constant
+     * time.
+     *
+     * @throws IndexOutOfBoundsException if index is invalid
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ValueForKeyIterator</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>, <param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>int</name></type> <name>size</name> =<init> <expr>(<name>keyList</name> == <name>null</name>) ? 0 : <name><name>keyList</name>.<name>count</name></name></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkPositionIndex</name><argument_list>(<argument><expr><name>index</name></expr></argument>, <argument><expr><name>size</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>index</name> &gt;= (<name>size</name> / 2)</expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>previous</name> = (<name>keyList</name> == <name>null</name>) ? <name>null</name> : <name><name>keyList</name>.<name>tail</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>nextIndex</name> = <name>size</name></expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>index</name>++ &lt; <name>size</name></expr>)</condition> <block>{
+          <expr_stmt><expr><call><name>previous</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+      }</block></then> <else>else <block>{
+        <expr_stmt><expr><name>next</name> = (<name>keyList</name> == <name>null</name>) ? <name>null</name> : <name><name>keyList</name>.<name>head</name></name></expr>;</expr_stmt>
+        <while>while <condition>(<expr><name>index</name>-- &gt; 0</expr>)</condition> <block>{
+          <expr_stmt><expr><call><name>next</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></while>
+      }</block></else></if>
+      <expr_stmt><expr><name><name>this</name>.<name>key</name></name> = <name>key</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>hasNext</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>next</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>next</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkElement</name><argument_list>(<argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>previous</name> = <name>current</name> = <name>next</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>next</name> = <name><name>next</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>nextIndex</name>++</expr>;</expr_stmt>
+      <return>return <expr><name><name>current</name>.<name>value</name></name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>hasPrevious</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>previous</name> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>V</name></type> <name>previous</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkElement</name><argument_list>(<argument><expr><name>previous</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>next</name> = <name>current</name> = <name>previous</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>previous</name> = <name><name>previous</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>nextIndex</name>--</expr>;</expr_stmt>
+      <return>return <expr><name><name>current</name>.<name>value</name></name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>nextIndex</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>nextIndex</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>previousIndex</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><name>nextIndex</name> - 1</expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>remove</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkRemove</name><argument_list>(<argument><expr><name>current</name> != <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>current</name> != <name>next</name></expr>)</condition><then> <block>{ <comment type="line">// after call to next()</comment>
+        <expr_stmt><expr><name>previous</name> = <name><name>current</name>.<name>previousSibling</name></name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>nextIndex</name>--</expr>;</expr_stmt>
+      }</block></then> <else>else <block>{ <comment type="line">// after call to previous()</comment>
+        <expr_stmt><expr><name>next</name> = <name><name>current</name>.<name>nextSibling</name></name></expr>;</expr_stmt>
+      }</block></else></if>
+      <expr_stmt><expr><call><name>removeNode</name><argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>set</name><parameter_list>(<param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name>current</name> != <name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>current</name>.<name>value</name></name> = <name>value</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>add</name><parameter_list>(<param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name>previous</name> = <call><name>addNode</name><argument_list>(<argument><expr>(<name>K</name>) <name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>next</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>nextIndex</name>++</expr>;</expr_stmt>
+      <expr_stmt><expr><name>current</name> = <name>null</name></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">// Query Operations</comment>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>size</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>isEmpty</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>head</name> == <name>null</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>containsKey</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>keyToKeyList</name>.<name>containsKey</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>containsValue</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>values</name><argument_list>()</argument_list></call>.<call><name>contains</name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Modification Operations</comment>
+
+  <comment type="javadoc">/**
+   * Stores a key-value pair in the multimap.
+   *
+   * @param key key to store in the multimap
+   * @param value value to store in the multimap
+   * @return {@code true} always
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>boolean</name></type> <name>put</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>, <param><decl><type><annotation>@<name>Nullable</name></annotation> <name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>addNode</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr>true</expr>;</return>
+  }</block></function>
+
+  <comment type="line">// Bulk Operations</comment>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;If any entries for the specified {@code key} already exist in the
+   * multimap, their values are changed in-place without affecting the iteration
+   * order.
+   *
+   * &lt;p&gt;The returned list is immutable and implements
+   * {@link java.util.RandomAccess}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>replaceValues</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>, <param><decl><type><name><name>Iterable</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>values</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>oldValues</name> =<init> <expr><call><name>getCopy</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>ListIterator</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyValues</name> =<init> <expr>new <call><name>ValueForKeyIterator</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name><name>Iterator</name><argument_list>&lt;<argument><name>?</name> <extends>extends <name>V</name></extends></argument>&gt;</argument_list></name></type> <name>newValues</name> =<init> <expr><call><name><name>values</name>.<name>iterator</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Replace existing values, if any.</comment>
+    <while>while <condition>(<expr><call><name><name>keyValues</name>.<name>hasNext</name></name><argument_list>()</argument_list></call> &amp;&amp; <call><name><name>newValues</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+      <expr_stmt><expr><call><name><name>keyValues</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>keyValues</name>.<name>set</name></name><argument_list>(<argument><expr><call><name><name>newValues</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+
+    <comment type="line">// Remove remaining old values, if any.</comment>
+    <while>while <condition>(<expr><call><name><name>keyValues</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+      <expr_stmt><expr><call><name><name>keyValues</name>.<name>next</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>keyValues</name>.<name>remove</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+
+    <comment type="line">// Add remaining new values, if any.</comment>
+    <while>while <condition>(<expr><call><name><name>newValues</name>.<name>hasNext</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+      <expr_stmt><expr><call><name><name>keyValues</name>.<name>add</name></name><argument_list>(<argument><expr><call><name><name>newValues</name>.<name>next</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></while>
+
+    <return>return <expr><name>oldValues</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>getCopy</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>unmodifiableList</name><argument_list>(<argument><expr><call><name><name>Lists</name>.<name>newArrayList</name></name><argument_list>(<argument><expr>new <call><name>ValueForKeyIterator</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;The returned list is immutable and implements
+   * {@link java.util.RandomAccess}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>removeAll</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>oldValues</name> =<init> <expr><call><name>getCopy</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>removeAllNodes</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><name>oldValues</name></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name>void</name></type> <name>clear</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name>head</name> = <name>null</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name>tail</name> = <name>null</name></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>keyToKeyList</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>size</name> = 0</expr>;</expr_stmt>
+    <expr_stmt><expr><name>modCount</name>++</expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="line">// Views</comment>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;If the multimap is modified while an iteration over the list is in
+   * progress (except through the iterator's own {@code add}, {@code set} or
+   * {@code remove} operations) the results of the iteration are undefined.
+   *
+   * &lt;p&gt;The returned list is not serializable and does not have random access.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>get</name><parameter_list>(<param><decl><type><specifier>final</specifier> <annotation>@<name>Nullable</name></annotation> <name>K</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <class><super><name><name>AbstractSequentialList</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name><name>KeyList</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>keyList</name> =<init> <expr><call><name><name>keyToKeyList</name>.<name>get</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>(<name>keyList</name> == <name>null</name>) ? 0 : <name><name>keyList</name>.<name>count</name></name></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>ListIterator</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>listIterator</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>ValueForKeyIterator</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>Set</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>createKeySet</name><parameter_list>()</parameter_list> <block>{
+    <class><annotation>@<name>WeakOuter</name></annotation>
+    class <name>KeySetImpl</name> <super><extends>extends <name>Sets</name>.<name><name>ImprovedAbstractSet</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></extends></super> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>keyToKeyList</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>Iterator</name><argument_list>&lt;<argument><name>K</name></argument>&gt;</argument_list></name></type> <name>iterator</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>DistinctKeyIterator</name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>contains</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>key</name></decl></param>)</parameter_list> <block>{ <comment type="line">// for performance</comment>
+        <return>return <expr><call><name>containsKey</name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation>
+      <specifier>public</specifier> <name>boolean</name></type> <name>remove</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>o</name></decl></param>)</parameter_list> <block>{ <comment type="line">// for performance</comment>
+        <return>return <expr>!<call><name><name>LinkedListMultimap</name>.<name>this</name>.<name>removeAll</name></name><argument_list>(<argument><expr><name>o</name></expr></argument>)</argument_list></call>.<call><name>isEmpty</name><argument_list>()</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class>
+    <return>return <expr>new <call><name>KeySetImpl</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;The iterator generated by the returned collection traverses the values
+   * in the order they were added to the multimap. Because the values may have
+   * duplicates and follow the insertion ordering, this method returns a {@link
+   * List}, instead of the {@link Collection} specified in the {@link
+   * ListMultimap} interface.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>values</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name>) <call><name><name>super</name>.<name>values</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>List</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>createValues</name><parameter_list>()</parameter_list> <block>{
+    <class><annotation>@<name>WeakOuter</name></annotation>
+    class <name>ValuesImpl</name> <super><extends>extends <name><name>AbstractSequentialList</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></extends></super> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>size</name></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>ListIterator</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></type> <name>listIterator</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>NodeIterator</name></type> <name>nodeItr</name> =<init> <expr>new <call><name>NodeIterator</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>new <class><super><name><name>TransformedListIterator</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></super><argument_list>(<argument><expr><name>nodeItr</name></expr></argument>)</argument_list> <block>{
+          <function><type><annotation>@<name>Override</name></annotation>
+          <name>V</name></type> <name>transform</name><parameter_list>(<param><decl><type><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+            <return>return <expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr>;</return>
+          }</block></function>
+
+          <function><type><annotation>@<name>Override</name></annotation>
+          <specifier>public</specifier> <name>void</name></type> <name>set</name><parameter_list>(<param><decl><type><name>V</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name><name>nodeItr</name>.<name>setValue</name></name><argument_list>(<argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></function>
+        }</block></class></expr>;</return>
+      }</block></function>
+    }</block></class>
+    <return>return <expr>new <call><name>ValuesImpl</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;The iterator generated by the returned collection traverses the entries
+   * in the order they were added to the multimap. Because the entries may have
+   * duplicates and follow the insertion ordering, this method returns a {@link
+   * List}, instead of the {@link Collection} specified in the {@link
+   * ListMultimap} interface.
+   *
+   * &lt;p&gt;An entry's {@link Entry#getKey} method always returns the same key,
+   * regardless of what happens subsequently. As long as the corresponding
+   * key-value mapping is not removed from the multimap, {@link Entry#getValue}
+   * returns the value from the multimap, which may change over time, and {@link
+   * Entry#setValue} modifies that value. Removing the mapping from the
+   * multimap does not alter the value returned by {@code getValue()}, though a
+   * subsequent {@code setValue()} call won't update the multimap but will lead
+   * to a revised value being returned by {@code getValue()}.
+   */</comment>
+  <function><type><annotation>@<name>Override</name></annotation>
+  <specifier>public</specifier> <name><name>List</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>entries</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>(<name><name>List</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name>) <call><name><name>super</name>.<name>entries</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>List</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>createEntries</name><parameter_list>()</parameter_list> <block>{
+    <class><annotation>@<name>WeakOuter</name></annotation>
+    class <name>EntriesImpl</name> <super><extends>extends <name><name>AbstractSequentialList</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></extends></super> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>size</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>size</name></expr>;</return>
+      }</block></function>
+
+      <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name><name>ListIterator</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>listIterator</name><parameter_list>(<param><decl><type><name>int</name></type> <name>index</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr>new <call><name>NodeIterator</name><argument_list>(<argument><expr><name>index</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></function>
+    }</block></class>
+    <return>return <expr>new <call><name>EntriesImpl</name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>Iterator</name><argument_list>&lt;<argument><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>entryIterator</name><parameter_list>()</parameter_list> <block>{
+    <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr>"should never be called"</expr></argument>)</argument_list></call></expr>;</throw>
+  }</block></function>
+
+  <function><type><annotation>@<name>Override</name></annotation>
+  <name><name>Map</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name><name>Collection</name><argument_list>&lt;<argument><name>V</name></argument>&gt;</argument_list></name></argument>&gt;</argument_list></name></type> <name>createAsMap</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr>new <call><name><name>Multimaps</name>.<name><name>AsMap</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * @serialData the number of distinct keys, and then for each distinct key:
+   *     the first key, the number of values for that key, and the key's values,
+   *     followed by successive keys and values from the entries() ordering
+   */</comment>
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.io.ObjectOutputStream")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>writeObject</name><parameter_list>(<param><decl><type><name>ObjectOutputStream</name></type> <name>stream</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name><name>stream</name>.<name>defaultWriteObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><call><name><name>stream</name>.<name>writeInt</name></name><argument_list>(<argument><expr><call><name>size</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <for>for (<init><decl><type><name><name>Entry</name><argument_list>&lt;<argument><name>K</name></argument>, <argument><name>V</name></argument>&gt;</argument_list></name></type> <name>entry</name> :<range> <expr><call><name>entries</name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+      <expr_stmt><expr><call><name><name>stream</name>.<name>writeObject</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name><name>stream</name>.<name>writeObject</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+  }</block></function>
+
+  <function><type><annotation>@<name>GwtIncompatible</name><argument_list>("java.io.ObjectInputStream")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>readObject</name><parameter_list>(<param><decl><type><name>ObjectInputStream</name></type> <name>stream</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>IOException</name></expr></argument>, <argument><expr><name>ClassNotFoundException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name><name>stream</name>.<name>defaultReadObject</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <expr_stmt><expr><name>keyToKeyList</name> = <call><name><name>Maps</name>.<name>newLinkedHashMap</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <decl_stmt><decl><type><name>int</name></type> <name>size</name> =<init> <expr><call><name><name>stream</name>.<name>readInt</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name>size</name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// reading data stored by writeObject</comment>
+      <name>K</name></type> <name>key</name> =<init> <expr>(<name>K</name>) <call><name><name>stream</name>.<name>readObject</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><annotation>@<name>SuppressWarnings</name><argument_list>("unchecked")</argument_list></annotation> <comment type="line">// reading data stored by writeObject</comment>
+      <name>V</name></type> <name>value</name> =<init> <expr>(<name>V</name>) <call><name><name>stream</name>.<name>readObject</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>put</name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+  }</block></function>
+
+  <decl_stmt><decl><type><annotation>@<name>GwtIncompatible</name><argument_list>("java serialization not supported")</argument_list></annotation>
+  <specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>long</name></type> <name>serialVersionUID</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+}</block></class>
+</unit>

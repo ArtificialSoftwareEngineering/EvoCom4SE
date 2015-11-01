@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\input\ReaderInputStream.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>input</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Reader</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>ByteBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>CharBuffer</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>Charset</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CharsetEncoder</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CoderResult</name></name>;</import>
+<import>import <name><name>java</name>.<name>nio</name>.<name>charset</name>.<name>CodingErrorAction</name></name>;</import>
+
+<comment type="javadoc">/**
+ * {@link InputStream} implementation that reads a character stream from a {@link Reader}
+ * and transforms it to a byte stream using a specified charset encoding. The stream
+ * is transformed using a {@link CharsetEncoder} object, guaranteeing that all charset
+ * encodings supported by the JRE are handled correctly. In particular for charsets such as
+ * UTF-16, the implementation ensures that one and only one byte order marker
+ * is produced.
+ * &lt;p&gt;
+ * Since in general it is not possible to predict the number of characters to be read from the
+ * {@link Reader} to satisfy a read request on the {@link ReaderInputStream}, all reads from
+ * the {@link Reader} are buffered. There is therefore no well defined correlation
+ * between the current position of the {@link Reader} and that of the {@link ReaderInputStream}.
+ * This also implies that in general there is no need to wrap the underlying {@link Reader}
+ * in a {@link java.io.BufferedReader}.
+ * &lt;p&gt;
+ * {@link ReaderInputStream} implements the inverse transformation of {@link java.io.InputStreamReader};
+ * in the following example, reading from &lt;tt&gt;in2&lt;/tt&gt; would return the same byte
+ * sequence as reading from &lt;tt&gt;in&lt;/tt&gt; (provided that the initial byte sequence is legal
+ * with respect to the charset encoding):
+ * &lt;pre&gt;
+ * InputStream in = ...
+ * Charset cs = ...
+ * InputStreamReader reader = new InputStreamReader(in, cs);
+ * ReaderInputStream in2 = new ReaderInputStream(reader, cs);&lt;/pre&gt;
+ * {@link ReaderInputStream} implements the same transformation as {@link java.io.OutputStreamWriter},
+ * except that the control flow is reversed: both classes transform a character stream
+ * into a byte stream, but {@link java.io.OutputStreamWriter} pushes data to the underlying stream,
+ * while {@link ReaderInputStream} pulls it from the underlying stream.
+ * &lt;p&gt;
+ * Note that while there are use cases where there is no alternative to using
+ * this class, very often the need to use this class is an indication of a flaw
+ * in the design of the code. This class is typically used in situations where an existing
+ * API only accepts an {@link InputStream}, but where the most natural way to produce the data
+ * is as a character stream, i.e. by providing a {@link Reader} instance. An example of a situation
+ * where this problem may appear is when implementing the {@link javax.activation.DataSource}
+ * interface from the Java Activation Framework.
+ * &lt;p&gt;
+ * Given the fact that the {@link Reader} class doesn't provide any way to predict whether the next
+ * read operation will block or not, it is not possible to provide a meaningful
+ * implementation of the {@link InputStream#available()} method. A call to this method
+ * will always return 0. Also, this class doesn't support {@link InputStream#mark(int)}.
+ * &lt;p&gt;
+ * Instances of {@link ReaderInputStream} are not thread safe.
+ * 
+ * @see org.apache.commons.io.output.WriterOutputStream
+ * 
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>ReaderInputStream</name> <super><extends>extends <name>InputStream</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>int</name></type> <name>DEFAULT_BUFFER_SIZE</name> =<init> <expr>1024</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Reader</name></type> <name>reader</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CharsetEncoder</name></type> <name>encoder</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * CharBuffer used as input for the decoder. It should be reasonably
+     * large as we read data from the underlying Reader into this buffer.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CharBuffer</name></type> <name>encoderIn</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * ByteBuffer used as output for the decoder. This buffer can be small
+     * as it is only used to transfer data from the decoder to the
+     * buffer provided by the caller.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ByteBuffer</name></type> <name>encoderOut</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>CoderResult</name></type> <name>lastCoderResult</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>endOfInput</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream}.
+     * 
+     * @param reader the target {@link Reader}
+     * @param encoder the charset encoder
+     * @since 2.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>CharsetEncoder</name></type> <name>encoder</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name>encoder</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream}.
+     * 
+     * @param reader the target {@link Reader}
+     * @param encoder the charset encoder
+     * @param bufferSize the size of the input buffer in number of characters
+     * @since 2.1
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>CharsetEncoder</name></type> <name>encoder</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name><name>this</name>.<name>reader</name></name> = <name>reader</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>encoder</name></name> = <name>encoder</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>encoderIn</name></name> = <call><name><name>CharBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr><name>bufferSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>this</name>.<name>encoderIn</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>encoderOut</name></name> = <call><name><name>ByteBuffer</name>.<name>allocate</name></name><argument_list>(<argument><expr>128</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>this</name>.<name>encoderOut</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream}.
+     * 
+     * @param reader the target {@link Reader}
+     * @param charset the charset encoding
+     * @param bufferSize the size of the input buffer in number of characters
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>Charset</name></type> <name>charset</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>,
+             <argument><expr><call><name><name>charset</name>.<name>newEncoder</name></name><argument_list>()</argument_list></call>
+                    .<call><name>onMalformedInput</name><argument_list>(<argument><expr><name><name>CodingErrorAction</name>.<name>REPLACE</name></name></expr></argument>)</argument_list></call>
+                    .<call><name>onUnmappableCharacter</name><argument_list>(<argument><expr><name><name>CodingErrorAction</name>.<name>REPLACE</name></name></expr></argument>)</argument_list></call></expr></argument>,
+             <argument><expr><name>bufferSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream} with a default input buffer size of
+     * 1024 characters.
+     * 
+     * @param reader the target {@link Reader}
+     * @param charset the charset encoding
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>Charset</name></type> <name>charset</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name>charset</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream}.
+     * 
+     * @param reader the target {@link Reader}
+     * @param charsetName the name of the charset encoding
+     * @param bufferSize the size of the input buffer in number of characters
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>String</name></type> <name>charsetName</name></decl></param>, <param><decl><type><name>int</name></type> <name>bufferSize</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><call><name><name>Charset</name>.<name>forName</name></name><argument_list>(<argument><expr><name>charsetName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>bufferSize</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream} with a default input buffer size of
+     * 1024 characters.
+     * 
+     * @param reader the target {@link Reader}
+     * @param charsetName the name of the charset encoding
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>, <param><decl><type><name>String</name></type> <name>charsetName</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><name>charsetName</name></expr></argument>, <argument><expr><name>DEFAULT_BUFFER_SIZE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct a new {@link ReaderInputStream} that uses the default character encoding
+     * with a default input buffer size of 1024 characters.
+     * 
+     * @param reader the target {@link Reader}
+     */</comment>
+    <constructor><specifier>public</specifier> <name>ReaderInputStream</name><parameter_list>(<param><decl><type><name>Reader</name></type> <name>reader</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>reader</name></expr></argument>, <argument><expr><call><name><name>Charset</name>.<name>defaultCharset</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Fills the internal char buffer from the reader.
+     * 
+     * @throws IOException
+     *             If an I/O error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>fillBuffer</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr>!<name>endOfInput</name> &amp;&amp; (<name>lastCoderResult</name> == <name>null</name> || <call><name><name>lastCoderResult</name>.<name>isUnderflow</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>encoderIn</name>.<name>compact</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>position</name> =<init> <expr><call><name><name>encoderIn</name>.<name>position</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <comment type="line">// We don't use Reader#read(CharBuffer) here because it is more efficient</comment>
+            <comment type="line">// to write directly to the underlying char array (the default implementation</comment>
+            <comment type="line">// copies data to a temporary char array).</comment>
+            <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>reader</name>.<name>read</name></name><argument_list>(<argument><expr><call><name><name>encoderIn</name>.<name>array</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>position</name></expr></argument>, <argument><expr><call><name><name>encoderIn</name>.<name>remaining</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>c</name> == -1</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>endOfInput</name> = true</expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>encoderIn</name>.<name>position</name></name><argument_list>(<argument><expr><name>position</name>+<name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <expr_stmt><expr><call><name><name>encoderIn</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>encoderOut</name>.<name>compact</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name>lastCoderResult</name> = <call><name><name>encoder</name>.<name>encode</name></name><argument_list>(<argument><expr><name>encoderIn</name></expr></argument>, <argument><expr><name>encoderOut</name></expr></argument>, <argument><expr><name>endOfInput</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>encoderOut</name>.<name>flip</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Read the specified number of bytes into an array.
+     * 
+     * @param b the byte array to read into
+     * @param off the offset to start reading bytes into
+     * @param len the number of bytes to read
+     * @return the number of bytes read or &lt;code&gt;-1&lt;/code&gt;
+     *         if the end of the stream has been reached
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>b</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>NullPointerException</name><argument_list>(<argument><expr>"Byte array must not be null"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>len</name> &lt; 0 || <name>off</name> &lt; 0 || (<name>off</name> + <name>len</name>) &gt; <name><name>b</name>.<name>length</name></name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IndexOutOfBoundsException</name><argument_list>(<argument><expr>"Array Size=" + <name><name>b</name>.<name>length</name></name> +
+                    ", offset=" + <name>off</name> + ", length=" + <name>len</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>int</name></type> <name>read</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>len</name> == 0</expr>)</condition><then> <block>{
+            <return>return <expr>0</expr>;</return> <comment type="line">// Always return 0 if len == 0</comment>
+        }</block></then></if>
+        <while>while <condition>(<expr><name>len</name> &gt; 0</expr>)</condition> <block>{
+            <if>if <condition>(<expr><call><name><name>encoderOut</name>.<name>hasRemaining</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr><call><name><name>Math</name>.<name>min</name></name><argument_list>(<argument><expr><call><name><name>encoderOut</name>.<name>remaining</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>encoderOut</name>.<name>get</name></name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>c</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>off</name> += <name>c</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>len</name> -= <name>c</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>read</name> += <name>c</name></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>fillBuffer</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>endOfInput</name> &amp;&amp; !<call><name><name>encoderOut</name>.<name>hasRemaining</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <break>break;</break>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></while>
+        <return>return <expr><name>read</name> == 0 &amp;&amp; <name>endOfInput</name> ? -1 : <name>read</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read the specified number of bytes into an array.
+     * 
+     * @param b the byte array to read into
+     * @return the number of bytes read or &lt;code&gt;-1&lt;/code&gt;
+     *         if the end of the stream has been reached
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>b</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>read</name><argument_list>(<argument><expr><name>b</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>b</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Read a single byte.
+     *
+     * @return either the byte read or &lt;code&gt;-1&lt;/code&gt; if the end of the stream
+     *         has been reached
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <for>for (<init>;</init><condition>;</condition><incr/>) <block>{
+            <if>if <condition>(<expr><call><name><name>encoderOut</name>.<name>hasRemaining</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr><call><name><name>encoderOut</name>.<name>get</name></name><argument_list>()</argument_list></call> &amp; 0xFF</expr>;</return>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>fillBuffer</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>endOfInput</name> &amp;&amp; !<call><name><name>encoderOut</name>.<name>hasRemaining</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <return>return <expr>-1</expr>;</return>
+                }</block></then></if>
+            }</block></else></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Close the stream. This method will cause the underlying {@link Reader}
+     * to be closed.
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>close</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>reader</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+}</block></class>
+</unit>

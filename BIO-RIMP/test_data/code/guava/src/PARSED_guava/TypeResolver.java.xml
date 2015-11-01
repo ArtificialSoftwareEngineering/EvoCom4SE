@@ -1,0 +1,503 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\reflect\TypeResolver.java"><comment type="block">/*
+ * Copyright (C) 2009 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>reflect</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkArgument</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkState</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Joiner</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Objects</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>ImmutableMap</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>collect</name>.<name>Maps</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>GenericArrayType</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>ParameterizedType</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Type</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>TypeVariable</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>WildcardType</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>atomic</name>.<name>AtomicInteger</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>Nullable</name></name>;</import>
+
+<comment type="javadoc">/**
+ * An object of this class encapsulates type mappings from type variables. Mappings are established
+ * with {@link #where} and types are resolved using {@link #resolveType}.
+ *
+ * &lt;p&gt;Note that usually type mappings are already implied by the static type hierarchy (for example,
+ * the {@code E} type variable declared by class {@code List} naturally maps to {@code String} in
+ * the context of {@code class MyStringList implements List&lt;String&gt;}. In such case, prefer to use
+ * {@link TypeToken#resolveType} since it's simpler and more type safe. This class should only be
+ * used when the type mapping isn't implied by the static type hierarchy, but provided through other
+ * means such as an annotation or external configuration file.
+ *
+ * @author Ben Yu
+ * @since 15.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>TypeResolver</name> <block>{
+
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>TypeTable</name></type> <name>typeTable</name></decl>;</decl_stmt>
+
+  <constructor><specifier>public</specifier> <name>TypeResolver</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>typeTable</name></name> = new <call><name>TypeTable</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <constructor><specifier>private</specifier> <name>TypeResolver</name><parameter_list>(<param><decl><type><name>TypeTable</name></type> <name>typeTable</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>typeTable</name></name> = <name>typeTable</name></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <function><type><specifier>static</specifier> <name>TypeResolver</name></type> <name>accordingTo</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>TypeResolver</name><argument_list>()</argument_list></call>.<call><name>where</name><argument_list>(<argument><expr><call><name><name>TypeMappingIntrospector</name>.<name>getTypeMappings</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns a new {@code TypeResolver} with type variables in {@code formal} mapping to types in
+   * {@code actual}.
+   *
+   * &lt;p&gt;For example, if {@code formal} is a {@code TypeVariable T}, and {@code actual} is {@code
+   * String.class}, then {@code new TypeResolver().where(formal, actual)} will {@linkplain
+   * #resolveType resolve} {@code ParameterizedType List&lt;T&gt;} to {@code List&lt;String&gt;}, and resolve
+   * {@code Map&lt;T, Something&gt;} to {@code Map&lt;String, Something&gt;} etc. Similarly, {@code formal} and
+   * {@code actual} can be {@code Map&lt;K, V&gt;} and {@code Map&lt;String, Integer&gt;} respectively, or they
+   * can be {@code E[]} and {@code String[]} respectively, or even any arbitrary combination
+   * thereof.
+   *
+   * @param formal The type whose type variables or itself is mapped to other type(s). It's almost
+   *        always a bug if {@code formal} isn't a type variable and contains no type variable. Make
+   *        sure you are passing the two parameters in the right order.
+   * @param actual The type that the formal type variable(s) are mapped to. It can be or contain yet
+   *        other type variables, in which case these type variables will be further resolved if
+   *        corresponding mappings exist in the current {@code TypeResolver} instance.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>TypeResolver</name></type> <name>where</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>formal</name></decl></param>, <param><decl><type><name>Type</name></type> <name>actual</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>mappings</name> =<init> <expr><call><name><name>Maps</name>.<name>newHashMap</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name>populateTypeMappings</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>, <argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>formal</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>actual</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <return>return <expr><call><name>where</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/** Returns a new {@code TypeResolver} with {@code variable} mapping to {@code type}. */</comment>
+  <function><type><name>TypeResolver</name></type> <name>where</name><parameter_list>(<param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>?</name> <extends>extends <name>Type</name></extends></argument>&gt;</argument_list></name></type> <name>mappings</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr>new <call><name>TypeResolver</name><argument_list>(<argument><expr><call><name><name>typeTable</name>.<name>where</name></name><argument_list>(<argument><expr><name>mappings</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>void</name></type> <name>populateTypeMappings</name><parameter_list>(
+      <param><decl><type><specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>mappings</name></decl></param>, <param><decl><type><name>Type</name></type> <name>from</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>Type</name></type> <name>to</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><call><name><name>from</name>.<name>equals</name></name><argument_list>(<argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return;</return>
+    }</block></then></if>
+    <expr_stmt><expr>new <class><super><name>TypeVisitor</name></super><argument_list>()</argument_list> <block>{
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitTypeVariable</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>typeVariable</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>mappings</name>.<name>put</name></name><argument_list>(<argument><expr>new <call><name>TypeVariableKey</name><argument_list>(<argument><expr><name>typeVariable</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitWildcardType</name><parameter_list>(<param><decl><type><name>WildcardType</name></type> <name>fromWildcardType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>WildcardType</name></type> <name>toWildcardType</name> =<init> <expr><call><name>expectArgument</name><argument_list>(<argument><expr><name><name>WildcardType</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>fromUpperBounds</name> =<init> <expr><call><name><name>fromWildcardType</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>toUpperBounds</name> =<init> <expr><call><name><name>toWildcardType</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>fromLowerBounds</name> =<init> <expr><call><name><name>fromWildcardType</name>.<name>getLowerBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>toLowerBounds</name> =<init> <expr><call><name><name>toWildcardType</name>.<name>getLowerBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(
+            <argument><expr><name><name>fromUpperBounds</name>.<name>length</name></name> == <name><name>toUpperBounds</name>.<name>length</name></name>
+                &amp;&amp; <name><name>fromLowerBounds</name>.<name>length</name></name> == <name><name>toLowerBounds</name>.<name>length</name></name></expr></argument>,
+            <argument><expr>"Incompatible type: %s vs. %s"</expr></argument>, <argument><expr><name>fromWildcardType</name></expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fromUpperBounds</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><call><name>populateTypeMappings</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>, <argument><expr><name><name>fromUpperBounds</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>toUpperBounds</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fromLowerBounds</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><call><name>populateTypeMappings</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>, <argument><expr><name><name>fromLowerBounds</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>toLowerBounds</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>fromParameterizedType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ParameterizedType</name></type> <name>toParameterizedType</name> =<init> <expr><call><name>expectArgument</name><argument_list>(<argument><expr><name><name>ParameterizedType</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><call><name><name>fromParameterizedType</name>.<name>getRawType</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>toParameterizedType</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr>"Inconsistent raw type: %s vs. %s"</expr></argument>, <argument><expr><name>fromParameterizedType</name></expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>fromArgs</name> =<init> <expr><call><name><name>fromParameterizedType</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>toArgs</name> =<init> <expr><call><name><name>toParameterizedType</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name><name>fromArgs</name>.<name>length</name></name> == <name><name>toArgs</name>.<name>length</name></name></expr></argument>,
+            <argument><expr>"%s not compatible with %s"</expr></argument>, <argument><expr><name>fromParameterizedType</name></expr></argument>, <argument><expr><name>toParameterizedType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>fromArgs</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+          <expr_stmt><expr><call><name>populateTypeMappings</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>, <argument><expr><name><name>fromArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>, <argument><expr><name><name>toArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitGenericArrayType</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>fromArrayType</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>Type</name></type> <name>componentType</name> =<init> <expr><call><name><name>Types</name>.<name>getComponentType</name></name><argument_list>(<argument><expr><name>to</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr><name>componentType</name> != <name>null</name></expr></argument>, <argument><expr>"%s is not an array type."</expr></argument>, <argument><expr><name>to</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>populateTypeMappings</name><argument_list>(<argument><expr><name>mappings</name></expr></argument>, <argument><expr><call><name><name>fromArrayType</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>componentType</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></function>
+      <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitClass</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>fromClass</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Can't map from a raw class to anything other than itself.</comment>
+        <comment type="line">// You can't say "assuming String is Integer".</comment>
+        <comment type="line">// And we don't support "assuming String is T"; user has to say "assuming T is String". </comment>
+        <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"No type mapping from " + <name>fromClass</name></expr></argument>)</argument_list></call></expr>;</throw>
+      }</block></function>
+    }</block></class>.<call><name>visit</name><argument_list>(<argument><expr><name>from</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Resolves all type variables in {@code type} and all downstream types and
+   * returns a corresponding type with type variables resolved.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>Type</name></type> <name>resolveType</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name><name>typeTable</name>.<name>resolve</name></name><argument_list>(<argument><expr>(<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>ParameterizedType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>resolveParameterizedType</name><argument_list>(<argument><expr>(<name>ParameterizedType</name>) <name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>resolveGenericArrayType</name><argument_list>(<argument><expr>(<name>GenericArrayType</name>) <name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+      <return>return <expr><call><name>resolveWildcardType</name><argument_list>(<argument><expr>(<name>WildcardType</name>) <name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></then> <else>else <block>{
+      <comment type="line">// if Class&lt;?&gt;, no resolution needed, we are done.</comment>
+      <return>return <expr><name>type</name></expr>;</return>
+    }</block></else></if></else></if></else></if></else></if>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>Type</name><index>[]</index></type> <name>resolveTypes</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>types</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>result</name> =<init> <expr>new <name><name>Type</name><index>[<expr><name><name>types</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+    <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>types</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+      <expr_stmt><expr><name><name>result</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>resolveType</name><argument_list>(<argument><expr><name><name>types</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+    <return>return <expr><name>result</name></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>WildcardType</name></type> <name>resolveWildcardType</name><parameter_list>(<param><decl><type><name>WildcardType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>lowerBounds</name> =<init> <expr><call><name><name>type</name>.<name>getLowerBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>upperBounds</name> =<init> <expr><call><name><name>type</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>new <call><name><name>Types</name>.<name>WildcardTypeImpl</name></name><argument_list>(
+        <argument><expr><call><name>resolveTypes</name><argument_list>(<argument><expr><name>lowerBounds</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><call><name>resolveTypes</name><argument_list>(<argument><expr><name>upperBounds</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>Type</name></type> <name>resolveGenericArrayType</name><parameter_list>(<param><decl><type><name>GenericArrayType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name></type> <name>componentType</name> =<init> <expr><call><name><name>type</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name></type> <name>resolvedComponentType</name> =<init> <expr><call><name>resolveType</name><argument_list>(<argument><expr><name>componentType</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name><name>Types</name>.<name>newArrayType</name></name><argument_list>(<argument><expr><name>resolvedComponentType</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <name>ParameterizedType</name></type> <name>resolveParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>Type</name></type> <name>owner</name> =<init> <expr><call><name><name>type</name>.<name>getOwnerType</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name></type> <name>resolvedOwner</name> =<init> <expr>(<name>owner</name> == <name>null</name>) ? <name>null</name> : <call><name>resolveType</name><argument_list>(<argument><expr><name>owner</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name></type> <name>resolvedRawType</name> =<init> <expr><call><name>resolveType</name><argument_list>(<argument><expr><call><name><name>type</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>args</name> =<init> <expr><call><name><name>type</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>resolvedArgs</name> =<init> <expr><call><name>resolveTypes</name><argument_list>(<argument><expr><name>args</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr><call><name><name>Types</name>.<name>newParameterizedTypeWithOwner</name></name><argument_list>(
+        <argument><expr><name>resolvedOwner</name></expr></argument>, <argument><expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>resolvedRawType</name></expr></argument>, <argument><expr><name>resolvedArgs</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list> <name>T</name></type> <name>expectArgument</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>T</name></argument>&gt;</argument_list></name></type> <name>type</name></decl></param>, <param><decl><type><name>Object</name></type> <name>arg</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <return>return <expr><call><name><name>type</name>.<name>cast</name></name><argument_list>(<argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>ClassCastException</name></type> <name>e</name></decl></param>) <block>{
+      <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr><name>arg</name> + " is not a " + <call><name><name>type</name>.<name>getSimpleName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+
+  <comment type="javadoc">/** A TypeTable maintains mapping from {@link TypeVariable} to types. */</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> class <name>TypeTable</name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>ImmutableMap</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>map</name></decl>;</decl_stmt>
+  
+    <constructor><name>TypeTable</name><parameter_list>()</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>map</name></name> = <call><name><name>ImmutableMap</name>.<name>of</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+    
+    <constructor><specifier>private</specifier> <name>TypeTable</name><parameter_list>(<param><decl><type><name><name>ImmutableMap</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>map</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>map</name></name> = <name>map</name></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/** Returns a new {@code TypeResolver} with {@code variable} mapping to {@code type}. */</comment>
+    <function><type><specifier>final</specifier> <name>TypeTable</name></type> <name>where</name><parameter_list>(<param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>?</name> <extends>extends <name>Type</name></extends></argument>&gt;</argument_list></name></type> <name>mappings</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>ImmutableMap</name>.<name><name>Builder</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></name></type> <name>builder</name> =<init> <expr><call><name><name>ImmutableMap</name>.<name>builder</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>builder</name>.<name>putAll</name></name><argument_list>(<argument><expr><name>map</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name><name>Map</name>.<name><name>Entry</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>?</name> <extends>extends <name>Type</name></extends></argument>&gt;</argument_list></name></name></type> <name>mapping</name> :<range> <expr><call><name><name>mappings</name>.<name>entrySet</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+        <decl_stmt><decl><type><name>TypeVariableKey</name></type> <name>variable</name> =<init> <expr><call><name><name>mapping</name>.<name>getKey</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name></type> <name>type</name> =<init> <expr><call><name><name>mapping</name>.<name>getValue</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>checkArgument</name><argument_list>(<argument><expr>!<call><name><name>variable</name>.<name>equalsType</name></name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr>"Type variable %s bound to itself"</expr></argument>, <argument><expr><name>variable</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>put</name></name><argument_list>(<argument><expr><name>variable</name></expr></argument>, <argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr>new <call><name>TypeTable</name><argument_list>(<argument><expr><call><name><name>builder</name>.<name>build</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>final</specifier> <name>Type</name></type> <name>resolve</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>var</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><specifier>final</specifier> <name>TypeTable</name></type> <name>unguarded</name> =<init> <expr><name>this</name></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>TypeTable</name></type> <name>guarded</name> =<init> <expr>new <class><super><name>TypeTable</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>Type</name></type> <name>resolveInternal</name><parameter_list>(
+            <param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>intermediateVar</name></decl></param>, <param><decl><type><name>TypeTable</name></type> <name>forDependent</name></decl></param>)</parameter_list> <block>{
+          <if>if <condition>(<expr><call><name><name>intermediateVar</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>var</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr><name>intermediateVar</name></expr>;</return>
+          }</block></then></if>
+          <return>return <expr><call><name><name>unguarded</name>.<name>resolveInternal</name></name><argument_list>(<argument><expr><name>intermediateVar</name></expr></argument>, <argument><expr><name>forDependent</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></function>
+      }</block></class></expr></init></decl>;</decl_stmt>
+      <return>return <expr><call><name>resolveInternal</name><argument_list>(<argument><expr><name>var</name></expr></argument>, <argument><expr><name>guarded</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Resolves {@code var} using the encapsulated type mapping. If it maps to yet another
+     * non-reified type or has bounds, {@code forDependants} is used to do further resolution, which
+     * doesn't try to resolve any type variable on generic declarations that are already being
+     * resolved.
+     *
+     * &lt;p&gt;Should only be called and overridden by {@link #resolve(TypeVariable)}.
+     */</comment>
+    <function><type><name>Type</name></type> <name>resolveInternal</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>var</name></decl></param>, <param><decl><type><name>TypeTable</name></type> <name>forDependants</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>Type</name></type> <name>type</name> =<init> <expr><call><name><name>map</name>.<name>get</name></name><argument_list>(<argument><expr>new <call><name>TypeVariableKey</name><argument_list>(<argument><expr><name>var</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+      <if>if <condition>(<expr><name>type</name> == <name>null</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>bounds</name> =<init> <expr><call><name><name>var</name>.<name>getBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>bounds</name>.<name>length</name></name> == 0</expr>)</condition><then> <block>{
+          <return>return <expr><name>var</name></expr>;</return>
+        }</block></then></if>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>resolvedBounds</name> =<init> <expr>new <call><name>TypeResolver</name><argument_list>(<argument><expr><name>forDependants</name></expr></argument>)</argument_list></call>.<call><name>resolveTypes</name><argument_list>(<argument><expr><name>bounds</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <comment type="block">/*
+         * We'd like to simply create our own TypeVariable with the newly resolved bounds. There's
+         * just one problem: Starting with JDK 7u51, the JDK TypeVariable's equals() method doesn't
+         * recognize instances of our TypeVariable implementation. This is a problem because users
+         * compare TypeVariables from the JDK against TypeVariables returned by TypeResolver. To
+         * work with all JDK versions, TypeResolver must return the appropriate TypeVariable
+         * implementation in each of the three possible cases:
+         *
+         * 1. Prior to JDK 7u51, the JDK TypeVariable implementation interoperates with ours.
+         * Therefore, we can always create our own TypeVariable.
+         *
+         * 2. Starting with JDK 7u51, the JDK TypeVariable implementations does not interoperate
+         * with ours. Therefore, we have to be careful about whether we create our own TypeVariable:
+         *
+         * 2a. If the resolved types are identical to the original types, then we can return the
+         * original, identical JDK TypeVariable. By doing so, we sidestep the problem entirely.
+         *
+         * 2b. If the resolved types are different from the original types, things are trickier. The
+         * only way to get a TypeVariable instance for the resolved types is to create our own. The
+         * created TypeVariable will not interoperate with any JDK TypeVariable. But this is OK: We
+         * don't _want_ our new TypeVariable to be equal to the JDK TypeVariable because it has
+         * _different bounds_ than the JDK TypeVariable. And it wouldn't make sense for our new
+         * TypeVariable to be equal to any _other_ JDK TypeVariable, either, because any other JDK
+         * TypeVariable must have a different declaration or name. The only TypeVariable that our
+         * new TypeVariable _will_ be equal to is an equivalent TypeVariable that was also created
+         * by us. And that equality is guaranteed to hold because it doesn't involve the JDK
+         * TypeVariable implementation at all.
+         */</comment>
+        <if>if <condition>(<expr><name><name>Types</name>.<name>NativeTypeVariableEquals</name>.<name>NATIVE_TYPE_VARIABLE_ONLY</name></name>
+            &amp;&amp; <call><name><name>Arrays</name>.<name>equals</name></name><argument_list>(<argument><expr><name>bounds</name></expr></argument>, <argument><expr><name>resolvedBounds</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <return>return <expr><name>var</name></expr>;</return>
+        }</block></then></if>
+        <return>return <expr><call><name><name>Types</name>.<name>newArtificialTypeVariable</name></name><argument_list>(
+            <argument><expr><call><name><name>var</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>var</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>resolvedBounds</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <comment type="line">// in case the type is yet another type variable.</comment>
+      <return>return <expr>new <call><name>TypeResolver</name><argument_list>(<argument><expr><name>forDependants</name></expr></argument>)</argument_list></call>.<call><name>resolveType</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>TypeMappingIntrospector</name> <super><extends>extends <name>TypeVisitor</name></extends></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>WildcardCapturer</name></type> <name>wildcardCapturer</name> =<init> <expr>new <call><name>WildcardCapturer</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>mappings</name> =<init> <expr><call><name><name>Maps</name>.<name>newHashMap</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Returns type mappings using type parameters and type arguments found in
+     * the generic superclass and the super interfaces of {@code contextClass}.
+     */</comment>
+    <function><type><specifier>static</specifier> <name><name>ImmutableMap</name><argument_list>&lt;<argument><name>TypeVariableKey</name></argument>, <argument><name>Type</name></argument>&gt;</argument_list></name></type> <name>getTypeMappings</name><parameter_list>(
+        <param><decl><type><name>Type</name></type> <name>contextType</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>TypeMappingIntrospector</name></type> <name>introspector</name> =<init> <expr>new <call><name>TypeMappingIntrospector</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name><name>introspector</name>.<name>visit</name></name><argument_list>(<argument><expr><call><name><name>wildcardCapturer</name>.<name>capture</name></name><argument_list>(<argument><expr><name>contextType</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <return>return <expr><call><name><name>ImmutableMap</name>.<name>copyOf</name></name><argument_list>(<argument><expr><name><name>introspector</name>.<name>mappings</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitClass</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>clazz</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>clazz</name>.<name>getGenericSuperclass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>clazz</name>.<name>getGenericInterfaces</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitParameterizedType</name><parameter_list>(<param><decl><type><name>ParameterizedType</name></type> <name>parameterizedType</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>rawClass</name> =<init> <expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <call><name><name>parameterizedType</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name><index>[]</index></type> <name>vars</name> =<init> <expr><call><name><name>rawClass</name>.<name>getTypeParameters</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>typeArgs</name> =<init> <expr><call><name><name>parameterizedType</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <expr_stmt><expr><call><name>checkState</name><argument_list>(<argument><expr><name><name>vars</name>.<name>length</name></name> == <name><name>typeArgs</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>vars</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><call><name>map</name><argument_list>(<argument><expr>new <call><name>TypeVariableKey</name><argument_list>(<argument><expr><name><name>vars</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name><name>typeArgs</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><name>rawClass</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>parameterizedType</name>.<name>getOwnerType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitTypeVariable</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <name>void</name></type> <name>visitWildcardType</name><parameter_list>(<param><decl><type><name>WildcardType</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>visit</name><argument_list>(<argument><expr><call><name><name>t</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>map</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>TypeVariableKey</name></type> <name>var</name></decl></param>, <param><decl><type><specifier>final</specifier> <name>Type</name></type> <name>arg</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><call><name><name>mappings</name>.<name>containsKey</name></name><argument_list>(<argument><expr><name>var</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <comment type="line">// Mapping already established</comment>
+        <comment type="line">// This is possible when following both superClass -&gt; enclosingClass</comment>
+        <comment type="line">// and enclosingclass -&gt; superClass paths.</comment>
+        <comment type="line">// Since we follow the path of superclass first, enclosing second,</comment>
+        <comment type="line">// superclass mapping should take precedence.</comment>
+        <return>return;</return>
+      }</block></then></if>
+      <comment type="line">// First, check whether var -&gt; arg forms a cycle</comment>
+      <for>for (<init><decl><type><name>Type</name></type> <name>t</name> =<init> <expr><name>arg</name></expr></init></decl>;</init> <condition><expr><name>t</name> != <name>null</name></expr>;</condition> <incr><expr><name>t</name> = <call><name><name>mappings</name>.<name>get</name></name><argument_list>(<argument><expr><call><name><name>TypeVariableKey</name>.<name>forLookup</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></incr>) <block>{
+        <if>if <condition>(<expr><call><name><name>var</name>.<name>equalsType</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+          <comment type="line">// cycle detected, remove the entire cycle from the mapping so that</comment>
+          <comment type="line">// each type variable resolves deterministically to itself.</comment>
+          <comment type="line">// Otherwise, a F -&gt; T cycle will end up resolving both F and T</comment>
+          <comment type="line">// nondeterministically to either F or T.</comment>
+          <for>for (<init><decl><type><name>Type</name></type> <name>x</name> =<init> <expr><name>arg</name></expr></init></decl>;</init> <condition><expr><name>x</name> != <name>null</name></expr>;</condition> <incr><expr><name>x</name> = <call><name><name>mappings</name>.<name>remove</name></name><argument_list>(<argument><expr><call><name><name>TypeVariableKey</name>.<name>forLookup</name></name><argument_list>(<argument><expr><name>x</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr></incr>) <block>{}</block></for>
+          <return>return;</return>
+        }</block></then></if>
+      }</block></for>
+      <expr_stmt><expr><call><name><name>mappings</name>.<name>put</name></name><argument_list>(<argument><expr><name>var</name></expr></argument>, <argument><expr><name>arg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+  }</block></class>
+
+  <comment type="line">// This is needed when resolving types against a context with wildcards</comment>
+  <comment type="line">// For example:</comment>
+  <comment type="line">// class Holder&lt;T&gt; {</comment>
+  <comment type="line">//   void set(T data) {...}</comment>
+  <comment type="line">// }</comment>
+  <comment type="line">// Holder&lt;List&lt;?&gt;&gt; should *not* resolve the set() method to set(List&lt;?&gt; data).</comment>
+  <comment type="line">// Instead, it should create a capture of the wildcard so that set() rejects any List&lt;T&gt;.</comment>
+  <class><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> class <name>WildcardCapturer</name> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>AtomicInteger</name></type> <name>id</name> =<init> <expr>new <call><name>AtomicInteger</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <function><type><name>Type</name></type> <name>capture</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><call><name>checkNotNull</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>Class</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>type</name></expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>type</name></expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>GenericArrayType</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>GenericArrayType</name></type> <name>arrayType</name> =<init> <expr>(<name>GenericArrayType</name>) <name>type</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>Types</name>.<name>newArrayType</name></name><argument_list>(<argument><expr><call><name>capture</name><argument_list>(<argument><expr><call><name><name>arrayType</name>.<name>getGenericComponentType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>ParameterizedType</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>ParameterizedType</name></type> <name>parameterizedType</name> =<init> <expr>(<name>ParameterizedType</name>) <name>type</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name><name>Types</name>.<name>newParameterizedTypeWithOwner</name></name><argument_list>(
+            <argument><expr><call><name>captureNullable</name><argument_list>(<argument><expr><call><name><name>parameterizedType</name>.<name>getOwnerType</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>,
+            <argument><expr>(<name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <call><name><name>parameterizedType</name>.<name>getRawType</name></name><argument_list>()</argument_list></call></expr></argument>,
+            <argument><expr><call><name>capture</name><argument_list>(<argument><expr><call><name><name>parameterizedType</name>.<name>getActualTypeArguments</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then></if>
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>WildcardType</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>WildcardType</name></type> <name>wildcardType</name> =<init> <expr>(<name>WildcardType</name>) <name>type</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>lowerBounds</name> =<init> <expr><call><name><name>wildcardType</name>.<name>getLowerBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name><name>lowerBounds</name>.<name>length</name></name> == 0</expr>)</condition><then> <block>{ <comment type="line">// ? extends something changes to capture-of</comment>
+          <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>upperBounds</name> =<init> <expr><call><name><name>wildcardType</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+          <decl_stmt><decl><type><name>String</name></type> <name>name</name> =<init> <expr>"capture#" + <call><name><name>id</name>.<name>incrementAndGet</name></name><argument_list>()</argument_list></call> + "-of ? extends "
+              + <call><name><name>Joiner</name>.<name>on</name></name><argument_list>(<argument><expr>'&amp;'</expr></argument>)</argument_list></call>.<call><name>join</name><argument_list>(<argument><expr><name>upperBounds</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+          <return>return <expr><call><name><name>Types</name>.<name>newArtificialTypeVariable</name></name><argument_list>(
+              <argument><expr><name><name>WildcardCapturer</name>.<name><name/></name></name>class</expr></argument>, <argument><expr><name>name</name></expr></argument>, <argument><expr><call><name><name>wildcardType</name>.<name>getUpperBounds</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+        }</block></then> <else>else <block>{
+          <comment type="line">// TODO(benyu): handle ? super T somehow.</comment>
+          <return>return <expr><name>type</name></expr>;</return>
+        }</block></else></if>
+      }</block></then></if>
+      <throw>throw <expr>new <call><name>AssertionError</name><argument_list>(<argument><expr>"must have been one of the known types"</expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>Type</name></type> <name>captureNullable</name><parameter_list>(<param><decl><type><annotation>@<name>Nullable</name></annotation> <name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>type</name> == <name>null</name></expr>)</condition><then> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></then></if>
+      <return>return <expr><call><name>capture</name><argument_list>(<argument><expr><name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>Type</name><index>[]</index></type> <name>capture</name><parameter_list>(<param><decl><type><name><name>Type</name><index>[]</index></name></type> <name>types</name></decl></param>)</parameter_list> <block>{
+      <decl_stmt><decl><type><name>Type</name><index>[]</index></type> <name>result</name> =<init> <expr>new <name><name>Type</name><index>[<expr><name><name>types</name>.<name>length</name></name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>types</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+        <expr_stmt><expr><name><name>result</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>capture</name><argument_list>(<argument><expr><name><name>types</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></for>
+      <return>return <expr><name>result</name></expr>;</return>
+    }</block></function>
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Wraps around {@code TypeVariable&lt;?&gt;} to ensure that any two type variables are equal as long as
+   * they are declared by the same {@link java.lang.reflect.GenericDeclaration} and have the same
+   * name, even if their bounds differ.
+   *
+   * &lt;p&gt;While resolving a type variable from a {var -&gt; type} map, we don't care whether the
+   * type variable's bound has been partially resolved. As long as the type variable "identity"
+   * matches.
+   *
+   * &lt;p&gt;On the other hand, if for example we are resolving List&lt;A extends B&gt; to
+   * List&lt;A extends String&gt;, we need to compare that &lt;A extends B&gt; is unequal to
+   * &lt;A extends String&gt; in order to decide to use the transformed type instead of the original
+   * type.
+   */</comment>
+  <class><specifier>static</specifier> <specifier>final</specifier> class <name>TypeVariableKey</name> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>var</name></decl>;</decl_stmt>
+
+    <constructor><name>TypeVariableKey</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>var</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>var</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>var</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>int</name></type> <name>hashCode</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>Objects</name>.<name>hashCode</name></name><argument_list>(<argument><expr><call><name><name>var</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>var</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>boolean</name></type> <name>equals</name><parameter_list>(<param><decl><type><name>Object</name></type> <name>obj</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>obj</name> <name>instanceof</name> <name>TypeVariableKey</name></expr>)</condition><then> <block>{
+        <decl_stmt><decl><type><name>TypeVariableKey</name></type> <name>that</name> =<init> <expr>(<name>TypeVariableKey</name>) <name>obj</name></expr></init></decl>;</decl_stmt>
+        <return>return <expr><call><name>equalsTypeVariable</name><argument_list>(<argument><expr><name><name>that</name>.<name>var</name></name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation> <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+      <return>return <expr><call><name><name>var</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/** Wraps {@code t} in a {@code TypeVariableKey} if it's a type variable. */</comment>
+    <function><type><specifier>static</specifier> <name>Object</name></type> <name>forLookup</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>t</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>t</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+        <return>return <expr>new <call><name>TypeVariableKey</name><argument_list>(<argument><expr>(<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>t</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns true if {@code type} is a {@code TypeVariable} with the same name and declared by
+     * the same {@code GenericDeclaration}.
+     */</comment>
+    <function><type><name>boolean</name></type> <name>equalsType</name><parameter_list>(<param><decl><type><name>Type</name></type> <name>type</name></decl></param>)</parameter_list> <block>{
+      <if>if <condition>(<expr><name>type</name> <name>instanceof</name> <name>TypeVariable</name></expr>)</condition><then> <block>{
+        <return>return <expr><call><name>equalsTypeVariable</name><argument_list>(<argument><expr>(<name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name>) <name>type</name></expr></argument>)</argument_list></call></expr>;</return>
+      }</block></then> <else>else <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></else></if>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>equalsTypeVariable</name><parameter_list>(<param><decl><type><name><name>TypeVariable</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>that</name></decl></param>)</parameter_list> <block>{
+      <return>return <expr><call><name><name>var</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>that</name>.<name>getGenericDeclaration</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call>
+          &amp;&amp; <call><name><name>var</name>.<name>getName</name></name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><call><name><name>that</name>.<name>getName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+  }</block></class>
+}</block></class>
+</unit>

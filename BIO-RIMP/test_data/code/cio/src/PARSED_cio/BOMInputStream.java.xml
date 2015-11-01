@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\input\BOMInputStream.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>input</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>InputStream</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>ByteOrderMark</name></name>;</import>
+
+<comment type="javadoc">/**
+ * This class is used to wrap a stream that includes an encoded
+ * {@link ByteOrderMark} as its first bytes.
+ *
+ * This class detects these bytes and, if required, can automatically skip them
+ * and return the subsequent byte as the first byte in the stream.
+ *
+ * The {@link ByteOrderMark} implementation has the following pre-defined BOMs:
+ * &lt;ul&gt;
+ *   &lt;li&gt;UTF-8 - {@link ByteOrderMark#UTF_8}&lt;/li&gt;
+ *   &lt;li&gt;UTF-16BE - {@link ByteOrderMark#UTF_16LE}&lt;/li&gt;
+ *   &lt;li&gt;UTF-16LE - {@link ByteOrderMark#UTF_16BE}&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ *
+ * &lt;h3&gt;Example 1 - Detect and exclude a UTF-8 BOM&lt;/h3&gt;
+ * &lt;pre&gt;
+ *      BOMInputStream bomIn = new BOMInputStream(in);
+ *      if (bomIn.hasBOM()) {
+ *          // has a UTF-8 BOM
+ *      }
+ * &lt;/pre&gt;
+ *
+ * &lt;h3&gt;Example 2 - Detect a UTF-8 BOM (but don't exclude it)&lt;/h3&gt;
+ * &lt;pre&gt;
+ *      boolean include = true;
+ *      BOMInputStream bomIn = new BOMInputStream(in, include);
+ *      if (bomIn.hasBOM()) {
+ *          // has a UTF-8 BOM
+ *      }
+ * &lt;/pre&gt;
+ *
+ * &lt;h3&gt;Example 3 - Detect Multiple BOMs&lt;/h3&gt;
+ * &lt;pre&gt;
+ *      BOMInputStream bomIn = new BOMInputStream(in, ByteOrderMark.UTF_16LE, ByteOrderMark.UTF_16BE);
+ *      if (bomIn.hasBOM() == false) {
+ *          // No BOM found
+ *      } else if (bomIn.hasBOM(ByteOrderMark.UTF_16LE)) {
+ *          // has a UTF-16LE BOM
+ *      } else if (bomIn.hasBOM(ByteOrderMark.UTF_16BE)) {
+ *          // has a UTF-16BE BOM
+ *      }
+ * &lt;/pre&gt;
+ *
+ * @see org.apache.commons.io.ByteOrderMark
+ * @see &lt;a href="http://en.wikipedia.org/wiki/Byte_order_mark"&gt;Wikipedia - Byte Order Mark&lt;/a&gt;
+ * @version $Id: BOMInputStream.java 1304052 2012-03-22 20:55:29Z ggregory $
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>BOMInputStream</name> <super><extends>extends <name>ProxyInputStream</name></extends></super> <block>{
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>include</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>ByteOrderMark</name></argument>&gt;</argument_list></name></type> <name>boms</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>ByteOrderMark</name></type> <name>byteOrderMark</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name><index>[]</index></type> <name>firstBytes</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fbLength</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>fbIndex</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>int</name></type> <name>markFbIndex</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>markedAtStart</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Constructs a new BOM InputStream that excludes
+     * a {@link ByteOrderMark#UTF_8} BOM.
+     * @param delegate the InputStream to delegate to
+     */</comment>
+    <constructor><specifier>public</specifier> <name>BOMInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>delegate</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name><name>ByteOrderMark</name>.<name>UTF_8</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new BOM InputStream that detects a
+     * a {@link ByteOrderMark#UTF_8} and optionally includes it.
+     * @param delegate the InputStream to delegate to
+     * @param include true to include the UTF-8 BOM or
+     * false to exclude it
+     */</comment>
+    <constructor><specifier>public</specifier> <name>BOMInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>delegate</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>include</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>, <argument><expr><name>include</name></expr></argument>, <argument><expr><name><name>ByteOrderMark</name>.<name>UTF_8</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new BOM InputStream that excludes
+     * the specified BOMs.
+     * @param delegate the InputStream to delegate to
+     * @param boms The BOMs to detect and exclude
+     */</comment>
+    <constructor><specifier>public</specifier> <name>BOMInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>delegate</name></decl></param>, <param><decl><type><name>ByteOrderMark</name>...</type> <name>boms</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>, <argument><expr>false</expr></argument>, <argument><expr><name>boms</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Constructs a new BOM InputStream that detects the
+     * specified BOMs and optionally includes them.
+     * @param delegate the InputStream to delegate to
+     * @param include true to include the specified BOMs or
+     * false to exclude them
+     * @param boms The BOMs to detect and optionally exclude
+     */</comment>
+    <constructor><specifier>public</specifier> <name>BOMInputStream</name><parameter_list>(<param><decl><type><name>InputStream</name></type> <name>delegate</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>include</name></decl></param>, <param><decl><type><name>ByteOrderMark</name>...</type> <name>boms</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>super</name><argument_list>(<argument><expr><name>delegate</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>boms</name> == <name>null</name> || <name><name>boms</name>.<name>length</name></name> == 0</expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"No BOMs specified"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>include</name></name> = <name>include</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>boms</name></name> = <call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><name>boms</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Indicates whether the stream contains one of the specified BOMs.
+     *
+     * @return true if the stream has one of the specified BOMs, otherwise false
+     * if it does not
+     * @throws IOException if an error reading the first bytes of the stream occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasBOM</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>getBOM</name><argument_list>()</argument_list></call> != <name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Indicates whether the stream contains the specified BOM.
+     *
+     * @param bom The BOM to check for
+     * @return true if the stream has the specified BOM, otherwise false
+     * if it does not
+     * @throws IllegalArgumentException if the BOM is not one the stream
+     * is configured to detect
+     * @throws IOException if an error reading the first bytes of the stream occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasBOM</name><parameter_list>(<param><decl><type><name>ByteOrderMark</name></type> <name>bom</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr>!<call><name><name>boms</name>.<name>contains</name></name><argument_list>(<argument><expr><name>bom</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Stream not configure to detect " + <name>bom</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <return>return <expr><name>byteOrderMark</name> != <name>null</name> &amp;&amp; <call><name>getBOM</name><argument_list>()</argument_list></call>.<call><name>equals</name><argument_list>(<argument><expr><name>bom</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the BOM (Byte Order Mark).
+     *
+     * @return The BOM or null if none
+     * @throws IOException if an error reading the first bytes of the stream occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ByteOrderMark</name></type> <name>getBOM</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>firstBytes</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>fbLength</name> = 0</expr>;</expr_stmt>
+            <decl_stmt><decl><type><name>int</name></type> <name>max</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+            <for>for (<init><decl><type><name>ByteOrderMark</name></type> <name>bom</name> :<range> <expr><name>boms</name></expr></range></decl></init>) <block>{
+                <expr_stmt><expr><name>max</name> = <call><name><name>Math</name>.<name>max</name></name><argument_list>(<argument><expr><name>max</name></expr></argument>, <argument><expr><call><name><name>bom</name>.<name>length</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></for>
+            <expr_stmt><expr><name>firstBytes</name> = new <name><name>int</name><index>[<expr><name>max</name></expr>]</index></name></expr>;</expr_stmt>
+            <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>firstBytes</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+                <expr_stmt><expr><name><name>firstBytes</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>fbLength</name>++</expr>;</expr_stmt>
+                <if>if <condition>(<expr><name><name>firstBytes</name><index>[<expr><name>i</name></expr>]</index></name> &lt; 0</expr>)</condition><then> <block>{
+                    <break>break;</break>
+                }</block></then></if>
+
+                <expr_stmt><expr><name>byteOrderMark</name> = <call><name>find</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr><name>byteOrderMark</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <if>if <condition>(<expr>!<name>include</name></expr>)</condition><then> <block>{
+                        <expr_stmt><expr><name>fbLength</name> = 0</expr>;</expr_stmt>
+                    }</block></then></if>
+                    <break>break;</break>
+                }</block></then></if>
+            }</block></for>
+        }</block></then></if>
+        <return>return <expr><name>byteOrderMark</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the BOM charset Name - {@link ByteOrderMark#getCharsetName()}.
+     *
+     * @return The BOM charset Name or null if no BOM found
+     * @throws IOException if an error reading the first bytes of the stream occurs
+     * 
+     */</comment>
+    <function><type><specifier>public</specifier> <name>String</name></type> <name>getBOMCharsetName</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>getBOM</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>byteOrderMark</name> == <name>null</name> ? <name>null</name> : <call><name><name>byteOrderMark</name>.<name>getCharsetName</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * This method reads and either preserves or skips the first bytes in the
+     * stream. It behaves like the single-byte &lt;code&gt;read()&lt;/code&gt; method,
+     * either returning a valid byte or -1 to indicate that the initial bytes
+     * have been processed already.
+     * @return the byte read (excluding BOM) or -1 if the end of stream
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><specifier>private</specifier> <name>int</name></type> <name>readFirstBytes</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>getBOM</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>fbIndex</name> &lt; <name>fbLength</name> ? <name><name>firstBytes</name><index>[<expr><name>fbIndex</name>++</expr>]</index></name> : -1</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Find a BOM with the specified bytes.
+     *
+     * @return The matched BOM or null if none matched
+     */</comment>
+    <function><type><specifier>private</specifier> <name>ByteOrderMark</name></type> <name>find</name><parameter_list>()</parameter_list> <block>{
+        <for>for (<init><decl><type><name>ByteOrderMark</name></type> <name>bom</name> :<range> <expr><name>boms</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><call><name>matches</name><argument_list>(<argument><expr><name>bom</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr><name>bom</name></expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Check if the bytes match a BOM.
+     *
+     * @param bom The BOM
+     * @return true if the bytes match the bom, otherwise false
+     */</comment>
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>matches</name><parameter_list>(<param><decl><type><name>ByteOrderMark</name></type> <name>bom</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>bom</name>.<name>length</name></name><argument_list>()</argument_list></call> != <name>fbLength</name></expr>)</condition><then> <block>{
+            <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <call><name><name>bom</name>.<name>length</name></name><argument_list>()</argument_list></call></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <if>if <condition>(<expr><call><name><name>bom</name>.<name>get</name></name><argument_list>(<argument><expr><name>i</name></expr></argument>)</argument_list></call> != <name><name>firstBytes</name><index>[<expr><name>i</name></expr>]</index></name></expr>)</condition><then> <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <comment type="line">//----------------------------------------------------------------------------</comment>
+    <comment type="line">//  Implementation of InputStream</comment>
+    <comment type="line">//----------------------------------------------------------------------------</comment>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;read()&lt;/code&gt; method, detecting and
+     * optionally skipping BOM.
+     * @return the byte read (excluding BOM) or -1 if the end of stream
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>b</name> =<init> <expr><call><name>readFirstBytes</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name>b</name> &gt;= 0 ? <name>b</name> : <call><name><name>in</name>.<name>read</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;read(byte[], int, int)&lt;/code&gt; method, detecting
+     * and optionally skipping BOM.
+     * @param buf the buffer to read the bytes into
+     * @param off The start offset
+     * @param len The number of bytes to read (excluding BOM)
+     * @return the number of bytes read or -1 if the end of stream
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buf</name></decl></param>, <param><decl><type><name>int</name></type> <name>off</name></decl></param>, <param><decl><type><name>int</name></type> <name>len</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>firstCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>int</name></type> <name>b</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <while>while <condition>(<expr><name>len</name> &gt; 0 &amp;&amp; <name>b</name> &gt;= 0</expr>)</condition> <block>{
+            <expr_stmt><expr><name>b</name> = <call><name>readFirstBytes</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr><name>b</name> &gt;= 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name><name>buf</name><index>[<expr><name>off</name>++</expr>]</index></name> = <call>(<name>byte</name>) <argument_list>(<argument><expr><name>b</name> &amp; 0xFF</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>len</name>--</expr>;</expr_stmt>
+                <expr_stmt><expr><name>firstCount</name>++</expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></while>
+        <decl_stmt><decl><type><name>int</name></type> <name>secondCount</name> =<init> <expr><call><name><name>in</name>.<name>read</name></name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr><name>off</name></expr></argument>, <argument><expr><name>len</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr><name><name>secondCount</name> <argument_list>&lt; <argument>0 <name>?</name> <name>firstCount</name></argument> &gt;</argument_list></name> 0 ? <name>firstCount</name> : -1 : <name>firstCount</name> + <name>secondCount</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;read(byte[])&lt;/code&gt; method, detecting and
+     * optionally skipping BOM.
+     * @param buf the buffer to read the bytes into
+     * @return the number of bytes read (excluding BOM)
+     * or -1 if the end of stream
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>int</name></type> <name>read</name><parameter_list>(<param><decl><type><name><name>byte</name><index>[]</index></name></type> <name>buf</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><call><name>read</name><argument_list>(<argument><expr><name>buf</name></expr></argument>, <argument><expr>0</expr></argument>, <argument><expr><name><name>buf</name>.<name>length</name></name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;mark(int)&lt;/code&gt; method.
+     * @param readlimit read ahead limit
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <specifier>synchronized</specifier> <name>void</name></type> <name>mark</name><parameter_list>(<param><decl><type><name>int</name></type> <name>readlimit</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>markFbIndex</name> = <name>fbIndex</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name>markedAtStart</name> = <name>firstBytes</name> == <name>null</name></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>in</name>.<name>mark</name></name><argument_list>(<argument><expr><name>readlimit</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;reset()&lt;/code&gt; method.
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <specifier>synchronized</specifier> <name>void</name></type> <name>reset</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><name>fbIndex</name> = <name>markFbIndex</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>markedAtStart</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>firstBytes</name> = <name>null</name></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>in</name>.<name>reset</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Invokes the delegate's &lt;code&gt;skip(long)&lt;/code&gt; method, detecting
+     * and optionallyskipping BOM.
+     * @param n the number of bytes to skip
+     * @return the number of bytes to skipped or -1 if the end of stream
+     * @throws IOException if an I/O error occurs
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>long</name></type> <name>skip</name><parameter_list>(<param><decl><type><name>long</name></type> <name>n</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <while>while <condition>(<expr><name>n</name> &gt; 0 &amp;&amp; <call><name>readFirstBytes</name><argument_list>()</argument_list></call> &gt;= 0</expr>)</condition> <block>{
+            <expr_stmt><expr><name>n</name>--</expr>;</expr_stmt>
+        }</block></while>
+        <return>return <expr><call><name><name>in</name>.<name>skip</name></name><argument_list>(<argument><expr><name>n</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+}</block></class>
+</unit>

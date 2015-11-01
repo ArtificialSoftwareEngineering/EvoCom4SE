@@ -1,0 +1,1139 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\guava\src\com\google\common\util\concurrent\Monitor.java"><comment type="block">/*
+ * Copyright (C) 2010 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+
+<package>package <name><name>com</name>.<name>google</name>.<name>common</name>.<name>util</name>.<name>concurrent</name></name>;</package>
+
+<import>import static <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Preconditions</name>.<name>checkNotNull</name></name>;</import>
+
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>annotations</name>.<name>Beta</name></name>;</import>
+<import>import <name><name>com</name>.<name>google</name>.<name>common</name>.<name>base</name>.<name>Throwables</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>TimeUnit</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>Condition</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>locks</name>.<name>ReentrantLock</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>annotation</name>.<name>concurrent</name>.<name>GuardedBy</name></name>;</import>
+
+<comment type="javadoc">/**
+ * A synchronization abstraction supporting waiting on arbitrary boolean conditions.
+ *
+ * &lt;p&gt;This class is intended as a replacement for {@link ReentrantLock}. Code using {@code Monitor}
+ * is less error-prone and more readable than code using {@code ReentrantLock}, without significant
+ * performance loss. {@code Monitor} even has the potential for performance gain by optimizing the
+ * evaluation and signaling of conditions.  Signaling is entirely
+ * &lt;a href="http://en.wikipedia.org/wiki/Monitor_(synchronization)#Implicit_signaling"&gt;
+ * implicit&lt;/a&gt;.
+ * By eliminating explicit signaling, this class can guarantee that only one thread is awakened
+ * when a condition becomes true (no "signaling storms" due to use of {@link
+ * java.util.concurrent.locks.Condition#signalAll Condition.signalAll}) and that no signals are lost
+ * (no "hangs" due to incorrect use of {@link java.util.concurrent.locks.Condition#signal
+ * Condition.signal}).
+ *
+ * &lt;p&gt;A thread is said to &lt;i&gt;occupy&lt;/i&gt; a monitor if it has &lt;i&gt;entered&lt;/i&gt; the monitor but not yet
+ * &lt;i&gt;left&lt;/i&gt;. Only one thread may occupy a given monitor at any moment. A monitor is also
+ * reentrant, so a thread may enter a monitor any number of times, and then must leave the same
+ * number of times. The &lt;i&gt;enter&lt;/i&gt; and &lt;i&gt;leave&lt;/i&gt; operations have the same synchronization
+ * semantics as the built-in Java language synchronization primitives.
+ *
+ * &lt;p&gt;A call to any of the &lt;i&gt;enter&lt;/i&gt; methods with &lt;b&gt;void&lt;/b&gt; return type should always be
+ * followed immediately by a &lt;i&gt;try/finally&lt;/i&gt; block to ensure that the current thread leaves the
+ * monitor cleanly: &lt;pre&gt;   {@code
+ *
+ *   monitor.enter();
+ *   try {
+ *     // do things while occupying the monitor
+ *   } finally {
+ *     monitor.leave();
+ *   }}&lt;/pre&gt;
+ *
+ * &lt;p&gt;A call to any of the &lt;i&gt;enter&lt;/i&gt; methods with &lt;b&gt;boolean&lt;/b&gt; return type should always
+ * appear as the condition of an &lt;i&gt;if&lt;/i&gt; statement containing a &lt;i&gt;try/finally&lt;/i&gt; block to
+ * ensure that the current thread leaves the monitor cleanly: &lt;pre&gt;   {@code
+ *
+ *   if (monitor.tryEnter()) {
+ *     try {
+ *       // do things while occupying the monitor
+ *     } finally {
+ *       monitor.leave();
+ *     }
+ *   } else {
+ *     // do other things since the monitor was not available
+ *   }}&lt;/pre&gt;
+ *
+ * &lt;h2&gt;Comparison with {@code synchronized} and {@code ReentrantLock}&lt;/h2&gt;
+ *
+ * &lt;p&gt;The following examples show a simple threadsafe holder expressed using {@code synchronized},
+ * {@link ReentrantLock}, and {@code Monitor}.
+ *
+ * &lt;h3&gt;{@code synchronized}&lt;/h3&gt;
+ *
+ * &lt;p&gt;This version is the fewest lines of code, largely because the synchronization mechanism used
+ * is built into the language and runtime. But the programmer has to remember to avoid a couple of
+ * common bugs: The {@code wait()} must be inside a {@code while} instead of an {@code if}, and
+ * {@code notifyAll()} must be used instead of {@code notify()} because there are two different
+ * logical conditions being awaited. &lt;pre&gt;   {@code
+ *
+ *   public class SafeBox&lt;V&gt; {
+ *     private V value;
+ *
+ *     public synchronized V get() throws InterruptedException {
+ *       while (value == null) {
+ *         wait();
+ *       }
+ *       V result = value;
+ *       value = null;
+ *       notifyAll();
+ *       return result;
+ *     }
+ *
+ *     public synchronized void set(V newValue) throws InterruptedException {
+ *       while (value != null) {
+ *         wait();
+ *       }
+ *       value = newValue;
+ *       notifyAll();
+ *     }
+ *   }}&lt;/pre&gt;
+ *
+ * &lt;h3&gt;{@code ReentrantLock}&lt;/h3&gt;
+ *
+ * &lt;p&gt;This version is much more verbose than the {@code synchronized} version, and still suffers
+ * from the need for the programmer to remember to use {@code while} instead of {@code if}.
+ * However, one advantage is that we can introduce two separate {@code Condition} objects, which
+ * allows us to use {@code signal()} instead of {@code signalAll()}, which may be a performance
+ * benefit. &lt;pre&gt;   {@code
+ *
+ *   public class SafeBox&lt;V&gt; {
+ *     private final ReentrantLock lock = new ReentrantLock();
+ *     private final Condition valuePresent = lock.newCondition();
+ *     private final Condition valueAbsent = lock.newCondition();
+ *     private V value;
+ *
+ *     public V get() throws InterruptedException {
+ *       lock.lock();
+ *       try {
+ *         while (value == null) {
+ *           valuePresent.await();
+ *         }
+ *         V result = value;
+ *         value = null;
+ *         valueAbsent.signal();
+ *         return result;
+ *       } finally {
+ *         lock.unlock();
+ *       }
+ *     }
+ *
+ *     public void set(V newValue) throws InterruptedException {
+ *       lock.lock();
+ *       try {
+ *         while (value != null) {
+ *           valueAbsent.await();
+ *         }
+ *         value = newValue;
+ *         valuePresent.signal();
+ *       } finally {
+ *         lock.unlock();
+ *       }
+ *     }
+ *   }}&lt;/pre&gt;
+ *
+ * &lt;h3&gt;{@code Monitor}&lt;/h3&gt;
+ *
+ * &lt;p&gt;This version adds some verbosity around the {@code Guard} objects, but removes that same
+ * verbosity, and more, from the {@code get} and {@code set} methods. {@code Monitor} implements the
+ * same efficient signaling as we had to hand-code in the {@code ReentrantLock} version above.
+ * Finally, the programmer no longer has to hand-code the wait loop, and therefore doesn't have to
+ * remember to use {@code while} instead of {@code if}. &lt;pre&gt;   {@code
+ *
+ *   public class SafeBox&lt;V&gt; {
+ *     private final Monitor monitor = new Monitor();
+ *     private final Monitor.Guard valuePresent = new Monitor.Guard(monitor) {
+ *       public boolean isSatisfied() {
+ *         return value != null;
+ *       }
+ *     };
+ *     private final Monitor.Guard valueAbsent = new Monitor.Guard(monitor) {
+ *       public boolean isSatisfied() {
+ *         return value == null;
+ *       }
+ *     };
+ *     private V value;
+ *
+ *     public V get() throws InterruptedException {
+ *       monitor.enterWhen(valuePresent);
+ *       try {
+ *         V result = value;
+ *         value = null;
+ *         return result;
+ *       } finally {
+ *         monitor.leave();
+ *       }
+ *     }
+ *
+ *     public void set(V newValue) throws InterruptedException {
+ *       monitor.enterWhen(valueAbsent);
+ *       try {
+ *         value = newValue;
+ *       } finally {
+ *         monitor.leave();
+ *       }
+ *     }
+ *   }}&lt;/pre&gt;
+ *
+ * @author Justin T. Sampson
+ * @author Martin Buchholz
+ * @since 10.0
+ */</comment>
+<class><annotation>@<name>Beta</name></annotation>
+<specifier>public</specifier> <specifier>final</specifier> class <name>Monitor</name> <block>{
+  <comment type="line">// TODO(user): Use raw LockSupport or AbstractQueuedSynchronizer instead of ReentrantLock.</comment>
+  <comment type="line">// TODO(user): "Port" jsr166 tests for ReentrantLock.</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// TODO(user): Change API to make it impossible to use a Guard with the "wrong" monitor,</comment>
+  <comment type="line">//    by making the monitor implicit, and to eliminate other sources of IMSE.</comment>
+  <comment type="line">//    Imagine:</comment>
+  <comment type="line">//    guard.lock();</comment>
+  <comment type="line">//    try { /* monitor locked and guard satisfied here */ }</comment>
+  <comment type="line">//    finally { guard.unlock(); }</comment>
+  <comment type="line">// Here are Justin's design notes about this:</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// This idea has come up from time to time, and I think one of my</comment>
+  <comment type="line">// earlier versions of Monitor even did something like this. I ended</comment>
+  <comment type="line">// up strongly favoring the current interface.</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// I probably can't remember all the reasons (it's possible you</comment>
+  <comment type="line">// could find them in the code review archives), but here are a few:</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// 1. What about leaving/unlocking? Are you going to do</comment>
+  <comment type="line">//    guard.enter() paired with monitor.leave()? That might get</comment>
+  <comment type="line">//    confusing. It's nice for the finally block to look as close as</comment>
+  <comment type="line">//    possible to the thing right before the try. You could have</comment>
+  <comment type="line">//    guard.leave(), but that's a little odd as well because the</comment>
+  <comment type="line">//    guard doesn't have anything to do with leaving. You can't</comment>
+  <comment type="line">//    really enforce that the guard you're leaving is the same one</comment>
+  <comment type="line">//    you entered with, and it doesn't actually matter.</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// 2. Since you can enter the monitor without a guard at all, some</comment>
+  <comment type="line">//    places you'll have monitor.enter()/monitor.leave() and other</comment>
+  <comment type="line">//    places you'll have guard.enter()/guard.leave() even though</comment>
+  <comment type="line">//    it's the same lock being acquired underneath. Always using</comment>
+  <comment type="line">//    monitor.enterXXX()/monitor.leave() will make it really clear</comment>
+  <comment type="line">//    which lock is held at any point in the code.</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// 3. I think "enterWhen(notEmpty)" reads better than "notEmpty.enter()".</comment>
+  <comment type="line">//</comment>
+  <comment type="line">// TODO(user): Implement ReentrantLock features:</comment>
+  <comment type="line">//    - toString() method</comment>
+  <comment type="line">//    - getOwner() method</comment>
+  <comment type="line">//    - getQueuedThreads() method</comment>
+  <comment type="line">//    - getWaitingThreads(Guard) method</comment>
+  <comment type="line">//    - implement Serializable</comment>
+  <comment type="line">//    - redo the API to be as close to identical to ReentrantLock as possible,</comment>
+  <comment type="line">//      since, after all, this class is also a reentrant mutual exclusion lock!?</comment>
+
+  <comment type="block">/*
+   * One of the key challenges of this class is to prevent lost signals, while trying hard to
+   * minimize unnecessary signals.  One simple and correct algorithm is to signal some other
+   * waiter with a satisfied guard (if one exists) whenever any thread occupying the monitor
+   * exits the monitor, either by unlocking all of its held locks, or by starting to wait for a
+   * guard.  This includes exceptional exits, so all control paths involving signalling must be
+   * protected by a finally block.
+   *
+   * Further optimizations of this algorithm become increasingly subtle.  A wait that terminates
+   * without the guard being satisfied (due to timeout, but not interrupt) can then immediately
+   * exit the monitor without signalling.  If it timed out without being signalled, it does not
+   * need to "pass on" the signal to another thread.  If it *was* signalled, then its guard must
+   * have been satisfied at the time of signal, and has since been modified by some other thread
+   * to be non-satisfied before reacquiring the lock, and that other thread takes over the
+   * responsibility of signaling the next waiter.
+   *
+   * Unlike the underlying Condition, if we are not careful, an interrupt *can* cause a signal to
+   * be lost, because the signal may be sent to a condition whose sole waiter has just been
+   * interrupted.
+   *
+   * Imagine a monitor with multiple guards.  A thread enters the monitor, satisfies all the
+   * guards, and leaves, calling signalNextWaiter.  With traditional locks and conditions, all
+   * the conditions need to be signalled because it is not known which if any of them have
+   * waiters (and hasWaiters can't be used reliably because of a check-then-act race).  With our
+   * Monitor guards, we only signal the first active guard that is satisfied.  But the
+   * corresponding thread may have already been interrupted and is waiting to reacquire the lock
+   * while still registered in activeGuards, in which case the signal is a no-op, and the
+   * bigger-picture signal is lost unless interrupted threads take special action by
+   * participating in the signal-passing game.
+   */</comment>
+
+  <comment type="block">/*
+   * Timeout handling is intricate, especially given our ambitious goals:
+   * - Avoid underflow and overflow of timeout values when specified timeouts are close to
+   *   Long.MIN_VALUE or Long.MAX_VALUE.
+   * - Favor responding to interrupts over timeouts.
+   * - System.nanoTime() is expensive enough that we want to call it the minimum required number of
+   *   times, typically once before invoking a blocking method.  This often requires keeping track
+   *   of the first time in a method that nanoTime() has been invoked, for which the special value
+   *   0L is reserved to mean "uninitialized".  If timeout is non-positive, then nanoTime need
+   *   never be called.
+   * - Keep behavior of fair and non-fair instances consistent.
+   */</comment>
+
+  <comment type="javadoc">/**
+   * A boolean condition for which a thread may wait. A {@code Guard} is associated with a single
+   * {@code Monitor}. The monitor may check the guard at arbitrary times from any thread occupying
+   * the monitor, so code should not be written to rely on how often a guard might or might not be
+   * checked.
+   *
+   * &lt;p&gt;If a {@code Guard} is passed into any method of a {@code Monitor} other than the one it is
+   * associated with, an {@link IllegalMonitorStateException} is thrown.
+   *
+   * @since 10.0
+   */</comment>
+  <class><annotation>@<name>Beta</name></annotation>
+  <specifier>public</specifier> <specifier>abstract</specifier> <specifier>static</specifier> class <name>Guard</name> <block>{
+
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Monitor</name></type> <name>monitor</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>Condition</name></type> <name>condition</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("monitor.lock")</argument_list></annotation>
+    <name>int</name></type> <name>waiterCount</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/** The next active guard */</comment>
+    <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("monitor.lock")</argument_list></annotation>
+    <name>Guard</name></type> <name>next</name></decl>;</decl_stmt>
+
+    <constructor><specifier>protected</specifier> <name>Guard</name><parameter_list>(<param><decl><type><name>Monitor</name></type> <name>monitor</name></decl></param>)</parameter_list> <block>{
+      <expr_stmt><expr><name><name>this</name>.<name>monitor</name></name> = <call><name>checkNotNull</name><argument_list>(<argument><expr><name>monitor</name></expr></argument>, <argument><expr>"monitor"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name><name>this</name>.<name>condition</name></name> = <call><name><name>monitor</name>.<name>lock</name>.<name>newCondition</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Evaluates this guard's boolean condition. This method is always called with the associated
+     * monitor already occupied. Implementations of this method must depend only on state protected
+     * by the associated monitor, and must not modify that state.
+     */</comment>
+    <function_decl><type><specifier>public</specifier> <specifier>abstract</specifier> <name>boolean</name></type> <name>isSatisfied</name><parameter_list>()</parameter_list>;</function_decl>
+
+  }</block></class>
+
+  <comment type="javadoc">/**
+   * Whether this monitor is fair.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>boolean</name></type> <name>fair</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The lock underlying this monitor.
+   */</comment>
+  <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * The guards associated with this monitor that currently have waiters ({@code waiterCount &gt; 0}).
+   * A linked list threaded through the Guard.next field.
+   */</comment>
+  <decl_stmt><decl><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>Guard</name></type> <name>activeGuards</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+  <comment type="javadoc">/**
+   * Creates a monitor with a non-fair (but fast) ordering policy. Equivalent to {@code
+   * Monitor(false)}.
+   */</comment>
+  <constructor><specifier>public</specifier> <name>Monitor</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Creates a monitor with the given ordering policy.
+   *
+   * @param fair whether this monitor should use a fair ordering policy rather than a non-fair (but
+   *        fast) one
+   */</comment>
+  <constructor><specifier>public</specifier> <name>Monitor</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>fair</name></decl></param>)</parameter_list> <block>{
+    <expr_stmt><expr><name><name>this</name>.<name>fair</name></name> = <name>fair</name></expr>;</expr_stmt>
+    <expr_stmt><expr><name><name>this</name>.<name>lock</name></name> = new <call><name>ReentrantLock</name><argument_list>(<argument><expr><name>fair</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+  }</block></constructor>
+
+  <comment type="javadoc">/**
+   * Enters this monitor. Blocks indefinitely.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>enter</name><parameter_list>()</parameter_list> <block>{
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor. Blocks indefinitely, but may be interrupted.
+   *
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>enterInterruptibly</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor. Blocks at most the given time.
+   *
+   * @return whether the monitor was entered
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enter</name><parameter_list>(<param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name>toSafeNanos</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!<name>fair</name> &amp;&amp; <call><name><name>lock</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>interrupted</name> =<init> <expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>startTime</name> =<init> <expr><call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <for>for (<init><decl><type><name>long</name></type> <name>remainingNanos</name> =<init> <expr><name>timeoutNanos</name></expr></init></decl>;</init><condition>;</condition><incr/>) <block>{
+        <try>try <block>{
+          <return>return <expr><call><name><name>lock</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>remainingNanos</name></expr></argument>, <argument><expr><name><name>TimeUnit</name>.<name>NANOSECONDS</name></name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>interrupt</name></decl></param>) <block>{
+          <expr_stmt><expr><name>interrupted</name> = true</expr>;</expr_stmt>
+          <expr_stmt><expr><name>remainingNanos</name> = <call><name>remainingNanos</name><argument_list>(<argument><expr><name>startTime</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+      }</block></for>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr><name>interrupted</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call>.<call><name>interrupt</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor. Blocks at most the given time, and may be interrupted.
+   *
+   * @return whether the monitor was entered
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterInterruptibly</name><parameter_list>(<param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if it is possible to do so immediately. Does not block.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This method disregards the fairness setting of this monitor.
+   *
+   * @return whether the monitor was entered
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryEnter</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor when the guard is satisfied. Blocks indefinitely, but may be interrupted.
+   *
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>enterWhen</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name> =<init> <expr><call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <if>if <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>await</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr><name>signalBeforeWaiting</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <expr_stmt><expr><name>satisfied</name> = true</expr>;</expr_stmt>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>leave</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor when the guard is satisfied. Blocks indefinitely.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>enterWhenUninterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name> =<init> <expr><call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <if>if <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>awaitUninterruptibly</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr><name>signalBeforeWaiting</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+      <expr_stmt><expr><name>satisfied</name> = true</expr>;</expr_stmt>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>leave</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor when the guard is satisfied. Blocks at most the given time, including both
+   * the time to acquire the lock and the time to wait for the guard to be satisfied, and may be
+   * interrupted.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterWhen</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name>toSafeNanos</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>reentrant</name> =<init> <expr><call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>startTime</name> =<init> <expr>0L</expr></init></decl>;</decl_stmt>
+
+ <label><name>locked</name>:</label> <block>{
+      <if>if <condition>(<expr>!<name>fair</name></expr>)</condition><then> <block>{
+        <comment type="line">// Check interrupt status to get behavior consistent with fair case.</comment>
+        <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+          <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>lock</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+          <break>break locked;</break>
+        }</block></then></if>
+      }</block></then></if>
+      <expr_stmt><expr><name>startTime</name> = <call><name>initNanoTime</name><argument_list>(<argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <if>if <condition>(<expr>!<call><name><name>lock</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <return>return <expr>false</expr>;</return>
+      }</block></then></if>
+    }</block>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>threw</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <expr_stmt><expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call>
+          || <call><name>awaitNanos</name><argument_list>(<argument><expr><name>guard</name></expr></argument>,
+                        <argument><expr>(<name>startTime</name> == 0L)
+                            ? <name>timeoutNanos</name>
+                            : <call><name>remainingNanos</name><argument_list>(<argument><expr><name>startTime</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr></argument>,
+                        <argument><expr><name>reentrant</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      <expr_stmt><expr><name>threw</name> = false</expr>;</expr_stmt>
+      <return>return <expr><name>satisfied</name></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <try>try <block>{
+          <comment type="line">// Don't need to signal if timed out, but do if interrupted</comment>
+          <if>if <condition>(<expr><name>threw</name> &amp;&amp; !<name>reentrant</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>signalNextWaiter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+        }</block> <finally>finally <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></finally></try>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor when the guard is satisfied. Blocks at most the given time, including
+   * both the time to acquire the lock and the time to wait for the guard to be satisfied.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterWhenUninterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name>toSafeNanos</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>long</name></type> <name>startTime</name> =<init> <expr>0L</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name> =<init> <expr><call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>interrupted</name> =<init> <expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <if>if <condition>(<expr><name>fair</name> || !<call><name><name>lock</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><name>startTime</name> = <call><name>initNanoTime</name><argument_list>(<argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>long</name></type> <name>remainingNanos</name> =<init> <expr><name>timeoutNanos</name></expr></init></decl>;</init><condition>;</condition><incr/>) <block>{
+          <try>try <block>{
+            <if>if <condition>(<expr><call><name><name>lock</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>remainingNanos</name></expr></argument>, <argument><expr><name><name>TimeUnit</name>.<name>NANOSECONDS</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+              <break>break;</break>
+            }</block></then> <else>else <block>{
+              <return>return <expr>false</expr>;</return>
+            }</block></else></if>
+          }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>interrupt</name></decl></param>) <block>{
+            <expr_stmt><expr><name>interrupted</name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name>remainingNanos</name> = <call><name>remainingNanos</name><argument_list>(<argument><expr><name>startTime</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          }</block></catch></try>
+        }</block></for>
+      }</block></then></if>
+
+      <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+      <try>try <block>{
+        <while>while <condition>(<expr>true</expr>)</condition> <block>{
+          <try>try <block>{
+            <if>if <condition>(<expr><call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+              <expr_stmt><expr><name>satisfied</name> = true</expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+              <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>remainingNanos</name></decl>;</decl_stmt>
+              <if>if <condition>(<expr><name>startTime</name> == 0L</expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>startTime</name> = <call><name>initNanoTime</name><argument_list>(<argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>remainingNanos</name> = <name>timeoutNanos</name></expr>;</expr_stmt>
+              }</block></then> <else>else <block>{
+                <expr_stmt><expr><name>remainingNanos</name> = <call><name>remainingNanos</name><argument_list>(<argument><expr><name>startTime</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+              }</block></else></if>
+              <expr_stmt><expr><name>satisfied</name> = <call><name>awaitNanos</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr><name>remainingNanos</name></expr></argument>, <argument><expr><name>signalBeforeWaiting</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+            <return>return <expr><name>satisfied</name></expr>;</return>
+          }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>interrupt</name></decl></param>) <block>{
+            <expr_stmt><expr><name>interrupted</name> = true</expr>;</expr_stmt>
+            <expr_stmt><expr><name>signalBeforeWaiting</name> = false</expr>;</expr_stmt>
+          }</block></catch></try>
+        }</block></while>
+      }</block> <finally>finally <block>{
+        <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+          <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>  <comment type="line">// No need to signal if timed out</comment>
+        }</block></then></if>
+      }</block></finally></try>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr><name>interrupted</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call>.<call><name>interrupt</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if the guard is satisfied. Blocks indefinitely acquiring the lock, but
+   * does not wait for the guard to be satisfied.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterIf</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <return>return <expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if the guard is satisfied. Blocks indefinitely acquiring the lock, but does
+   * not wait for the guard to be satisfied, and may be interrupted.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterIfInterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lockInterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <return>return <expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if the guard is satisfied. Blocks at most the given time acquiring the
+   * lock, but does not wait for the guard to be satisfied.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterIf</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <if>if <condition>(<expr>!<call><name>enter</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <return>return <expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if the guard is satisfied. Blocks at most the given time acquiring the
+   * lock, but does not wait for the guard to be satisfied, and may be interrupted.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>enterIfInterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!<call><name><name>lock</name>.<name>tryLock</name></name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <return>return <expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Enters this monitor if it is possible to do so immediately and the guard is satisfied. Does not
+   * block acquiring the lock and does not wait for the guard to be satisfied.
+   *
+   * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This method disregards the fairness setting of this monitor.
+   *
+   * @return whether the monitor was entered, which guarantees that the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>tryEnterIf</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!<call><name><name>lock</name>.<name>tryLock</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>false</expr>;</return>
+    }</block></then></if>
+
+    <decl_stmt><decl><type><name>boolean</name></type> <name>satisfied</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <return>return <expr><name>satisfied</name> = <call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>satisfied</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Waits for the guard to be satisfied. Waits indefinitely, but may be interrupted. May be
+   * called only by a thread currently occupying this monitor.
+   *
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>waitFor</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr>!((<name><name>guard</name>.<name>monitor</name></name> == <name>this</name>) &amp; <call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <if>if <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>await</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Waits for the guard to be satisfied. Waits indefinitely. May be called only by a thread
+   * currently occupying this monitor.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>waitForUninterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr>!((<name><name>guard</name>.<name>monitor</name></name> == <name>this</name>) &amp; <call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <if>if <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>awaitUninterruptibly</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Waits for the guard to be satisfied. Waits at most the given time, and may be interrupted.
+   * May be called only by a thread currently occupying this monitor.
+   *
+   * @return whether the guard is now satisfied
+   * @throws InterruptedException if interrupted while waiting
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>waitFor</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name>toSafeNanos</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!((<name><name>guard</name>.<name>monitor</name></name> == <name>this</name>) &amp; <call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <if>if <condition>(<expr><call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <if>if <condition>(<expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>InterruptedException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <return>return <expr><call><name>awaitNanos</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Waits for the guard to be satisfied. Waits at most the given time. May be called only by a
+   * thread currently occupying this monitor.
+   *
+   * @return whether the guard is now satisfied
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>waitForUninterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name>toSafeNanos</name><argument_list>(<argument><expr><name>time</name></expr></argument>, <argument><expr><name>unit</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr>!((<name><name>guard</name>.<name>monitor</name></name> == <name>this</name>) &amp; <call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call>)</expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <if>if <condition>(<expr><call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+      <return>return <expr>true</expr>;</return>
+    }</block></then></if>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>startTime</name> =<init> <expr><call><name>initNanoTime</name><argument_list>(<argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><name>boolean</name></type> <name>interrupted</name> =<init> <expr><call><name><name>Thread</name>.<name>interrupted</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <for>for (<init><decl><type><name>long</name></type> <name>remainingNanos</name> =<init> <expr><name>timeoutNanos</name></expr></init></decl>;</init><condition>;</condition><incr/>) <block>{
+        <try>try <block>{
+          <return>return <expr><call><name>awaitNanos</name><argument_list>(<argument><expr><name>guard</name></expr></argument>, <argument><expr><name>remainingNanos</name></expr></argument>, <argument><expr><name>signalBeforeWaiting</name></expr></argument>)</argument_list></call></expr>;</return>
+        }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>interrupt</name></decl></param>) <block>{
+          <expr_stmt><expr><name>interrupted</name> = true</expr>;</expr_stmt>
+          <if>if <condition>(<expr><call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <return>return <expr>true</expr>;</return>
+          }</block></then></if>
+          <expr_stmt><expr><name>signalBeforeWaiting</name> = false</expr>;</expr_stmt>
+          <expr_stmt><expr><name>remainingNanos</name> = <call><name>remainingNanos</name><argument_list>(<argument><expr><name>startTime</name></expr></argument>, <argument><expr><name>timeoutNanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+      }</block></for>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr><name>interrupted</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>Thread</name>.<name>currentThread</name></name><argument_list>()</argument_list></call>.<call><name>interrupt</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Leaves this monitor. May be called only by a thread currently occupying this monitor.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>void</name></type> <name>leave</name><parameter_list>()</parameter_list> <block>{
+    <decl_stmt><decl><type><specifier>final</specifier> <name>ReentrantLock</name></type> <name>lock</name> =<init> <expr><name><name>this</name>.<name>lock</name></name></expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <comment type="line">// No need to signal if we will still be holding the lock when we return</comment>
+      <if>if <condition>(<expr><call><name><name>lock</name>.<name>getHoldCount</name></name><argument_list>()</argument_list></call> == 1</expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>signalNextWaiter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block> <finally>finally <block>{
+      <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>  <comment type="line">// Will throw IllegalMonitorStateException if not held</comment>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns whether this monitor is using a fair ordering policy.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isFair</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><name>fair</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns whether this monitor is occupied by any thread. This method is designed for use in
+   * monitoring of the system state, not for synchronization control.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isOccupied</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>isLocked</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns whether the current thread is occupying this monitor (has entered more times than it
+   * has left).
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>isOccupiedByCurrentThread</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>isHeldByCurrentThread</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the number of times the current thread has entered this monitor in excess of the number
+   * of times it has left. Returns 0 if the current thread is not occupying this monitor.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>int</name></type> <name>getOccupiedDepth</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>getHoldCount</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an estimate of the number of threads waiting to enter this monitor. The value is only
+   * an estimate because the number of threads may change dynamically while this method traverses
+   * internal data structures. This method is designed for use in monitoring of the system state,
+   * not for synchronization control.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>int</name></type> <name>getQueueLength</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>getQueueLength</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns whether any threads are waiting to enter this monitor. Note that because cancellations
+   * may occur at any time, a {@code true} return does not guarantee that any other thread will ever
+   * enter this monitor. This method is designed primarily for use in monitoring of the system
+   * state.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasQueuedThreads</name><parameter_list>()</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>hasQueuedThreads</name></name><argument_list>()</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Queries whether the given thread is waiting to enter this monitor. Note that because
+   * cancellations may occur at any time, a {@code true} return does not guarantee that this thread
+   * will ever enter this monitor. This method is designed primarily for use in monitoring of the
+   * system state.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasQueuedThread</name><parameter_list>(<param><decl><type><name>Thread</name></type> <name>thread</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name><name>lock</name>.<name>hasQueuedThread</name></name><argument_list>(<argument><expr><name>thread</name></expr></argument>)</argument_list></call></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Queries whether any threads are waiting for the given guard to become satisfied. Note that
+   * because timeouts and interrupts may occur at any time, a {@code true} return does not guarantee
+   * that the guard becoming satisfied in the future will awaken any threads. This method is
+   * designed primarily for use in monitoring of the system state.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>boolean</name></type> <name>hasWaiters</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <return>return <expr><call><name>getWaitQueueLength</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call> &gt; 0</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns an estimate of the number of threads waiting for the given guard to become satisfied.
+   * Note that because timeouts and interrupts may occur at any time, the estimate serves only as an
+   * upper bound on the actual number of waiters. This method is designed for use in monitoring of
+   * the system state, not for synchronization control.
+   */</comment>
+  <function><type><specifier>public</specifier> <name>int</name></type> <name>getWaitQueueLength</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name><name>guard</name>.<name>monitor</name></name> != <name>this</name></expr>)</condition><then> <block>{
+      <throw>throw <expr>new <call><name>IllegalMonitorStateException</name><argument_list>()</argument_list></call></expr>;</throw>
+    }</block></then></if>
+    <expr_stmt><expr><call><name><name>lock</name>.<name>lock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    <try>try <block>{
+      <return>return <expr><name><name>guard</name>.<name>waiterCount</name></name></expr>;</return>
+    }</block> <finally>finally <block>{
+      <expr_stmt><expr><call><name><name>lock</name>.<name>unlock</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns unit.toNanos(time), additionally ensuring the returned value is not at risk of
+   * overflowing or underflowing, by bounding the value between 0 and (Long.MAX_VALUE / 4) * 3.
+   * Actually waiting for more than 219 years is not supported!
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>long</name></type> <name>toSafeNanos</name><parameter_list>(<param><decl><type><name>long</name></type> <name>time</name></decl></param>, <param><decl><type><name>TimeUnit</name></type> <name>unit</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>long</name></type> <name>timeoutNanos</name> =<init> <expr><call><name><name>unit</name>.<name>toNanos</name></name><argument_list>(<argument><expr><name>time</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+    <return>return <expr>(<name>timeoutNanos</name> &lt;= 0L) ? 0L
+        : (<name>timeoutNanos</name> &gt; (<name><name>Long</name>.<name>MAX_VALUE</name></name> / 4) * 3) ? (<name><name>Long</name>.<name>MAX_VALUE</name></name> / 4) * 3
+        : <name>timeoutNanos</name></expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns System.nanoTime() unless the timeout has already elapsed.
+   * Returns 0L if and only if the timeout has already elapsed.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>long</name></type> <name>initNanoTime</name><parameter_list>(<param><decl><type><name>long</name></type> <name>timeoutNanos</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>timeoutNanos</name> &lt;= 0L</expr>)</condition><then> <block>{
+      <return>return <expr>0L</expr>;</return>
+    }</block></then> <else>else <block>{
+      <decl_stmt><decl><type><name>long</name></type> <name>startTime</name> =<init> <expr><call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+      <return>return <expr>(<name>startTime</name> == 0L) ? 1L : <name>startTime</name></expr>;</return>
+    }</block></else></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Returns the remaining nanos until the given timeout, or 0L if the timeout has already elapsed.
+   * Caller must have previously sanitized timeoutNanos using toSafeNanos.
+   */</comment>
+  <function><type><specifier>private</specifier> <specifier>static</specifier> <name>long</name></type> <name>remainingNanos</name><parameter_list>(<param><decl><type><name>long</name></type> <name>startTime</name></decl></param>, <param><decl><type><name>long</name></type> <name>timeoutNanos</name></decl></param>)</parameter_list> <block>{
+    <comment type="line">// assert timeoutNanos == 0L || startTime != 0L;</comment>
+
+    <comment type="line">// TODO : NOT CORRECT, BUT TESTS PASS ANYWAYS!</comment>
+    <comment type="line">// if (true) return timeoutNanos;</comment>
+    <comment type="line">// ONLY 2 TESTS FAIL IF WE DO:</comment>
+    <comment type="line">// if (true) return 0;</comment>
+
+    <return>return <expr>(<name>timeoutNanos</name> &lt;= 0L) ? 0L : <name>timeoutNanos</name> - (<call><name><name>System</name>.<name>nanoTime</name></name><argument_list>()</argument_list></call> - <name>startTime</name>)</expr>;</return>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Signals some other thread waiting on a satisfied guard, if one exists.
+   *
+   * We manage calls to this method carefully, to signal only when necessary, but never losing a
+   * signal, which is the classic problem of this kind of concurrency construct.  We must signal if
+   * the current thread is about to relinquish the lock and may have changed the state protected by
+   * the monitor, thereby causing some guard to be satisfied.
+   *
+   * In addition, any thread that has been signalled when its guard was satisfied acquires the
+   * responsibility of signalling the next thread when it again relinquishes the lock.  Unlike a
+   * normal Condition, there is no guarantee that an interrupted thread has not been signalled,
+   * since the concurrency control must manage multiple Conditions.  So this method must generally
+   * be called when waits are interrupted.
+   *
+   * On the other hand, if a signalled thread wakes up to discover that its guard is still not
+   * satisfied, it does *not* need to call this method before returning to wait.  This can only
+   * happen due to spurious wakeup (ignorable) or another thread acquiring the lock before the
+   * current thread can and returning the guard to the unsatisfied state.  In the latter case the
+   * other thread (last thread modifying the state protected by the monitor) takes over the
+   * responsibility of signalling the next waiter.
+   *
+   * This method must not be called from within a beginWaitingFor/endWaitingFor block, or else the
+   * current thread's guard might be mistakenly signalled, leading to a lost signal.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>signalNextWaiter</name><parameter_list>()</parameter_list> <block>{
+    <for>for (<init><decl><type><name>Guard</name></type> <name>guard</name> =<init> <expr><name>activeGuards</name></expr></init></decl>;</init> <condition><expr><name>guard</name> != <name>null</name></expr>;</condition> <incr><expr><name>guard</name> = <name><name>guard</name>.<name>next</name></name></expr></incr>) <block>{
+      <if>if <condition>(<expr><call><name>isSatisfied</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name><name>guard</name>.<name>condition</name>.<name>signal</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <break>break;</break>
+      }</block></then></if>
+    }</block></for>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Exactly like signalNextWaiter, but caller guarantees that guardToSkip need not be considered,
+   * because caller has previously checked that guardToSkip.isSatisfied() returned false.
+   * An optimization for the case that guardToSkip.isSatisfied() may be expensive.
+   *
+   * We decided against using this method, since in practice, isSatisfied() is likely to be very
+   * cheap (typically one field read).  Resurrect this method if you find that not to be true.
+   */</comment>
+<comment type="line">//   @GuardedBy("lock")</comment>
+<comment type="line">//   private void signalNextWaiterSkipping(Guard guardToSkip) {</comment>
+<comment type="line">//     for (Guard guard = activeGuards; guard != null; guard = guard.next) {</comment>
+<comment type="line">//       if (guard != guardToSkip &amp;&amp; isSatisfied(guard)) {</comment>
+<comment type="line">//         guard.condition.signal();</comment>
+<comment type="line">//         break;</comment>
+<comment type="line">//       }</comment>
+<comment type="line">//     }</comment>
+<comment type="line">//   }</comment>
+
+  <comment type="javadoc">/**
+   * Exactly like guard.isSatisfied(), but in addition signals all waiting threads in the
+   * (hopefully unlikely) event that isSatisfied() throws.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>boolean</name></type> <name>isSatisfied</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <try>try <block>{
+      <return>return <expr><call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>throwable</name></decl></param>) <block>{
+      <expr_stmt><expr><call><name>signalAllWaiters</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      <throw>throw <expr><call><name><name>Throwables</name>.<name>propagate</name></name><argument_list>(<argument><expr><name>throwable</name></expr></argument>)</argument_list></call></expr>;</throw>
+    }</block></catch></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Signals all threads waiting on guards.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>signalAllWaiters</name><parameter_list>()</parameter_list> <block>{
+    <for>for (<init><decl><type><name>Guard</name></type> <name>guard</name> =<init> <expr><name>activeGuards</name></expr></init></decl>;</init> <condition><expr><name>guard</name> != <name>null</name></expr>;</condition> <incr><expr><name>guard</name> = <name><name>guard</name>.<name>next</name></name></expr></incr>) <block>{
+      <expr_stmt><expr><call><name><name>guard</name>.<name>condition</name>.<name>signalAll</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></for>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Records that the current thread is about to wait on the specified guard.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>beginWaitingFor</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>waiters</name> =<init> <expr><name><name>guard</name>.<name>waiterCount</name></name>++</expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>waiters</name> == 0</expr>)</condition><then> <block>{
+      <comment type="line">// push guard onto activeGuards</comment>
+      <expr_stmt><expr><name><name>guard</name>.<name>next</name></name> = <name>activeGuards</name></expr>;</expr_stmt>
+      <expr_stmt><expr><name>activeGuards</name> = <name>guard</name></expr>;</expr_stmt>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Records that the current thread is no longer waiting on the specified guard.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>endWaitingFor</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>)</parameter_list> <block>{
+    <decl_stmt><decl><type><name>int</name></type> <name>waiters</name> =<init> <expr>--<name><name>guard</name>.<name>waiterCount</name></name></expr></init></decl>;</decl_stmt>
+    <if>if <condition>(<expr><name>waiters</name> == 0</expr>)</condition><then> <block>{
+      <comment type="line">// unlink guard from activeGuards</comment>
+      <for>for (<init><decl><type><name>Guard</name></type> <name>p</name> =<init> <expr><name>activeGuards</name></expr></init>, <name>pred</name> =<init> <expr><name>null</name></expr></init></decl>;</init><condition>;</condition> <incr><expr><name>pred</name> = <name>p</name></expr>, <expr><name>p</name> = <name><name>p</name>.<name>next</name></name></expr></incr>) <block>{
+        <if>if <condition>(<expr><name>p</name> == <name>guard</name></expr>)</condition><then> <block>{
+          <if>if <condition>(<expr><name>pred</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>activeGuards</name> = <name><name>p</name>.<name>next</name></name></expr>;</expr_stmt>
+          }</block></then> <else>else <block>{
+            <expr_stmt><expr><name><name>pred</name>.<name>next</name></name> = <name><name>p</name>.<name>next</name></name></expr>;</expr_stmt>
+          }</block></else></if>
+          <expr_stmt><expr><name><name>p</name>.<name>next</name></name> = <name>null</name></expr>;</expr_stmt>  <comment type="line">// help GC</comment>
+          <break>break;</break>
+        }</block></then></if>
+      }</block></for>
+    }</block></then></if>
+  }</block></function>
+
+  <comment type="block">/*
+   * Methods that loop waiting on a guard's condition until the guard is satisfied, while
+   * recording this fact so that other threads know to check our guard and signal us.
+   * It's caller's responsibility to ensure that the guard is *not* currently satisfied.
+   */</comment>
+
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>await</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <if>if <condition>(<expr><name>signalBeforeWaiting</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>signalNextWaiter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <expr_stmt><expr><call><name>beginWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <try>try <block>{
+      <do>do <block>{
+        <expr_stmt><expr><call><name><name>guard</name>.<name>condition</name>.<name>await</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> while <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+    }</block> <finally>finally <block>{
+      <expr_stmt><expr><call><name>endWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></finally></try>
+  }</block></function>
+
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>void</name></type> <name>awaitUninterruptibly</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name></decl></param>)</parameter_list> <block>{
+    <if>if <condition>(<expr><name>signalBeforeWaiting</name></expr>)</condition><then> <block>{
+      <expr_stmt><expr><call><name>signalNextWaiter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></then></if>
+    <expr_stmt><expr><call><name>beginWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    <try>try <block>{
+      <do>do <block>{
+        <expr_stmt><expr><call><name><name>guard</name>.<name>condition</name>.<name>awaitUninterruptibly</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+      }</block> while <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+    }</block> <finally>finally <block>{
+      <expr_stmt><expr><call><name>endWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></finally></try>
+  }</block></function>
+
+  <comment type="javadoc">/**
+   * Caller should check before calling that guard is not satisfied.
+   */</comment>
+  <function><type><annotation>@<name>GuardedBy</name><argument_list>("lock")</argument_list></annotation>
+  <specifier>private</specifier> <name>boolean</name></type> <name>awaitNanos</name><parameter_list>(<param><decl><type><name>Guard</name></type> <name>guard</name></decl></param>, <param><decl><type><name>long</name></type> <name>nanos</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>signalBeforeWaiting</name></decl></param>)</parameter_list>
+      <throws>throws <argument><expr><name>InterruptedException</name></expr></argument></throws> <block>{
+    <decl_stmt><decl><type><name>boolean</name></type> <name>firstTime</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+    <try>try <block>{
+      <do>do <block>{
+        <if>if <condition>(<expr><name>nanos</name> &lt;= 0L</expr>)</condition><then> <block>{
+          <return>return <expr>false</expr>;</return>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>firstTime</name></expr>)</condition><then> <block>{
+          <if>if <condition>(<expr><name>signalBeforeWaiting</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>signalNextWaiter</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+          }</block></then></if>
+          <expr_stmt><expr><call><name>beginWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+          <expr_stmt><expr><name>firstTime</name> = false</expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><name>nanos</name> = <call><name><name>guard</name>.<name>condition</name>.<name>awaitNanos</name></name><argument_list>(<argument><expr><name>nanos</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block> while <condition>(<expr>!<call><name><name>guard</name>.<name>isSatisfied</name></name><argument_list>()</argument_list></call></expr>)</condition>;</do>
+      <return>return <expr>true</expr>;</return>
+    }</block> <finally>finally <block>{
+      <if>if <condition>(<expr>!<name>firstTime</name></expr>)</condition><then> <block>{
+        <expr_stmt><expr><call><name>endWaitingFor</name><argument_list>(<argument><expr><name>guard</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+      }</block></then></if>
+    }</block></finally></try>
+  }</block></function>
+
+}</block></class>
+</unit>

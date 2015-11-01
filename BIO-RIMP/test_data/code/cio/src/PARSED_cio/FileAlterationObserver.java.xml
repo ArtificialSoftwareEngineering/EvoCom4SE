@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="D:\bio\git\biorimp\BIO-RIMP\test_data\code\cio\src\main\java\org\apache\commons\io\monitor\FileAlterationObserver.java"><comment type="block">/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>monitor</name></name>;</package>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>FileFilter</name></name>;</import>
+<import>import <name><name>java</name>.<name>io</name>.<name>Serializable</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Comparator</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>concurrent</name>.<name>CopyOnWriteArrayList</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>FileUtils</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>IOCase</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>commons</name>.<name>io</name>.<name>comparator</name>.<name>NameFileComparator</name></name>;</import>
+
+<comment type="javadoc">/**
+ * FileAlterationObserver represents the state of files below a root directory,
+ * checking the filesystem and notifying listeners of create, change or
+ * delete events.
+ * &lt;p&gt;
+ * To use this implementation:
+ * &lt;ul&gt;
+ *   &lt;li&gt;Create {@link FileAlterationListener} implementation(s) that process
+ *      the file/directory create, change and delete events&lt;/li&gt;
+ *   &lt;li&gt;Register the listener(s) with a {@link FileAlterationObserver} for
+ *       the appropriate directory.&lt;/li&gt;
+ *   &lt;li&gt;Either register the observer(s) with a {@link FileAlterationMonitor} or
+ *       run manually.&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;h2&gt;Basic Usage&lt;/h2&gt;
+ * Create a {@link FileAlterationObserver} for the directory and register the listeners:
+ * &lt;pre&gt;
+ *      File directory = new File(new File("."), "src");
+ *      FileAlterationObserver observer = new FileAlterationObserver(directory);
+ *      observer.addListener(...);
+ *      observer.addListener(...);
+ * &lt;/pre&gt;
+ * To manually observe a directory, initialize the observer and invoked the
+ * {@link #checkAndNotify()} method as required:
+ * &lt;pre&gt;
+ *      // intialize
+ *      observer.init();
+ *      ...
+ *      // invoke as required
+ *      observer.checkAndNotify();
+ *      ...
+ *      observer.checkAndNotify();
+ *      ...
+ *      // finished
+ *      observer.finish();
+ * &lt;/pre&gt;
+ * Alternatively, register the oberver(s) with a {@link FileAlterationMonitor},
+ * which creates a new thread, invoking the observer at the specified interval:
+ * &lt;pre&gt;
+ *      long interval = ...
+ *      FileAlterationMonitor monitor = new FileAlterationMonitor(interval);
+ *      monitor.addObserver(observer);
+ *      monitor.start();
+ *      ...
+ *      monitor.stop();
+ * &lt;/pre&gt;
+ *
+ * &lt;h2&gt;File Filters&lt;/h2&gt;
+ * This implementation can monitor portions of the file system
+ * by using {@link FileFilter}s to observe only the files and/or directories
+ * that are of interest. This makes it more efficient and reduces the
+ * noise from &lt;i&gt;unwanted&lt;/i&gt; file system events.
+ * &lt;p&gt;
+ * &lt;a href="http://commons.apache.org/io/"&gt;Commons IO&lt;/a&gt; has a good range of
+ * useful, ready made 
+ * &lt;a href="../filefilter/package-summary.html"&gt;File Filter&lt;/a&gt;
+ * implementations for this purpose.
+ * &lt;p&gt;
+ * For example, to only observe 1) visible directories and 2) files with a ".java" suffix
+ * in a root directory called "src" you could set up a {@link FileAlterationObserver} in the following
+ * way:
+ * &lt;pre&gt;
+ *      // Create a FileFilter
+ *      IOFileFilter directories = FileFilterUtils.and(
+ *                                      FileFilterUtils.directoryFileFilter(),
+ *                                      HiddenFileFilter.VISIBLE);
+ *      IOFileFilter files       = FileFilterUtils.and(
+ *                                      FileFilterUtils.fileFileFilter(),
+ *                                      FileFilterUtils.suffixFileFilter(".java"));
+ *      IOFileFilter filter = FileFilterUtils.or(directories, files);
+ *
+ *      // Create the File system observer and register File Listeners
+ *      FileAlterationObserver observer = new FileAlterationObserver(new File("src"), filter);
+ *      observer.addListener(...);
+ *      observer.addListener(...);
+ * &lt;/pre&gt;
+ *
+ * &lt;h2&gt;FileEntry&lt;/h2&gt;
+ * {@link FileEntry} represents the state of a file or directory, capturing
+ * {@link File} attributes at a point in time. Custom implementations of
+ * {@link FileEntry} can be used to capture additional properties that the
+ * basic implementation does not support. The {@link FileEntry#refresh(File)}
+ * method is used to determine if a file or directory has changed since the last
+ * check and stores the current state of the {@link File}'s properties.
+ *
+ * @see FileAlterationListener
+ * @see FileAlterationMonitor
+ * @version $Id: FileAlterationObserver.java 1304052 2012-03-22 20:55:29Z ggregory $
+ * @since 2.0
+ */</comment>
+<class><specifier>public</specifier> class <name>FileAlterationObserver</name> <super><implements>implements <name>Serializable</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>FileAlterationListener</name></argument>&gt;</argument_list></name></type> <name>listeners</name> =<init> <expr>new <call><name><name>CopyOnWriteArrayList</name><argument_list>&lt;<argument><name>FileAlterationListener</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>FileEntry</name></type> <name>rootEntry</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>FileFilter</name></type> <name>fileFilter</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Comparator</name><argument_list>&lt;<argument><name>File</name></argument>&gt;</argument_list></name></type> <name>comparator</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory.
+     *
+     * @param directoryName the name of the directory to observe
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>String</name></type> <name>directoryName</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>File</name><argument_list>(<argument><expr><name>directoryName</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory and file filter.
+     *
+     * @param directoryName the name of the directory to observe
+     * @param fileFilter The file filter or null if none
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>String</name></type> <name>directoryName</name></decl></param>, <param><decl><type><name>FileFilter</name></type> <name>fileFilter</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>File</name><argument_list>(<argument><expr><name>directoryName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fileFilter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory, file filter and
+     * file comparator.
+     *
+     * @param directoryName the name of the directory to observe
+     * @param fileFilter The file filter or null if none
+     * @param caseSensitivity  what case sensitivity to use comparing file names, null means system sensitive
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>String</name></type> <name>directoryName</name></decl></param>, <param><decl><type><name>FileFilter</name></type> <name>fileFilter</name></decl></param>, <param><decl><type><name>IOCase</name></type> <name>caseSensitivity</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>File</name><argument_list>(<argument><expr><name>directoryName</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fileFilter</name></expr></argument>, <argument><expr><name>caseSensitivity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory.
+     *
+     * @param directory the directory to observe
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr>(<name>FileFilter</name>)<name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory and file filter.
+     *
+     * @param directory the directory to observe
+     * @param fileFilter The file filter or null if none
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>FileFilter</name></type> <name>fileFilter</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr><name>directory</name></expr></argument>, <argument><expr><name>fileFilter</name></expr></argument>, <argument><expr>(<name>IOCase</name>)<name>null</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory, file filter and
+     * file comparator.
+     *
+     * @param directory the directory to observe
+     * @param fileFilter The file filter or null if none
+     * @param caseSensitivity  what case sensitivity to use comparing file names, null means system sensitive
+     */</comment>
+    <constructor><specifier>public</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>File</name></type> <name>directory</name></decl></param>, <param><decl><type><name>FileFilter</name></type> <name>fileFilter</name></decl></param>, <param><decl><type><name>IOCase</name></type> <name>caseSensitivity</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>this</name><argument_list>(<argument><expr>new <call><name>FileEntry</name><argument_list>(<argument><expr><name>directory</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>fileFilter</name></expr></argument>, <argument><expr><name>caseSensitivity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Construct an observer for the specified directory, file filter and
+     * file comparator.
+     *
+     * @param rootEntry the root directory to observe
+     * @param fileFilter The file filter or null if none
+     * @param caseSensitivity  what case sensitivity to use comparing file names, null means system sensitive
+     */</comment>
+    <constructor><specifier>protected</specifier> <name>FileAlterationObserver</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>rootEntry</name></decl></param>, <param><decl><type><name>FileFilter</name></type> <name>fileFilter</name></decl></param>, <param><decl><type><name>IOCase</name></type> <name>caseSensitivity</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>rootEntry</name> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Root entry is missing"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <if>if <condition>(<expr><call><name><name>rootEntry</name>.<name>getFile</name></name><argument_list>()</argument_list></call> == <name>null</name></expr>)</condition><then> <block>{
+            <throw>throw <expr>new <call><name>IllegalArgumentException</name><argument_list>(<argument><expr>"Root directory is missing"</expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+        <expr_stmt><expr><name><name>this</name>.<name>rootEntry</name></name> = <name>rootEntry</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>fileFilter</name></name> = <name>fileFilter</name></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>caseSensitivity</name> == <name>null</name> || <call><name><name>caseSensitivity</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>IOCase</name>.<name>SYSTEM</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <name><name>NameFileComparator</name>.<name>NAME_SYSTEM_COMPARATOR</name></name></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>caseSensitivity</name>.<name>equals</name></name><argument_list>(<argument><expr><name><name>IOCase</name>.<name>INSENSITIVE</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <name><name>NameFileComparator</name>.<name>NAME_INSENSITIVE_COMPARATOR</name></name></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>comparator</name></name> = <name><name>NameFileComparator</name>.<name>NAME_COMPARATOR</name></name></expr>;</expr_stmt>
+        }</block></else></if></else></if>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * Return the directory being observed.
+     *
+     * @return the directory being observed
+     */</comment>
+    <function><type><specifier>public</specifier> <name>File</name></type> <name>getDirectory</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>rootEntry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Return the fileFilter.
+     *
+     * @return the fileFilter
+     * @since 2.1
+     */</comment>
+    <function><type><specifier>public</specifier> <name>FileFilter</name></type> <name>getFileFilter</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>fileFilter</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Add a file system listener.
+     *
+     * @param listener The file system listener
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addListener</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>FileAlterationListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>listener</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>listeners</name>.<name>add</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Remove a file system listener.
+     *
+     * @param listener The file system listener
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removeListener</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>FileAlterationListener</name></type> <name>listener</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name>listener</name> != <name>null</name></expr>)</condition><then> <block>{
+            <while>while <condition>(<expr><call><name><name>listeners</name>.<name>remove</name></name><argument_list>(<argument><expr><name>listener</name></expr></argument>)</argument_list></call></expr>)</condition> <block>{
+            }</block></while>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Returns the set of registered file system listeners.
+     *
+     * @return The file system listeners
+     */</comment>
+    <function><type><specifier>public</specifier> <name><name>Iterable</name><argument_list>&lt;<argument><name>FileAlterationListener</name></argument>&gt;</argument_list></name></type> <name>getListeners</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><name>listeners</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Initialize the observer.
+     *
+     * @throws Exception if an error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>initialize</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name><name>rootEntry</name>.<name>refresh</name></name><argument_list>(<argument><expr><call><name><name>rootEntry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>File</name><index>[]</index></type> <name>files</name> =<init> <expr><call><name>listFiles</name><argument_list>(<argument><expr><call><name><name>rootEntry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileEntry</name><index>[]</index></type> <name>children</name> =<init> <expr><name><name>files</name>.<name>length</name></name> &gt; 0 ? new <name><name>FileEntry</name><index>[<expr><name><name>files</name>.<name>length</name></name></expr>]</index></name> : <name><name>FileEntry</name>.<name>EMPTY_ENTRIES</name></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>files</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>children</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>createFileEntry</name><argument_list>(<argument><expr><name>rootEntry</name></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>rootEntry</name>.<name>setChildren</name></name><argument_list>(<argument><expr><name>children</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Final processing.
+     *
+     * @throws Exception if an error occurs
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>destroy</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>Exception</name></expr></argument></throws> <block>{
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Check whether the file and its chlidren have been created, modified or deleted.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>checkAndNotify</name><parameter_list>()</parameter_list> <block>{
+
+        <comment type="block">/* fire onStart() */</comment>
+        <for>for (<init><decl><type><name>FileAlterationListener</name></type> <name>listener</name> :<range> <expr><name>listeners</name></expr></range></decl></init>) <block>{
+            <expr_stmt><expr><call><name><name>listener</name>.<name>onStart</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+
+        <comment type="block">/* fire directory/file events */</comment>
+        <decl_stmt><decl><type><name>File</name></type> <name>rootFile</name> =<init> <expr><call><name><name>rootEntry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>rootFile</name>.<name>exists</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>checkAndNotify</name><argument_list>(<argument><expr><name>rootEntry</name></expr></argument>, <argument><expr><call><name><name>rootEntry</name>.<name>getChildren</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name>listFiles</name><argument_list>(<argument><expr><name>rootFile</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <if>if <condition>(<expr><call><name><name>rootEntry</name>.<name>isExists</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>checkAndNotify</name><argument_list>(<argument><expr><name>rootEntry</name></expr></argument>, <argument><expr><call><name><name>rootEntry</name>.<name>getChildren</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>FileUtils</name>.<name>EMPTY_FILE_ARRAY</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <comment type="line">// Didn't exist and still doesn't</comment>
+        }</block></else></if></else></if>
+
+        <comment type="block">/* fire onStop() */</comment>
+        <for>for (<init><decl><type><name>FileAlterationListener</name></type> <name>listener</name> :<range> <expr><name>listeners</name></expr></range></decl></init>) <block>{
+            <expr_stmt><expr><call><name><name>listener</name>.<name>onStop</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Compare two file lists for files which have been created, modified or deleted.
+     *
+     * @param parent The parent entry
+     * @param previous The original list of files
+     * @param files  The current list of files
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>checkAndNotify</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>parent</name></decl></param>, <param><decl><type><name><name>FileEntry</name><index>[]</index></name></type> <name>previous</name></decl></param>, <param><decl><type><name><name>File</name><index>[]</index></name></type> <name>files</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>int</name></type> <name>c</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileEntry</name><index>[]</index></type> <name>current</name> =<init> <expr><name><name>files</name>.<name>length</name></name> &gt; 0 ? new <name><name>FileEntry</name><index>[<expr><name><name>files</name>.<name>length</name></name></expr>]</index></name> : <name><name>FileEntry</name>.<name>EMPTY_ENTRIES</name></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>FileEntry</name></type> <name>entry</name> :<range> <expr><name>previous</name></expr></range></decl></init>) <block>{
+            <while>while <condition>(<expr><name>c</name> &lt; <name><name>files</name>.<name>length</name></name> &amp;&amp; <call><name><name>comparator</name>.<name>compare</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call> &gt; 0</expr>)</condition> <block>{
+                <expr_stmt><expr><name><name>current</name><index>[<expr><name>c</name></expr>]</index></name> = <call><name>createFileEntry</name><argument_list>(<argument><expr><name>parent</name></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>doCreate</name><argument_list>(<argument><expr><name><name>current</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name>c</name>++</expr>;</expr_stmt>
+            }</block></while>
+            <if>if <condition>(<expr><name>c</name> &lt; <name><name>files</name>.<name>length</name></name> &amp;&amp; <call><name><name>comparator</name>.<name>compare</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call> == 0</expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name>doMatch</name><argument_list>(<argument><expr><name>entry</name></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>checkAndNotify</name><argument_list>(<argument><expr><name>entry</name></expr></argument>, <argument><expr><call><name><name>entry</name>.<name>getChildren</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name>listFiles</name><argument_list>(<argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><name><name>current</name><index>[<expr><name>c</name></expr>]</index></name> = <name>entry</name></expr>;</expr_stmt>
+                <expr_stmt><expr><name>c</name>++</expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name>checkAndNotify</name><argument_list>(<argument><expr><name>entry</name></expr></argument>, <argument><expr><call><name><name>entry</name>.<name>getChildren</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>FileUtils</name>.<name>EMPTY_FILE_ARRAY</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>doDelete</name><argument_list>(<argument><expr><name>entry</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></for>
+        <for>for (<init>;</init> <condition><expr><name>c</name> &lt; <name><name>files</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>c</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>current</name><index>[<expr><name>c</name></expr>]</index></name> = <call><name>createFileEntry</name><argument_list>(<argument><expr><name>parent</name></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>doCreate</name><argument_list>(<argument><expr><name><name>current</name><index>[<expr><name>c</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>parent</name>.<name>setChildren</name></name><argument_list>(<argument><expr><name>current</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Create a new file entry for the specified file.
+     *
+     * @param parent The parent file entry
+     * @param file The file to create an entry for
+     * @return A new file entry
+     */</comment>
+    <function><type><specifier>private</specifier> <name>FileEntry</name></type> <name>createFileEntry</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>parent</name></decl></param>, <param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>FileEntry</name></type> <name>entry</name> =<init> <expr><call><name><name>parent</name>.<name>newChildInstance</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>entry</name>.<name>refresh</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><name>File</name><index>[]</index></type> <name>files</name> =<init> <expr><call><name>listFiles</name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>FileEntry</name><index>[]</index></type> <name>children</name> =<init> <expr><name><name>files</name>.<name>length</name></name> &gt; 0 ? new <name><name>FileEntry</name><index>[<expr><name><name>files</name>.<name>length</name></name></expr>]</index></name> : <name><name>FileEntry</name>.<name>EMPTY_ENTRIES</name></name></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>i</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>i</name> &lt; <name><name>files</name>.<name>length</name></name></expr>;</condition> <incr><expr><name>i</name>++</expr></incr>) <block>{
+            <expr_stmt><expr><name><name>children</name><index>[<expr><name>i</name></expr>]</index></name> = <call><name>createFileEntry</name><argument_list>(<argument><expr><name>entry</name></expr></argument>, <argument><expr><name><name>files</name><index>[<expr><name>i</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>entry</name>.<name>setChildren</name></name><argument_list>(<argument><expr><name>children</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>entry</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fire directory/file created events to the registered listeners.
+     *
+     * @param entry The file entry
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doCreate</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>FileAlterationListener</name></type> <name>listener</name> :<range> <expr><name>listeners</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>listener</name>.<name>onDirectoryCreate</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>listener</name>.<name>onFileCreate</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></for>
+        <decl_stmt><decl><type><name>FileEntry</name><index>[]</index></type> <name>children</name> =<init> <expr><call><name><name>entry</name>.<name>getChildren</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>FileEntry</name></type> <name>aChildren</name> :<range> <expr><name>children</name></expr></range></decl></init>) <block>{
+            <expr_stmt><expr><call><name>doCreate</name><argument_list>(<argument><expr><name>aChildren</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fire directory/file change events to the registered listeners.
+     *
+     * @param entry The previous file system entry
+     * @param file The current file
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doMatch</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>entry</name></decl></param>, <param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><call><name><name>entry</name>.<name>refresh</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <for>for (<init><decl><type><name>FileAlterationListener</name></type> <name>listener</name> :<range> <expr><name>listeners</name></expr></range></decl></init>) <block>{
+                <if>if <condition>(<expr><call><name><name>entry</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>listener</name>.<name>onDirectoryChange</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>listener</name>.<name>onFileChange</name></name><argument_list>(<argument><expr><name>file</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fire directory/file delete events to the registered listeners.
+     *
+     * @param entry The file entry
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>doDelete</name><parameter_list>(<param><decl><type><name>FileEntry</name></type> <name>entry</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>FileAlterationListener</name></type> <name>listener</name> :<range> <expr><name>listeners</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr><call><name><name>entry</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>listener</name>.<name>onDirectoryDelete</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then> <else>else <block>{
+                <expr_stmt><expr><call><name><name>listener</name>.<name>onFileDelete</name></name><argument_list>(<argument><expr><call><name><name>entry</name>.<name>getFile</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></else></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * List the contents of a directory
+     *
+     * @param file The file to list the contents of
+     * @return the directory contents or a zero length array if
+     * the empty or the file is not a directory
+     */</comment>
+    <function><type><specifier>private</specifier> <name>File</name><index>[]</index></type> <name>listFiles</name><parameter_list>(<param><decl><type><name>File</name></type> <name>file</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><name>File</name><index>[]</index></type> <name>children</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><call><name><name>file</name>.<name>isDirectory</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>children</name> = <name>fileFilter</name> == <name>null</name> ? <call><name><name>file</name>.<name>listFiles</name></name><argument_list>()</argument_list></call> : <call><name><name>file</name>.<name>listFiles</name></name><argument_list>(<argument><expr><name>fileFilter</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>children</name> == <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><name>children</name> = <name><name>FileUtils</name>.<name>EMPTY_FILE_ARRAY</name></name></expr>;</expr_stmt>
+        }</block></then></if>
+        <if>if <condition>(<expr><name>comparator</name> != <name>null</name> &amp;&amp; <name><name>children</name>.<name>length</name></name> &gt; 1</expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Arrays</name>.<name>sort</name></name><argument_list>(<argument><expr><name>children</name></expr></argument>, <argument><expr><name>comparator</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <return>return <expr><name>children</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Provide a String representation of this observer.
+     *
+     * @return a String representation of this observer
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>toString</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>StringBuilder</name></type> <name>builder</name> =<init> <expr>new <call><name>StringBuilder</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name>getClass</name><argument_list>()</argument_list></call>.<call><name>getSimpleName</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>"[file='"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name>getDirectory</name><argument_list>()</argument_list></call>.<call><name>getPath</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>'\''</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <if>if <condition>(<expr><name>fileFilter</name> != <name>null</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>", "</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>fileFilter</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>", listeners="</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr><call><name><name>listeners</name>.<name>size</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>append</name></name><argument_list>(<argument><expr>"]"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><call><name><name>builder</name>.<name>toString</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+}</block></class>
+</unit>

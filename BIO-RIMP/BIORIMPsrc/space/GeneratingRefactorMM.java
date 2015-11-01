@@ -75,6 +75,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 
 			//Override and hierarchy verification parents 
+			if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null)
 			if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 				for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 					if ( code.getMethodsFromClass(clase) != null )
@@ -91,6 +92,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 			if(feasible){
 				//Override and hierarchy verification children
+				if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
 				if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase) != null )
@@ -195,6 +197,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
 				//6. Override verification parents 
+				if( code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) != null)
 				if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_parent) != null )
@@ -209,6 +212,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 				}
 
 				//7. Override verification children
+				if( code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) != null )
 				if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_child) != null )
@@ -307,6 +311,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 
 				//Override and hierarchy verification parents 
+				if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
 				if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase) != null )
@@ -323,6 +328,7 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 				if(feasible){
 					//Override and hierarchy verification children
+					if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
 					if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
 						for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
 							if ( code.getMethodsFromClass(clase) != null )

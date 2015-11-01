@@ -82,7 +82,8 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 							}
 
 							for( String src_type : value_src ){
-								//Override verification parents 
+								//Override verification parents
+								if( code.getBuilder().getParentClasses().get( src_type ) != null )
 								if( !code.getBuilder().getParentClasses().get( src_type ).isEmpty() ){
 									for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_type ) ){
 										if ( code.getMethodsFromClass(clase) != null )
@@ -99,6 +100,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 
 								if(feasible){
 									//Override verification children
+									if( code.getBuilder().getChildClasses().get( src_type ) != null )
 									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
 										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
 											if ( code.getMethodsFromClass(clase_child) != null )
@@ -237,6 +239,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 		for(TypeDeclaration src_class : src){
 			for(MethodDeclaration metodo : mtd){
 				//7. Override verification parents 
+				if( code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) != null )
 				if( !code.getBuilder().getParentClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_parent : code.getBuilder().getParentClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_parent) != null )
@@ -251,6 +254,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 				}
 
 				//8. Override verification children
+				if( code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) != null )
 				if( !code.getBuilder().getChildClasses().get( src_class.getQualifiedName()).isEmpty() ){
 					for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_class.getQualifiedName()) ){
 						if ( code.getMethodsFromClass(clase_child) != null )
@@ -340,6 +344,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 
 								for( String src_type : value_src ){
 									//Override verification parents 
+									if( code.getBuilder().getParentClasses().get( src_type ) != null )
 									if( !code.getBuilder().getParentClasses().get( src_type ).isEmpty() ){
 										for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( src_type ) ){
 											if ( code.getMethodsFromClass(clase) != null )
@@ -356,6 +361,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 
 									if(feasible){
 										//Override verification children
+										if( code.getBuilder().getChildClasses().get( src_type ) != null )
 										if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
 											for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
 												if ( code.getMethodsFromClass(clase_child) != null )

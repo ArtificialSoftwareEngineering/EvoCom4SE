@@ -42,7 +42,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 		double GQSm_ = 0;
 		try {
 			LinkedHashMap<String, LinkedHashMap<String, Double>> predictedMetrics = ActualMetrics( PredictingMetrics( x ) );
-			printFitness( predictedMetrics );
+			//printFitness( predictedMetrics );
 
 			//LinkedHashMap<String, Double> bias = TotalActualMetrics( predictedMetrics );
 			//printFitness2(bias);
@@ -336,7 +336,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	}
 
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/F_XERCES_HILL_01.txt";
+		String ruta = "D:/F_XERCES_HILL_05.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

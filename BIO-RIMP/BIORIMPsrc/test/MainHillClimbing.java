@@ -110,7 +110,7 @@ public class MainHillClimbing {
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/F_XERCES_HILL_05.txt";
+		String ruta = "D:/T_EVOAGENT_HILL_01.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

@@ -1,5 +1,9 @@
 package unalcol.search.population;
 
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+
 import unalcol.descriptors.Descriptors;
 import unalcol.math.logic.Predicate;
 import unalcol.search.Goal;
@@ -30,6 +34,10 @@ public class IterativePopulationSearch<T> extends PopulationSearch<T> {
         while( terminationCondition.evaluate(x) ){
             x = apply(x, space, goal);
         	Tracer.trace(this, Descriptors.obtain(x), step);
+        	//Danaderp
+        	for(double sol: x.quality)
+        		escribirTextoArchivo( sol + "\r\n" );
+        	//Danaderp
         }
         return x.pick();
     }
@@ -39,5 +47,20 @@ public class IterativePopulationSearch<T> extends PopulationSearch<T> {
 			Space<T> space, Goal<T> goal) {
 		return step.apply(pop, space, goal);
 	}        
+	
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "D:/F_ANTAPACHE_HAEA_02.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Escribimos en el fichero un String y un caracter 97 (a)
+			fw.write( texto );
+			//fw.write(97);
+			//Guardamos los cambios del fichero
+			fw.flush();
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
+		}
+
+	}
 
 }

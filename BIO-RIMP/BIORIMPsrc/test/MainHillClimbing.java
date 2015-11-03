@@ -60,7 +60,7 @@ public class MainHillClimbing {
 		
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
-        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\xerces\\src","-s", "     xerces      " };
+        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\evolutionaryagent\\src","-s", "     evolutionaryagent      " };
         //MainMetrics.main(args);
         
         //Second Step: Create the structures for the prediction

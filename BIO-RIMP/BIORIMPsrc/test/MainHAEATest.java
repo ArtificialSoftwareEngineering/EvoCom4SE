@@ -60,6 +60,7 @@ import unalcol.search.selection.Tournament;
 import unalcol.search.space.ArityOne;
 import unalcol.search.space.Space;
 import unalcol.tracer.ConsoleTracer;
+import unalcol.tracer.FileTracer;
 import unalcol.tracer.Tracer;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.integer.array.IntArray;
@@ -72,7 +73,9 @@ public class MainHAEATest {
 	public static void refactor(){
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
-		String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
+		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
+		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/ccodec/src","-s", "     ccodec      " };
+		
 		//MainMetrics.main(args);
 
 		//Second Step: Create the structures for the prediction
@@ -89,7 +92,7 @@ public class MainHAEATest {
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
+		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "HAEA");		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
@@ -103,8 +106,8 @@ public class MainHAEATest {
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		int POPSIZE = 10;
-		int MAXITERS = 100;
+		int POPSIZE = 50;
+		int MAXITERS = 3;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -124,14 +127,22 @@ public class MainHAEATest {
 		Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
 		Write.set(HaeaOperators.class, write_desc);
 
-		ConsoleTracer tracer = new ConsoleTracer();       
+		ConsoleTracer tracer = new ConsoleTracer(); 
+		FileTracer filetracergoal = new FileTracer("fileTracerCCODECGOAL", '\n');
+		FileTracer filetraceralgo = new FileTracer("fileTracerCCODECALGO", '\n');
+		FileTracer filetracerfunci = new FileTracer("fileTracerCCODEfunci", '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
+		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
+		Tracer.addTracer(search, filetraceralgo); // Uncomment if you want to trace the hill-climbing algorithm
+		Tracer.addTracer(function, filetracerfunci);
+
 
 		// Apply the search method
 		Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
 
-		System.out.println( solution.quality() + "=" + solution.value() );		
+		System.out.println( solution.quality() + "=" + solution.value() );	
+		escribirTextoArchivo( solution.quality() + "=" + solution.value() );
 	}
 
 
@@ -195,8 +206,8 @@ public class MainHAEATest {
 
 	}
 	
-	public void escribirTextoArchivo( String texto ) {
-		String ruta = "C:/Refactor/out.txt";
+	public static void escribirTextoArchivo( String texto ) {
+		String ruta = "T_TEST_CCODEC_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

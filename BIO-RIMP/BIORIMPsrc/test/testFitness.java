@@ -60,7 +60,7 @@ public class testFitness {
         List<RefactoringOperation> mutated = mutation.apply( refactor );
 
         //Processing Fitness
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);	
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"OPTIMIZATION");	
         System.out.println("FITNESS : ["+ function.apply( refactor ) +"]");
 
         //Processing Fitness

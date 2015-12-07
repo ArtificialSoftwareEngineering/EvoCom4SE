@@ -91,7 +91,7 @@ public class MainHAEAvarLengthTest {
 		 VarLengthOperRefSpace space = new VarLengthOperRefSpace( 5, 20, metaphor );
 		 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
+		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"HAEAVAR");		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition

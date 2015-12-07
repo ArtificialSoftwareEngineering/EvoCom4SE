@@ -39,12 +39,12 @@ public class Solution<T> {
     
     public String toString(){
     	String txt = Write.toString(x);
-    	escribirTextoArchivo(quality()+ "\r\n" + txt + "\r\n" );
+    	//escribirTextoArchivo(quality()+ "\r\n" + txt + "\r\n" );
     	return txt + "," + quality();
     }
     
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/Q_EVOAGENT_HILL_01.txt";
+		String ruta = "Q_TEST_CCODEC_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

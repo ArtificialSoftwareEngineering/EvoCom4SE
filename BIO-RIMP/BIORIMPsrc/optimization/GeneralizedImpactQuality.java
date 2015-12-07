@@ -30,9 +30,11 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 
 	MetaphorCode metaphor;
 	LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
-
-	public GeneralizedImpactQuality(MetaphorCode metaphor) {
+	String file;
+	
+	public GeneralizedImpactQuality(MetaphorCode metaphor , String file) {
 		this.metaphor = metaphor;
+		this.file = file; 
 		PreviMetrics();
 	}
 
@@ -336,7 +338,7 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	}
 
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/T_EVOAGENT_HILL_01.txt";
+		String ruta = file + "_TEST_FITNESS_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

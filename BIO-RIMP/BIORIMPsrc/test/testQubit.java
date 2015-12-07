@@ -19,6 +19,7 @@ public class testQubit {
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		/*
 		//Testing QubitArray 
 		QubitArray array = new QubitArray(40,true);
 		System.out.println(array.getGenObservation().toString());
@@ -35,6 +36,7 @@ public class testQubit {
 		int map = BitArrayConverter.getNumber(testMap, 0, 4);
 		System.out.println(map);*/
 		
+		/*
 		//Testing mapping NumbertoBitArray
 		BitArray testMap = new BitArray(20,false);
 		int map = 30; 
@@ -52,7 +54,8 @@ public class testQubit {
 		BitArray testObservation = testqubit.getObservationQubit();
 		System.out.println(testObservation.toString());
 		}while(true);
-
+		
+		*/
 	}
 
 }

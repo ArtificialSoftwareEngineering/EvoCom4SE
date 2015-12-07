@@ -75,7 +75,7 @@ public class MainSimulatedAnnealing {
         RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"SIMULATED");		
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
         
     	

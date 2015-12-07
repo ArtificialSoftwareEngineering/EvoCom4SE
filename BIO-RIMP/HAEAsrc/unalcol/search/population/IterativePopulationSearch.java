@@ -35,8 +35,8 @@ public class IterativePopulationSearch<T> extends PopulationSearch<T> {
             x = apply(x, space, goal);
         	Tracer.trace(this, Descriptors.obtain(x), step);
         	//Danaderp
-        	for(double sol: x.quality)
-        		escribirTextoArchivo( sol + "\r\n" );
+        	//for(double sol: x.quality)
+        		//escribirTextoArchivo( sol + "\r\n" );
         	//Danaderp
         }
         return x.pick();
@@ -49,7 +49,7 @@ public class IterativePopulationSearch<T> extends PopulationSearch<T> {
 	}        
 	
 	public void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/F_ANTAPACHE_HAEA_02.txt";
+		String ruta = "F_TEST_CCODEC_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

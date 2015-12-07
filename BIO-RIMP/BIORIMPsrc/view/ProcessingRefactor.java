@@ -81,7 +81,7 @@ public class ProcessingRefactor extends PApplet {
 		space = new RefactoringOperationSpace( DIM , metaphor );
 
 		// Optimization Function
-		function = new GeneralizedImpactQuality(metaphor);		
+		function = new GeneralizedImpactQuality(metaphor, "OPTIMIZATION");		
 		goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		 

@@ -74,7 +74,7 @@ public class MainHillClimbing {
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
         
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor);		
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"HILLCLIMBING");		
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
         
         

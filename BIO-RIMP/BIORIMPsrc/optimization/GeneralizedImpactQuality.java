@@ -3,23 +3,28 @@
  */
 package optimization;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Scanner;
 
 import edu.wayne.cs.severe.redress2.controller.MetricCalculator;
+import edu.wayne.cs.severe.redress2.entity.*;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.exception.CompilUnitException;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import edu.wayne.cs.severe.redress2.exception.WritingException;
 import edu.wayne.cs.severe.redress2.io.MetricsReader;
 import entity.MetaphorCode;
+import unalcol.clone.Clone;
 import unalcol.optimization.OptimizationFunction;
 
 /**
@@ -31,6 +36,156 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 	MetaphorCode metaphor;
 	LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
 	String file;
+	//Field for memoization
+	LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics = new
+			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
+	LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetricsMemorizar = new
+			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
+	LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetricsRecordar = new 
+			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
+	
+	public void memorizar( RefactoringOperation operRef ) {
+		String ruta = file + "_PREDICTIONS.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			//Verificación de llaves
+			String src, tgt, fld, mtd;
+			if(operRef.getParams() != null ){
+				if(operRef.getParams().get("src") != null )
+					src = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
+				else
+					src = "-1";
+				if( operRef.getParams().get("tgt") != null )
+					tgt = ((TypeDeclaration) operRef.getParams().get("tgt").get(0).getCodeObj()).getQualifiedName();
+				else 
+					tgt="-1";
+				if(operRef.getParams().get("fld") != null )
+					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
+				else
+					fld = "-1";
+				if(operRef.getParams().get("mtd") != null )
+					mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
+				else mtd = "-1";
+				//Se escribe en el fichero la predicción
+				for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar.entrySet()) {
+					for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
+						//Add metrics per class to SUA_metric 
+						for (Entry<String, Double> metric : clase.getValue().entrySet()) {
+							fw.write( ref.getKey()+","+ clase.getKey()+"," + metric.getKey()+"," + metric.getValue()+"," 
+									+ src +","+ tgt + "," 
+									+ fld +","+ mtd +"\r\n");
+						}
+					}
+				}
+				predictMetricsMemorizar = new
+						LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>(); 
+				//fw.write(97);
+				//Guardamos los cambios del fichero
+				fw.flush();
+			}else{ //Si no encuentra Params es porque hay subRefs
+				for( RefactoringOperation opers : operRef.getSubRefs() )
+					memorizar( opers );
+			}
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
+		}
+
+	}
+
+	public boolean recordar( RefactoringOperation operRef ) {
+		boolean bandera = false;
+		String ruta = file + "_PREDICTIONS.txt";
+		try(FileWriter fw=new FileWriter( ruta , true );
+				FileReader fr=new FileReader( ruta )){
+			String cadena;
+			BufferedReader b = new BufferedReader(fr);
+			Scanner scanner;
+			String ref ;
+			String clase ;
+			String metric ;
+			String src_;
+			String tgt_;
+			String fld_;
+			String mtd_;
+			double val ;
+
+			//Verificación de llaves
+			String src, tgt, fld, mtd;
+			if(operRef.getParams() != null ){
+				if(operRef.getParams().get("src") != null )
+					src = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
+				else
+					src = "-1";
+				if( operRef.getParams().get("tgt") != null )
+					tgt = ((TypeDeclaration) operRef.getParams().get("tgt").get(0).getCodeObj()).getQualifiedName();
+				else 
+					tgt="-1";
+				if(operRef.getParams().get("fld") != null )
+					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
+				else
+					fld = "-1";
+				if(operRef.getParams().get("mtd") != null )
+					mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
+				else mtd = "-1";
+
+
+				while((cadena = b.readLine())!=null) {
+					scanner = new Scanner(cadena);
+					scanner.useDelimiter(",");
+					if (scanner.hasNext()){
+						ref = scanner.next();
+						clase = scanner.next();
+						metric = scanner.next();
+						val = Double.parseDouble(scanner.next());	
+						src_ = scanner.next();
+						tgt_ = scanner.next();
+						fld_ = scanner.next();
+						mtd_ = scanner.next();
+						//Verificar los datos de cargue o llaves de búsqueda
+						if( src.equals(src_) && 
+								tgt.equals(tgt_) &&
+								fld.equals(fld_) &&
+								mtd.equals(mtd_) &&
+								ref.contains( operRef.getRefType().getAcronym() ) ){
+							//Se carga la estructura con la información del registro
+							if( predictMetricsRecordar.get(ref) != null ){//Verifica q existe el ref
+								if(predictMetricsRecordar.get(ref).get(clase) != null){//Verifica que existe la clase
+									if(predictMetricsRecordar.get(ref).get(clase).get(metric) != null){//Verifica que existe la metrica
+										System.out.println("METRICA EXISTENTE OJO!");
+									}else{//Sino existe la métrica la crea
+										predictMetricsRecordar.get(ref).get(clase).put(metric, val);
+									}
+								}else{//Sino existe la agrega
+									LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
+									predictMetricsRecordar.get(ref).put(clase, metricList);
+								}
+							}else{//Sino es nula la agrega (sino existe)
+								LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
+								LinkedHashMap<String, LinkedHashMap<String, Double> > clasesList = new
+										LinkedHashMap<String, LinkedHashMap<String, Double> >();
+								metricList.put( metric , val);
+								clasesList.put( clase , metricList );
+								predictMetricsRecordar.put(ref, clasesList);
+							}
+							bandera = true;
+							System.out.println( ref.trim() + clase.trim() +metric.trim()+" - " + val );
+							break;
+						}
+					}
+				}
+				b.close();
+			}else{ //Si no encuentra Params es porque hay subRefs
+				for( RefactoringOperation opers : operRef.getSubRefs() )
+					bandera = bandera && recordar( opers );
+			}
+		}catch(IOException e){
+			System.out.println("Error E/S: "+e);
+		}
+
+		return bandera;
+
+	}
+	// End memoization
 	
 	public GeneralizedImpactQuality(MetaphorCode metaphor , String file) {
 		this.metaphor = metaphor;
@@ -311,11 +466,34 @@ public class GeneralizedImpactQuality extends OptimizationFunction<List<Refactor
 			List<RefactoringOperation> operations)
 					throws ReadException, IOException, CompilUnitException, WritingException {
 
-		System.out.println("Predicting metrics");
+		List<RefactoringOperation> operationsClone ;
+		//(List<RefactoringOperation>)Clone.create(operations);
+		for(RefactoringOperation operRef: operations){
+			
+			
+			
+			if( recordar( operRef ) ){
+				System.out.println("Recalling metrics");
+				predictMetrics.putAll( (LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> )
+						Clone.create( predictMetricsRecordar ) );
+				predictMetricsRecordar = new 
+						LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
 
-		MetricCalculator calc = new MetricCalculator();
-		LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics = calc
-				.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
+			}else{
+				
+				System.out.println("Predicting metrics");
+				operationsClone = new ArrayList<RefactoringOperation>();
+				operationsClone.add(operRef);
+				MetricCalculator calc = new MetricCalculator();
+				//predictMetrics = calc.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
+				//predictMetrics = calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics);
+				predictMetricsMemorizar.putAll( calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics) );
+				predictMetrics.putAll( (LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> )
+						Clone.create(predictMetricsMemorizar) );
+				//Memoriza en Archivo lo que se encuentra en la predicción y vacís la estructura
+				memorizar( operRef );
+			}
+		}
 
 		return predictMetrics;
 

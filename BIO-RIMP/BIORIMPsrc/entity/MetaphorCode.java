@@ -57,6 +57,7 @@ public class MetaphorCode {
 		for (TypeDeclaration typeDcl : sysTypeDcls) {
 			//array = new BitArray(tamBitArray,false);
 			//BitArrayConverter.setNumber(array, 0, tamBitArray, i++); //set number inside bitarray
+			typeDcl.setId( i );
 			this.mapClass.put(i++, typeDcl);
 		}
 	}

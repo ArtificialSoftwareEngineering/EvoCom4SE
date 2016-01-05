@@ -9,18 +9,18 @@ public class Register extends Entity {
     public static String COLUMN_VALUE = "value";
 
 
-    private int refactor;
+    private String refactor;
     private String code;
     private double value;
 
     public  Register (){
 
     }
-    public int getRefactor() {
+    public String getRefactor() {
         return refactor;
     }
 
-    public void setRefactor(int refactor) {
+    public void setRefactor(String refactor) {
         this.refactor = refactor;
     }
 
@@ -40,7 +40,7 @@ public class Register extends Entity {
         this.value = value;
     }
 
-    public Register(int refactor, String code, double value){
+    public Register(String refactor, String code, double value){
         super();
         this.refactor = refactor;
         this.code = code;

@@ -9,7 +9,17 @@ public class TypeDeclaration extends CodeObject {
 	private int type = 0;
 	private List<TypeDeclaration> subTypes;
 	private boolean hasParams = false;
+	//danaderp 1000
+	private int id;
+	
+	public int getId() {
+		return id;
+	}
 
+	public void setId(int id) {
+		this.id = id;
+	}
+	//danaderp 1000
 	private CompilationUnit compUnit;
 
 	public TypeDeclaration(String pack, String name, boolean hasParams,

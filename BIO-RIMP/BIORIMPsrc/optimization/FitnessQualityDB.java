@@ -94,12 +94,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 	}
 
 	public boolean recordar( RefactoringOperation operRef ) {
-		boolean bandera = false;
-			String cadena;
-			String ref ;
+		boolean bandera = true;
+
 			String clase ;
-			String metric ;
-			double val ;
 
 			//Verificaci�n de llaves
 			int src, tgt; 
@@ -122,16 +119,25 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				else mtd = "-1";
 
 				RegisterRepository repo = new RegisterRepository();
-				String code = (metric.getKey()+","+ src +","+ tgt + "," 
+				String code = (src +","+ tgt + ","
 						+ fld +","+ mtd);
-				Register register = repo.getRegister(operRef.getRefType().getAcronym(), code);
+				List<Register> listMetric =  repo.getRegisters(operRef.getRefType().getAcronym(), code);
+				
+				
 				
 				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double> > clasesList = new
 						LinkedHashMap<String, LinkedHashMap<String, Double> >();
-				metricList.put( metric , val);
+				clase = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
+				
+				bandera = listMetric.isEmpty();
+				
+				for(Register reg : listMetric){
+					metricList.put( reg.getMetric() , reg.getValue() );
+				}
 				clasesList.put( clase , metricList );
-				predictMetricsRecordar.put(ref, clasesList);
+				predictMetricsRecordar.put(operRef.getRefId(), clasesList);
+				
 				
 			}else{ //Si no encuentra Params es porque hay subRefs
 				for( RefactoringOperation opers : operRef.getSubRefs() )

@@ -75,9 +75,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		
 					    String id_ref = ref.getKey().substring(0, ref.getKey().indexOf("-"));
 						double val = metric.getValue();
-						String code = (metric.getKey()+","+ src +","+ tgt + "," 
+						String code = (src +","+ tgt + ","
 								+ fld +","+ mtd);
-						Register register = new Register(id_ref, code, val);
+						Register register = new Register(id_ref, code,metric.getKey(), val);
 						RegisterRepository repo = new RegisterRepository();
 						repo.insertRegister(register);
 					}
@@ -124,7 +124,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				RegisterRepository repo = new RegisterRepository();
 				String code = (metric.getKey()+","+ src +","+ tgt + "," 
 						+ fld +","+ mtd);
-				Register register = repo.getRegister(operRef.getRefType().getAcronym(), code)
+				Register register = repo.getRegister(operRef.getRefType().getAcronym(), code);
 				
 				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double> > clasesList = new

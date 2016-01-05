@@ -48,9 +48,10 @@ public class RegisterRepository extends Repository<Register> {
         try {
             String refactor = resultSet.getString(Register.COLUMN_REFACTOR);
             String code = resultSet.getString(Register.COLUMN_CODE);
+            String metric = resultSet.getString(Register.COLUMN_METRIC);
             double value = resultSet.getDouble(Register.COLUMN_VALUE);
 
-            return new Register(refactor, code, value);
+            return new Register(refactor, code,metric, value);
         } catch (Exception e) {
             return null;
         }
@@ -82,15 +83,16 @@ public class RegisterRepository extends Repository<Register> {
         return register;
     }
 
-    public void insertRegister(String refactorID, String code, double value){
+    public void insertRegister(String refactorID, String code, String metric, double value){
         getConnection();
         if(connection!=null){
             try{
-                String query = "INSERT INTO " + TABLE_NAME +" ("+Register.COLUMN_REFACTOR+ ","+ Register.COLUMN_CODE+","+ Register.COLUMN_VALUE+") VALUES (?,?,?)";
+                String query = "INSERT INTO " + TABLE_NAME +" ("+Register.COLUMN_REFACTOR+ ","+ Register.COLUMN_CODE+","+Register.COLUMN_METRIC+","+ Register.COLUMN_VALUE+") VALUES (?,?,?,?)";
                 PreparedStatement statement = connection.prepareStatement(query);
                 statement.setString(1, refactorID);
                 statement.setString(2, code);
-                statement.setDouble(3,value);
+                statement.setString(3, metric);
+                statement.setDouble(4,value);
                 statement.executeUpdate();
                 statement.close();
                 connection.close();
@@ -102,8 +104,35 @@ public class RegisterRepository extends Repository<Register> {
 
     }
     public void insertRegister(Register register){
-        insertRegister(register.getRefactor(),register.getCode(),register.getValue());
+        insertRegister(register.getRefactor(),register.getCode(), register.getMetric(),register.getValue());
 
+    }
+
+
+    public List<Register> getRegisters(String refactorID, String code){
+        getConnection();
+        List<Register> results = new ArrayList();
+        if(connection!=null){
+            try{
+                String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_CODE + "= ?";
+                PreparedStatement statement = connection.prepareStatement(query);
+                statement.setString(1, refactorID);
+                statement.setString(2, code);
+                ResultSet resultSet = statement.executeQuery();
+
+                while(resultSet.next()){
+                    results.add(resultEntity(resultSet));
+                }
+
+                resultSet.close();
+                statement.close();
+                connection.close();
+
+            }catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return results;
     }
 
 }

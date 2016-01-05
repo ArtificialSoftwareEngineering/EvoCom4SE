@@ -9,9 +9,9 @@ public class TestMain {
 
 
     public static void main(String args []){
-        Register r = new Register(2,"123254",5.6);
+        Register r = new Register("1","123254","RAC",5.6);
         RegisterRepository repo = new RegisterRepository();
-        Register r2 = repo.getRegister(2, "123254");
+        Register r2 = repo.getRegister("1", "123254");
         System.out.println(r2.getValue());
         repo.insertRegister(r);
         for(Register reg: repo.fetchAll()){

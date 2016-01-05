@@ -7,11 +7,22 @@ public class Register extends Entity {
     public static String COLUMN_REFACTOR = "refactor_id";
     public static String COLUMN_CODE = "code";
     public static String COLUMN_VALUE = "value";
+    public static String COLUMN_METRIC = "metric";
 
 
     private String refactor;
     private String code;
     private double value;
+
+    public String getMetric() {
+        return metric;
+    }
+
+    public void setMetric(String metric) {
+        this.metric = metric;
+    }
+
+    private String metric;
 
     public  Register (){
 
@@ -40,11 +51,11 @@ public class Register extends Entity {
         this.value = value;
     }
 
-    public Register(String refactor, String code, double value){
+    public Register(String refactor, String code, String metric, double value){
         super();
         this.refactor = refactor;
         this.code = code;
-
+        this.metric= metric;
         this. value = value;
 
     }

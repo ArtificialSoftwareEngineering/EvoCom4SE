@@ -22,11 +22,11 @@ public class HillClimbing<T> extends IterativeSinglePointSearch<T>{
     }
 
     public HillClimbing( ArityOne<T> variation, boolean neutral, Predicate<Solution<T>> tC ){
-        this( variation, new HillClimbingReplacement<>(neutral), tC );
+        this( variation, new HillClimbingReplacement<T>(neutral), tC );
     }
     
     public HillClimbing( ArityOne<T> variation, boolean neutral, int MAX_ITERS ){
-        this( variation, new HillClimbingReplacement<>(neutral), new ForLoopCondition<Solution<T>>(MAX_ITERS) );
+        this( variation, new HillClimbingReplacement<T>(neutral), new ForLoopCondition<Solution<T>>(MAX_ITERS) );
     }
 
     public HillClimbing( ArityOne<T> variation, int MAX_ITERS ){

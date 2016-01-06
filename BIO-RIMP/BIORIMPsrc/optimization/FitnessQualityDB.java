@@ -19,6 +19,7 @@ import java.util.Scanner;
 import edu.wayne.cs.severe.redress2.controller.MetricCalculator;
 import edu.wayne.cs.severe.redress2.entity.*;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
+import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.exception.CompilUnitException;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import edu.wayne.cs.severe.redress2.exception.WritingException;
@@ -49,17 +50,26 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 	public void memorizar( RefactoringOperation operRef ) {
 
 		//Verificaci�n de llaves
-		int src, tgt; 
+		String src="";
+		String tgt="";
 		String fld, mtd;
 		if(operRef.getParams() != null ){
-			if(operRef.getParams().get("src") != null )
-				src = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getId();
-			else
-				src = -1;
-			if( operRef.getParams().get("tgt") != null )
-				tgt = ((TypeDeclaration) operRef.getParams().get("tgt").get(0).getCodeObj()).getId();
-			else 
-				tgt = -1;
+			if(operRef.getParams().get("src") != null ) {
+				for (RefactoringParameter obj : operRef.getParams().get("src")) {
+					src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+				}
+				src= src.substring(0,src.length()-1);
+				if(src=="")//Si viene vacia o NUEVA no guardar
+					return;
+			}
+			if( operRef.getParams().get("tgt") != null ) {
+				for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
+					tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+				}
+				tgt = src.substring(0, src.length() - 1);
+				if(tgt=="")//Si viene vacia o NUEVA no guardar
+					return;
+			}
 			if(operRef.getParams().get("fld") != null )
 				fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
 			else
@@ -72,12 +82,11 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
 					//Add metrics per class to SUA_metric 
 					for (Entry<String, Double> metric : clase.getValue().entrySet()) {
-		
+
 					    String id_ref = ref.getKey().substring(0, ref.getKey().indexOf("-"));
 						double val = metric.getValue();
-						String code = (src +","+ tgt + ","
-								+ fld +","+ mtd);
-						Register register = new Register(id_ref, code,metric.getKey(), val);
+
+						Register register = new Register(id_ref,metric.getKey(),val,src,tgt,fld,mtd,clase.getKey());
 						RegisterRepository repo = new RegisterRepository();
 						repo.insertRegister(register);
 					}
@@ -96,20 +105,25 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 	public boolean recordar( RefactoringOperation operRef ) {
 		boolean bandera = true;
 
-			String clase ;
+			String clase = "";
 
 			//Verificaci�n de llaves
-			int src, tgt; 
+			String src="";
+			String tgt="";
 			String fld, mtd;
 			if(operRef.getParams() != null ){
-				if(operRef.getParams().get("src") != null )
-					src = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getId();
-				else
-					src = -1;
-				if( operRef.getParams().get("tgt") != null )
-					tgt = ((TypeDeclaration) operRef.getParams().get("tgt").get(0).getCodeObj()).getId();
-				else 
-					tgt= -1;
+				if(operRef.getParams().get("src") != null ) {
+					for (RefactoringParameter obj : operRef.getParams().get("src")) {
+						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+					}
+					src= src.substring(0,src.length()-1);
+				}
+				if( operRef.getParams().get("tgt") != null ) {
+					for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
+						tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+					}
+					tgt = src.substring(0, src.length() - 1);
+				}
 				if(operRef.getParams().get("fld") != null )
 					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
 				else
@@ -121,22 +135,31 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				RegisterRepository repo = new RegisterRepository();
 				String code = (src +","+ tgt + ","
 						+ fld +","+ mtd);
-				List<Register> listMetric =  repo.getRegisters(operRef.getRefType().getAcronym(), code);
+				List<Register> listMetric =  repo.getRegistersByClass(operRef.getRefType().getAcronym(), src,tgt,mtd,fld);
 				
 				
 				
 				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double> > clasesList = new
 						LinkedHashMap<String, LinkedHashMap<String, Double> >();
-				clase = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
-				
-				bandera = listMetric.isEmpty();
-				
-				for(Register reg : listMetric){
-					metricList.put( reg.getMetric() , reg.getValue() );
+				//clase = ((TypeDeclaration) operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
+
+				bandera = !listMetric.isEmpty();
+				if(bandera) {
+
+					clase = listMetric.get(0).getClasss();
+					for (Register reg : listMetric) {
+						if (!clase.equals(reg.getClass())) {
+							clasesList.put(clase, metricList);
+							clase = reg.getClasss();
+							metricList = new LinkedHashMap<String, Double>();
+						}
+						metricList.put(reg.getMetric(), reg.getValue());
+
+					}
+
+					predictMetricsRecordar.put(operRef.getRefId(), clasesList);
 				}
-				clasesList.put( clase , metricList );
-				predictMetricsRecordar.put(operRef.getRefId(), clasesList);
 				
 				
 			}else{ //Si no encuentra Params es porque hay subRefs
@@ -491,6 +514,16 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		}
 
 	}
-
+/**
+ * refactor, clase, metrica, valor, code{src[], trg[], metod, campo}
+ * 01,01,PUF,6.7,S,a-z
+ *
+ * 01,02,PUF,98.6,T,
+ * 01,03,PUF,5.6,S
+ *
+ * 01,01,PUF,4.5,T
+ * 01,01,PUF,55,4,S
+ *
+ */
 	
 }

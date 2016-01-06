@@ -73,7 +73,7 @@ public class MainHAEATestBD {
 
 	public static void refactor(){
 		//First Step: Calculate Actual Metrics
-		String userPath = System.getProperty("user.dir");
+		String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
 		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
 		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/ccodec/src","-s", "     ccodec      " };
 		

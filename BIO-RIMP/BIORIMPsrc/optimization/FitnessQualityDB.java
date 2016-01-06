@@ -59,15 +59,15 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
 				}
 				src= src.substring(0,src.length()-1);
-				if(src=="")//Si viene vacia o NUEVA no guardar
+				if(src.trim()=="")//Si viene vacia o NUEVA no guardar
 					return;
 			}
 			if( operRef.getParams().get("tgt") != null ) {
 				for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
 					tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
 				}
-				tgt = src.substring(0, src.length() - 1);
-				if(tgt=="")//Si viene vacia o NUEVA no guardar
+				tgt = tgt.substring(0, tgt.length() - 1);
+				if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
 					return;
 			}
 			if(operRef.getParams().get("fld") != null )

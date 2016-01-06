@@ -5,7 +5,7 @@ import java.sql.SQLException;
 
 public class ConnectionJDBC {
 	
-	private final String URL = "jdbc:mysql://54.68.29.188:3306/biorimpdb";
+	private final String URL = "jdbc:mysql://104.197.73.237:3306/biorimpdb";
 	private final String USUARIO = "biorimp";
 	private final String PASSWORD = "biorimp.2015";
 

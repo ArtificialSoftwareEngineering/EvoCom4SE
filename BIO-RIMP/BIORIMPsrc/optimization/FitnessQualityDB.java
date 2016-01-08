@@ -83,7 +83,11 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					//Add metrics per class to SUA_metric 
 					for (Entry<String, Double> metric : clase.getValue().entrySet()) {
 
-					    String id_ref = ref.getKey().substring(0, ref.getKey().indexOf("-"));
+
+
+					    String id_ref = ref.getKey();
+						if(id_ref.contains("-"))
+							id_ref=ref.getKey().substring(0, ref.getKey().indexOf("-"));
 						double val = metric.getValue();
 
 						Register register = new Register(id_ref,metric.getKey(),val,src,tgt,fld,mtd,clase.getKey());
@@ -149,7 +153,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
 					clase = listMetric.get(0).getClasss();
 					for (Register reg : listMetric) {
-						if (!clase.equals(reg.getClass())) {
+						if (!clase.equals(reg.getClasss())) {
 							clasesList.put(clase, metricList);
 							clase = reg.getClasss();
 							metricList = new LinkedHashMap<String, Double>();
@@ -157,7 +161,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 						metricList.put(reg.getMetric(), reg.getValue());
 
 					}
-
+					clasesList.put(clase, metricList);
 					predictMetricsRecordar.put(operRef.getRefId(), clasesList);
 				}
 				

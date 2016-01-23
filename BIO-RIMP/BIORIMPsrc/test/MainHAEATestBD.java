@@ -75,7 +75,7 @@ public class MainHAEATestBD {
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
 		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
-		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/ccodec/src","-s", "     ccodec      " };
+		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/evolutionaryagent/src","-s", "     evolutionaryagent      " };
 		
 		//MainMetrics.main(args);
 
@@ -110,10 +110,10 @@ public class MainHAEATestBD {
 		int POPSIZE = 50;
 		int MAXITERS = 3;
 		@SuppressWarnings("unchecked")
-		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
-		opers[0] = mutation;
-		opers[1] = xover;
-		opers[2] = transposition;
+		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[2];
+		//opers[0] = mutation;
+		opers[0] = xover;
+		opers[1] = transposition;
 		
 		HaeaOperators< List<RefactoringOperation> > operators = new SimpleHaeaOperators< List<RefactoringOperation> >(opers);
 		HAEA< List<RefactoringOperation> > search = new HAEA< List<RefactoringOperation> >(POPSIZE, operators, new Tournament< List<RefactoringOperation> >(4), MAXITERS );

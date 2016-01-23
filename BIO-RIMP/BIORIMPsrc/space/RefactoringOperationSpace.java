@@ -275,8 +275,8 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		int mapRefactor;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
-
-		IntUniform g = new IntUniform ( Refactoring.values().length );
+		//TODO: Quitar -1 para incluir EC
+		IntUniform g = new IntUniform ( Refactoring.values().length -1 );
 		GeneratingRefactor randomRefactor = null;
 
 		for(int i = 0; i < n; i++){

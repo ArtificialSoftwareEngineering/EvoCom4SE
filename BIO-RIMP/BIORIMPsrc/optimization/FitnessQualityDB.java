@@ -118,7 +118,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 			if(operRef.getParams() != null ){
 				if(operRef.getParams().get("src") != null ) {
 					for (RefactoringParameter obj : operRef.getParams().get("src")) {
-						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
 					}
 					src= src.substring(0,src.length()-1);
 				}
@@ -126,7 +126,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
 						tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
 					}
-					tgt = src.substring(0, src.length() - 1);
+					tgt = tgt.substring(0, tgt.length() - 1);
 				}
 				if(operRef.getParams().get("fld") != null )
 					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();

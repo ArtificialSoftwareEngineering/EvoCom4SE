@@ -9,6 +9,7 @@ import java.util.List;
 import edu.wayne.cs.severe.redress2.entity.AttributeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.MethodDeclaration;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
+import edu.wayne.cs.severe.redress2.entity.refactoring.CodeObjState;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
@@ -139,6 +140,9 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 		if( ref.getParams().get("tgt") != null ){
 			if( !ref.getParams().get("tgt").isEmpty() ){
 				for(RefactoringParameter param_tgt : ref.getParams().get("tgt") ){
+					//New class verification in tgt class
+					if( ! param_tgt.getObjState().equals(CodeObjState.NEW) )
+						return false;
 					tgt.add( (TypeDeclaration) param_tgt.getCodeObj() );
 				}
 			}else{

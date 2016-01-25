@@ -8,6 +8,7 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.AttributeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
+import edu.wayne.cs.severe.redress2.entity.refactoring.CodeObjState;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
@@ -96,6 +97,9 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 			if( ref.getParams().get("src") != null ){
 				if( !ref.getParams().get("src").isEmpty() ){
 					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						//New class verification in src class
+						if( param_src.getObjState().equals(CodeObjState.NEW) )
+							return false;
 						src.add( (TypeDeclaration) param_src.getCodeObj() );
 					}
 				}else{
@@ -113,6 +117,9 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 		if( ref.getParams().get("tgt") != null ){
 			if( !ref.getParams().get("tgt").isEmpty() ){
 				for(RefactoringParameter param_tgt : ref.getParams().get("tgt") ){
+					//New class verification in tgt class
+					if( param_tgt.getObjState().equals(CodeObjState.NEW) )
+						return false;
 					tgt.add( (TypeDeclaration) param_tgt.getCodeObj() );
 				}
 			}else{
@@ -194,7 +201,11 @@ public class GeneratingRefactorPDF extends GeneratingRefactor {
 				//Creating the OBSERVRefParam for the src class
 				//sysType_src =  code.getMapClass().get( g.generate() );
 				if( ref.getParams() != null ){
-					sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj();
+					//New class verification in src class
+					if( ref.getParams().get("src").get(0).getObjState().equals(CodeObjState.NEW) )
+						sysType_src =  code.getMapClass().get( g.generate() );
+					else
+						sysType_src = (TypeDeclaration) ref.getParams().get("src").get(0).getCodeObj(); //Assumes the first src class of a set of classes
 				}else{
 					sysType_src =  code.getMapClass().get( g.generate() );
 				}

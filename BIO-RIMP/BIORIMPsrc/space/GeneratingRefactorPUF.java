@@ -9,6 +9,7 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.AttributeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
+import edu.wayne.cs.severe.redress2.entity.refactoring.CodeObjState;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
@@ -104,6 +105,9 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 			if( ref.getParams().get("src") != null ){
 				if( !ref.getParams().get("src").isEmpty() ){
 					for(RefactoringParameter param_src : ref.getParams().get("src") ){
+						//New class verification in src class
+						if( param_src.getObjState().equals(CodeObjState.NEW) )
+							return false;
 						src.add( (TypeDeclaration) param_src.getCodeObj() );
 					}
 				}else{
@@ -121,6 +125,9 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 		if( ref.getParams().get("tgt") != null ){
 			if( !ref.getParams().get("tgt").isEmpty() ){
 				for(RefactoringParameter param_tgt : ref.getParams().get("tgt") ){
+					//New class verification in tgt class
+					if( param_tgt.getObjState().equals(CodeObjState.NEW) )
+						return false;
 					tgt.add( (TypeDeclaration) param_tgt.getCodeObj() );
 				}
 			}else{
@@ -208,10 +215,15 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 			//sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
 			if( ref.getParams() != null ){
 				if(ref.getParams().get("tgt") != null){
-					if( !ref.getParams().get("tgt").isEmpty() )
-						sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj();
-					else
+					if( !ref.getParams().get("tgt").isEmpty() ) {
+						//New class verification in tgt class
+						if( ref.getParams().get("tgt").get(0).getObjState().equals(CodeObjState.NEW) )
+							sysType_tgt = code.getMapClass().get( g.generate() );
+						else
+							sysType_tgt = (TypeDeclaration) ref.getParams().get("tgt").get(0).getCodeObj(); //Assumes the first tgt class of a set of classes
+					}else{
 						sysType_tgt = code.getMapClass().get( g.generate() );
+					}
 				}else {
 					sysType_tgt = code.getMapClass().get( g.generate() );
 				}

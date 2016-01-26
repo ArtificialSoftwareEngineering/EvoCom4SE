@@ -54,69 +54,76 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		String tgt="";
 		String fld, mtd;
 		if(operRef.getParams() != null ){
-			if(operRef.getParams().get("src") != null ) { 
-				if( !operRef.getParams().get("src").isEmpty() ) {//valida si es vacío
-					for (RefactoringParameter obj : operRef.getParams().get("src")) {
-						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+			//si es un extract class memoriza sub-refs
+			if( !operRef.getRefType().getAcronym().equals("EC") ) {
+				if(operRef.getParams().get("src") != null ) { 
+					if( !operRef.getParams().get("src").isEmpty() ) {//valida si es vacío
+						for (RefactoringParameter obj : operRef.getParams().get("src")) {
+							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+						}
+						src= src.substring(0,src.length()-1);
+						if(src.trim()=="")//Si viene vacia o NUEVA no guardar
+							return;
 					}
-					src= src.substring(0,src.length()-1);
-					if(src.trim()=="")//Si viene vacia o NUEVA no guardar
-						return;
 				}
-			}
-			if( operRef.getParams().get("tgt") != null ) {
-				if( !operRef.getParams().get("tgt").isEmpty() ) {//valida si es vacío
-					for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
-						tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+				if( operRef.getParams().get("tgt") != null ) {
+					if( !operRef.getParams().get("tgt").isEmpty() ) {//valida si es vacío
+						for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
+							tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+						}
+						tgt = tgt.substring(0, tgt.length() - 1);
+						if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
+							return;
 					}
-					tgt = tgt.substring(0, tgt.length() - 1);
-					if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
-						return;
 				}
-			}
-				
-			if(operRef.getParams().get("fld") != null ){ 
-				if( !operRef.getParams().get("fld").isEmpty() ) //valida si es vacío
-					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
-				else
+
+				if(operRef.getParams().get("fld") != null ){ 
+					if( !operRef.getParams().get("fld").isEmpty() ) //valida si es vacío
+						fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
+					else
+						fld = "-1";
+				}else{
 					fld = "-1";
-			}else{
-				fld = "-1";
-			}
-			
-			if(operRef.getParams().get("mtd") != null ){
-				if( !operRef.getParams().get("mtd").isEmpty() )
-					mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
-				else
+				}
+
+				if(operRef.getParams().get("mtd") != null ){
+					if( !operRef.getParams().get("mtd").isEmpty() )
+						mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
+					else
+						mtd = "-1";
+				}else {
 					mtd = "-1";
-			}else {
-				mtd = "-1";
-			}
-			
-			//Se escribe en el fichero la predicciï¿½n
-			for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar.entrySet()) {
-				for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
-					//Add metrics per class to SUA_metric 
-					for (Entry<String, Double> metric : clase.getValue().entrySet()) {
+				}
+
+				//Se escribe en el fichero la predicciï¿½n
+				for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar.entrySet()) {
+					for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
+						//Add metrics per class to SUA_metric 
+						for (Entry<String, Double> metric : clase.getValue().entrySet()) {
 
 
 
-					    String id_ref = ref.getKey();
-						if(id_ref.contains("-"))
-							id_ref=ref.getKey().substring(0, ref.getKey().indexOf("-"));
-						double val = metric.getValue();
+							String id_ref = ref.getKey();
+							if(id_ref.contains("-"))
+								id_ref=ref.getKey().substring(0, ref.getKey().indexOf("-"));
+							double val = metric.getValue();
 
-						Register register = new Register(id_ref,metric.getKey(),val,src,tgt,fld,mtd,clase.getKey());
-						RegisterRepository repo = new RegisterRepository();
-						repo.insertRegister(register);
+							Register register = new Register(id_ref,metric.getKey(),val,src,tgt,fld,mtd,clase.getKey());
+							RegisterRepository repo = new RegisterRepository();
+							repo.insertRegister(register);
+						}
 					}
 				}
+				predictMetricsMemorizar = new
+						LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>(); 
+			}else{ //Si hay subRefs
+				for( RefactoringOperation opers : operRef.getSubRefs() )
+					memorizar( opers );
 			}
-			predictMetricsMemorizar = new
-					LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>(); 
-		}else{ //Si no encuentra Params es porque hay subRefs
-			for( RefactoringOperation opers : operRef.getSubRefs() )
-				memorizar( opers );
+		}else{ //Si hay subRefs por valor nulo
+			if( operRef.getRefType().getAcronym().equals("EC") )
+				for( RefactoringOperation opers : operRef.getSubRefs() )
+					memorizar( opers );
 		}
 
 
@@ -125,13 +132,15 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 	public boolean recordar( RefactoringOperation operRef ) {
 		boolean bandera = true;
 
-			String clase = "";
+		String clase = "";
 
-			//Verificaciï¿½n de llaves
-			String src="";
-			String tgt="";
-			String fld, mtd;
-			if(operRef.getParams() != null ){
+		//Verificaciï¿½n de llaves
+		String src="";
+		String tgt="";
+		String fld, mtd;
+		if(operRef.getParams() != null ){
+			//si es un extract class memoriza sub-refs
+			if( !operRef.getRefType().getAcronym().equals("EC") ) {
 				if(operRef.getParams().get("src") != null ) {
 					if( !operRef.getParams().get("src").isEmpty()  ){ //valida si es vacío
 						for (RefactoringParameter obj : operRef.getParams().get("src")) {
@@ -140,7 +149,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 						src= src.substring(0,src.length()-1);
 					}
 				}
-				
+
 				if( operRef.getParams().get("tgt") != null ) {
 					if( !operRef.getParams().get("tgt").isEmpty() ){
 						for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
@@ -149,7 +158,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 						tgt = tgt.substring(0, tgt.length() - 1);
 					}
 				}
-				
+
 				if(operRef.getParams().get("fld") != null ){
 					if( !operRef.getParams().get("fld").isEmpty() )
 						fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
@@ -158,7 +167,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				}else{
 					fld = "-1";
 				}
-				
+
 				if(operRef.getParams().get("mtd") != null ){
 					if( !operRef.getParams().get("mtd").isEmpty() )
 						mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
@@ -170,9 +179,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				String code = (src +","+ tgt + ","
 						+ fld +","+ mtd);
 				List<Register> listMetric =  repo.getRegistersByClass(operRef.getRefType().getAcronym(), src,tgt,mtd,fld);
-				
-				
-				
+
+
+
 				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double> > clasesList = new
 						LinkedHashMap<String, LinkedHashMap<String, Double> >();
@@ -194,12 +203,17 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					clasesList.put(clase, metricList);
 					predictMetricsRecordar.put(operRef.getRefId(), clasesList);
 				}
-				
-				
+
+
 			}else{ //Si no encuentra Params es porque hay subRefs
 				for( RefactoringOperation opers : operRef.getSubRefs() )
 					bandera = bandera && recordar( opers );
 			}
+		}else{ //Si no encuentra Params es porque hay subRefs
+			if( operRef.getRefType().getAcronym().equals("EC") )
+				for( RefactoringOperation opers : operRef.getSubRefs() )
+					bandera = bandera && recordar( opers );
+		}
 
 		return bandera;
 

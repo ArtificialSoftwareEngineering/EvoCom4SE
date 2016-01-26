@@ -54,29 +54,45 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		String tgt="";
 		String fld, mtd;
 		if(operRef.getParams() != null ){
-			if(operRef.getParams().get("src") != null ) {
-				for (RefactoringParameter obj : operRef.getParams().get("src")) {
-					src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+			if(operRef.getParams().get("src") != null ) { 
+				if( !operRef.getParams().get("src").isEmpty() ) {//valida si es vacío
+					for (RefactoringParameter obj : operRef.getParams().get("src")) {
+						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+					}
+					src= src.substring(0,src.length()-1);
+					if(src.trim()=="")//Si viene vacia o NUEVA no guardar
+						return;
 				}
-				src= src.substring(0,src.length()-1);
-				if(src.trim()=="")//Si viene vacia o NUEVA no guardar
-					return;
 			}
 			if( operRef.getParams().get("tgt") != null ) {
-				for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
-					tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+				if( !operRef.getParams().get("tgt").isEmpty() ) {//valida si es vacío
+					for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
+						tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+					}
+					tgt = tgt.substring(0, tgt.length() - 1);
+					if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
+						return;
 				}
-				tgt = tgt.substring(0, tgt.length() - 1);
-				if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
-					return;
 			}
-			if(operRef.getParams().get("fld") != null )
-				fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
-			else
+				
+			if(operRef.getParams().get("fld") != null ){ 
+				if( !operRef.getParams().get("fld").isEmpty() ) //valida si es vacío
+					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
+				else
+					fld = "-1";
+			}else{
 				fld = "-1";
-			if(operRef.getParams().get("mtd") != null )
-				mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
-			else mtd = "-1";
+			}
+			
+			if(operRef.getParams().get("mtd") != null ){
+				if( !operRef.getParams().get("mtd").isEmpty() )
+					mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
+				else
+					mtd = "-1";
+			}else {
+				mtd = "-1";
+			}
+			
 			//Se escribe en el fichero la predicciï¿½n
 			for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar.entrySet()) {
 				for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
@@ -117,24 +133,38 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 			String fld, mtd;
 			if(operRef.getParams() != null ){
 				if(operRef.getParams().get("src") != null ) {
-					for (RefactoringParameter obj : operRef.getParams().get("src")) {
-						src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+					if( !operRef.getParams().get("src").isEmpty()  ){ //valida si es vacío
+						for (RefactoringParameter obj : operRef.getParams().get("src")) {
+							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+						}
+						src= src.substring(0,src.length()-1);
 					}
-					src= src.substring(0,src.length()-1);
 				}
+				
 				if( operRef.getParams().get("tgt") != null ) {
-					for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
-						tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+					if( !operRef.getParams().get("tgt").isEmpty() ){
+						for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
+							tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+						}
+						tgt = tgt.substring(0, tgt.length() - 1);
 					}
-					tgt = tgt.substring(0, tgt.length() - 1);
 				}
-				if(operRef.getParams().get("fld") != null )
-					fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
-				else
+				
+				if(operRef.getParams().get("fld") != null ){
+					if( !operRef.getParams().get("fld").isEmpty() )
+						fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
+					else
+						fld = "-1";
+				}else{
 					fld = "-1";
-				if(operRef.getParams().get("mtd") != null )
-					mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
-				else mtd = "-1";
+				}
+				
+				if(operRef.getParams().get("mtd") != null ){
+					if( !operRef.getParams().get("mtd").isEmpty() )
+						mtd = ((MethodDeclaration) operRef.getParams().get("mtd").get(0).getCodeObj()).getObjName();
+					else 
+						mtd = "-1";
+				}else{ mtd = "-1";}
 
 				RegisterRepository repo = new RegisterRepository();
 				String code = (src +","+ tgt + ","
@@ -206,25 +236,6 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		return GQSm_;
 	}
 
-	// normalization and receives the weights
-	// FIXME VECTOR DEFAULT INCOMPLETE
-	private Double GQSm(LinkedHashMap<String, Double> bias) {
-		Double min = Collections.min(bias.values());
-		Double max = Collections.max(bias.values());
-		double fitness = 0;
-		double W[] = new double[ bias.size() ];
-		double w = (double)1 / (double)bias.size();
-		System.out.println("BIAS SIZE: {" + w +"}");
-		for (Entry<String, Double> metric : bias.entrySet()) {
-			
-			fitness = fitness + (w *((metric.getValue() - min) / (max - min)));
-			System.out.println("FITNESS: {" + fitness +"} | {"+((metric.getValue() - min) / (max - min))+"}");
-		}
-		System.out.println("FITNESS FINAL: {" + fitness +"}");
-
-		return fitness;
-	}	
-	
 	private Double GQSproneness( LinkedHashMap<String, LinkedHashMap<String, Double>> metricActualVector ){
 		double generalQuality = 0.0;
 		double denominator = 0.0;
@@ -320,90 +331,6 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		}
 	}
 
-	private LinkedHashMap<String, Double> TotalActualMetrics(
-			LinkedHashMap< String, LinkedHashMap<String, Double> > actualMetrics ) {
-
-		LinkedHashMap<String, Double> SUA_metric = new LinkedHashMap<String, Double>();
-		LinkedHashMap<String, Double> SUA_prev_metric = new LinkedHashMap<String, Double>();
-
-		for ( Entry<String, LinkedHashMap<String, Double>> clase : actualMetrics.entrySet() ) {
-			//1. Adding predicting metrics
-			for ( Entry<String, Double> metric : clase.getValue().entrySet() ) {
-				// evaluate if the metric is repeat for summing
-				if ( SUA_metric.containsKey( metric.getKey() ) ) {
-					SUA_metric.replace( metric.getKey() , 
-										SUA_metric.get( metric.getKey() ),
-										SUA_metric.get( metric.getKey() ) + metric.getValue() );
-				} else {
-					SUA_metric.put( metric.getKey(), metric.getValue() );
-				}
-			}
-
-			//Checking the class in prevMetrics
-			if ( prevMetrics.containsKey( clase.getKey() ) ) {
-				// Extracting prevMetrics
-				for ( Entry<String, Double> metric : prevMetrics.get( clase.getKey() ).entrySet() ) {
-					// evaluate that the metric is impacted
-					if ( actualMetrics.get(clase.getKey()).containsKey(metric.getKey()) ) {
-						// evaluate if the metric is repeat for summing
-						if (SUA_prev_metric.containsKey(metric.getKey())) {
-							SUA_prev_metric.replace(metric.getKey(), 
-													SUA_prev_metric.get(metric.getKey()),
-													SUA_prev_metric.get(metric.getKey()) + metric.getValue());
-						} else {
-							SUA_prev_metric.put( metric.getKey(), metric.getValue() );
-						}
-					}
-				}
-			} else {
-				//For new classes
-				//Commented cause it is not necessary adding new classes metrics to the vector
-				/*
-				for ( Entry<String, Double> metric : clase.getValue().entrySet() ) {
-					// evaluate if the metric is repeat for summing
-					if ( SUA_prev_metric.containsKey( metric.getKey() ) ) {
-						SUA_prev_metric.replace( metric.getKey(), 
-												SUA_prev_metric.get(metric.getKey()),
-												SUA_prev_metric.get(metric.getKey()) + metric.getValue());
-					} else {
-						SUA_prev_metric.put( metric.getKey(), metric.getValue() );
-					}
-				}*/
-			}
-		}//End Loop Clase
-
-		// Figure out the bias by division of the accumulative sum
-		/*for ( Entry<String, Double> metric : SUA_metric.entrySet() ) {
-			if ( SUA_prev_metric.containsKey( metric.getKey() ) ) {
-				SUA_metric.replace( metric.getKey(), 
-									metric.getValue(),
-									metric.getValue() / SUA_prev_metric.get( metric.getKey() ) );
-			} else {
-				System.out.println("Something is wrong with prev_metrics");
-			}
-		}*/
-
-		for ( Entry<String, Double> metric : SUA_prev_metric.entrySet() ) {
-			if ( SUA_metric.containsKey( metric.getKey() ) ) {
-				System.out.println("["+ metric.getKey() +"]Numerador: "+ SUA_metric.get( metric.getKey() ) );
-				System.out.println("Denominador: "+  metric.getValue() );
-				//Verification of no zero in the denominator
-				if( metric.getValue() == 0 )
-					SUA_prev_metric.replace( metric.getKey() , 0.0000000000000001); //replace for avoiding NaN
-				SUA_metric.replace( metric.getKey(), 
-						SUA_metric.get( metric.getKey() ) ,
-						SUA_metric.get( metric.getKey() ) /  metric.getValue() );
-
-				System.out.println("Proneness: "+  SUA_metric.get( metric.getKey() )  );
-
-			} else {
-				System.out.println("Something is wrong with prev_metrics");
-			}
-		}
-
-		return SUA_metric;
-	}
-	
 	//Organized the prediction and reduce the data
 	private LinkedHashMap<String, LinkedHashMap<String, Double>> ActualMetrics(
 			LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> prediction ) {

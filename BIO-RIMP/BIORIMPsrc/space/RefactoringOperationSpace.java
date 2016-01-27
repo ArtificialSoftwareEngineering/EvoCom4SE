@@ -275,8 +275,8 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		int mapRefactor;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
-		//TODO: Quitar -1 para incluir EC
-		IntUniform g = new IntUniform ( Refactoring.values().length -1 );
+
+		IntUniform g = new IntUniform ( Refactoring.values().length );
 		GeneratingRefactor randomRefactor = null;
 
 		for(int i = 0; i < n; i++){
@@ -318,6 +318,9 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 			case 11:
 				randomRefactor = new GeneratingRefactorEC();
 				break;
+			//TODO: Quitar defaul y descomentar lineas del switch para activar todas
+			default:
+				randomRefactor = new GeneratingRefactorIM();
 			}//END CASE
 
 			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");

@@ -55,30 +55,28 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		String fld, mtd;
 		if(operRef.getParams() != null ){
 			//si es un extract class memoriza sub-refs
-			if( !operRef.getRefType().getAcronym().equals("EC") ) {
+			if( !(operRef.getRefType().getAcronym().equals("EC") || operRef.getRefType().getAcronym().equals("RMMO" ))) {
 				if(operRef.getParams().get("src") != null ) { 
-					if( !operRef.getParams().get("src").isEmpty() ) {//valida si es vacío
+					if( !operRef.getParams().get("src").isEmpty() ) {//valida si es vacï¿½o
 						for (RefactoringParameter obj : operRef.getParams().get("src")) {
 							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
 						}
 						src= src.substring(0,src.length()-1);
-						if(src.trim()=="")//Si viene vacia o NUEVA no guardar
-							return;
+
 					}
 				}
 				if( operRef.getParams().get("tgt") != null ) {
-					if( !operRef.getParams().get("tgt").isEmpty() ) {//valida si es vacío
+					if( !operRef.getParams().get("tgt").isEmpty() ) {//valida si es vacï¿½o
 						for (RefactoringParameter obj : operRef.getParams().get("tgt")) {
 							tgt += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
 						}
 						tgt = tgt.substring(0, tgt.length() - 1);
-						if(tgt.trim()=="")//Si viene vacia o NUEVA no guardar
-							return;
+
 					}
 				}
 
 				if(operRef.getParams().get("fld") != null ){ 
-					if( !operRef.getParams().get("fld").isEmpty() ) //valida si es vacío
+					if( !operRef.getParams().get("fld").isEmpty() ) //valida si es vacï¿½o
 						fld = ((AttributeDeclaration) operRef.getParams().get("fld").get(0).getCodeObj()).getObjName();
 					else
 						fld = "-1";
@@ -106,6 +104,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 							String id_ref = ref.getKey();
 							if(id_ref.contains("-"))
 								id_ref=ref.getKey().substring(0, ref.getKey().indexOf("-"));
+							if(!id_ref.equals(operRef.getRefType().getAcronym()))
+								continue;
 							double val = metric.getValue();
 
 							Register register = new Register(id_ref,metric.getKey(),val,src,tgt,fld,mtd,clase.getKey());
@@ -114,19 +114,12 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 						}
 					}
 				}
-				predictMetricsMemorizar = new
-						LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>(); 
-			}else{ //Si hay subRefs
-				for( RefactoringOperation opers : operRef.getSubRefs() )
-					memorizar( opers );
+
 			}
-		}else{ //Si hay subRefs por valor nulo
-			if( operRef.getRefType().getAcronym().equals("EC") )
-				for( RefactoringOperation opers : operRef.getSubRefs() )
-					memorizar( opers );
 		}
 
-
+		predictMetricsMemorizar = new
+				LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
 	}
 
 	public boolean recordar( RefactoringOperation operRef ) {
@@ -140,9 +133,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		String fld, mtd;
 		if(operRef.getParams() != null ){
 			//si es un extract class memoriza sub-refs
-			if( !operRef.getRefType().getAcronym().equals("EC") ) {
+			if( !(operRef.getRefType().getAcronym().equals("EC") || operRef.getRefType().getAcronym().equals("RMMO" ))) {
 				if(operRef.getParams().get("src") != null ) {
-					if( !operRef.getParams().get("src").isEmpty()  ){ //valida si es vacío
+					if( !operRef.getParams().get("src").isEmpty()  ){ //valida si es vacï¿½o
 						for (RefactoringParameter obj : operRef.getParams().get("src")) {
 							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
 						}
@@ -205,16 +198,10 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 				}
 
 
-			}else{ //Si no encuentra Params es porque hay subRefs
-				for( RefactoringOperation opers : operRef.getSubRefs() )
-					bandera = bandera && recordar( opers );
+			}else{//Si es  EC no guarda
+				bandera = false;
 			}
-		}else{ //Si no encuentra Params es porque hay subRefs
-			if( operRef.getRefType().getAcronym().equals("EC") )
-				for( RefactoringOperation opers : operRef.getSubRefs() )
-					bandera = bandera && recordar( opers );
 		}
-
 		return bandera;
 
 	}

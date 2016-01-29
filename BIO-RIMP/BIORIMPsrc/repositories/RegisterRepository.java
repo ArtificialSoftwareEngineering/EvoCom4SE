@@ -68,6 +68,34 @@ public class RegisterRepository extends Repository<Register> {
             try{
                 String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES + "= ? AND "
                         + Register.COLUMN_TARGETS+"= ? AND "+Register.COLUMN_METHOD+"= ? AND "+ Register.COLUMN_FIELD +"= ?";
+                
+                //1000 danaderp Query depends on the refactor type
+                if( refactorID.equals("EM") || refactorID.equals("IM") || refactorID.equals("RMMO") ){ //-> Only matters src + mtd
+                	query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES 
+                			+"= ? AND "+Register.COLUMN_METHOD + "= ?";
+                }else{
+                	if(  refactorID.equals("MF") ||  refactorID.equals("PDF") ||  refactorID.equals("PUF")){//->Only matters src+tgt+fld
+                		query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES + "= ? AND "
+                                + Register.COLUMN_TARGETS+"= ? AND "+ Register.COLUMN_FIELD +"= ?";
+                	}else{
+                		if( refactorID.equals("MM") ||  refactorID.equals("PDM") ||  refactorID.equals("PUM")  ){//->Only matters src+mtd+tgt
+                			query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES + "= ? AND "
+                                    + Register.COLUMN_TARGETS+"= ? AND "+Register.COLUMN_METHOD + "= ?";
+                		}else{
+                			if( refactorID.equals("RDI") ||  refactorID.equals("RID") ){//->Only matters src+tgt
+                				query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES + "= ? AND "
+                                        + Register.COLUMN_TARGETS+"= ?";
+                			}else{
+                				if( refactorID.equals("EC") ){ //->Only matters src+fld+mtd
+                					query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ? AND "+ Register.COLUMN_SOURCES + "= ? AND "
+                	                        +Register.COLUMN_METHOD+"= ? AND "+ Register.COLUMN_FIELD +"= ?";
+                				}
+                			}
+                		}
+                	}
+                }
+                
+                //1000
                 PreparedStatement statement = connection.prepareStatement(query);
                 statement.setString(1, refactorID);
                 statement.setString(2, src);

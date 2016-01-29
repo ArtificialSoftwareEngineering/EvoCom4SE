@@ -136,6 +136,7 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 		}
 
 		//Extracting the target class
+		
 		List<TypeDeclaration> tgt = new ArrayList<TypeDeclaration>();
 		if( ref.getParams().get("tgt") != null ){
 			if( !ref.getParams().get("tgt").isEmpty() ){

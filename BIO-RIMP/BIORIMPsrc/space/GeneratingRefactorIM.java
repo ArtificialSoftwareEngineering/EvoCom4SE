@@ -108,6 +108,10 @@ public class GeneratingRefactorIM extends GeneratingRefactor {
 		// TODO Auto-generated method stub
 		boolean feasible = true;
 
+		// 0. Feasibility by Recalling
+		if (feasibleRefactorbyRecalling(ref))
+			return true;
+
 		//1. Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
 		if( ref.getParams() != null ){

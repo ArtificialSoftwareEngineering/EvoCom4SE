@@ -126,7 +126,6 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		boolean bandera = true;
 
 		String clase = "";
-
 		//Verificaci�n de llaves
 		String src="";
 		String tgt="";
@@ -201,6 +200,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 			}else{//Si es  EC no guarda
 				bandera = false;
 			}
+		}else{ //if no params, no recall
+			bandera = false;
 		}
 		return bandera;
 
@@ -431,7 +432,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		}
 
 	}
-
+	
+	//This function generates the tracking for the fitness
+	//in all possible evaluations
 	public void escribirTextoArchivo( String texto ) {
 		String ruta = file + "_TEST_FITNESS_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );

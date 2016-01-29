@@ -98,6 +98,10 @@ public class GeneratingRefactorPUF extends GeneratingRefactor {
 	public boolean feasibleRefactor(RefactoringOperation ref, MetaphorCode code) {
 		// TODO Auto-generated method stub
 		boolean feasible = true;
+		
+		// 0. Feasibility by Recalling
+		if (feasibleRefactorbyRecalling(ref))
+			return true;
 
 		//Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();

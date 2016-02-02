@@ -197,13 +197,18 @@ public class RegisterRepository extends Repository<Register> {
                     targetQ += " AND ";
                     targetQ += Register.COLUMN_TARGETS+ " LIKE '%"+tg +"%' ";
                 }
-                targetQ += " AND LENGTH("+ Register.COLUMN_TARGETS+ ") ="+ tgt.length();
-                String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ?"+ sourceQ + targetQ
-                      +" AND "+Register.COLUMN_METHOD+"= ? AND "+ Register.COLUMN_FIELD +"= ? ORDER BY "+Register.COLUMN_CLASS;
+                targetQ += tgt.length()>0? " AND LENGTH("+ Register.COLUMN_TARGETS+ ") ="+ tgt.length():"";
+                String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ?"+ sourceQ + targetQ;
+                query += mth.isEmpty()?"":" AND "+Register.COLUMN_METHOD+ "= ? ";
+                query += fld.isEmpty()?"":" AND "+ Register.COLUMN_FIELD +"= ?";
+                query += "ORDER BY "+Register.COLUMN_CLASS;
+
+
+
                 PreparedStatement statement = connection.prepareStatement(query);
                 statement.setString(1, refactorID);
-                statement.setString(2, mth);
-                statement.setString(3, fld);
+                if(!mth.isEmpty())statement.setString(2, mth);
+                if(!fld.isEmpty())statement.setString(3, fld);
                 ResultSet resultSet = statement.executeQuery();
 
 

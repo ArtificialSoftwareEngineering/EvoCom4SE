@@ -116,8 +116,12 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 	public boolean feasibleRefactor(RefactoringOperation ref, MetaphorCode code) {
 		// TODO Auto-generated method stub
 		boolean feasible = true;
+		
+		// 0. Feasibility by Recalling
+		if (feasibleRefactorbyRecalling(ref))
+			return true;
 
-		//Extracting the source class
+		// Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();
 		if( ref.getParams() != null ){
 			if( ref.getParams().get("src") != null ){

@@ -187,28 +187,32 @@ public class RegisterRepository extends Repository<Register> {
         if(connection!=null){
             try{
                 String sourceQ ="";
-                for(String sr:src.split(",")){
-                    sourceQ += " AND ";
-                    sourceQ += Register.COLUMN_SOURCES+" LIKE '%"+ sr + "%' ";
+                if(!src.isEmpty()) {
+                    for (String sr : src.split(",")) {
+                        sourceQ += " AND ";
+                        sourceQ += Register.COLUMN_SOURCES + " LIKE '%" + sr + "%' ";
+                    }
+                    sourceQ += " AND LENGTH(" + Register.COLUMN_SOURCES + ") =" + src.length();
                 }
-                sourceQ += " AND LENGTH("+ Register.COLUMN_SOURCES+ ") ="+ src.length();
                 String targetQ = "";
-                for(String tg:tgt.split(",")){
-                    targetQ += " AND ";
-                    targetQ += Register.COLUMN_TARGETS+ " LIKE '%"+tg +"%' ";
+                if(!tgt.isEmpty()) {
+                    for (String tg : tgt.split(",")) {
+                        targetQ += " AND ";
+                        targetQ += Register.COLUMN_TARGETS + " LIKE '%" + tg + "%' ";
+                    }
+                    targetQ += " AND LENGTH(" + Register.COLUMN_TARGETS + ") =" + tgt.length();
                 }
-                targetQ += tgt.length()>0? " AND LENGTH("+ Register.COLUMN_TARGETS+ ") ="+ tgt.length():"";
                 String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ?"+ sourceQ + targetQ;
                 query += mth.isEmpty()?"":" AND "+Register.COLUMN_METHOD+ "= ? ";
                 query += fld.isEmpty()?"":" AND "+ Register.COLUMN_FIELD +"= ?";
-                query += "ORDER BY "+Register.COLUMN_CLASS;
+                query += " ORDER BY "+Register.COLUMN_CLASS;
 
 
-
+                int index = 1;
                 PreparedStatement statement = connection.prepareStatement(query);
-                statement.setString(1, refactorID);
-                if(!mth.isEmpty())statement.setString(2, mth);
-                if(!fld.isEmpty())statement.setString(3, fld);
+                statement.setString(index++, refactorID);
+                if(!mth.isEmpty())statement.setString(index++, mth);
+                if(!fld.isEmpty())statement.setString(index, fld);
                 ResultSet resultSet = statement.executeQuery();
 
 

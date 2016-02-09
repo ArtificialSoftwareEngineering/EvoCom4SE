@@ -40,37 +40,41 @@ public abstract class GeneratingRefactor {
 		if (operRef.getParams() != null) {
 			// si es un extract class memoriza sub-refs
 			if (acronym.equals("EC")) {
-				// 1.Extracting src from subrefs
-				if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
-					if (!operRef.getSubRefs().get(0).getParams().get("src").isEmpty()) { // valida
-						// si es
-						// vac�o
-						for (RefactoringParameter obj : operRef.getSubRefs().get(0).getParams().get("src")) {
-							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+				if (operRef.getSubRefs() != null) {
+					// 1.Extracting src from subrefs
+					if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
+						if (!operRef.getSubRefs().get(0).getParams().get("src").isEmpty()) { // valida
+							// si es
+							// vac�o
+							for (RefactoringParameter obj : operRef.getSubRefs().get(0).getParams().get("src")) {
+								src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+							}
+							src = src.substring(0, src.length() - 1);
 						}
-						src = src.substring(0, src.length() - 1);
 					}
-				}
-				// 2.Extracting fld from subrefs
-				if (operRef.getSubRefs().get(0).getParams().get("fld") != null) {
-					if (!operRef.getSubRefs().get(0).getParams().get("fld").isEmpty())
-						fld = ((AttributeDeclaration) operRef.getSubRefs().get(0).getParams().get("fld").get(0)
-								.getCodeObj()).getObjName();
-					else
+					// 2.Extracting fld from subrefs
+					if (operRef.getSubRefs().get(0).getParams().get("fld") != null) {
+						if (!operRef.getSubRefs().get(0).getParams().get("fld").isEmpty())
+							fld = ((AttributeDeclaration) operRef.getSubRefs().get(0).getParams().get("fld").get(0)
+									.getCodeObj()).getObjName();
+						else
+							fld = "-1";
+					} else {
 						fld = "-1";
-				} else {
-					fld = "-1";
-				}
+					}
 
-				// 3.Extracting mtd from subrefs
-				if (operRef.getSubRefs().get(1).getParams().get("mtd") != null) {
-					if (!operRef.getSubRefs().get(1).getParams().get("mtd").isEmpty())
-						mtd = ((MethodDeclaration) operRef.getSubRefs().get(1).getParams().get("mtd").get(0)
-								.getCodeObj()).getObjName();
-					else
+					// 3.Extracting mtd from subrefs
+					if (operRef.getSubRefs().get(1).getParams().get("mtd") != null) {
+						if (!operRef.getSubRefs().get(1).getParams().get("mtd").isEmpty())
+							mtd = ((MethodDeclaration) operRef.getSubRefs().get(1).getParams().get("mtd").get(0)
+									.getCodeObj()).getObjName();
+						else
+							mtd = "-1";
+					} else {
 						mtd = "-1";
+					}
 				} else {
-					mtd = "-1";
+					return false;
 				}
 
 			} else {
@@ -122,7 +126,7 @@ public abstract class GeneratingRefactor {
 																							// src
 																							// +
 																							// mtd
-				listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "");
+			listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "");
 			} else if (acronym.equals("MF") || acronym.equals("PDF") || acronym.equals("PUF")) {// ->Only
 																								// matters
 																								// src+tgt+fld
@@ -143,44 +147,48 @@ public abstract class GeneratingRefactor {
 
 		} else { // if no params, no recall unless EC
 			if (acronym.equals("EC")) {
-				// 1.Extracting src from subrefs
-				if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
-					if (!operRef.getSubRefs().get(0).getParams().get("src").isEmpty()) { // valida
-						// si es
-						// vac�o
-						for (RefactoringParameter obj : operRef.getSubRefs().get(0).getParams().get("src")) {
-							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+				if (operRef.getSubRefs() != null) {
+					// 1.Extracting src from subrefs
+					if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
+						if (!operRef.getSubRefs().get(0).getParams().get("src").isEmpty()) { // valida
+							// si es
+							// vac�o
+							for (RefactoringParameter obj : operRef.getSubRefs().get(0).getParams().get("src")) {
+								src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";// 45,67
+							}
+							src = src.substring(0, src.length() - 1);
 						}
-						src = src.substring(0, src.length() - 1);
 					}
-				}
-				// 2.Extracting fld from subrefs
-				if (operRef.getSubRefs().get(0).getParams().get("fld") != null) {
-					if (!operRef.getSubRefs().get(0).getParams().get("fld").isEmpty())
-						fld = ((AttributeDeclaration) operRef.getSubRefs().get(0).getParams().get("fld").get(0)
-								.getCodeObj()).getObjName();
-					else
+					// 2.Extracting fld from subrefs
+					if (operRef.getSubRefs().get(0).getParams().get("fld") != null) {
+						if (!operRef.getSubRefs().get(0).getParams().get("fld").isEmpty())
+							fld = ((AttributeDeclaration) operRef.getSubRefs().get(0).getParams().get("fld").get(0)
+									.getCodeObj()).getObjName();
+						else
+							fld = "-1";
+					} else {
 						fld = "-1";
-				} else {
-					fld = "-1";
-				}
+					}
 
-				// 3.Extracting mtd from subrefs
-				if (operRef.getSubRefs().get(1).getParams().get("mtd") != null) {
-					if (!operRef.getSubRefs().get(1).getParams().get("mtd").isEmpty())
-						mtd = ((MethodDeclaration) operRef.getSubRefs().get(1).getParams().get("mtd").get(0)
-								.getCodeObj()).getObjName();
-					else
+					// 3.Extracting mtd from subrefs
+					if (operRef.getSubRefs().get(1).getParams().get("mtd") != null) {
+						if (!operRef.getSubRefs().get(1).getParams().get("mtd").isEmpty())
+							mtd = ((MethodDeclaration) operRef.getSubRefs().get(1).getParams().get("mtd").get(0)
+									.getCodeObj()).getObjName();
+						else
+							mtd = "-1";
+					} else {
 						mtd = "-1";
+					}
+
+					RegisterRepository repo = new RegisterRepository();
+					List<Register> listMetric = new ArrayList<>();
+
+					listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+					bandera = !listMetric.isEmpty();
 				} else {
-					mtd = "-1";
+					bandera = false;
 				}
-
-				RegisterRepository repo = new RegisterRepository();
-				List<Register> listMetric = new ArrayList<>();
-
-				listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
-				bandera = !listMetric.isEmpty();
 
 			} else {
 				bandera = false;

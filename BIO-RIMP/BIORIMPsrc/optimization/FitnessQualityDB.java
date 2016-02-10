@@ -628,7 +628,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
 
             if (recordar(operRef)) {
-                System.out.println("Recalling metrics");
+                System.out.println("Recalling metrics for: " + operRef.getRefType().getAcronym() );
                 predictMetrics.putAll((LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>)
                         Clone.create(predictMetricsRecordar));
                 predictMetricsRecordar = new
@@ -636,7 +636,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
             } else {
 
-                System.out.println("Predicting metrics");
+                System.out.println("Predicting metrics for: "+ operRef.getRefType().getAcronym() );
                 operationsClone = new ArrayList<RefactoringOperation>();
                 operationsClone.add(operRef);
                 MetricCalculator calc = new MetricCalculator();

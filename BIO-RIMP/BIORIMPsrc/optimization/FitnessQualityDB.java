@@ -50,9 +50,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 		String src = "";
 		String tgt = "";
 		String fld = "-1", mtd;
+		String acronym = operRef.getRefType().getAcronym();
 		if (operRef.getParams() != null) {
 			// si es un extract class memoriza sub-refs
-			String acronym = operRef.getRefType().getAcronym();
 			if (acronym.equals("EC")) {
 				// 1. Extracting src from subrefs
 				if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
@@ -161,7 +161,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					}
 				}
 			}
-			// Termina Extracción
+			// Termina Extracciï¿½n
 
 			// Se escribe en el fichero la predicciï¿½n
 			for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar
@@ -183,8 +183,71 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 						repo.insertRegister(register);
 					}
 				}
-			}
+			}//end for
 
+		}//end params verification
+		else {
+			if (acronym.equals("EC")) {
+				// 1. Extracting src from subrefs
+				if (operRef.getSubRefs().get(0).getParams().get("src") != null) {
+					if (!operRef.getSubRefs().get(0).getParams().get("src").isEmpty()) {// valida
+																						// si
+																						// es
+																						// vacï¿½o
+						for (RefactoringParameter obj : operRef.getSubRefs().get(0).getParams().get("src")) {
+							src += ((TypeDeclaration) obj.getCodeObj()).getId() + ",";
+						}
+						src = src.substring(0, src.length() - 1);
+
+					}
+				}
+
+				// 2. Extracting fld from subrefs
+				if (operRef.getSubRefs().get(0).getParams().get("fld") != null) {
+					if (!operRef.getSubRefs().get(0).getParams().get("fld").isEmpty()) // valida
+																						// si
+																						// es
+																						// vacï¿½o
+						fld = ((AttributeDeclaration) operRef.getSubRefs().get(0).getParams().get("fld").get(0)
+								.getCodeObj()).getObjName();
+					else
+						fld = "-1";
+				} else {
+					fld = "-1";
+				}
+				// 3. Extracting mtd from subrefs
+				if (operRef.getSubRefs().get(1).getParams().get("mtd") != null) {
+					if (!operRef.getSubRefs().get(1).getParams().get("mtd").isEmpty())
+						mtd = ((MethodDeclaration) operRef.getSubRefs().get(1).getParams().get("mtd").get(0)
+								.getCodeObj()).getObjName();
+					else
+						mtd = "-1";
+				} else {
+					mtd = "-1";
+				}
+
+				// Se escribe en el fichero la predicciï¿½n
+				for (Entry<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> ref : predictMetricsMemorizar
+						.entrySet()) {
+					for (Entry<String, LinkedHashMap<String, Double>> clase : ref.getValue().entrySet()) {
+						// Add metrics per class to SUA_metric
+						for (Entry<String, Double> metric : clase.getValue().entrySet()) {
+
+							String id_ref = ref.getKey();
+							if (id_ref.contains("-"))
+								id_ref = ref.getKey().substring(0, ref.getKey().indexOf("-"));
+							if (!id_ref.equals(operRef.getRefType().getAcronym()))
+								continue;
+							double val = metric.getValue();
+
+							Register register = new Register(id_ref, metric.getKey(), val, src, tgt, fld, mtd,
+									clase.getKey());
+							RegisterRepository repo = new RegisterRepository();
+							repo.insertRegister(register);
+						}
+					}
+				} // end for
+			} // end EC extraction
 		}
 
 		predictMetricsMemorizar = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();

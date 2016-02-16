@@ -76,7 +76,7 @@ public class MetaphorCode {
 			methods = MetricUtils.getMethods(typeDcl);
 			
 		} catch (Exception e) {
-			System.out.println("Error for class: " + typeDcl.getQualifiedName()
+			System.out.println("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
 			+ " - " + e.getMessage());
 			methods = null;
 		}
@@ -92,7 +92,7 @@ public class MetaphorCode {
 			fields = MetricUtils.getFields(typeDcl);
 			
 		} catch (Exception e) {
-			System.out.println("Error for class: " + typeDcl.getQualifiedName()
+			System.out.println("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
 			+ " - " + e.getMessage());
 			fields = null;
 		}

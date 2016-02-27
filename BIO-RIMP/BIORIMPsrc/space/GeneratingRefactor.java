@@ -30,7 +30,7 @@ public abstract class GeneratingRefactor {
 
 	//1000 danaderp dynamic feasiability
 	//Return true if a refactoring has already in the data base
-	protected boolean feasibleRefactorbyRecalling(RefactoringOperation operRef) {
+	protected static boolean feasibleRefactorbyRecalling(RefactoringOperation operRef) {
 		boolean bandera = true;
 		// Verificaci�n de llaves
 		String src = "";

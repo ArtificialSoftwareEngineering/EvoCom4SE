@@ -23,22 +23,22 @@ import unalcol.types.collection.bitarray.BitArrayConverter;
  * @author Daavid
  *
  */
-public class MetaphorCode {
+public final class MetaphorCode {
 	
-	private HierarchyBuilder builder;
-	private List<TypeDeclaration> sysTypeDcls;
-	private HashMap<Integer,TypeDeclaration> mapClass=
+	private static HierarchyBuilder builder;
+	private static List<TypeDeclaration> sysTypeDcls;
+	private static HashMap<Integer,TypeDeclaration> mapClass=
 			new HashMap<Integer,TypeDeclaration>();
 	
-	private HashMap<Integer,TypeDeclaration> mapNewClass=
+	private static HashMap<Integer,TypeDeclaration> mapNewClass=
 			new HashMap<Integer,TypeDeclaration>();
 	
-	private ProgLang lang;
-	private ArrayList<CodeMetric> metrics;
-	private File systemPath;
-	private String sysName;
+	private static ProgLang lang;
+	private static ArrayList<CodeMetric> metrics;
+	private static File systemPath;
+	private static String sysName;
 	
-	private int COUNTER = 0;
+	private static int COUNTER = 0;
 	
 	public MetaphorCode(MainPredFormulasBIoRIPM init) {
 		this.systemPath = init.getSystemPath();

@@ -1,7 +1,7 @@
 /**
  * 
  */
-package test;
+package useless_test;
 
 import entity.Qubit;
 import entity.QubitArray;

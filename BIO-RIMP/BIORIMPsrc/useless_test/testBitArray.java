@@ -1,7 +1,7 @@
 /**
  * 
  */
-package test;
+package useless_test;
 
 import unalcol.types.collection.bitarray.BitArray;
 

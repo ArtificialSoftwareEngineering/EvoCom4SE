@@ -1,7 +1,7 @@
 /**
  * 
  */
-package test;
+package useless_test;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;

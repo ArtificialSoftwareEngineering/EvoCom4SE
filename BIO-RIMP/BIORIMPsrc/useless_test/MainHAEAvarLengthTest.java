@@ -1,4 +1,4 @@
-package test;
+package useless_test;
 
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -9,13 +9,16 @@ import java.util.List;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
-import operators.ClassTransposition;
+import operators.RefOperAddGen;
+import operators.RefOperDelGen;
+import operators.RefOperJoin;
 import operators.RefOperMutation;
 import operators.RefOperTransposition;
 import operators.RefOperXOver;
 import optimization.GeneralizedImpactQuality;
 import optimization.RefactorArrayPlainWrite;
 import space.RefactoringOperationSpace;
+import space.VarLengthOperRefSpace;
 import unalcol.descriptors.Descriptors;
 import unalcol.descriptors.WriteDescriptors;
 import unalcol.evolution.haea.HAEA;
@@ -60,7 +63,6 @@ import unalcol.search.selection.Tournament;
 import unalcol.search.space.ArityOne;
 import unalcol.search.space.Space;
 import unalcol.tracer.ConsoleTracer;
-import unalcol.tracer.FileTracer;
 import unalcol.tracer.Tracer;
 import unalcol.types.collection.bitarray.BitArray;
 import unalcol.types.integer.array.IntArray;
@@ -68,14 +70,12 @@ import unalcol.types.integer.array.IntArrayPlainWrite;
 import unalcol.types.real.array.DoubleArray;
 import unalcol.types.real.array.DoubleArrayPlainWrite;
 
-public class MainHAEATest {
+public class MainHAEAvarLengthTest {
 
 	public static void refactor(){
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
-		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
-		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/ccodec/src","-s", "     ccodec      " };
-		
+		String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
 		//MainMetrics.main(args);
 
 		//Second Step: Create the structures for the prediction
@@ -88,11 +88,10 @@ public class MainHAEATest {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		int DIM = 7;
-		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
-
+		 VarLengthOperRefSpace space = new VarLengthOperRefSpace( 5, 20, metaphor );
+		 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "HAEA");		
+		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"HAEAVAR");		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
@@ -100,19 +99,18 @@ public class MainHAEATest {
 		//PickComponents pick = new PermutationPick(DIM/2); // It can be set to null if the mutation operator is applied to every component of the solution array
 		//AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can be set to null if no mutation adaptation is required
 		//IntensityMutation mutation = new IntensityMutation( 0.1, random, pick, adapt );
-		RefOperMutation mutation = new RefOperMutation( 0.5, metaphor );
-		ArityTwo< List<RefactoringOperation> > xover = new RefOperXOver();
-		ArityOne< List<RefactoringOperation> > transpositionRef = new RefOperTransposition();
-		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
-
+		RefOperAddGen add = new RefOperAddGen(2, 5, 10, metaphor);
+		RefOperDelGen del = new RefOperDelGen(2, 5, 20, metaphor);
+		ArityTwo< List<RefactoringOperation> > xover = new RefOperJoin();
+		
 		// Search method
-		int POPSIZE = 50;
-		int MAXITERS = 3;
+		int POPSIZE = 10;
+		int MAXITERS = 100;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
-		opers[0] = mutation;
-		opers[1] = xover;
-		opers[2] = transposition;
+		opers[0] = add;
+		opers[1] = del;
+		opers[2] = xover;
 		
 		HaeaOperators< List<RefactoringOperation> > operators = new SimpleHaeaOperators< List<RefactoringOperation> >(opers);
 		HAEA< List<RefactoringOperation> > search = new HAEA< List<RefactoringOperation> >(POPSIZE, operators, new Tournament< List<RefactoringOperation> >(4), MAXITERS );
@@ -127,22 +125,14 @@ public class MainHAEATest {
 		Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
 		Write.set(HaeaOperators.class, write_desc);
 
-		ConsoleTracer tracer = new ConsoleTracer(); 
-		FileTracer filetracergoal = new FileTracer("fileTracerCCODECGOAL", '\n');
-		FileTracer filetraceralgo = new FileTracer("fileTracerCCODECALGO", '\n');
-		FileTracer filetracerfunci = new FileTracer("fileTracerCCODEfunci", '\n');
+		ConsoleTracer tracer = new ConsoleTracer();       
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
-		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
-		Tracer.addTracer(search, filetraceralgo); // Uncomment if you want to trace the hill-climbing algorithm
-		Tracer.addTracer(function, filetracerfunci);
-
 
 		// Apply the search method
 		Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
 
-		System.out.println( solution.quality() + "=" + solution.value() );	
-		escribirTextoArchivo( solution.quality() + "=" + solution.value() );
+		System.out.println( solution.quality() + "=" + solution.value() );		
 	}
 
 
@@ -173,7 +163,7 @@ public class MainHAEATest {
 		HaeaOperators<BitArray> operators = new SimpleHaeaOperators<BitArray>(opers);
 
 		// Search method
-		int POPSIZE = 10;
+		int POPSIZE = 100;
 		int MAXITERS = 10;
 		HAEA<BitArray> bin_search = new HAEA<BitArray>(POPSIZE, operators, new Tournament<BitArray>(4), MAXITERS );
 
@@ -206,8 +196,8 @@ public class MainHAEATest {
 
 	}
 	
-	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "T_TEST_CCODEC_JAR.txt";
+	public void escribirTextoArchivo( String texto ) {
+		String ruta = "C:/Refactor/out.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

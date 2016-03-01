@@ -153,7 +153,7 @@ public class MainHAEATestBDFi {
 		long end = System.currentTimeMillis();
 		System.out.println( solution.quality() + "=" + solution.value() );	
 		escribirTextoArchivo(iter+"__" + solution.quality() + "=" + solution.value() );
-		escribirTextoArchivo(iter + "_time_:_"+ (end - start) );
+		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"/n" );
 		//The assertion verifies if the time taken is less than four hours in milliseconds
 		assertTrue( (end - start) < 1.44E+7 );
 	}

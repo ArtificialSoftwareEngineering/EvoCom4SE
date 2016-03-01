@@ -57,26 +57,27 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 						[numMtdObs.generate()];
 				value_mtd.add(mtdName);
 
-				//verification of method not constructor
-				if(value_mtd.get(0).equals(sysType_src.getName()))
-					feasible = false;
-
+				//+Verification of method not constructor
+//				if(value_mtd.get(0).equals(sysType_src.getName()))
+//					feasible = false;
+				feasible = InspectRefactor.inspectMethodNotConstructor(value_mtd, sysType_src);
 				if(feasible){
 					//Override verification parents 
-					if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
-					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-							if ( code.getMethodsFromClass(clase) != null )
-								if( !code.getMethodsFromClass(clase).isEmpty() ){
-									for( String method : code.getMethodsFromClass(clase) ){
-										if( method.equals( value_mtd.get(0) ) ){
-											feasible = false;
-											break;
-										}
-									}
-								}
-						}
-					}
+//					if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
+//					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+//						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
+//							if ( code.getMethodsFromClass(clase) != null )
+//								if( !code.getMethodsFromClass(clase).isEmpty() ){
+//									for( String method : code.getMethodsFromClass(clase) ){
+//										if( method.equals( value_mtd.get(0) ) ){
+//											feasible = false;
+//											break;
+//										}
+//									}
+//								}
+//						}
+//					}
+					feasible = InspectRefactor.inspectOverrideParents(value_mtd, sysType_src);
 					if(feasible){
 						//Override verification children
 						if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )

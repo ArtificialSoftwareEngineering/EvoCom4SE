@@ -70,7 +70,7 @@ public final class MetaphorCode {
 	}
 	
 	//Get the complete list of Methods of a specific class
-	public LinkedHashSet<String> getMethodsFromClass(TypeDeclaration typeDcl) {
+	public static LinkedHashSet<String> getMethodsFromClass(TypeDeclaration typeDcl) {
 		LinkedHashSet<String> methods = new LinkedHashSet<String>();
 		try {
 			methods = MetricUtils.getMethods(typeDcl);
@@ -101,7 +101,7 @@ public final class MetaphorCode {
 	
 	}
 
-	public HierarchyBuilder getBuilder() {
+	public static HierarchyBuilder getBuilder() {
 		return builder;
 	}
 

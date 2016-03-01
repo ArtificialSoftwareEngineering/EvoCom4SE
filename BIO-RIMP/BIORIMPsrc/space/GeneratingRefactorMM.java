@@ -60,10 +60,11 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate() ]);
 
-					//verification of method not constructor
-					if(value_mtd.get(0).equals(sysType_src.getName()))
-						feasible = false;
-
+					//+Verification of method not constructor
+//					if(value_mtd.get(0).equals(sysType_src.getName()))
+//						feasible = false;
+					feasible = InspectRefactor.inspectMethodNotConstructor(value_mtd, sysType_src);
+					 
 				}else{
 					feasible = false;
 				}
@@ -76,20 +77,21 @@ public class GeneratingRefactorMM extends GeneratingRefactor {
 
 
 			//Override and hierarchy verification parents 
-			if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null)
-			if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-				for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-					if ( code.getMethodsFromClass(clase) != null )
-						if( !code.getMethodsFromClass(clase).isEmpty() ){
-							for( String method : code.getMethodsFromClass(clase) ){
-								if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
-									feasible = false;
-									break;
-								}
-							}
-						}
-				}
-			}
+//			if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null)
+//			if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
+//				for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
+//					if ( code.getMethodsFromClass(clase) != null )
+//						if( !code.getMethodsFromClass(clase).isEmpty() ){
+//							for( String method : code.getMethodsFromClass(clase) ){
+//								if( method.equals( value_mtd.get(0) ) || clase.equals(sysType_tgt) ){
+//									feasible = false;
+//									break;
+//								}
+//							}
+//						}
+//				}
+//			}
+			feasible = InspectRefactor.inspectHierarchyOverrideParents(value_mtd, sysType_src, sysType_tgt);
 
 			if(feasible){
 				//Override and hierarchy verification children

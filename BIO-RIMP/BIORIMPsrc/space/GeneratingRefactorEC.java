@@ -80,9 +80,10 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 				value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
 						[ numMtdObs.generate() ]);
 
-				//verification of method not constructor
-				if(value_mtd.get(0).equals(sysType_src.getName()))
-					feasible = false;
+				//+Verification of method not constructor
+//				if(value_mtd.get(0).equals(sysType_src.getName()))
+//					feasible = false;
+				feasible = InspectRefactor.inspectMethodNotConstructor(value_mtd, sysType_src);
 
 				if(feasible){
 					//Override verification parents 

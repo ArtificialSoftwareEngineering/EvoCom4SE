@@ -1,4 +1,4 @@
-package test;
+package useless_test;
 
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -13,7 +13,6 @@ import operators.ClassTransposition;
 import operators.RefOperMutation;
 import operators.RefOperTransposition;
 import operators.RefOperXOver;
-import optimization.FitnessQualityDB;
 import optimization.GeneralizedImpactQuality;
 import optimization.RefactorArrayPlainWrite;
 import space.RefactoringOperationSpace;
@@ -69,13 +68,13 @@ import unalcol.types.integer.array.IntArrayPlainWrite;
 import unalcol.types.real.array.DoubleArray;
 import unalcol.types.real.array.DoubleArrayPlainWrite;
 
-public class MainHAEATestBD {
+public class MainHAEATest {
 
 	public static void refactor(){
 		//First Step: Calculate Actual Metrics
-		String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
+		String userPath = System.getProperty("user.dir");
 		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
-		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/evolutionaryagent/src","-s", "     evolutionaryagent      " };
+		String[] args = { "-l", "Java", "-p", userPath+"/test_data/code/ccodec/src","-s", "     ccodec      " };
 		
 		//MainMetrics.main(args);
 
@@ -93,7 +92,7 @@ public class MainHAEATestBD {
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, "HAEA");		
+		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "HAEA");		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
@@ -146,6 +145,59 @@ public class MainHAEATestBD {
 		escribirTextoArchivo( solution.quality() + "=" + solution.value() );
 	}
 
+
+	public static void binary2real(){
+		// Search Space definition
+		int DIM = 10;
+		double[] min = DoubleArray.create(DIM, -5.12);
+		double[] max = DoubleArray.create(DIM, 5.12);
+		Space<double[]> space = new HyperCube( min, max );    	
+
+		// Optimization Function
+		OptimizationFunction<double[]> function = new Rastrigin();		
+		Goal<double[]> goal = new OptimizationGoal<double[]>(function); // minimizing, add the parameter false if maximizing   	
+
+		// CodeDecodeMap
+		int BITS_PER_DOUBLE = 16; // Number of bits per integer (i.e. per real)
+		CodeDecodeMap<BitArray, double[]> map = new BinaryToRealVector(BITS_PER_DOUBLE, min, max);
+
+		// Variation definition
+		ArityOne<BitArray> mutation = new BitMutation();
+		ArityOne<BitArray> transposition = new Transposition();
+		XOver xover = new XOver();
+		@SuppressWarnings("unchecked")
+		Operator<BitArray>[] opers = (Operator<BitArray>[])new Operator[3];
+		opers[0] = mutation;
+		opers[1] = xover;
+		opers[2] = transposition;
+		HaeaOperators<BitArray> operators = new SimpleHaeaOperators<BitArray>(opers);
+
+		// Search method
+		int POPSIZE = 10;
+		int MAXITERS = 10;
+		HAEA<BitArray> bin_search = new HAEA<BitArray>(POPSIZE, operators, new Tournament<BitArray>(4), MAXITERS );
+
+		// The multilevel search method (moves in the binary space, but computes fitness in the real space)
+		MultiLevelSearch<BitArray, double[]> search = new MultiLevelSearch<>(bin_search, map);
+
+		// Tracking the goal evaluations
+		WriteDescriptors write_desc = new WriteDescriptors();
+		Write.set(double[].class, new DoubleArrayPlainWrite(false));
+		Write.set(HaeaStep.class, new WriteHaeaStep<BitArray>());
+		Descriptors.set(PopulationSolution.class, new PopulationSolutionDescriptors<BitArray>());
+		Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<BitArray>());
+		Write.set(HaeaOperators.class, write_desc);
+
+		ConsoleTracer tracer = new ConsoleTracer();       
+		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
+		//Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
+
+		// Apply the search method
+		Solution<double[]> solution = search.apply(space, goal);
+
+		System.out.println( solution.quality() + "=" + solution.value());		
+
+	}
 
 	public static void main(String[] args){
 		refactor(); // Uncomment if testing real valued functions

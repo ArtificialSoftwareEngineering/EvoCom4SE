@@ -69,7 +69,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 							[ numMtdObs.generate()]);
 
 					if( feasible ){
-						//verification of method not constructor
+						//-Verification of method not constructor
 						if( value_mtd.get(0).equals( sysType_src.getName() ) ){
 							feasible = false;
 						}else{

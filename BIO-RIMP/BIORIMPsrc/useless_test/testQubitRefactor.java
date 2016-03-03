@@ -1,4 +1,4 @@
-package test;
+package useless_test;
 
 import entity.QubitRefactor;
 

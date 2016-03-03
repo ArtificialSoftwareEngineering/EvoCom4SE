@@ -16,6 +16,7 @@ import entity.QubitArray;
 import entity.QubitRefactor;
 import operators.RefOperMutation;
 import optimization.CodeDecodeRefactorList;
+import optimization.FitnessQualityDB;
 import optimization.GeneralizedImpactQuality;
 import optimization.ListRefOperMutation;
 
@@ -57,60 +58,79 @@ import unalcol.types.real.array.DoubleArrayPlainWrite;
 public class MainHillClimbing {
 
 	public static void main(String[] argss) {
-		
-		//First Step: Calculate Actual Metrics
-		String userPath = System.getProperty("user.dir");
-        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\evolutionaryagent\\src","-s", "     evolutionaryagent      " };
-        //MainMetrics.main(args);
-        
-        //Second Step: Create the structures for the prediction
-        MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
-        init.main(args);
-        MetaphorCode metaphor = new MetaphorCode(init);
-        
-        //Third Step: Optimization 
-        // Search Space definition
-        int DIM = 7;
-        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
-        
-        // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"HILLCLIMBING");		
-        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
-        
-        
-        // Variation definition
-        RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
-             
-          	
-        // Search method in RefactorSpace
-        int MAXITERS = 1000;
-        boolean neutral = true; // Accepts movements when having same function value
-        HillClimbing< List<RefactoringOperation> > search = new HillClimbing<List<RefactoringOperation>>( variation, neutral, MAXITERS );
-                  
-
-        // Tracking the goal evaluations
-        SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
-        Descriptors.set(Solution.class, desc);
-        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
-        List<RefactoringOperation> ref= new ArrayList<RefactoringOperation>();
-        Write.set(ref , write);
-        WriteDescriptors w_desc = new WriteDescriptors();
-        Write.set(Solution.class, w_desc);
-        
-        ConsoleTracer tracer = new ConsoleTracer();       
-        //Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
-        Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
-             
-        // Apply the search method
-        Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
-        
-        System.out.println( "QUALITY_:" + solution.quality() + "=" +"VALUE_:"+ solution.value());	
-        escribirTextoArchivo( "QUALITY_:" + solution.quality() + "=" +"VALUE_:"+ solution.value() );
+		for(int i=0; i<30; i++){
+			refactorHill( i );
+		}
 		
 	}
 	
+	public static void refactorHill(int iter){
+		// First Step: Calculate Actual Metrics
+		String userPath = System.getProperty("user.dir");
+		// String[] args = { "-l", "Java", "-p",
+		// userPath+"\\test_data\\code\\evolutionaryagent\\src","-s", "
+		// evolutionaryagent " };
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+
+		// MainMetrics.main(args);
+
+		// Second Step: Create the structures for the prediction
+		MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
+		init.main(args);
+		MetaphorCode metaphor = new MetaphorCode(init);
+
+		// Third Step: Optimization
+		// Search Space definition
+		int DIM = 7;
+		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
+
+		// Optimization Function
+		// OptimizationFunction<List<RefactoringOperation>> function = new
+		// GeneralizedImpactQuality(metaphor,"HILLCLIMBING");
+		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, "HILLCLIMBING_"+ iter);
+		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
+																											// remove
+																											// the
+																											// parameter
+																											// false
+																											// if
+																											// minimizing
+
+		// Variation definition
+		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
+
+		// Search method in RefactorSpace
+		int MAXITERS = 1000;
+		boolean neutral = true; // Accepts movements when having same function
+								// value
+		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
+				neutral, MAXITERS);
+
+		// Tracking the goal evaluations
+		SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
+		Descriptors.set(Solution.class, desc);
+		RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+		List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
+		Write.set(ref, write);
+		WriteDescriptors w_desc = new WriteDescriptors();
+		Write.set(Solution.class, w_desc);
+
+		ConsoleTracer tracer = new ConsoleTracer();
+		// Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
+		// function evaluations
+		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
+											// hill-climbing algorithm
+
+		// Apply the search method
+		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
+
+		System.out.println("QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value());
+		escribirTextoArchivo(iter+"_QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value());
+
+	}
+	
 	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "D:/T_EVOAGENT_HILL_01.txt";
+		String ruta = "T_CCODEC_HILL.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

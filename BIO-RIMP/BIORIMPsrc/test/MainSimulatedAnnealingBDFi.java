@@ -9,6 +9,7 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import entity.MetaphorCode;
 import operators.RefOperMutation;
+import optimization.FitnessQualityDB;
 import optimization.GeneralizedImpactQuality;
 import optimization.RefactorArrayPlainWrite;
 import space.RefactoringOperationSpace;
@@ -49,15 +50,17 @@ import unalcol.types.real.array.DoubleArray;
 import unalcol.types.real.array.DoubleArrayPlainWrite;
 
 
-public class MainSimulatedAnnealing {
+public class MainSimulatedAnnealingBDFi {
 	
-	public static void refactor(){
-
+	public static void refactor(int iter){
+		//Tracking computational time
+		long start = System.currentTimeMillis();
+		
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
-		String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
-		//MainMetrics.main(args);
-
+		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
+	    String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+			
 		//Second Step: Create the structures for the prediction
 		MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
 		init.main(args);
@@ -75,12 +78,12 @@ public class MainSimulatedAnnealing {
         RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"SIMULATED");		
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor,"SIMULATED_" + iter);		
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
         
     	
         // Search method
-        int MAXITERS = 100;
+        int MAXITERS = 1000;
         SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
 
 
@@ -99,44 +102,21 @@ public class MainSimulatedAnnealing {
         // Apply the search method
         Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
         
-        System.out.println( solution.quality()+ "=" + solution.value() );		
+        long end = System.currentTimeMillis();
+        escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"/n" );
+        System.out.println( iter+"__" +solution.quality()+ "=" + solution.value() +"/n" );		
 	}
     
-	public static void binary(){
-		// Search Space definition
-		int DIM = 100;
-    	Space<BitArray> space = new BinarySpace( DIM );
-    	
-    	// Variation definition
-    	BitMutation variation = new BitMutation();
-        
-    	// Optimization Function
-    	OptimizationFunction<BitArray> function = new MaxOnes();		
-        Goal<BitArray> goal = new OptimizationGoal<BitArray>(function, false); // maximizing, remove the parameter false if minimizing   	
-    	
-        // Search method
-        int MAXITERS = 10000;
-        SimulatedAnnealing<BitArray> search = new SimulatedAnnealing<BitArray>(variation, MAXITERS);
 
-        // Tracking the goal evaluations
-        ConsoleTracer tracer = new ConsoleTracer();       
-        Tracer.addTracer(goal,tracer);
-        
-        // Apply the search method
-        Solution<BitArray> solution = search.apply(space, goal);
-        
-        System.out.println( solution.quality() + "=" + solution.value());		
-	}    
-
-    
 	
     public static void main(String[] args){
-    	refactor(); // Uncomment if testing real valued functions
- 
+    	for(int i=0; i<30; i++){
+			refactor( i );
+		}
     }
     
-	public void escribirTextoArchivo( String texto ) {
-		String ruta = "C:/Refactor/out.txt";
+	public static void escribirTextoArchivo( String texto ) {
+		String ruta = "T_TEST_SIMULATED_CCODEC_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

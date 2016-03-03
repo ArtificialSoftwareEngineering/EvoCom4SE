@@ -1,4 +1,4 @@
-package test;
+package useless_test;
 
 import java.io.FileReader;
 import java.io.FileWriter;

@@ -1,4 +1,4 @@
-package test;
+package useless_test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +10,7 @@ import entity.QubitRefactor;
 import optimization.CodeDecodeRefactorList;
 import unalcol.search.multilevel.CodeDecodeMap;
 
-public class testCodeDecodeRefactor {
+public class testDecodeCodeRefactor {
 
 	public static void main(String[] argss) {
 		// TODO Auto-generated method stub
@@ -28,39 +28,19 @@ public class testCodeDecodeRefactor {
 		//Creating the individual
 		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
-		List<RefactoringOperation> pheCod = new ArrayList<RefactoringOperation>();
-		List<QubitRefactor> genomeCod = new ArrayList<QubitRefactor>();
-		
-		int  QUBITTAM = 4;
-		for(int i = 0; i < 10; i++){
-			genome.add(new QubitRefactor(true , QUBITTAM));
+		for(int i = 0; i < 10000; i++){
+			genome.add(new QubitRefactor(true,4));
 			System.out.println(i+" "+
 			genome.get(i).getGenObservation().toString());
 		}
-		
+		//Processing EncodeDecode
 		CodeDecodeMap<List<QubitRefactor>,List<RefactoringOperation>> map 
 			= new CodeDecodeRefactorList(metaphor); 
-		//Processing Decode
+		
 		phe = map.decode(genome);
 		
 		for(int i = 0; i < phe.size(); i++){
-			System.out.println("Decoding: "+i+" "+ phe.get(i).toString());
-		}
-		
-		//Processing Encode
-		genomeCod = map.code(phe);
-		
-		for(int i = 0; i < genomeCod.size(); i++){
-			System.out.println("Coding[new]: "+i+" "+ genomeCod.get(i).getGenObservation().toString());
-			System.out.println("Coding[old]: "+i+" "+ genome.get(i).getGenObservation().toString());
-		}
-		
-		//Processing REDecode
-		pheCod = map.decode(genomeCod);
-		
-		for(int i = 0; i < phe.size(); i++){
-			System.out.println("Decoding[new]: "+i+" "+ pheCod.get(i).toString());
-			System.out.println("Decoding[old]: "+i+" "+ phe.get(i).toString());
+			System.out.println(i+" "+ phe.get(i).toString());
 		}
 	}
 

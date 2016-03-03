@@ -27,7 +27,7 @@ import edu.wayne.cs.severe.redress2.io.MetricsReader;
 import entities.Register;
 import entity.MetaphorCode;
 import repositories.RegisterRepository;
-import test.MainHAEATestBD;
+import test.MainHAEATestBDFi;
 import unalcol.clone.Clone;
 import unalcol.optimization.OptimizationFunction;
 
@@ -631,7 +631,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 			boolean recall = recordar(operRef);
 			long endTime = System.nanoTime();
 			long duration = (endTime - startTime);
-			MainHAEATestBD.escribirTextoArchivo("Recodar tiempo;"+ duration/1000000 + "\n");
+			MainHAEATestBDFi.escribirTextoArchivo("Recodar tiempo;"+ duration/1000000 + "\n");
 
             if (recall) {
                 System.out.println("Recalling metrics for: " + operRef.getRefType().getAcronym() );
@@ -654,7 +654,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                         Clone.create(predictMetricsMemorizar));
 				endTime = System.nanoTime();//stop prediction proccess time
 				duration = (endTime - startTime);
-				MainHAEATestBD.escribirTextoArchivo("Prediccion tiempo;"+ duration/1000000 +";"+operRef.getRefType().getAcronym() +"\n" );
+				MainHAEATestBDFi.escribirTextoArchivo("Prediccion tiempo;"+ duration/1000000 +";"+operRef.getRefType().getAcronym() +"\n" );
 
 
 				//Memoriza en Archivo lo que se encuentra en la predicci�n y vac�s la estructura
@@ -662,7 +662,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                 memorizar(operRef);
 				endTime = System.nanoTime();
 				duration = (endTime - startTime);
-				MainHAEATestBD.escribirTextoArchivo("Memorizar tiempo;"+ duration/1000000 +"\n" );
+				MainHAEATestBDFi.escribirTextoArchivo("Memorizar tiempo;"+ duration/1000000 +"\n" );
 
 			}
         }

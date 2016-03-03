@@ -27,6 +27,7 @@ import edu.wayne.cs.severe.redress2.io.MetricsReader;
 import entities.Register;
 import entity.MetaphorCode;
 import repositories.RegisterRepository;
+import test.MainHAEATestBD;
 import unalcol.clone.Clone;
 import unalcol.optimization.OptimizationFunction;
 
@@ -181,6 +182,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 								clase.getKey());
 						RegisterRepository repo = new RegisterRepository();
 						repo.insertRegister(register);
+
 					}
 				}
 			}//end for
@@ -415,7 +417,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
 				listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
 
-				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
+ 				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double>> clasesList = new LinkedHashMap<String, LinkedHashMap<String, Double>>();
 				// clase = ((TypeDeclaration)
 				// operRef.getParams().get("src").get(0).getCodeObj()).getQualifiedName();
@@ -625,9 +627,13 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
         List<RefactoringOperation> operationsClone;
         //(List<RefactoringOperation>)Clone.create(operations);
         for (RefactoringOperation operRef : operations) {
+			long startTime = System.nanoTime();
+			boolean recall = recordar(operRef);
+			long endTime = System.nanoTime();
+			long duration = (endTime - startTime);
+			MainHAEATestBD.escribirTextoArchivo("Recodar tiempo;"+ duration/1000000 + "\n");
 
-
-            if (recordar(operRef)) {
+            if (recall) {
                 System.out.println("Recalling metrics for: " + operRef.getRefType().getAcronym() );
                 predictMetrics.putAll((LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>)
                         Clone.create(predictMetricsRecordar));
@@ -636,7 +642,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
             } else {
 
-                System.out.println("Predicting metrics for: "+ operRef.getRefType().getAcronym() );
+				startTime = System.nanoTime();				//start time to prediction calc
+				System.out.println("Predicting metrics for: "+ operRef.getRefType().getAcronym() );
                 operationsClone = new ArrayList<RefactoringOperation>();
                 operationsClone.add(operRef);
                 MetricCalculator calc = new MetricCalculator();
@@ -645,9 +652,19 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                 predictMetricsMemorizar.putAll(calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics));
                 predictMetrics.putAll((LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>)
                         Clone.create(predictMetricsMemorizar));
-                //Memoriza en Archivo lo que se encuentra en la predicci�n y vac�s la estructura
+				endTime = System.nanoTime();//stop prediction proccess time
+				duration = (endTime - startTime);
+				MainHAEATestBD.escribirTextoArchivo("Prediccion tiempo;"+ duration/1000000 +";"+operRef.getRefType().getAcronym() +"\n" );
+
+
+				//Memoriza en Archivo lo que se encuentra en la predicci�n y vac�s la estructura
+				startTime = System.nanoTime();
                 memorizar(operRef);
-            }
+				endTime = System.nanoTime();
+				duration = (endTime - startTime);
+				MainHAEATestBD.escribirTextoArchivo("Memorizar tiempo;"+ duration/1000000 +"\n" );
+
+			}
         }
 
         return predictMetrics;

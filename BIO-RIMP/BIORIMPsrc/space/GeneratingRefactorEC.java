@@ -59,19 +59,6 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 			paramsMF.add(new OBSERVRefParam("src", value_src));
 			paramsMM.add(new OBSERVRefParam("src", value_src));
 
-			//Creating the OBSERVRefParam for the fld field
-			List<String> value_fld  = new ArrayList<String>();
-			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
-				IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
-
-				String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()
-						[ numFldObs.generate() ];
-				value_fld.add(fldName);
-				paramsMF.add(new OBSERVRefParam("fld", value_fld));
-			}else{
-				feasible = false; 
-			}
-
 			//Creating the OBSERVRefParam for the mtd class
 			List<String> value_mtd  = new ArrayList<String>();
 			if(!code.getMethodsFromClass(sysType_src).isEmpty()){
@@ -122,6 +109,19 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 
 
 				paramsMM.add(new OBSERVRefParam("mtd", value_mtd));
+			}else{
+				feasible = false; 
+			}
+			
+			//Creating the OBSERVRefParam for the fld field
+			List<String> value_fld  = new ArrayList<String>();
+			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+				IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
+
+				String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()
+						[ numFldObs.generate() ];
+				value_fld.add(fldName);
+				paramsMF.add(new OBSERVRefParam("fld", value_fld));
 			}else{
 				feasible = false; 
 			}
@@ -363,18 +363,6 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 			paramsMF.add(new OBSERVRefParam("src", value_src));
 			paramsMM.add(new OBSERVRefParam("src", value_src));
 
-			//Creating the OBSERVRefParam for the fld field
-			List<String> value_fld  = new ArrayList<String>();
-			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
-				IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
-
-				String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()
-						[ numFldObs.generate() ];
-				value_fld.add(fldName);
-				paramsMF.add(new OBSERVRefParam("fld", value_fld));
-			}else{
-				feasible = false; 
-			}
 
 			//Creating the OBSERVRefParam for the mtd class
 			List<String> value_mtd  = new ArrayList<String>();
@@ -428,6 +416,19 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
 			}else{
 				feasible = false;
 				break;
+			}
+			
+			//Creating the OBSERVRefParam for the fld field
+			List<String> value_fld  = new ArrayList<String>();
+			if(!code.getFieldsFromClass(sysType_src).isEmpty()){
+				IntUniform numFldObs = new IntUniform ( code.getFieldsFromClass(sysType_src).size() );
+
+				String fldName = (String) code.getFieldsFromClass(sysType_src).toArray()
+						[ numFldObs.generate() ];
+				value_fld.add(fldName);
+				paramsMF.add(new OBSERVRefParam("fld", value_fld));
+			}else{
+				feasible = false; 
 			}
 
 			counter++;

@@ -81,7 +81,8 @@ public class MainHAEATestBDFi {
 		long start = System.currentTimeMillis();
 		
 		//First Step: Calculate Actual Metrics
-		String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
+		//String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
+		String userPath = System.getProperty("user.dir");
 		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
 		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
 	

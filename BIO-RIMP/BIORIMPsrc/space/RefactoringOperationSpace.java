@@ -271,7 +271,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
 				metaphor.getSysTypeDcls(),
 				metaphor.getLang(),
-				metaphor.getBuilder());
+				MetaphorCode.getBuilder());
 		int mapRefactor;
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
@@ -334,7 +334,7 @@ public class RefactoringOperationSpace extends Space<List<RefactoringOperation>>
 		} catch (ReadException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			System.out.println( "Reading Error" );
+			System.out.println( "Reading Error :3" );
 			return null;
 		} 
 	}

@@ -86,7 +86,7 @@ public final class MetaphorCode {
 	}
 	
 	//Get the complete list of Fields of a specific class
-	public HashSet<String> getFieldsFromClass(TypeDeclaration typeDcl) {
+	public static HashSet<String> getFieldsFromClass(TypeDeclaration typeDcl) {
 		HashSet<String> fields = new HashSet<String>();
 		try {
 			fields = MetricUtils.getFields(typeDcl);

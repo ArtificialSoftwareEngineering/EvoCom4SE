@@ -51,52 +51,22 @@ public class GeneratingRefactorRMMO extends GeneratingRefactor {
 			//Creating the OBSERVRefParam for the mtd class
 			value_mtd  = new ArrayList<String>();
 
-			if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
-				IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
-				mtdName = (String) code.getMethodsFromClass(sysType_src).toArray()
+			if( !MetaphorCode.getMethodsFromClass(sysType_src).isEmpty() ){
+				IntUniform numMtdObs = new IntUniform ( MetaphorCode.getMethodsFromClass(sysType_src).size() );
+				mtdName = (String) MetaphorCode.getMethodsFromClass(sysType_src).toArray()
 						[numMtdObs.generate()];
 				value_mtd.add(mtdName);
 
 				//+Verification of method not constructor
-//				if(value_mtd.get(0).equals(sysType_src.getName()))
-//					feasible = false;
 				feasible = InspectRefactor.inspectMethodNotConstructor(value_mtd, sysType_src);
 				if(feasible){
 					//Override verification parents 
-//					if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
-//					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-//						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-//							if ( code.getMethodsFromClass(clase) != null )
-//								if( !code.getMethodsFromClass(clase).isEmpty() ){
-//									for( String method : code.getMethodsFromClass(clase) ){
-//										if( method.equals( value_mtd.get(0) ) ){
-//											feasible = false;
-//											break;
-//										}
-//									}
-//								}
-//						}
-//					}
 					feasible = InspectRefactor.inspectOverrideParents(value_mtd, sysType_src);
 					if(feasible){
 						//Override verification children
-						if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
-						if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-							for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
-								if ( code.getMethodsFromClass(clase) != null )
-									if( !code.getMethodsFromClass(clase).isEmpty() ){
-										for( String method : code.getMethodsFromClass(clase) ){
-											if( method.equals( value_mtd.get(0) ) ){
-												feasible = false;
-												break;
-											}
-										}
-									}
-							}
-						}
+						feasible = InspectRefactor.inspectOverrideChildren(value_mtd, sysType_src);
 					}
 				}
-
 
 				params.add(new OBSERVRefParam("mtd", value_mtd));
 			}else{

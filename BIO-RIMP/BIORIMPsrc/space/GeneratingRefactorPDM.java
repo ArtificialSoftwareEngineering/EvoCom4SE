@@ -54,52 +54,23 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 
 				//Creating the OBSERVRefParam for the mtd class
 				value_mtd  = new ArrayList<String>();
-				if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
+				if( !MetaphorCode.getMethodsFromClass(sysType_src).isEmpty() ){
 
-					IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
+					IntUniform numMtdObs = new IntUniform ( MetaphorCode.getMethodsFromClass(sysType_src).size() );
 
-					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
+					value_mtd.add((String) MetaphorCode.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate() ]);
 
 					//Override verification parents 
-//					if( code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) != null )
-//					if( !code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-//						for( TypeDeclaration clase : code.getBuilder().getParentClasses().get( sysType_src.getQualifiedName()) ){
-//							if ( code.getMethodsFromClass(clase) != null )
-//								if( !code.getMethodsFromClass(clase).isEmpty() ){
-//									for( String method : code.getMethodsFromClass(clase) ){
-//										if( method.equals( value_mtd.get(0) ) ){
-//											feasible = false;
-//											break;
-//										}
-//									}
-//								}
-//						}
-//					}
 					feasible = InspectRefactor.inspectOverrideParents(value_mtd, sysType_src);
 
 					if(feasible){
 						//Override verification children
-						if( code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) != null )
-						if( !code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()).isEmpty() ){
-							for( TypeDeclaration clase : code.getBuilder().getChildClasses().get( sysType_src.getQualifiedName()) ){
-								if ( code.getMethodsFromClass(clase) != null )
-									if( !code.getMethodsFromClass(clase).isEmpty() ){
-										for( String method : code.getMethodsFromClass(clase) ){
-											if( method.equals( value_mtd.get(0) ) ){
-												feasible = false;
-												break;
-											}
-										}
-									}
-							}
-						}
+						feasible = InspectRefactor.inspectOverrideChildren(value_mtd, sysType_src);
 					}
 
 					if( feasible ){
 						//+Verification of method not constructor
-//						if(value_mtd.get(0).equals(sysType_src.getName()))
-//							feasible = false;
 						feasible = InspectRefactor.inspectMethodNotConstructor(value_mtd, sysType_src);					
 						}
 
@@ -113,8 +84,8 @@ public class GeneratingRefactorPDM extends GeneratingRefactor {
 
 			//Verification of SRCSupClassTGT
 			//Retriving all child classes and choosing randomly
-			if(! code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
-				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
+			if(! MetaphorCode.getBuilder().getChildClasses().get(sysType_src.getQualifiedName()).isEmpty() ){
+				List<TypeDeclaration> clases = MetaphorCode.getBuilder().getChildClasses().get(sysType_src.getQualifiedName());
 				RandBool gC = new RandBool();
 				do{
 					for(TypeDeclaration clase : clases){

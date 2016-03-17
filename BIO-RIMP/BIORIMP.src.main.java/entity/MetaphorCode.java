@@ -16,8 +16,15 @@ import edu.wayne.cs.severe.redress2.controller.metric.CodeMetric;
 import edu.wayne.cs.severe.redress2.entity.ProgLang;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import unalcol.types.collection.bitarray.BitArray;
-import unalcol.types.collection.bitarray.BitArrayConverter;
+import entities.RefKey;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
+//import com.google.common.base.MoreObjects;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
 /**
  * @author Daavid
@@ -63,7 +70,6 @@ public final class MetaphorCode {
 	}
 	
 	//Method for adding a class into the HashMap
-	
 	public void addClasstoHash(String pack, String name){
 		this.mapNewClass.put(COUNTER++, 
 				new TypeDeclaration(pack,name));
@@ -105,7 +111,6 @@ public final class MetaphorCode {
 		return builder;
 	}
 
-
 	public List<TypeDeclaration> getSysTypeDcls() {
 		return sysTypeDcls;
 	}
@@ -130,10 +135,30 @@ public final class MetaphorCode {
 		return systemPath;
 	}
 
-
 	public String getSysName() {
 		return sysName;
 	}
-
+	
+	public void RefactoringCache(){
+		 //create a cache for employees based on their employee id
+	      LoadingCache<RefKey, Double> refactoringCache = 
+	         (LoadingCache<RefKey, Double>) CacheBuilder.newBuilder()
+		    .maximumSize(100) // maximum 100 records can be cached
+		    .expireAfterAccess(30, TimeUnit.MINUTES) // cache will expire after 30 minutes of access
+		    .build(new CacheLoader<RefKey, Double>(){ // build the cacheloader
+		    /*
+		       @Override
+		       public RefKey load(String empId) throws Exception {
+		          //make the expensive call
+		          return getFromDatabase(empId);
+		       }
+*/
+			@Override
+			public Double load(RefKey arg0) throws Exception {
+				// TODO Auto-generated method stub
+				return null;
+			} 
+		    });
+	}
 	
 }

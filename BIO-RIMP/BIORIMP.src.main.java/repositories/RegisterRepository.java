@@ -1,5 +1,6 @@
 package repositories;
 
+import entities.RefKey;
 import entities.Register;
 
 import java.sql.PreparedStatement;
@@ -213,6 +214,56 @@ public class RegisterRepository extends Repository<Register> {
                 statement.setString(index++, refactorID);
                 if(!mth.isEmpty())statement.setString(index++, mth);
                 if(!fld.isEmpty())statement.setString(index, fld);
+                ResultSet resultSet = statement.executeQuery();
+
+
+                while(resultSet.next()){
+                    results.add(resultEntity(resultSet));
+                }
+
+                resultSet.close();
+                statement.close();
+                connection.close();
+
+            }catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return results;
+    }
+    
+    public List<Register> getRegistersByClass(RefKey refKey){
+        getConnection();
+        List<Register> results = new ArrayList();
+        if(connection!=null){
+            try{
+                String sourceQ ="";
+                if(!refKey.getSrc().isEmpty()) {
+                    for (String sr : refKey.getSrc().split(",")) {
+                        sourceQ += " AND ";
+                        sourceQ += Register.COLUMN_SOURCES + " LIKE '%" + sr + "%' ";
+                    }
+                    sourceQ += " AND LENGTH(" + Register.COLUMN_SOURCES + ") =" + refKey.getSrc().length();
+                }
+                String targetQ = "";
+                if(!refKey.getTgt().isEmpty()) {
+                    for (String tg : refKey.getTgt().split(",")) {
+                        targetQ += " AND ";
+                        targetQ += Register.COLUMN_TARGETS + " LIKE '%" + tg + "%' ";
+                    }
+                    targetQ += " AND LENGTH(" + Register.COLUMN_TARGETS + ") =" + refKey.getTgt().length();
+                }
+                String query = "SELECT * FROM " + TABLE_NAME + " WHERE " + Register.COLUMN_REFACTOR + " = ?"+ sourceQ + targetQ;
+                query += refKey.getMth().isEmpty()?"":" AND "+Register.COLUMN_METHOD+ "= ? ";
+                query += refKey.getFld().isEmpty()?"":" AND "+ Register.COLUMN_FIELD +"= ?";
+                query += " ORDER BY "+Register.COLUMN_CLASS;
+
+
+                int index = 1;
+                PreparedStatement statement = connection.prepareStatement(query);
+                statement.setString(index++, refKey.getRefactorID());
+                if(!refKey.getMth().isEmpty())statement.setString(index++, refKey.getMth());
+                if(!refKey.getFld().isEmpty())statement.setString(index, refKey.getFld());
                 ResultSet resultSet = statement.executeQuery();
 
 

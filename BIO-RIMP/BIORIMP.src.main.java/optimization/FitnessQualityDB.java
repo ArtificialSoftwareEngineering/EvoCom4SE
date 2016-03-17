@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Scanner;
+import java.util.concurrent.ExecutionException;
 
 import edu.wayne.cs.severe.redress2.controller.MetricCalculator;
 import edu.wayne.cs.severe.redress2.entity.*;
@@ -24,6 +25,7 @@ import edu.wayne.cs.severe.redress2.exception.CompilUnitException;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import edu.wayne.cs.severe.redress2.exception.WritingException;
 import edu.wayne.cs.severe.redress2.io.MetricsReader;
+import entities.RefKey;
 import entities.Register;
 import entity.MetaphorCode;
 import repositories.RegisterRepository;
@@ -338,20 +340,39 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					mtd = "-1";
 				}
 			}
-
-            RegisterRepository repo = new RegisterRepository();
-            List<Register> listMetric = new ArrayList<>();
+			
+			//DataBase vs Caching Process
+			RefKey refKey = null;
+			
             if (acronym.equals("EM") || acronym.equals("IM") || acronym.equals("RMMO")) {//-> Only matters src + mtd
-                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "");
+            	refKey = new RefKey(acronym, src, "", mtd, "");
+            	//listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "");
             } else if (acronym.equals("MF") || acronym.equals("PDF") || acronym.equals("PUF")) {//->Only matters src+tgt+fld
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", fld);
+            	refKey = new RefKey(acronym, src, tgt, "", fld);
+            	//listMetric = repo.getRegistersByClass(acronym, src, tgt, "", fld);
             } else if (acronym.equals("MM") || acronym.equals("PDM") || acronym.equals("PUM")) {//->Only matters src+mtd+tgt
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, mtd, "");
+            	refKey = new RefKey(acronym, src, tgt, mtd, "");
+            	//listMetric = repo.getRegistersByClass(acronym, src, tgt, mtd, "");
             } else if (acronym.equals("RDI") || acronym.equals("RID")) {//->Only matters src+tgt
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", "");
+            	refKey = new RefKey(acronym, src, tgt, "", "");
+            	//listMetric = repo.getRegistersByClass(acronym, src, tgt, "", "");
             } else if (acronym.equals("EC")) {//->Only matters src+fld+mtd
-                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+            	refKey = new RefKey(acronym, src, "", mtd, fld);
+            	//listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
             }
+            /**
+             * Have to decide between cache memory and database for loading
+             */
+            List<Register> listMetric = new ArrayList<>();
+            
+            try {
+				listMetric = MetaphorCode.RefactoringCache().get( refKey );
+			} catch (ExecutionException e) {
+				e.printStackTrace();
+			}
+            //listMetric = repo.getRegistersByClass(refKey);
+            
+            //End catching vs database
 
 
             LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
@@ -412,10 +433,19 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 					mtd = "-1";
 				}
 
-				RegisterRepository repo = new RegisterRepository();
+				//RegisterRepository repo = new RegisterRepository();
 				List<Register> listMetric = new ArrayList<>();
-
-				listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+				RefKey refKey = new RefKey(acronym, src, "", mtd, fld);
+				//listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+				/**
+	             * Have to decide between cache memory and database for loading
+	             */
+	          
+	            try {
+					listMetric = MetaphorCode.RefactoringCache().get( refKey );
+				} catch (ExecutionException e) {
+					e.printStackTrace();
+				}
 
  				LinkedHashMap<String, Double> metricList = new LinkedHashMap<String, Double>();
 				LinkedHashMap<String, LinkedHashMap<String, Double>> clasesList = new LinkedHashMap<String, LinkedHashMap<String, Double>>();

@@ -567,7 +567,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
         Double minPrev = Collections.min(SUA_prev_metric.values());
         Double maxPrev = Collections.max(SUA_prev_metric.values());
-
+        
+        //Vector weights for metrics
         double W[] = new double[SUA_metric.size()];
         double w = (double) 1 / (double) SUA_metric.size();
 

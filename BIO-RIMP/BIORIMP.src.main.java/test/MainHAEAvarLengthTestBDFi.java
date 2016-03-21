@@ -73,13 +73,14 @@ import unalcol.types.real.array.DoubleArrayPlainWrite;
 
 public class MainHAEAvarLengthTestBDFi {
 
-	public static void refactor( int iter){
+	public static void refactor( int iter , String systems){
 		//Tracking computational time
 		long start = System.currentTimeMillis();
 		
 		//First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
-		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+		//String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/"+systems+"/src", "-s", "     "+systems+"      " };
 		//MainMetrics.main(args);
 
 		//Second Step: Create the structures for the prediction
@@ -92,10 +93,10 @@ public class MainHAEAvarLengthTestBDFi {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		 VarLengthOperRefSpace space = new VarLengthOperRefSpace( 5, 20, metaphor );
+		 VarLengthOperRefSpace space = new VarLengthOperRefSpace( 5, 9, metaphor );
 		 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor,"HAEAVAR_" + iter);		
+		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor,systems+"_HAEAVAR_" + iter);		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
@@ -103,13 +104,13 @@ public class MainHAEAvarLengthTestBDFi {
 		//PickComponents pick = new PermutationPick(DIM/2); // It can be set to null if the mutation operator is applied to every component of the solution array
 		//AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can be set to null if no mutation adaptation is required
 		//IntensityMutation mutation = new IntensityMutation( 0.1, random, pick, adapt );
-		RefOperAddGen add = new RefOperAddGen(2, 5, 10, metaphor);
-		RefOperDelGen del = new RefOperDelGen(2, 5, 20, metaphor);
+		RefOperAddGen add = new RefOperAddGen(1, 5, 9, metaphor);
+		RefOperDelGen del = new RefOperDelGen(1, 5, 9, metaphor);
 		ArityTwo< List<RefactoringOperation> > xover = new RefOperJoin();
 		
 		// Search method
 		int POPSIZE = 20;
-		int MAXITERS = 40;
+		int MAXITERS = 100;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = add;
@@ -137,21 +138,25 @@ public class MainHAEAvarLengthTestBDFi {
 		Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
 		
 		long end = System.currentTimeMillis();
-		System.out.println(iter+"__" + solution.quality() + "=" + solution.value() +"/n" );
-		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"/n" );
+		System.out.println( solution.quality() + "=" + solution.value() );	
+		escribirTextoArchivo(iter+"__" + solution.quality() + "=" + solution.value() );
+		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"\n" );
 	}
 
 	public static void main(String[] args){
+		String systems = "acra";
 		for(int i=0; i<30; i++){
-			refactor( i );
+			refactor( i , systems);
 		}
 		// binary(); // Uncomment if testing binary valued functions
 		//binary2real(); // Uncomment if you want to try the multi-level search method
 
 	}
 	
-	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "T_TEST_CCODEC_HAEAVAR_JAR.txt";
+	public static void escribirTextoArchivo( String texto  ) {
+		
+		String systems = "acra";
+		String ruta = systems + "_T_TEST_HAEAVAR_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

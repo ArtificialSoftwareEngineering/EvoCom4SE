@@ -58,19 +58,23 @@ import unalcol.types.real.array.DoubleArrayPlainWrite;
 public class MainHillClimbing {
 
 	public static void main(String[] argss) {
+		String systems = "acra";
 		for(int i=0; i<30; i++){
-			refactorHill( i );
+			refactorHill( i , systems );
 		}
 		
 	}
 	
-	public static void refactorHill(int iter){
+	public static void refactorHill(int iter , String systems){
+		//Tracking computational time
+		long start = System.currentTimeMillis();
+		
 		// First Step: Calculate Actual Metrics
 		String userPath = System.getProperty("user.dir");
 		// String[] args = { "-l", "Java", "-p",
 		// userPath+"\\test_data\\code\\evolutionaryagent\\src","-s", "
 		// evolutionaryagent " };
-		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/"+systems+"/src", "-s", "     "+systems+"      " };
 
 		// MainMetrics.main(args);
 
@@ -87,7 +91,7 @@ public class MainHillClimbing {
 		// Optimization Function
 		// OptimizationFunction<List<RefactoringOperation>> function = new
 		// GeneralizedImpactQuality(metaphor,"HILLCLIMBING");
-		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, "HILLCLIMBING_"+ iter);
+		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems+"_HILLCLIMBING_"+ iter);
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
 																											// remove
 																											// the
@@ -100,7 +104,7 @@ public class MainHillClimbing {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		int MAXITERS = 1000;
+		int MAXITERS = 2000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -124,13 +128,16 @@ public class MainHillClimbing {
 		// Apply the search method
 		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
 
-		System.out.println("QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value());
-		escribirTextoArchivo(iter+"_QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value());
+		long end = System.currentTimeMillis();
+		System.out.println( solution.quality() + "=" + solution.value() );	
+		escribirTextoArchivo(iter+"__" + solution.quality() + "=" + solution.value() );
+		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"\n" );
 
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "T_CCODEC_HILL.txt";
+		String systems = "acra";
+		String ruta = systems+"_T_HILL.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

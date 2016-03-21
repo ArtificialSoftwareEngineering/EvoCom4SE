@@ -48,7 +48,7 @@ import unalcol.tracer.Tracer;
 public class MainHAEATestBDFi {
 	
 	@Test
-	public static void refactor( int iter ){
+	public static void refactor( int iter, String systems ){
 		//Tracking computational time
 		long start = System.currentTimeMillis();
 		
@@ -56,7 +56,7 @@ public class MainHAEATestBDFi {
 		//String userPath = System.getProperty("user.dir")+"/BIO-RIMP";
 		String userPath = System.getProperty("user.dir");
 		//String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\acra\\src","-s", "     acra      " };
-		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/ccodec/src", "-s", "     ccodec      " };
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/"+systems+"/src", "-s", "     "+systems+"      " };
 	
 		//MainMetrics.main(args);
 
@@ -74,7 +74,7 @@ public class MainHAEATestBDFi {
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, "HAEA_" + iter);		
+		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems +"_HAEA_" + iter);		
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
@@ -84,12 +84,12 @@ public class MainHAEATestBDFi {
 		//IntensityMutation mutation = new IntensityMutation( 0.1, random, pick, adapt );
 		RefOperMutation mutation = new RefOperMutation( 0.5, metaphor );
 		ArityTwo< List<RefactoringOperation> > xover = new RefOperXOver();
-		ArityOne< List<RefactoringOperation> > transpositionRef = new RefOperTransposition();
+		//ArityOne< List<RefactoringOperation> > transpositionRef = new RefOperTransposition();
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
 		int POPSIZE = 20;
-		int MAXITERS = 40;
+		int MAXITERS = 80;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -111,13 +111,13 @@ public class MainHAEATestBDFi {
 
 		ConsoleTracer tracer = new ConsoleTracer(); 
 		FileTracer filetracergoal = new FileTracer("fileTracerCCODECGOAL_"+iter, '\n');
-		FileTracer filetraceralgo = new FileTracer("fileTracerCCODECALGO_"+iter, '\n');
-		FileTracer filetracerfunci = new FileTracer("fileTracerCCODEfunci_"+iter, '\n');
+		//FileTracer filetraceralgo = new FileTracer("fileTracerCCODECALGO_"+iter, '\n');
+		//FileTracer filetracerfunci = new FileTracer("fileTracerCCODEfunci_"+iter, '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
 		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
-		Tracer.addTracer(search, filetraceralgo); // Uncomment if you want to trace the hill-climbing algorithm
-		Tracer.addTracer(function, filetracerfunci);
+		//Tracer.addTracer(search, filetraceralgo); // Uncomment if you want to trace the hill-climbing algorithm
+		//Tracer.addTracer(function, filetracerfunci);
 
 
 		// Apply the search method
@@ -126,15 +126,16 @@ public class MainHAEATestBDFi {
 		long end = System.currentTimeMillis();
 		System.out.println( solution.quality() + "=" + solution.value() );	
 		escribirTextoArchivo(iter+"__" + solution.quality() + "=" + solution.value() );
-		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"/n" );
+		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"\n" );
 		//The assertion verifies if the time taken is less than four hours in milliseconds
 		assertTrue( (end - start) < 1.44E+7 );
 	}
 
 
 	public static void main(String[] args){
+		String systems = "acra";
 		for(int i=0; i<30; i++){
-			refactor( i );
+			refactor( i , systems );
 		}
 		 // Uncomment if testing real valued functions
 		// binary(); // Uncomment if testing binary valued functions
@@ -143,7 +144,8 @@ public class MainHAEATestBDFi {
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String ruta = "T_TEST_CCODEC_JAR.txt";
+		String systems = "acra";
+		String ruta = systems+"_T_TEST_HAEAFIX_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			//Escribimos en el fichero un String y un caracter 97 (a)

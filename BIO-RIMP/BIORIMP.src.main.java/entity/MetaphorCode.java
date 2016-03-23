@@ -145,7 +145,7 @@ public final class MetaphorCode {
 		 //create a cache for refactorings based on their tgt,src,fld,mth and refid
 	      LoadingCache<RefKey, List<Register> > refactoringCache = CacheBuilder.newBuilder()
 		    .maximumSize(1000000) // maximum 1000000 records can be cached
-		    .expireAfterAccess(60, TimeUnit.MINUTES) // cache will expire after 30 minutes of access
+		    .expireAfterAccess(90, TimeUnit.MINUTES) // cache will expire after 30 minutes of access
 		    .build(
 		    		new CacheLoader<RefKey, List<Register> >(){ // build the cacheloader
 					@Override

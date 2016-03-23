@@ -31,6 +31,7 @@ import unalcol.io.Write;
 import unalcol.optimization.OptimizationFunction;
 import unalcol.optimization.OptimizationGoal;
 import unalcol.optimization.hillclimbing.HillClimbing;
+import unalcol.optimization.simulatedannealing.SimulatedAnnealing;
 import unalcol.search.Goal;
 import unalcol.search.Solution;
 import unalcol.search.SolutionDescriptors;
@@ -48,9 +49,10 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
 	public static void main(String[] args) {
-		String systems = "acra";
+		String systems = "abdera";
 		for(int i=0; i<30; i++){
 			HILLrefactor( i , systems );
+			SIMULATEDrefactor(i , systems );
 			HAEArefactor( i , systems );
 			HAEAVARrefactor( i , systems );
 		}
@@ -86,7 +88,7 @@ public class MainOptimization {
 
 		// Search method
 		int POPSIZE = 20;
-		int MAXITERS = 80;
+		int MAXITERS = 40;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -149,7 +151,7 @@ public class MainOptimization {
 		
 		// Search method
 		int POPSIZE = 20;
-		int MAXITERS = 100;
+		int MAXITERS = 50;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = add;
@@ -218,7 +220,7 @@ public class MainOptimization {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		int MAXITERS = 2000;
+		int MAXITERS = 1000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -249,9 +251,65 @@ public class MainOptimization {
 
 	}
 	
+	public static void SIMULATEDrefactor(int iter , String systems){
+		//Tracking computational time
+		long start = System.currentTimeMillis();
+		
+		//First Step: Calculate Actual Metrics
+		String userPath = System.getProperty("user.dir");
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/"+systems+"/src", "-s", "     "+systems+"      " };
+			
+		//Second Step: Create the structures for the prediction
+		MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
+		init.main(args);
+		MetaphorCode metaphor = new MetaphorCode(init);
+
+		//Third Step: Optimization 
+		
+		// Search Space definition
+        int DIM = 7;
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
+
+        // Variation definition
+        RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
+
+        // Optimization Function
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor,systems+"_SIMULATED_" + iter);		
+        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
+        
+    	
+        // Search method
+        int MAXITERS = 1000;
+        SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
+
+
+        // Tracking the goal evaluations
+        SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
+        Descriptors.set(Solution.class, desc);
+        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+        List<RefactoringOperation> ref= new ArrayList<RefactoringOperation>();
+        Write.set(ref , write);
+        WriteDescriptors w_desc = new WriteDescriptors();
+        Write.set(Solution.class, w_desc);
+        
+        ConsoleTracer tracer = new ConsoleTracer();
+		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
+		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
+		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
+        
+        // Apply the search method
+        Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
+        
+        long end = System.currentTimeMillis();
+		System.out.println( solution.quality() + "=" + solution.value() );	
+		escribirTextoArchivo(iter+"__" + solution.quality() + "=" + solution.value() );
+		escribirTextoArchivo(iter + "_time_:_"+ (end - start) +"\n" );	
+	}
+	
 	public static void escribirTextoArchivo( String texto ) {
-		String systems = "acra";
-		String ruta = systems+"_T_TEST_HAEAFIX_JAR.txt";
+		String systems = "abdera";
+		String ruta = systems+"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			fw.write( texto );

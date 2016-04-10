@@ -8,6 +8,7 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
+import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import entity.MetaphorCode;
 import operators.ClassTransposition;
 import operators.RefOperAddGen;
@@ -49,13 +50,27 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
 	public static void main(String[] args) {
-		String systems = "abdera";
-		for(int i=0; i<30; i++){
-			HILLrefactor( i , systems );
-			SIMULATEDrefactor(i , systems );
-			HAEArefactor( i , systems );
-			HAEAVARrefactor( i , systems );
-		}
+		String systems = "dataset01";
+		measureMetrics( systems );
+		/*
+		//for(int i=0; i<30; i++)
+			HILLrefactor( 0 , systems );
+		//for(int i=0; i<30; i++)
+			SIMULATEDrefactor(0 , systems );
+		//for(int i=0; i<30; i++)
+			HAEArefactor( 0 , systems );
+		//for(int i=0; i<30; i++)
+			HAEAVARrefactor( 0 , systems );*/
+
+	}
+	
+	private static void measureMetrics( String systems ){
+		// First Step: Calculate Actual Metrics
+		String userPath = System.getProperty("user.dir");
+		String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/" + systems + "/src", "-s",
+				"     " + systems + "      " };
+		MainMetrics init = new MainMetrics ();
+		init.main(args);
 
 	}
 	
@@ -87,7 +102,7 @@ public class MainOptimization {
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		int POPSIZE = 20;
+		final int POPSIZE = 20;
 		int MAXITERS = 40;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
@@ -134,7 +149,7 @@ public class MainOptimization {
 		//Second Step: Create the structures for the prediction
 		MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
 		init.main(args);
-		MetaphorCode metaphor = new MetaphorCode(init);
+		final MetaphorCode metaphor = new MetaphorCode(init);
 
 		//Third Step: Optimization 
 		// Search Space definition
@@ -151,7 +166,7 @@ public class MainOptimization {
 		
 		// Search method
 		int POPSIZE = 20;
-		int MAXITERS = 50;
+		final int MAXITERS = 50;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = add;
@@ -201,7 +216,7 @@ public class MainOptimization {
 
 		// Third Step: Optimization
 		// Search Space definition
-		int DIM = 7;
+		final int DIM = 7;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
 
 		// Optimization Function
@@ -220,7 +235,7 @@ public class MainOptimization {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		int MAXITERS = 1000;
+		final int MAXITERS = 1000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -267,7 +282,7 @@ public class MainOptimization {
 		//Third Step: Optimization 
 		
 		// Search Space definition
-        int DIM = 7;
+        final int DIM = 7;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
 
         // Variation definition
@@ -279,7 +294,7 @@ public class MainOptimization {
         
     	
         // Search method
-        int MAXITERS = 1000;
+        final int MAXITERS = 1000;
         SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
 
 
@@ -308,7 +323,7 @@ public class MainOptimization {
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String systems = "abdera";
+		String systems = "dataset01";
 		String ruta = systems+"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){

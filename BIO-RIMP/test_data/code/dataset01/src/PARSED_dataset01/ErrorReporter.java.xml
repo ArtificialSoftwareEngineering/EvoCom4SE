@@ -1,0 +1,1135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\David\git\biorimp\BIO-RIMP\test_data\code\dataset01\src\main\java\org\acra\ErrorReporter.java"><comment type="block">/*
+ *  Copyright 2010 Emmanuel Astier &amp; Kevin Gaudin
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */</comment>
+<package>package <name><name>org</name>.<name>acra</name></name>;</package>
+
+<import>import <name><name>android</name>.<name>Manifest</name>.<name>permission</name></name>;</import>
+<import>import <name><name>android</name>.<name>app</name>.<name>Activity</name></name>;</import>
+<import>import <name><name>android</name>.<name>app</name>.<name>Application</name></name>;</import>
+<import>import <name><name>android</name>.<name>app</name>.<name>Notification</name></name>;</import>
+<import>import <name><name>android</name>.<name>app</name>.<name>NotificationManager</name></name>;</import>
+<import>import <name><name>android</name>.<name>app</name>.<name>PendingIntent</name></name>;</import>
+<import>import <name><name>android</name>.<name>content</name>.<name>Context</name></name>;</import>
+<import>import <name><name>android</name>.<name>content</name>.<name>Intent</name></name>;</import>
+<import>import <name><name>android</name>.<name>content</name>.<name>SharedPreferences</name></name>;</import>
+<import>import <name><name>android</name>.<name>content</name>.<name>pm</name>.<name>PackageInfo</name></name>;</import>
+<import>import <name><name>android</name>.<name>os</name>.<name>Bundle</name></name>;</import>
+<import>import <name><name>android</name>.<name>os</name>.<name>Looper</name></name>;</import>
+<import>import <name><name>android</name>.<name>text</name>.<name>format</name>.<name>Time</name></name>;</import>
+<import>import <name><name>android</name>.<name>util</name>.<name>Log</name></name>;</import>
+<import>import <name><name>android</name>.<name>widget</name>.<name>Toast</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>annotation</name>.<name>ReportsCrashes</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>Compatibility</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>ConfigurationCollector</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>CrashReportData</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>collector</name>.<name>CrashReportDataFactory</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>jraf</name>.<name>android</name>.<name>util</name>.<name>activitylifecyclecallbackscompat</name>.<name>ActivityLifecycleCallbacksCompat</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>jraf</name>.<name>android</name>.<name>util</name>.<name>activitylifecyclecallbackscompat</name>.<name>ApplicationHelper</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>sender</name>.<name>EmailIntentSender</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>sender</name>.<name>HttpSender</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>sender</name>.<name>ReportSender</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>util</name>.<name>PackageManagerWrapper</name></name>;</import>
+<import>import <name><name>org</name>.<name>acra</name>.<name>util</name>.<name>ToastSender</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>File</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>Thread</name>.<name>UncaughtExceptionHandler</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>ref</name>.<name>WeakReference</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>ArrayList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashMap</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Map</name></name>;</import>
+
+<import>import static <name><name>org</name>.<name>acra</name>.<name>ACRA</name>.<name>LOG_TAG</name></name>;</import>
+<import>import static <name><name>org</name>.<name>acra</name>.<name>ReportField</name>.<name>IS_SILENT</name></name>;</import>
+
+<comment type="javadoc">/**
+ * &lt;p&gt;
+ * The ErrorReporter is a Singleton object in charge of collecting crash context
+ * data and sending crash reports. It registers itself as the Application's
+ * Thread default {@link UncaughtExceptionHandler}.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * When a crash occurs, it collects data of the crash context (device, system,
+ * stack trace...) and writes a report file in the application private
+ * directory. This report file is then sent:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;immediately if {@link ReportsCrashes#mode} is set to
+ * {@link ReportingInteractionMode#SILENT} or
+ * {@link ReportingInteractionMode#TOAST},&lt;/li&gt;
+ * &lt;li&gt;on application start if in the previous case the transmission could not
+ * technically be made,&lt;/li&gt;
+ * &lt;li&gt;when the user accepts to send it if {@link ReportsCrashes#mode()} is set
+ * to {@link ReportingInteractionMode#NOTIFICATION}.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * If an error occurs while sending a report, it is kept for later attempts.
+ * &lt;/p&gt;
+ */</comment>
+<class><specifier>public</specifier> class <name>ErrorReporter</name> <super><implements>implements <name>Thread</name>.<name>UncaughtExceptionHandler</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>enabled</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>Application</name></type> <name>mContext</name></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>SharedPreferences</name></type> <name>prefs</name></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Contains the active {@link ReportSender}s.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>ReportSender</name></argument>&gt;</argument_list></name></type> <name>mReportSenders</name> =<init> <expr>new <call><name><name>ArrayList</name><argument_list>&lt;<argument><name>ReportSender</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CrashReportDataFactory</name></type> <name>crashReportDataFactory</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>CrashReportFileNameParser</name></type> <name>fileNameParser</name> =<init> <expr>new <call><name>CrashReportFileNameParser</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// A reference to the system's previous default UncaughtExceptionHandler</comment>
+    <comment type="line">// kept in order to execute the default exception handling after sending the</comment>
+    <comment type="line">// report.</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name><name>Thread</name>.<name>UncaughtExceptionHandler</name></name></type> <name>mDfltExceptionHandler</name></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name><name>WeakReference</name><argument_list>&lt;<argument><name>Activity</name></argument>&gt;</argument_list></name></type> <name>lastActivityCreated</name> =<init> <expr>new <call><name><name>WeakReference</name><argument_list>&lt;<argument><name>Activity</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * This is used to wait for the crash toast to end it's display duration
+     * before killing the Application.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>boolean</name></type> <name>toastWaitEnded</name> =<init> <expr>true</expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>ExceptionHandlerInitializer</name></type> <name>NULL_EXCEPTION_HANDLER_INITIALIZER</name> =<init> <expr>new <class><super><name>ExceptionHandlerInitializer</name></super><argument_list>()</argument_list> <block>{
+        <function><type><annotation>@<name>Override</name></annotation>
+        <specifier>public</specifier> <name>void</name></type> <name>initializeExceptionHandler</name><parameter_list>(<param><decl><type><name>ErrorReporter</name></type> <name>reporter</name></decl></param>)</parameter_list> <block>{
+        }</block></function>
+    }</block></class></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <name>volatile</name> <name>ExceptionHandlerInitializer</name></type> <name>exceptionHandlerInitializer</name> =<init> <expr><name>NULL_EXCEPTION_HANDLER_INITIALIZER</name></expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Used to create a new (non-cached) PendingIntent each time a new crash occurs.
+     */</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <name>int</name></type> <name>mNotificationCounter</name> =<init> <expr>0</expr></init></decl>;</decl_stmt>
+
+    <comment type="javadoc">/**
+     * Can only be constructed from within this class.
+     *
+     * @param context
+     *            Context for the application in which ACRA is running.
+     * @param prefs
+     *            SharedPreferences used by ACRA.
+     * @param enabled
+     *            Whether this ErrorReporter should capture Exceptions and
+     *            forward their reports.
+     */</comment>
+    <constructor><name>ErrorReporter</name><parameter_list>(<param><decl><type><name>Application</name></type> <name>context</name></decl></param>, <param><decl><type><name>SharedPreferences</name></type> <name>prefs</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>enabled</name></decl></param>)</parameter_list> <block>{
+
+        <expr_stmt><expr><name><name>this</name>.<name>mContext</name></name> = <name>context</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>prefs</name></name> = <name>prefs</name></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>enabled</name></name> = <name>enabled</name></expr>;</expr_stmt>
+
+        <comment type="line">// Store the initial Configuration state.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>initialConfiguration</name> =<init> <expr><call><name><name>ConfigurationCollector</name>.<name>collectConfiguration</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Sets the application start date.</comment>
+        <comment type="line">// This will be included in the reports, will be helpful compared to</comment>
+        <comment type="line">// user_crash date.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Time</name></type> <name>appStartDate</name> =<init> <expr>new <call><name>Time</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>appStartDate</name>.<name>setToNow</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><call><name><name>Compatibility</name>.<name>getAPILevel</name></name><argument_list>()</argument_list></call> &gt;= 14</expr>)</condition><then> <block>{ <comment type="line">// ActivityLifecycleCallback</comment>
+            <comment type="line">// only available for API14+</comment>
+            <expr_stmt><expr><call><name><name>ApplicationHelper</name>.<name>registerActivityLifecycleCallbacks</name></name><argument_list>(<argument><expr><name>context</name></expr></argument>, <argument><expr>new <class><super><name>ActivityLifecycleCallbacksCompat</name></super><argument_list>()</argument_list> <block>{
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityCreated</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>, <param><decl><type><name>Bundle</name></type> <name>savedInstanceState</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityCreated " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                    <if>if <condition>(<expr>!(<name>activity</name> <name>instanceof</name> <name>BaseCrashReportDialog</name>)</expr>)</condition><then> <block>{
+                        <comment type="line">// Ignore CrashReportDialog because we want the last</comment>
+                        <comment type="line">// application Activity that was started so that we can</comment>
+                        <comment type="line">// explicitly kill it off.</comment>
+                        <expr_stmt><expr><name>lastActivityCreated</name> = new <call><name><name>WeakReference</name><argument_list>&lt;<argument><name>Activity</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>activity</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    }</block></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityStarted</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityStarted " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityResumed</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityResumed " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityPaused</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityPaused " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityStopped</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityStopped " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivitySaveInstanceState</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>, <param><decl><type><name>Bundle</name></type> <name>outState</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>i</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivitySaveInstanceState " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>onActivityDestroyed</name><parameter_list>(<param><decl><type><name>Activity</name></type> <name>activity</name></decl></param>)</parameter_list> <block>{
+                    <if>if <condition>(<expr><name><name>ACRA</name>.<name>DEV_LOGGING</name></name></expr>)</condition><then>
+                        <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>i</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"onActivityDestroyed " + <call><name><name>activity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt></then></if>
+                }</block></function>
+            }</block></class></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <expr_stmt><expr><name>crashReportDataFactory</name> = new <call><name>CrashReportDataFactory</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><name>prefs</name></expr></argument>, <argument><expr><name>appStartDate</name></expr></argument>, <argument><expr><name>initialConfiguration</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// If mDfltExceptionHandler is not null, initialization is already done.</comment>
+        <comment type="line">// Don't do it twice to avoid losing the original handler.</comment>
+        <expr_stmt><expr><name>mDfltExceptionHandler</name> = <call><name><name>Thread</name>.<name>getDefaultUncaughtExceptionHandler</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>Thread</name>.<name>setDefaultUncaughtExceptionHandler</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></constructor>
+
+    <comment type="javadoc">/**
+     * @return the current instance of ErrorReporter.
+     * @throws IllegalStateException
+     *             if {@link ACRA#init(android.app.Application)} has not yet
+     *             been called.
+     * @deprecated since 4.3.0 Use {@link org.acra.ACRA#getErrorReporter()}
+     *             instead.
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <specifier>public</specifier> <specifier>static</specifier> <name>ErrorReporter</name></type> <name>getInstance</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr><call><name><name>ACRA</name>.<name>getErrorReporter</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Deprecated. Use {@link #putCustomData(String, String)}.
+     *
+     * @param key
+     *            A key for your custom data.
+     * @param value
+     *            The value associated to your key.
+     */</comment>
+    <function><type><annotation>@<name>Deprecated</name></annotation>
+    <annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>addCustomData</name><parameter_list>(<param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>crashReportDataFactory</name>.<name>putCustomData</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Use this method to provide the ErrorReporter with data of your running
+     * application. You should call this at several key places in your code the
+     * same way as you would output important debug data in a log file. Only the
+     * latest value is kept for each key (no history of the values is sent in
+     * the report).
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * The key/value pairs will be stored in the GoogleDoc spreadsheet in the
+     * "custom" column, as a text containing a 'key = value' pair on each line.
+     * &lt;/p&gt;
+     *
+     * @param key
+     *            A key for your custom data.
+     * @param value
+     *            The value associated to your key.
+     * @return The previous value for this key if there was one, or null.
+     * @see #removeCustomData(String)
+     * @see #getCustomData(String)
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>putCustomData</name><parameter_list>(<param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>crashReportDataFactory</name>.<name>putCustomData</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * &lt;p&gt;
+     * Use this method to perform additional initialization before the
+     * ErrorReporter handles a throwable. This can be used, for example, to put
+     * custom data using {@link #putCustomData(String, String)}, which is not
+     * available immediately after startup. It can be, for example, last 20
+     * requests or something else. The call is thread safe.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * {@link ExceptionHandlerInitializer#initializeExceptionHandler(ErrorReporter)}
+     * will be executed on the main thread in case of uncaught exception and on
+     * the caller thread of {@link #handleSilentException(Throwable)} or
+     * {@link #handleException(Throwable)}.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * Example. Add to the {@link Application#onCreate()}:
+     * &lt;/p&gt;
+     * 
+     * &lt;pre&gt;
+     * ACRA.getErrorReporter().setExceptionHandlerInitializer(new ExceptionHandlerInitializer() {
+     *     &lt;code&gt;@Override&lt;/code&gt; public void initializeExceptionHandler(ErrorReporter reporter) {
+     *         reporter.putCustomData("CUSTOM_ACCUMULATED_DATA_TAG", someAccumulatedData.toString);
+     *     }
+     * });
+     * &lt;/pre&gt;
+     * 
+     * @param initializer   The initializer. Can be &lt;code&gt;null&lt;/code&gt;.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setExceptionHandlerInitializer</name><parameter_list>(<param><decl><type><name>ExceptionHandlerInitializer</name></type> <name>initializer</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><name>exceptionHandlerInitializer</name> = (<name>initializer</name> != <name>null</name>) ? <name>initializer</name> : <name>NULL_EXCEPTION_HANDLER_INITIALIZER</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Removes a key/value pair from your reports custom data field.
+     *
+     * @param key
+     *            The key of the data to be removed.
+     * @return The value for this key before removal.
+     * @see #putCustomData(String, String)
+     * @see #getCustomData(String)
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>removeCustomData</name><parameter_list>(<param><decl><type><name>String</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>crashReportDataFactory</name>.<name>removeCustomData</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Removes all key/value pairs from your reports custom data field.
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>clearCustomData</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>crashReportDataFactory</name>.<name>clearCustomData</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Gets the current value for a key in your reports custom data field.
+     *
+     * @param key
+     *            The key of the data to be retrieved.
+     * @return The value for this key.
+     * @see #putCustomData(String, String)
+     * @see #removeCustomData(String)
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>String</name></type> <name>getCustomData</name><parameter_list>(<param><decl><type><name>String</name></type> <name>key</name></decl></param>)</parameter_list> <block>{
+        <return>return <expr><call><name><name>crashReportDataFactory</name>.<name>getCustomData</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>)</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Add a {@link ReportSender} to the list of active {@link ReportSender}s.
+     *
+     * @param sender
+     *            The {@link ReportSender} to be added.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>addReportSender</name><parameter_list>(<param><decl><type><name>ReportSender</name></type> <name>sender</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>mReportSenders</name>.<name>add</name></name><argument_list>(<argument><expr><name>sender</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Remove a specific instance of {@link ReportSender} from the list of
+     * active {@link ReportSender}s.
+     *
+     * @param sender
+     *            The {@link ReportSender} instance to be removed.
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>removeReportSender</name><parameter_list>(<param><decl><type><name>ReportSender</name></type> <name>sender</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>mReportSenders</name>.<name>remove</name></name><argument_list>(<argument><expr><name>sender</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Remove all {@link ReportSender} instances from a specific class.
+     *
+     * @param senderClass
+     *            ReportSender class whose instances should be removed.
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>removeReportSenders</name><parameter_list>(<param><decl><type><name><name>Class</name><argument_list>&lt;<argument><name>?</name></argument>&gt;</argument_list></name></type> <name>senderClass</name></decl></param>)</parameter_list> <block>{
+        <if>if <condition>(<expr><name><name>ReportSender</name>.<name><name/></name></name>class.<call><name>isAssignableFrom</name><argument_list>(<argument><expr><name>senderClass</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <for>for (<init><decl><type><name>ReportSender</name></type> <name>sender</name> :<range> <expr><name>mReportSenders</name></expr></range></decl></init>) <block>{
+                <if>if <condition>(<expr><call><name><name>senderClass</name>.<name>isInstance</name></name><argument_list>(<argument><expr><name>sender</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>mReportSenders</name>.<name>remove</name></name><argument_list>(<argument><expr><name>sender</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></for>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Clears the list of active {@link ReportSender}s. You should then call
+     * {@link #addReportSender(ReportSender)} or ACRA will not send any report
+     * anymore.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>removeAllReportSenders</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>mReportSenders</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Removes all previously set {@link ReportSender}s and set the given one as
+     * the new {@link ReportSender}.
+     *
+     * @param sender
+     *            ReportSender to set as the sole sender for this ErrorReporter.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setReportSender</name><parameter_list>(<param><decl><type><name>ReportSender</name></type> <name>sender</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>removeAllReportSenders</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>addReportSender</name><argument_list>(<argument><expr><name>sender</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="block">/*
+     * (non-Javadoc)
+     *
+     * @see
+     * java.lang.Thread.UncaughtExceptionHandler#uncaughtException(java.lang
+     * .Thread, java.lang.Throwable)
+     */</comment>
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>uncaughtException</name><parameter_list>(<param><decl><type><name>Thread</name></type> <name>t</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+        <try>try <block>{
+            <comment type="line">// If we're not enabled then just pass the Exception on to any</comment>
+            <comment type="line">// defaultExceptionHandler.</comment>
+            <if>if <condition>(<expr>!<name>enabled</name></expr>)</condition><then> <block>{
+                <if>if <condition>(<expr><name>mDfltExceptionHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"ACRA is disabled for " + <call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call>
+                        + " - forwarding uncaught Exception on to default ExceptionHandler"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>mDfltExceptionHandler</name>.<name>uncaughtException</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"ACRA is disabled for " + <call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call>
+                        + " - no default ExceptionHandler"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>,
+                          <argument><expr>"ACRA caught a " + <call><name><name>e</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getSimpleName</name><argument_list>()</argument_list></call> + " for " + <call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+                <return>return;</return>
+            }</block></then></if>
+
+            <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>,
+                  <argument><expr>"ACRA caught a " + <call><name><name>e</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getSimpleName</name><argument_list>()</argument_list></call> + " for " + <call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Building report"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Generate and send crash report</comment>
+            <expr_stmt><expr><call><name>reportBuilder</name><argument_list>()</argument_list></call>
+                .<call><name>uncaughtExceptionThread</name><argument_list>(<argument><expr><name>t</name></expr></argument>)</argument_list></call>
+                .<call><name>exception</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call>
+                .<call><name>endsApplication</name><argument_list>()</argument_list></call>
+                .<call><name>send</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Throwable</name></type> <name>fatality</name></decl></param>) <block>{
+            <comment type="line">// ACRA failed. Prevent any recursive call to</comment>
+            <comment type="line">// ACRA.uncaughtException(), let the native reporter do its job.</comment>
+            <if>if <condition>(<expr><name>mDfltExceptionHandler</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>mDfltExceptionHandler</name>.<name>uncaughtException</name></name><argument_list>(<argument><expr><name>t</name></expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * End the application.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>endApplication</name><parameter_list>(<param><decl><type><name>Thread</name></type> <name>uncaughtExceptionThread</name></decl></param>, <param><decl><type><name>Throwable</name></type> <name>th</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// TODO It would be better to create an explicit config attribute #letDefaultHandlerEndApplication</comment>
+        <comment type="line">// as the intent is clearer and would allows you to switch it off for SILENT.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>letDefaultHandlerEndApplication</name> =<init> <expr>(
+             <call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>mode</name><argument_list>()</argument_list></call> == <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name> ||
+            (<call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>mode</name><argument_list>()</argument_list></call> == <name><name>ReportingInteractionMode</name>.<name>TOAST</name></name> &amp;&amp; <call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>forceCloseDialogAfterToast</name><argument_list>()</argument_list></call>)
+        )</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>handlingUncaughtException</name> =<init> <expr><name>uncaughtExceptionThread</name> != <name>null</name></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>handlingUncaughtException</name> &amp;&amp; <name>letDefaultHandlerEndApplication</name> &amp;&amp; (<name>mDfltExceptionHandler</name> != <name>null</name>)</expr>)</condition><then> <block>{
+            <comment type="line">// Let the system default handler do it's job and display the force close dialog.</comment>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Handing Exception on to default ExceptionHandler"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>mDfltExceptionHandler</name>.<name>uncaughtException</name></name><argument_list>(<argument><expr><name>uncaughtExceptionThread</name></expr></argument>, <argument><expr><name>th</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <comment type="line">// If ACRA handles user notifications with a Toast or a Notification</comment>
+            <comment type="line">// the Force Close dialog is one more notification to the user...</comment>
+            <comment type="line">// We choose to close the process ourselves using the same actions.</comment>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr><call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call> + " fatal error : " + <call><name><name>th</name>.<name>getMessage</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>th</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// Trying to solve</comment>
+            <comment type="line">// https://github.com/ACRA/acra/issues/42#issuecomment-12134144</comment>
+            <comment type="line">// Determine the current/last Activity that was started and close</comment>
+            <comment type="line">// it. Activity#finish (and maybe it's parent too).</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>Activity</name></type> <name>lastActivity</name> =<init> <expr><call><name><name>lastActivityCreated</name>.<name>get</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>lastActivity</name> != <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>Log</name>.<name>i</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Finishing the last Activity prior to killing the Process"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>lastActivity</name>.<name>finish</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>Log</name>.<name>i</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Finished " + <call><name><name>lastActivity</name>.<name>getClass</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>lastActivityCreated</name>.<name>clear</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+            <expr_stmt><expr><call><name><name>android</name>.<name>os</name>.<name>Process</name>.<name>killProcess</name></name><argument_list>(<argument><expr><call><name><name>android</name>.<name>os</name>.<name>Process</name>.<name>myPid</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>System</name>.<name>exit</name></name><argument_list>(<argument><expr>10</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></else></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Send a report for this {@link Throwable} silently (forces the use of
+     * {@link ReportingInteractionMode#SILENT} for this report, whatever is the
+     * mode set for the application. Very useful for tracking difficult defects.
+     *
+     * @param e
+     *            The {@link Throwable} to be reported. If null the report will
+     *            contain a new Exception("Report requested by developer").
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>handleSilentException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Mark this report as silent.</comment>
+        <if>if <condition>(<expr><name>enabled</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>reportBuilder</name><argument_list>()</argument_list></call>
+                .<call><name>exception</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call>
+                .<call><name>forceSilent</name><argument_list>()</argument_list></call>
+                .<call><name>send</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"ACRA sent Silent report."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"ACRA is disabled. Silent report not sent."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Enable or disable this ErrorReporter. By default it is enabled.
+     *
+     * @param enabled
+     *            Whether this ErrorReporter should capture Exceptions and
+     *            forward them as crash reports.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setEnabled</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>enabled</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>Log</name>.<name>i</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"ACRA is " + (<name>enabled</name> ? "enabled" : "disabled") + " for " + <call><name><name>mContext</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>this</name>.<name>enabled</name></name> = <name>enabled</name></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Starts a Thread to start sending outstanding error reports.
+     *
+     * @param onlySendSilentReports
+     *            If true then only send silent reports.
+     * @param approveReportsFirst
+     *            If true then approve unapproved reports first.
+     * @return SendWorker that will be sending the report.s
+     */</comment>
+    <function><type><name>SendWorker</name></type> <name>startSendingReports</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>onlySendSilentReports</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>approveReportsFirst</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>SendWorker</name></type> <name>worker</name> =<init> <expr>new <call><name>SendWorker</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><name>mReportSenders</name></expr></argument>, <argument><expr><name>onlySendSilentReports</name></expr></argument>, <argument><expr><name>approveReportsFirst</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>worker</name>.<name>start</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>worker</name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Delete all report files stored.
+     */</comment>
+    <function><type><name>void</name></type> <name>deletePendingReports</name><parameter_list>()</parameter_list> <block>{
+        <expr_stmt><expr><call><name>deletePendingReports</name><argument_list>(<argument><expr>true</expr></argument>, <argument><expr>true</expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * This method looks for pending reports and does the action required
+     * depending on the interaction mode set.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>checkReportsOnApplicationStart</name><parameter_list>()</parameter_list> <block>{
+
+        <if>if <condition>(<expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>deleteOldUnsentReportsOnApplicationStart</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// Delete any old unsent reports if this is a newer version of the app</comment>
+            <comment type="line">// than when we last started.</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>lastVersionNr</name> =<init> <expr><call><name><name>prefs</name>.<name>getInt</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>PREF_LAST_VERSION_NR</name></name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>PackageManagerWrapper</name></type> <name>packageManagerWrapper</name> =<init> <expr>new <call><name>PackageManagerWrapper</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>PackageInfo</name></type> <name>packageInfo</name> =<init> <expr><call><name><name>packageManagerWrapper</name>.<name>getPackageInfo</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr><name>packageInfo</name> != <name>null</name></expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>newVersion</name> =<init> <expr><name><name>packageInfo</name>.<name>versionCode</name></name> &gt; <name>lastVersionNr</name></expr></init></decl>;</decl_stmt>
+                <if>if <condition>(<expr><name>newVersion</name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>deletePendingReports</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+                <decl_stmt><decl><type><specifier>final</specifier> <name><name>SharedPreferences</name>.<name>Editor</name></name></type> <name>prefsEditor</name> =<init> <expr><call><name><name>prefs</name>.<name>edit</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>prefsEditor</name>.<name>putInt</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>PREF_LAST_VERSION_NR</name></name></expr></argument>, <argument><expr><name><name>packageInfo</name>.<name>versionCode</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name><name>prefsEditor</name>.<name>commit</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>ReportingInteractionMode</name></type> <name>reportingInteractionMode</name> =<init> <expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>mode</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr>(<name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>NOTIFICATION</name></name> || <name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>DIALOG</name></name>)
+            &amp;&amp; <call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>deleteUnapprovedReportsOnApplicationStart</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// NOTIFICATION or DIALOG mode, and there are unapproved reports to</comment>
+            <comment type="line">// send (latest notification/dialog has been ignored: neither</comment>
+            <comment type="line">// accepted</comment>
+            <comment type="line">// nor refused). The application developer has decided that</comment>
+            <comment type="line">// these reports should not be renotified ==&gt; destroy them all but</comment>
+            <comment type="line">// one.</comment>
+            <expr_stmt><expr><call><name>deletePendingNonApprovedReports</name><argument_list>(<argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportFinder</name></type> <name>reportFinder</name> =<init> <expr>new <call><name>CrashReportFinder</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>String</name><index>[]</index></type> <name>filesList</name> =<init> <expr><call><name><name>reportFinder</name>.<name>getCrashReportFiles</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>filesList</name> != <name>null</name> &amp;&amp; <name><name>filesList</name>.<name>length</name></name> &gt; 0</expr>)</condition><then> <block>{
+            <comment type="line">// Immediately send reports for SILENT and TOAST modes.</comment>
+            <comment type="line">// Immediately send reports in NOTIFICATION mode only if they are</comment>
+            <comment type="line">// all silent or approved.</comment>
+            <comment type="line">// If there is still one unapproved report in NOTIFICATION mode,</comment>
+            <comment type="line">// notify it.</comment>
+            <comment type="line">// If there are unapproved reports in DIALOG mode, show the dialog</comment>
+
+
+            <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>onlySilentOrApprovedReports</name> =<init> <expr><call><name>containsOnlySilentOrApprovedReports</name><argument_list>(<argument><expr><name>filesList</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+            <if>if <condition>(<expr><name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name>
+                || <name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>TOAST</name></name>
+                || (<name>onlySilentOrApprovedReports</name> &amp;&amp; (<name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>NOTIFICATION</name></name> || <name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>DIALOG</name></name>))</expr>)</condition><then> <block>{
+
+                <if>if <condition>(<expr><name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>TOAST</name></name> &amp;&amp; !<name>onlySilentOrApprovedReports</name></expr>)</condition><then> <block>{
+                    <comment type="line">// Display the Toast in TOAST mode only if there are</comment>
+                    <comment type="line">// non-silent reports.</comment>
+                    <expr_stmt><expr><call><name><name>ToastSender</name>.<name>sendToast</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>resToastText</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>Toast</name>.<name>LENGTH_LONG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <expr_stmt><expr><call><name><name>Log</name>.<name>v</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"About to start ReportSenderWorker from #checkReportOnApplicationStart"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <expr_stmt><expr><call><name>startSendingReports</name><argument_list>(<argument><expr>false</expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Delete all pending non approved reports.
+     *
+     * @param keepOne
+     *            If you need to keep the latest report, set this to true.
+     */</comment>
+    <function><type><name>void</name></type> <name>deletePendingNonApprovedReports</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>keepOne</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// In NOTIFICATION AND DIALOG mode, we have to keep the latest report</comment>
+        <comment type="line">// which</comment>
+        <comment type="line">// has been written before killing the app.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>nbReportsToKeep</name> =<init> <expr><name>keepOne</name> ? 1 : 0</expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>deletePendingReports</name><argument_list>(<argument><expr>false</expr></argument>, <argument><expr>true</expr></argument>, <argument><expr><name>nbReportsToKeep</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Send a report for a {@link Throwable} with the reporting interaction mode
+     * configured by the developer.
+     *
+     * @param e
+     *            The {@link Throwable} to be reported. If null the report will
+     *            contain a new Exception("Report requested by developer").
+     * @param endApplication
+     *            Set this to true if you want the application to be ended after
+     *            sending the report.
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>handleException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>endApplication</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>ReportBuilder</name></type> <name>builder</name> =<init> <expr><call><name>reportBuilder</name><argument_list>()</argument_list></call>
+            .<call><name>exception</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>endApplication</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>builder</name>.<name>endsApplication</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+        <expr_stmt><expr><call><name><name>builder</name>.<name>send</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Send a report for a {@link Throwable} with the reporting interaction mode
+     * configured by the developer, the application is then killed and restarted
+     * by the system.
+     *
+     * @param e
+     *            The {@link Throwable} to be reported. If null the report will
+     *            contain a new Exception("Report requested by developer").
+     */</comment>
+    <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+    <specifier>public</specifier> <name>void</name></type> <name>handleException</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name>reportBuilder</name><argument_list>()</argument_list></call>
+            .<call><name>exception</name><argument_list>(<argument><expr><name>e</name></expr></argument>)</argument_list></call>
+            .<call><name>send</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates a new crash report builder
+     *
+     * @return the newly created {@code ReportBuilder}
+     */</comment>
+    <function><type><specifier>public</specifier> <name>ReportBuilder</name></type> <name>reportBuilder</name><parameter_list>()</parameter_list> <block>{
+        <return>return <expr>new <call><name>ReportBuilder</name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Helps manage
+     */</comment>
+    <class><specifier>private</specifier> <specifier>static</specifier> class <name>TimeHelper</name> <block>{
+
+        <decl_stmt><decl><type><specifier>private</specifier> <name>Long</name></type> <name>initialTimeMillis</name></decl>;</decl_stmt>
+
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>setInitialTimeMillis</name><parameter_list>(<param><decl><type><name>long</name></type> <name>initialTimeMillis</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name><name>this</name>.<name>initialTimeMillis</name></name> = <name>initialTimeMillis</name></expr>;</expr_stmt>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * @return 0 if the initial time has yet to be set otherwise returns the difference between now and the initial time.
+         */</comment>
+        <function><type><specifier>public</specifier> <name>long</name></type> <name>getElapsedTime</name><parameter_list>()</parameter_list> <block>{
+            <return>return <expr>(<name>initialTimeMillis</name> == <name>null</name>) ? 0 : <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call> - <name>initialTimeMillis</name></expr>;</return>
+        }</block></function>
+    }</block></class>
+
+    <comment type="javadoc">/**
+     * Try to send a report, if an error occurs stores a report file for a later
+     * attempt.
+     *
+     * @param reportBuilder The report builder used to assemble the report
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>report</name><parameter_list>(<param><decl><type><specifier>final</specifier> <name>ReportBuilder</name></type> <name>reportBuilder</name></decl></param>)</parameter_list> <block>{
+
+        <if>if <condition>(<expr>!<name>enabled</name></expr>)</condition><then> <block>{
+            <return>return;</return>
+        }</block></then></if>
+
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>exceptionHandlerInitializer</name>.<name>initializeExceptionHandler</name></name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>exceptionInRunnable</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Failed to initlize " + <name>exceptionHandlerInitializer</name> + " from #handleException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+
+        <decl_stmt><decl><type><name>boolean</name></type> <name>sendOnlySilentReports</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>ReportingInteractionMode</name></type> <name>reportingInteractionMode</name></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<name><name>reportBuilder</name>.<name>mForceSilent</name></name></expr>)</condition><then> <block>{
+            <comment type="line">// No interaction mode defined, we assume it has been set during</comment>
+            <comment type="line">// ACRA.initACRA()</comment>
+            <expr_stmt><expr><name>reportingInteractionMode</name> = <call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>mode</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><name>reportingInteractionMode</name> = <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name></expr>;</expr_stmt>
+
+            <comment type="line">// An interaction mode has been provided. If ACRA has been</comment>
+            <comment type="line">// initialized with a non SILENT mode and this mode is overridden</comment>
+            <comment type="line">// with SILENT, then we have to send only reports which have been</comment>
+            <comment type="line">// explicitly declared as silent via handleSilentException().</comment>
+            <if>if <condition>(<expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>mode</name><argument_list>()</argument_list></call> != <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>sendOnlySilentReports</name> = true</expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></else></if>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>shouldDisplayToast</name> =<init> <expr><name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>TOAST</name></name>
+            || (<call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>resToastText</name><argument_list>()</argument_list></call> != 0 &amp;&amp; (<name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>NOTIFICATION</name></name> || <name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>DIALOG</name></name>))</expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>TimeHelper</name></type> <name>sentToastTimeMillis</name> =<init> <expr>new <call><name>TimeHelper</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr><name>shouldDisplayToast</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr>new <class><super><name>Thread</name></super><argument_list>()</argument_list> <block>{
+
+                <comment type="block">/*
+                 * (non-Javadoc)
+                 *
+                 * @see java.lang.Thread#run()
+                 */</comment>
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <expr_stmt><expr><call><name><name>Looper</name>.<name>prepare</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>ToastSender</name>.<name>sendToast</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>resToastText</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name><name>Toast</name>.<name>LENGTH_LONG</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>sentToastTimeMillis</name>.<name>setInitialTimeMillis</name></name><argument_list>(<argument><expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>Looper</name>.<name>loop</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+                }</block></function>
+
+            }</block></class>.<call><name>start</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+            <comment type="line">// We will wait a few seconds at the end of the method to be sure</comment>
+            <comment type="line">// that the Toast can be read by the user.</comment>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportData</name></type> <name>crashReportData</name> =<init> <expr><call><name><name>crashReportDataFactory</name>.<name>createCrashData</name></name><argument_list>(<argument><expr><name><name>reportBuilder</name>.<name>mMessage</name></name></expr></argument>,
+                                                                                       <argument><expr><name><name>reportBuilder</name>.<name>mException</name></name></expr></argument>, <argument><expr><name><name>reportBuilder</name>.<name>mCustomData</name></name></expr></argument>,
+                                                                                       <argument><expr><name><name>reportBuilder</name>.<name>mForceSilent</name></name></expr></argument>, <argument><expr><name><name>reportBuilder</name>.<name>mUncaughtExceptionThread</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Always write the report file</comment>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>reportFileName</name> =<init> <expr><call><name>getReportFileName</name><argument_list>(<argument><expr><name>crashReportData</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>saveCrashReportFile</name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>, <argument><expr><name>crashReportData</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <if>if <condition>(<expr><name><name>reportBuilder</name>.<name>mEndsApplication</name></name> &amp;&amp; !<call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>sendReportsAtShutdown</name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>endApplication</name><argument_list>(<argument><expr><name><name>reportBuilder</name>.<name>mUncaughtExceptionThread</name></name></expr></argument>, <argument><expr><name><name>reportBuilder</name>.<name>mException</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><name>SendWorker</name></type> <name>sender</name> =<init> <expr><name>null</name></expr></init></decl>;</decl_stmt>
+
+        <if>if <condition>(<expr><name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name>
+            || <name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>TOAST</name></name>
+            || <call><name><name>prefs</name>.<name>getBoolean</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>PREF_ALWAYS_ACCEPT</name></name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+
+            <comment type="line">// Approve and then send reports now</comment>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"About to start ReportSenderWorker from #handleException"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><name>sender</name> = <call><name>startSendingReports</name><argument_list>(<argument><expr><name>sendOnlySilentReports</name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <if>if <condition>(<expr>(<name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>SILENT</name></name>) &amp;&amp; !<name><name>reportBuilder</name>.<name>mEndsApplication</name></name></expr>)</condition><then> <block>{
+                <comment type="line">// Report is being sent silently and the application is not ending.</comment>
+                <comment type="line">// So no need to wait around for the sender to complete.</comment>
+                <return>return;</return>
+            }</block></then></if>
+
+        }</block></then> <else>else <if>if <condition>(<expr><name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>NOTIFICATION</name></name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Creating Notification."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>createNotification</name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>, <argument><expr><name>reportBuilder</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if></else></if>
+
+        <if>if <condition>(<expr><name>shouldDisplayToast</name></expr>)</condition><then> <block>{
+            <comment type="line">// A toast is being displayed, we have to wait for its end before</comment>
+            <comment type="line">// doing anything else.</comment>
+            <comment type="line">// The toastWaitEnded flag will be checked before any other</comment>
+            <comment type="line">// operation.</comment>
+            <expr_stmt><expr><name>toastWaitEnded</name> = false</expr>;</expr_stmt>
+            <expr_stmt><expr>new <class><super><name>Thread</name></super><argument_list>()</argument_list> <block>{
+
+                <function><type><annotation>@<name>Override</name></annotation>
+                <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Waiting for " + <name><name>ACRAConstants</name>.<name>TOAST_WAIT_DURATION</name></name>
+                        + " millis from " + <name><name>sentToastTimeMillis</name>.<name>initialTimeMillis</name></name>
+                        + " currentMillis=" + <call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <while>while <condition>(<expr><call><name><name>sentToastTimeMillis</name>.<name>getElapsedTime</name></name><argument_list>()</argument_list></call> &lt; <name><name>ACRAConstants</name>.<name>TOAST_WAIT_DURATION</name></name></expr>)</condition> <block>{
+                        <try>try <block>{
+                            <comment type="line">// Wait a bit to let the user read the toast</comment>
+                            <expr_stmt><expr><call><name><name>Thread</name>.<name>sleep</name></name><argument_list>(<argument><expr>100</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>e1</name></decl></param>) <block>{
+                            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Interrupted while waiting for Toast to end."</expr></argument>, <argument><expr><name>e1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></catch></try>
+                    }</block></while>
+                    <expr_stmt><expr><name>toastWaitEnded</name> = true</expr>;</expr_stmt>
+                }</block></function>
+            }</block></class>.<call><name>start</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// Start an AsyncTask waiting for the end of the sender.</comment>
+        <comment type="line">// Once sent, call endApplication() if reportBuilder.mEndApplication</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>SendWorker</name></type> <name>worker</name> =<init> <expr><name>sender</name></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>showDirectDialog</name> =<init> <expr>(<name>reportingInteractionMode</name> == <name><name>ReportingInteractionMode</name>.<name>DIALOG</name></name>)
+            &amp;&amp; !<call><name><name>prefs</name>.<name>getBoolean</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>PREF_ALWAYS_ACCEPT</name></name></expr></argument>, <argument><expr>false</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr>new <class><super><name>Thread</name></super><argument_list>()</argument_list> <block>{
+
+            <function><type><annotation>@<name>Override</name></annotation>
+            <specifier>public</specifier> <name>void</name></type> <name>run</name><parameter_list>()</parameter_list> <block>{
+                <comment type="line">// We have to wait for BOTH the toast display wait AND</comment>
+                <comment type="line">// the worker job to be completed.</comment>
+                <if>if <condition>(<expr><name>toastWaitEnded</name> || (<name>worker</name> == <name>null</name>)</expr>)</condition><then> <block>{
+                    <comment type="line">// Nothing to wait for.</comment>
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Toast (if any) and worker completed - not waiting"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then> <else>else <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Waiting for " + (<name>toastWaitEnded</name> ? "Toast " : " -- ") + (<call><name><name>worker</name>.<name>isAlive</name></name><argument_list>()</argument_list></call> ? "and Worker" : "")</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <while>while <condition>(<expr>!<name>toastWaitEnded</name> || <call><name><name>worker</name>.<name>isAlive</name></name><argument_list>()</argument_list></call></expr>)</condition> <block>{
+                        <try>try <block>{
+                            <expr_stmt><expr><call><name><name>Thread</name>.<name>sleep</name></name><argument_list>(<argument><expr>100</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block> <catch>catch (<param><decl><type><name>InterruptedException</name></type> <name>e1</name></decl></param>) <block>{
+                            <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Error : "</expr></argument>, <argument><expr><name>e1</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                        }</block></catch></try>
+                    }</block></while>
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Finished waiting for Toast + Worker"</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></else></if>
+
+                <if>if <condition>(<expr><name>showDirectDialog</name></expr>)</condition><then> <block>{
+                    <comment type="line">// Create a new activity task with the confirmation dialog.</comment>
+                    <comment type="line">// This new task will be persisted on application restart</comment>
+                    <comment type="line">// right after its death.</comment>
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Creating CrashReportDialog for " + <name>reportFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <decl_stmt><decl><type><specifier>final</specifier> <name>Intent</name></type> <name>dialogIntent</name> =<init> <expr><call><name>createCrashReportDialogIntent</name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>, <argument><expr><name>reportBuilder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                    <expr_stmt><expr><call><name><name>dialogIntent</name>.<name>setFlags</name></name><argument_list>(<argument><expr><name><name>Intent</name>.<name>FLAG_ACTIVITY_NEW_TASK</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                    <expr_stmt><expr><call><name><name>mContext</name>.<name>startActivity</name></name><argument_list>(<argument><expr><name>dialogIntent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+
+                <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Wait for Toast + worker ended. Kill Application ? " + <name><name>reportBuilder</name>.<name>mEndsApplication</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+                <if>if <condition>(<expr><name><name>reportBuilder</name>.<name>mEndsApplication</name></name></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name>endApplication</name><argument_list>(<argument><expr><name><name>reportBuilder</name>.<name>mUncaughtExceptionThread</name></name></expr></argument>, <argument><expr><name><name>reportBuilder</name>.<name>mException</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></function>
+        }</block></class>.<call><name>start</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Creates an Intent that can be used to create and show a CrashReportDialog.
+     *
+     * @param reportFileName    Name of the error report to display in the crash report dialog.
+     * @param reportBuilder     ReportBuilder containing the details of the crash.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>Intent</name></type> <name>createCrashReportDialogIntent</name><parameter_list>(<param><decl><type><name>String</name></type> <name>reportFileName</name></decl></param>, <param><decl><type><name>ReportBuilder</name></type> <name>reportBuilder</name></decl></param>)</parameter_list> <block>{
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Creating DialogIntent for " + <name>reportFileName</name> + " exception=" + <name><name>reportBuilder</name>.<name>mException</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Intent</name></type> <name>dialogIntent</name> =<init> <expr>new <call><name>Intent</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>reportDialogClass</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>dialogIntent</name>.<name>putExtra</name></name><argument_list>(<argument><expr><name><name>ACRAConstants</name>.<name>EXTRA_REPORT_FILE_NAME</name></name></expr></argument>, <argument><expr><name>reportFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>dialogIntent</name>.<name>putExtra</name></name><argument_list>(<argument><expr><name><name>ACRAConstants</name>.<name>EXTRA_REPORT_EXCEPTION</name></name></expr></argument>, <argument><expr><name><name>reportBuilder</name>.<name>mException</name></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <return>return <expr><name>dialogIntent</name></expr>;</return>
+    }</block></function>
+
+
+    <comment type="javadoc">/**
+     * Creates a status bar notification.
+     *
+     * The action triggered when the notification is selected is to start the
+     * {@link CrashReportDialog} Activity.
+     *
+     * @param reportFileName Name of the report file to send.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>createNotification</name><parameter_list>(<param><decl><type><name>String</name></type> <name>reportFileName</name></decl></param>, <param><decl><type><name>ReportBuilder</name></type> <name>reportBuilder</name></decl></param>)</parameter_list> <block>{
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>NotificationManager</name></type> <name>notificationManager</name> =<init> <expr>(<name>NotificationManager</name>) <call><name><name>mContext</name>.<name>getSystemService</name></name><argument_list>(<argument><expr><name><name>Context</name>.<name>NOTIFICATION_SERVICE</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>ReportsCrashes</name></type> <name>conf</name> =<init> <expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// Default notification icon is the warning symbol</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>int</name></type> <name>icon</name> =<init> <expr><call><name><name>conf</name>.<name>resNotifIcon</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CharSequence</name></type> <name>tickerText</name> =<init> <expr><call><name><name>mContext</name>.<name>getText</name></name><argument_list>(<argument><expr><call><name><name>conf</name>.<name>resNotifTickerText</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>when</name> =<init> <expr><call><name><name>System</name>.<name>currentTimeMillis</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Notification</name></type> <name>notification</name> =<init> <expr>new <call><name>Notification</name><argument_list>(<argument><expr><name>icon</name></expr></argument>, <argument><expr><name>tickerText</name></expr></argument>, <argument><expr><name>when</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CharSequence</name></type> <name>contentTitle</name> =<init> <expr><call><name><name>mContext</name>.<name>getText</name></name><argument_list>(<argument><expr><call><name><name>conf</name>.<name>resNotifTitle</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CharSequence</name></type> <name>contentText</name> =<init> <expr><call><name><name>mContext</name>.<name>getText</name></name><argument_list>(<argument><expr><call><name><name>conf</name>.<name>resNotifText</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Creating Notification for " + <name>reportFileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Intent</name></type> <name>crashReportDialogIntent</name> =<init> <expr><call><name>createCrashReportDialogIntent</name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>, <argument><expr><name>reportBuilder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>PendingIntent</name></type> <name>contentIntent</name> =<init> <expr><call><name><name>PendingIntent</name>.<name>getActivity</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><name>mNotificationCounter</name>++</expr></argument>, <argument><expr><name>crashReportDialogIntent</name></expr></argument>, <argument><expr><name><name>PendingIntent</name>.<name>FLAG_UPDATE_CURRENT</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <expr_stmt><expr><call><name><name>notification</name>.<name>setLatestEventInfo</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr><name>contentTitle</name></expr></argument>, <argument><expr><name>contentText</name></expr></argument>, <argument><expr><name>contentIntent</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>notification</name>.<name>flags</name></name> = <name><name>notification</name>.<name>flags</name></name> | <name><name>Notification</name>.<name>FLAG_AUTO_CANCEL</name></name></expr>;</expr_stmt>
+
+        <comment type="line">// The deleteIntent is invoked when the user swipes away the Notification.</comment>
+        <comment type="line">// In this case we invoke the CrashReportDialog with EXTRA_FORCE_CANCEL==true</comment>
+        <comment type="line">// which will cause BaseCrashReportDialog to clear the crash report and finish itself.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Intent</name></type> <name>deleteIntent</name> =<init> <expr><call><name>createCrashReportDialogIntent</name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>, <argument><expr><name>reportBuilder</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>deleteIntent</name>.<name>putExtra</name></name><argument_list>(<argument><expr><name><name>ACRAConstants</name>.<name>EXTRA_FORCE_CANCEL</name></name></expr></argument>, <argument><expr>true</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><name><name>notification</name>.<name>deleteIntent</name></name> = <call><name><name>PendingIntent</name>.<name>getActivity</name></name><argument_list>(<argument><expr><name>mContext</name></expr></argument>, <argument><expr>-1</expr></argument>, <argument><expr><name>deleteIntent</name></expr></argument>, <argument><expr>0</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Send new notification</comment>
+        <expr_stmt><expr><call><name><name>notificationManager</name>.<name>notify</name></name><argument_list>(<argument><expr><name><name>ACRAConstants</name>.<name>NOTIF_CRASH_ID</name></name></expr></argument>, <argument><expr><name>notification</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+
+    <function><type><specifier>private</specifier> <name>String</name></type> <name>getReportFileName</name><parameter_list>(<param><decl><type><name>CrashReportData</name></type> <name>crashData</name></decl></param>)</parameter_list> <block>{
+        <decl_stmt><decl><type><specifier>final</specifier> <name>Time</name></type> <name>now</name> =<init> <expr>new <call><name>Time</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>now</name>.<name>setToNow</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>long</name></type> <name>timestamp</name> =<init> <expr><call><name><name>now</name>.<name>toMillis</name></name><argument_list>(<argument><expr>false</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>isSilent</name> =<init> <expr><call><name><name>crashData</name>.<name>getProperty</name></name><argument_list>(<argument><expr><name>IS_SILENT</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <return>return <expr>"" + <name>timestamp</name> + (<name>isSilent</name> != <name>null</name> ? <name><name>ACRAConstants</name>.<name>SILENT_SUFFIX</name></name> : "")
+            + <name><name>ACRAConstants</name>.<name>REPORTFILE_EXTENSION</name></name></expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * When a report can't be sent, it is saved here in a file in the root of
+     * the application private directory.
+     *
+     * @param fileName
+     *            In a few rare cases, we write the report again with additional
+     *            data (user comment for example). In such cases, you can
+     *            provide the already existing file name here to overwrite the
+     *            report file. If null, a new file report will be generated
+     * @param crashData
+     *            Can be used to save an alternative (or previously generated)
+     *            report data. Used to store again a report with the addition of
+     *            user comment. If null, the default current crash data are
+     *            used.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>saveCrashReportFile</name><parameter_list>(<param><decl><type><name>String</name></type> <name>fileName</name></decl></param>, <param><decl><type><name>CrashReportData</name></type> <name>crashData</name></decl></param>)</parameter_list> <block>{
+        <try>try <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"Writing crash report file " + <name>fileName</name> + "."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportPersister</name></type> <name>persister</name> =<init> <expr>new <call><name>CrashReportPersister</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>persister</name>.<name>store</name></name><argument_list>(<argument><expr><name>crashData</name></expr></argument>, <argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr>"An error occurred while writing the report file..."</expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></catch></try>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Delete pending reports.
+     *
+     * @param deleteApprovedReports
+     *            Set to true to delete approved and silent reports.
+     * @param deleteNonApprovedReports
+     *            Set to true to delete non approved/silent reports.
+     * @param nbOfLatestToKeep
+     *            Number of pending reports to retain.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>deletePendingReports</name><parameter_list>(<param><decl><type><name>boolean</name></type> <name>deleteApprovedReports</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>deleteNonApprovedReports</name></decl></param>,
+                                      <param><decl><type><name>int</name></type> <name>nbOfLatestToKeep</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// TODO Check logic and instances where nbOfLatestToKeep = X, because</comment>
+        <comment type="line">// that might stop us from deleting any reports.</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>CrashReportFinder</name></type> <name>reportFinder</name> =<init> <expr>new <call><name>CrashReportFinder</name><argument_list>(<argument><expr><name>mContext</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>String</name><index>[]</index></type> <name>filesList</name> =<init> <expr><call><name><name>reportFinder</name>.<name>getCrashReportFiles</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name><name>Arrays</name>.<name>sort</name></name><argument_list>(<argument><expr><name>filesList</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <for>for (<init><decl><type><name>int</name></type> <name>iFile</name> =<init> <expr>0</expr></init></decl>;</init> <condition><expr><name>iFile</name> &lt; <name><name>filesList</name>.<name>length</name></name> - <name>nbOfLatestToKeep</name></expr>;</condition> <incr><expr><name>iFile</name>++</expr></incr>) <block>{
+            <decl_stmt><decl><type><specifier>final</specifier> <name>String</name></type> <name>fileName</name> =<init> <expr><name><name>filesList</name><index>[<expr><name>iFile</name></expr>]</index></name></expr></init></decl>;</decl_stmt>
+            <decl_stmt><decl><type><specifier>final</specifier> <name>boolean</name></type> <name>isReportApproved</name> =<init> <expr><call><name><name>fileNameParser</name>.<name>isApproved</name></name><argument_list>(<argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <if>if <condition>(<expr>(<name>isReportApproved</name> &amp;&amp; <name>deleteApprovedReports</name>) || (!<name>isReportApproved</name> &amp;&amp; <name>deleteNonApprovedReports</name>)</expr>)</condition><then> <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>File</name></type> <name>fileToDelete</name> =<init> <expr>new <call><name>File</name><argument_list>(<argument><expr><call><name><name>mContext</name>.<name>getFilesDir</name></name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>fileName</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>ACRA</name>.<name>log</name>.<name>d</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Deleting file " + <name>fileName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                <if>if <condition>(<expr>!<call><name><name>fileToDelete</name>.<name>delete</name></name><argument_list>()</argument_list></call></expr>)</condition><then> <block>{
+                    <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name><name>ACRA</name>.<name>LOG_TAG</name></name></expr></argument>, <argument><expr>"Could not delete report : " + <name>fileToDelete</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+                }</block></then></if>
+            }</block></then></if>
+        }</block></for>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Checks if an array of reports files names contains only silent or
+     * approved reports.
+     *
+     * @param reportFileNames
+     *            Array of report locations to check.
+     * @return True if there are only silent or approved reports. False if there
+     *         is at least one non-approved report.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>boolean</name></type> <name>containsOnlySilentOrApprovedReports</name><parameter_list>(<param><decl><type><name><name>String</name><index>[]</index></name></type> <name>reportFileNames</name></decl></param>)</parameter_list> <block>{
+        <for>for (<init><decl><type><name>String</name></type> <name>reportFileName</name> :<range> <expr><name>reportFileNames</name></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr>!<call><name><name>fileNameParser</name>.<name>isApproved</name></name><argument_list>(<argument><expr><name>reportFileName</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <return>return <expr>false</expr>;</return>
+            }</block></then></if>
+        }</block></for>
+        <return>return <expr>true</expr>;</return>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Sets relevant ReportSenders to the ErrorReporter, replacing any
+     * previously set ReportSender.
+     */</comment>
+    <function><type><specifier>public</specifier> <name>void</name></type> <name>setDefaultReportSenders</name><parameter_list>()</parameter_list> <block>{
+        <decl_stmt><decl><type><name>ReportsCrashes</name></type> <name>conf</name> =<init> <expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><name>Application</name></type> <name>mApplication</name> =<init> <expr><call><name><name>ACRA</name>.<name>getApplication</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <expr_stmt><expr><call><name>removeAllReportSenders</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// Try to send by mail. If a mailTo address is provided, do not add</comment>
+        <comment type="line">// other senders.</comment>
+        <if>if <condition>(<expr>!"".<call><name>equals</name><argument_list>(<argument><expr><call><name><name>conf</name>.<name>mailTo</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>w</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>, <argument><expr><call><name><name>mApplication</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call> + " reports will be sent by email (if accepted by user)."</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name>setReportSender</name><argument_list>(<argument><expr>new <call><name>EmailIntentSender</name><argument_list>(<argument><expr><name>mApplication</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if>
+
+        <decl_stmt><decl><type><specifier>final</specifier> <name>PackageManagerWrapper</name></type> <name>pm</name> =<init> <expr>new <call><name>PackageManagerWrapper</name><argument_list>(<argument><expr><name>mApplication</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>pm</name>.<name>hasPermission</name></name><argument_list>(<argument><expr><name><name>permission</name>.<name>INTERNET</name></name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// NB If the PackageManager has died then this will erroneously log</comment>
+            <comment type="line">// the error that the App doesn't have Internet (even though it</comment>
+            <comment type="line">// does).</comment>
+            <comment type="line">// I think that is a small price to pay to ensure that ACRA doesn't</comment>
+            <comment type="line">// crash if the PackageManager has died.</comment>
+            <expr_stmt><expr><call><name><name>Log</name>.<name>e</name></name><argument_list>(<argument><expr><name>LOG_TAG</name></expr></argument>,
+                  <argument><expr><call><name><name>mApplication</name>.<name>getPackageName</name></name><argument_list>()</argument_list></call>
+                      + " should be granted permission "
+                      + <name><name>permission</name>.<name>INTERNET</name></name>
+                      + " if you want your crash reports to be sent. If you don't want to add this permission to your application you can also enable sending reports by email. If this is your will then provide your email address in @ReportsCrashes(mailTo=\"your.account@domain.com\""</expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return;</return>
+        }</block></then></if>
+
+        <comment type="line">// If formUri is set, instantiate a sender for a generic HTTP POST form</comment>
+        <comment type="line">// with default mapping.</comment>
+        <if>if <condition>(<expr><call><name><name>conf</name>.<name>formUri</name></name><argument_list>()</argument_list></call> != <name>null</name> &amp;&amp; !"".<call><name>equals</name><argument_list>(<argument><expr><call><name><name>conf</name>.<name>formUri</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name>setReportSender</name><argument_list>(<argument><expr>new <call><name>HttpSender</name><argument_list>(<argument><expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>httpMethod</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><call><name><name>ACRA</name>.<name>getConfig</name></name><argument_list>()</argument_list></call>.<call><name>reportType</name><argument_list>()</argument_list></call></expr></argument>, <argument><expr><name>null</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+
+    <comment type="javadoc">/**
+     * Fluent API used to assemble the different options used for a crash report
+     */</comment>
+    <class><specifier>public</specifier> <specifier>final</specifier> class <name>ReportBuilder</name> <block>{
+
+        <decl_stmt><decl><type><specifier>private</specifier> <name>String</name></type> <name>mMessage</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>Thread</name></type> <name>mUncaughtExceptionThread</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>Throwable</name></type> <name>mException</name></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <name><name>Map</name><argument_list>&lt;<argument><name>String</name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name></type> <name>mCustomData</name></decl>;</decl_stmt>
+
+        <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>mForceSilent</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+        <decl_stmt><decl><type><specifier>private</specifier> <name>boolean</name></type> <name>mEndsApplication</name> =<init> <expr>false</expr></init></decl>;</decl_stmt>
+
+        <comment type="javadoc">/**
+         * Set the error message to be reported.
+         *
+         * @param msg the error message
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>ReportBuilder</name></type> <name>message</name><parameter_list>(<param><decl><type><name>String</name></type> <name>msg</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mMessage</name> = <name>msg</name></expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Sets the Thread on which an uncaught Exception occurred.
+         *
+         * @param thread    Thread on which an uncaught Exception occurred.
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><specifier>private</specifier> <name>ReportBuilder</name></type> <name>uncaughtExceptionThread</name><parameter_list>(<param><decl><type><name>Thread</name></type> <name>thread</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mUncaughtExceptionThread</name> = <name>thread</name></expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Set the stack trace to be reported
+         *
+         * @param e The exception that should be associated with this report
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>ReportBuilder</name></type> <name>exception</name><parameter_list>(<param><decl><type><name>Throwable</name></type> <name>e</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><name>mException</name> = <name>e</name></expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <function><type><specifier>private</specifier> <name>void</name></type> <name>initCustomData</name><parameter_list>()</parameter_list> <block>{
+            <if>if <condition>(<expr><name>mCustomData</name> ==  <name>null</name></expr>)</condition><then>
+                <expr_stmt><expr><name>mCustomData</name> = new <call><name><name>HashMap</name><argument_list>&lt;<argument><name>String</name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr>;</expr_stmt></then></if>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Sets additional values to be added to {@code CUSTOM_DATA}. Values
+         * specified here take precedence over globally specified custom data.
+         *
+         * @param customData a map of custom key-values to be attached to the report
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+        <specifier>public</specifier> <name>ReportBuilder</name></type> <name>customData</name><parameter_list>(<param><decl><type><name><name>Map</name><argument_list>&lt;<argument><name>String</name></argument>, <argument><name>String</name></argument>&gt;</argument_list></name></type> <name>customData</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>initCustomData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>mCustomData</name>.<name>putAll</name></name><argument_list>(<argument><expr><name>customData</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Sets an additional value to be added to {@code CUSTOM_DATA}. The value
+         * specified here takes precedence over globally specified custom data.
+         *
+         * @param key the key identifying the custom data
+         * @param value the value for the custom data entry
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><annotation>@<name>SuppressWarnings</name><argument_list>("unused")</argument_list></annotation>
+        <specifier>public</specifier> <name>ReportBuilder</name></type> <name>customData</name><parameter_list>(<param><decl><type><name>String</name></type> <name>key</name></decl></param>, <param><decl><type><name>String</name></type> <name>value</name></decl></param>)</parameter_list> <block>{
+            <expr_stmt><expr><call><name>initCustomData</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>mCustomData</name>.<name>put</name></name><argument_list>(<argument><expr><name>key</name></expr></argument>, <argument><expr><name>value</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Forces the report to be sent silently, ignoring the default interaction mode set in the config
+         *
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>ReportBuilder</name></type> <name>forceSilent</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><name>mForceSilent</name> = true</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Ends the application after sending the crash report
+         *
+         * @return the updated {@code ReportBuilder}
+         */</comment>
+        <function><type><specifier>public</specifier> <name>ReportBuilder</name></type> <name>endsApplication</name><parameter_list>()</parameter_list> <block>{
+            <expr_stmt><expr><name>mEndsApplication</name> = true</expr>;</expr_stmt>
+            <return>return <expr><name>this</name></expr>;</return>
+        }</block></function>
+
+        <comment type="javadoc">/**
+         * Assembles and sends the crash report
+         */</comment>
+        <function><type><specifier>public</specifier> <name>void</name></type> <name>send</name><parameter_list>()</parameter_list> <block>{
+            <if>if <condition>(<expr><name>mMessage</name> == <name>null</name> &amp;&amp; <name>mException</name> == <name>null</name></expr>)</condition><then> <block>{
+                <expr_stmt><expr><name>mMessage</name> = "Report requested by developer"</expr>;</expr_stmt>
+            }</block></then></if>
+            <expr_stmt><expr><call><name>report</name><argument_list>(<argument><expr><name>this</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></function>
+    }</block></class>
+}</block></class></unit>

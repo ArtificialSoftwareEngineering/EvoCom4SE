@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.sdml.info/srcML/src" language="Java" filename="C:\Users\David\git\biorimp\BIO-RIMP\test_data\code\dataset01\src\main\java\org\acra\util\TlsSniSocketFactory.java"><comment type="block">/*
+ * This class was copied from this blog post:
+ * http://blog.dev001.net/post/67082904181/android-using-sni-and-tlsv1-2-with-apache-httpclient
+ * Thanks go to Dev001!
+ * Also, changes for using only secure cipher suites were included from code of DAVdroid.
+ * Thankgs go to Ricki Hirner (bitfire web engineering)!
+ */</comment>
+<package>package <name><name>org</name>.<name>acra</name>.<name>util</name></name>;</package>
+
+<import>import <name><name>android</name>.<name>annotation</name>.<name>TargetApi</name></name>;</import>
+<import>import <name><name>android</name>.<name>net</name>.<name>SSLCertificateSocketFactory</name></name>;</import>
+<import>import <name><name>android</name>.<name>os</name>.<name>Build</name></name>;</import>
+<import>import <name><name>android</name>.<name>text</name>.<name>TextUtils</name></name>;</import>
+<import>import <name><name>android</name>.<name>util</name>.<name>Log</name></name>;</import>
+
+<import>import <name><name>org</name>.<name>apache</name>.<name>http</name>.<name>conn</name>.<name>scheme</name>.<name>LayeredSocketFactory</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>http</name>.<name>conn</name>.<name>ssl</name>.<name>BrowserCompatHostnameVerifier</name></name>;</import>
+<import>import <name><name>org</name>.<name>apache</name>.<name>http</name>.<name>params</name>.<name>HttpParams</name></name>;</import>
+
+<import>import <name><name>java</name>.<name>io</name>.<name>IOException</name></name>;</import>
+<import>import <name><name>java</name>.<name>lang</name>.<name>reflect</name>.<name>Method</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>InetAddress</name></name>;</import>
+<import>import <name><name>java</name>.<name>net</name>.<name>Socket</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Arrays</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>HashSet</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>LinkedList</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>List</name></name>;</import>
+<import>import <name><name>java</name>.<name>util</name>.<name>Set</name></name>;</import>
+
+<import>import <name><name>javax</name>.<name>net</name>.<name>ssl</name>.<name>HostnameVerifier</name></name>;</import>
+<import>import <name><name>javax</name>.<name>net</name>.<name>ssl</name>.<name>SSLPeerUnverifiedException</name></name>;</import>
+<import>import <name><name>javax</name>.<name>net</name>.<name>ssl</name>.<name>SSLSession</name></name>;</import>
+<import>import <name><name>javax</name>.<name>net</name>.<name>ssl</name>.<name>SSLSocket</name></name>;</import>
+
+<comment type="javadoc">/**
+ * Provides a SSLSocketFactory that is able to use SNI for SSL connections and
+ * therefore allows multiple SSL servers on one IP address.&lt;br/&gt;
+ *   1) socket = createSocket() is called
+ *   2) reasonable encryption settings are applied to socket
+ *   3) SNI is set up for socket
+ *   4) handshake and certificate/host name verification
+ * &lt;p/&gt;
+ * @author Philipp Kapfer
+ * @since 4.6.0
+ */</comment>
+<class><specifier>public</specifier> class <name>TlsSniSocketFactory</name> <super><implements>implements <name>LayeredSocketFactory</name></implements></super> <block>{
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name>String</name></type> <name>TAG</name> =<init>  <expr><name><name>TlsSniSocketFactory</name>.<name><name/></name></name>class.<call><name>getSimpleName</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>int</name></type> <name>VERSION_CODES_JELLY_BEAN_MR1</name> =<init> <expr>17</expr></init></decl>;</decl_stmt>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>int</name></type> <name>VERSION_CODES_LOLLIPOP</name> =<init> <expr>21</expr></init></decl>;</decl_stmt>
+    
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <name>SSLCertificateSocketFactory</name></type> <name>sslSocketFactory</name> =<init> <expr>(<name>SSLCertificateSocketFactory</name>) <call><name><name>SSLCertificateSocketFactory</name>.<name>getDefault</name></name><argument_list>(<argument><expr>0</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// use BrowserCompatHostnameVerifier to allow IP addresses in the Common Name</comment>
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>final</specifier> <specifier>static</specifier> <name>HostnameVerifier</name></type> <name>hostnameVerifier</name> =<init> <expr>new <call><name>BrowserCompatHostnameVerifier</name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <decl_stmt><decl><type><specifier>private</specifier> <specifier>static</specifier> <specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>ALLOWED_CIPHERS</name> =<init> <expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(
+        <comment type="line">// allowed secure ciphers according to NIST.SP.800-52r1.pdf Section 3.3.1 (see http://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-52r1.pdf)</comment>
+        <comment type="line">// TLS 1.2</comment>
+        <argument><expr>"TLS_RSA_WITH_AES_256_GCM_SHA384"</expr></argument>,
+        <argument><expr>"TLS_RSA_WITH_AES_128_GCM_SHA256"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"</expr></argument>,
+        <argument><expr>"TLS_ECHDE_RSA_WITH_AES_128_GCM_SHA256"</expr></argument>,
+        <comment type="line">// maximum interoperability</comment>
+        <argument><expr>"TLS_RSA_WITH_3DES_EDE_CBC_SHA"</expr></argument>,
+        <argument><expr>"TLS_RSA_WITH_AES_128_CBC_SHA"</expr></argument>,
+        <comment type="line">// additionally</comment>
+        <argument><expr>"TLS_RSA_WITH_AES_256_CBC_SHA"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA"</expr></argument>,
+        <argument><expr>"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"</expr></argument>
+    )</argument_list></call></expr></init></decl>;</decl_stmt>
+
+    <comment type="line">// Plain TCP/IP (layer below TLS)</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>Socket</name></type> <name>connectSocket</name><parameter_list>(<param><decl><type><name>Socket</name></type> <name>s</name></decl></param>, <param><decl><type><name>String</name></type> <name>host</name></decl></param>, <param><decl><type><name>int</name></type> <name>port</name></decl></param>, <param><decl><type><name>InetAddress</name></type> <name>localAddress</name></decl></param>, <param><decl><type><name>int</name></type> <name>localPort</name></decl></param>, <param><decl><type><name>HttpParams</name></type> <name>params</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>Socket</name></type> <name>createSocket</name><parameter_list>()</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <return>return <expr><name>null</name></expr>;</return>
+    }</block></function>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>boolean</name></type> <name>isSecure</name><parameter_list>(<param><decl><type><name>Socket</name></type> <name>s</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IllegalArgumentException</name></expr></argument></throws> <block>{
+        <return>return <expr>(<name>s</name> <name>instanceof</name> <name>SSLSocket</name>) &amp;&amp; <call><name><name>s</name>.<name>isConnected</name></name><argument_list>()</argument_list></call></expr>;</return>
+    }</block></function>
+
+
+    <comment type="line">// TLS layer</comment>
+
+    <function><type><annotation>@<name>Override</name></annotation>
+    <specifier>public</specifier> <name>Socket</name></type> <name>createSocket</name><parameter_list>(<param><decl><type><name>Socket</name></type> <name>plainSocket</name></decl></param>, <param><decl><type><name>String</name></type> <name>host</name></decl></param>, <param><decl><type><name>int</name></type> <name>port</name></decl></param>, <param><decl><type><name>boolean</name></type> <name>autoClose</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <if>if <condition>(<expr><name>autoClose</name></expr>)</condition><then> <block>{
+            <comment type="line">// we don't need the plainSocket</comment>
+            <expr_stmt><expr><call><name><name>plainSocket</name>.<name>close</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+
+        <comment type="line">// create and connect SSL socket, but don't do hostname/certificate verification yet</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name>SSLSocket</name></type> <name>ssl</name> =<init> <expr>(<name>SSLSocket</name>) <call><name><name>sslSocketFactory</name>.<name>createSocket</name></name><argument_list>(<argument><expr><call><name><name>InetAddress</name>.<name>getByName</name></name><argument_list>(<argument><expr><name>host</name></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>port</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+        <comment type="line">// establish and verify TLS connection</comment>
+        <expr_stmt><expr><call><name>establishAndVerify</name><argument_list>(<argument><expr><name>ssl</name></expr></argument>, <argument><expr><name>host</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <return>return <expr><name>ssl</name></expr>;</return>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Establishes and verifies a TLS connection to a (TCP-)connected SSLSocket:
+     *   - set TLS parameters like allowed protocols and ciphers
+     *   - set SNI host name
+     *   - verify host name
+     *   - verify certificate
+     * @param socket    unconnected SSLSocket
+     * @param host      host name for SNI
+     * @throws IOException if the connection could not be established.
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>establishAndVerify</name><parameter_list>(<param><decl><type><name>SSLSocket</name></type> <name>socket</name></decl></param>, <param><decl><type><name>String</name></type> <name>host</name></decl></param>)</parameter_list> <throws>throws <argument><expr><name>IOException</name></expr></argument></throws> <block>{
+        <expr_stmt><expr><call><name>setTlsParameters</name><argument_list>(<argument><expr><name>socket</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name>setSniHostname</name><argument_list>(<argument><expr><name>socket</name></expr></argument>, <argument><expr><name>host</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        
+        <comment type="line">// TLS handshake, throws an exception for untrusted certificates</comment>
+        <expr_stmt><expr><call><name><name>socket</name>.<name>startHandshake</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="line">// verify hostname and certificate</comment>
+        <decl_stmt><decl><type><name>SSLSession</name></type> <name>session</name> =<init> <expr><call><name><name>socket</name>.<name>getSession</name></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <if>if <condition>(<expr>!<call><name><name>hostnameVerifier</name>.<name>verify</name></name><argument_list>(<argument><expr><name>host</name></expr></argument>, <argument><expr><name>session</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+            <comment type="line">// throw exception for invalid host names</comment>
+            <throw>throw <expr>new <call><name>SSLPeerUnverifiedException</name><argument_list>(<argument><expr><name>host</name></expr></argument>)</argument_list></call></expr>;</throw>
+        }</block></then></if>
+
+        <expr_stmt><expr><call><name><name>Log</name>.<name>i</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"Established " + <call><name><name>session</name>.<name>getProtocol</name></name><argument_list>()</argument_list></call> + " connection with " + <call><name><name>session</name>.<name>getPeerHost</name></name><argument_list>()</argument_list></call> + " using " + <call><name><name>session</name>.<name>getCipherSuite</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+    }</block></function>
+    
+    <comment type="javadoc">/**
+     * Prepares a TLS/SSL connection socket by:
+     *   - setting reasonable TLS protocol versions
+     *   - setting reasonable cipher suites (if required)
+     * @param socket   unconnected SSLSocket to prepare
+     */</comment>
+    <function><type><specifier>private</specifier> <name>void</name></type> <name>setTlsParameters</name><parameter_list>(<param><decl><type><name>SSLSocket</name></type> <name>socket</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// Android 5.0+ (API level21) provides reasonable default settings</comment>
+        <comment type="line">// but it still allows SSLv3</comment>
+        <comment type="line">// https://developer.android.com/about/versions/android-5.0-changes.html#ssl</comment>
+
+        <comment type="block">/* set reasonable protocol versions */</comment>
+        <comment type="line">// - enable all supported protocols (enables TLSv1.1 and TLSv1.2 on Android &lt;5.0)</comment>
+        <comment type="line">// - remove all SSL versions (especially SSLv3) because they're insecure now</comment>
+        <decl_stmt><decl><type><specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>protocols</name> =<init> <expr>new <call><name><name>LinkedList</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name><argument_list>()</argument_list></call></expr></init></decl>;</decl_stmt>
+        <for>for (<init><decl><type><name>String</name></type> <name>protocol</name> :<range> <expr><call><name><name>socket</name>.<name>getSupportedProtocols</name></name><argument_list>()</argument_list></call></expr></range></decl></init>) <block>{
+            <if>if <condition>(<expr>!<call><name><name>protocol</name>.<name>toUpperCase</name></name><argument_list>()</argument_list></call>.<call><name>contains</name><argument_list>(<argument><expr>"SSL"</expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+                <expr_stmt><expr><call><name><name>protocols</name>.<name>add</name></name><argument_list>(<argument><expr><name>protocol</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></then></if>
+        }</block></for>
+        <expr_stmt><expr><call><name><name>Log</name>.<name>v</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"Setting allowed TLS protocols: " + <call><name><name>TextUtils</name>.<name>join</name></name><argument_list>(<argument><expr>", "</expr></argument>, <argument><expr><name>protocols</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        <expr_stmt><expr><call><name><name>socket</name>.<name>setEnabledProtocols</name></name><argument_list>(<argument><expr><call><name><name>protocols</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>String</name><index>[<expr><call><name><name>protocols</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+        <comment type="block">/* set reasonable cipher suites */</comment>
+        <if>if <condition>(<expr><name><name>Build</name>.<name>VERSION</name>.<name>SDK_INT</name></name> &lt; <name>VERSION_CODES_LOLLIPOP</name></expr>)</condition><then> <block>{
+            <comment type="line">// choose secure cipher suites</comment>
+
+            <decl_stmt><decl><type><specifier>final</specifier> <name><name>List</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>availableCiphers</name> =<init> <expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><call><name><name>socket</name>.<name>getSupportedCipherSuites</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            
+            <comment type="line">// preferred ciphers = allowed Ciphers \ availableCiphers</comment>
+            <decl_stmt><decl><type><specifier>final</specifier> <name><name>Set</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name></type> <name>preferredCiphers</name> =<init> <expr>new <call><name><name>HashSet</name><argument_list>&lt;<argument><name>String</name></argument>&gt;</argument_list></name><argument_list>(<argument><expr><name>ALLOWED_CIPHERS</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+            <expr_stmt><expr><call><name><name>preferredCiphers</name>.<name>retainAll</name></name><argument_list>(<argument><expr><name>availableCiphers</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            <comment type="line">// add enabled ciphers to preferred ciphers</comment>
+            <comment type="line">// for maximum security, preferred ciphers should *replace* enabled ciphers,</comment>
+            <comment type="line">// but for the security level of ACRA, disabling of insecure</comment>
+            <comment type="line">// ciphers should be a server-side task</comment>
+            <expr_stmt><expr><call><name><name>preferredCiphers</name>.<name>addAll</name></name><argument_list>(<argument><expr><call><name><name>Arrays</name>.<name>asList</name></name><argument_list>(<argument><expr><call><name><name>socket</name>.<name>getEnabledCipherSuites</name></name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            
+            <expr_stmt><expr><call><name><name>Log</name>.<name>v</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"Setting allowed TLS ciphers: " + <call><name><name>TextUtils</name>.<name>join</name></name><argument_list>(<argument><expr>", "</expr></argument>, <argument><expr><name>preferredCiphers</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>socket</name>.<name>setEnabledCipherSuites</name></name><argument_list>(<argument><expr><call><name><name>preferredCiphers</name>.<name>toArray</name></name><argument_list>(<argument><expr>new <name><name>String</name><index>[<expr><call><name><name>preferredCiphers</name>.<name>size</name></name><argument_list>()</argument_list></call></expr>]</index></name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then></if>
+    }</block></function>
+    
+    <function><type><annotation>@<name>TargetApi</name><argument_list>(VERSION_CODES_JELLY_BEAN_MR1)</argument_list></annotation>
+    <specifier>private</specifier> <name>void</name></type> <name>setSniHostname</name><parameter_list>(<param><decl><type><name>SSLSocket</name></type> <name>socket</name></decl></param>, <param><decl><type><name>String</name></type> <name>hostName</name></decl></param>)</parameter_list> <block>{
+        <comment type="line">// set SNI host name</comment>
+        <if>if <condition>(<expr><name><name>Build</name>.<name>VERSION</name>.<name>SDK_INT</name></name> &gt;= <name>VERSION_CODES_JELLY_BEAN_MR1</name></expr>)</condition><then> <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"Using documented SNI with host name " + <name>hostName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <expr_stmt><expr><call><name><name>sslSocketFactory</name>.<name>setHostname</name></name><argument_list>(<argument><expr><name>socket</name></expr></argument>, <argument><expr><name>hostName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+        }</block></then> <else>else <block>{
+            <expr_stmt><expr><call><name><name>Log</name>.<name>d</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"No documented SNI support on Android &lt;4.2, trying reflection method with host name " + <name>hostName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            <try>try <block>{
+                <decl_stmt><decl><type><specifier>final</specifier> <name>Method</name></type> <name>setHostnameMethod</name> =<init> <expr><call><name><name>socket</name>.<name>getClass</name></name><argument_list>()</argument_list></call>.<call><name>getMethod</name><argument_list>(<argument><expr>"setHostname"</expr></argument>, <argument><expr><name><name>String</name>.<name><name/></name></name>class</expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+                <expr_stmt><expr><call><name><name>setHostnameMethod</name>.<name>invoke</name></name><argument_list>(<argument><expr><name>socket</name></expr></argument>, <argument><expr><name>hostName</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block> <catch>catch (<param><decl><type><name>Exception</name></type> <name>e</name></decl></param>) <block>{
+                <expr_stmt><expr><call><name><name>Log</name>.<name>w</name></name><argument_list>(<argument><expr><name>TAG</name></expr></argument>, <argument><expr>"SNI not usable"</expr></argument>, <argument><expr><name>e</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+            }</block></catch></try>
+        }</block></else></if>
+    }</block></function>
+}</block></class>
+</unit>

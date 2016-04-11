@@ -55,17 +55,17 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 			value_src  = new ArrayList<String>();
 
 			//verification of SRCSubClassTGT
-			if(! code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
-				List<TypeDeclaration> clases = code.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
+			if(! MetaphorCode.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName()).isEmpty() ){
+				List<TypeDeclaration> clases = MetaphorCode.getBuilder().getChildClasses().get(sysType_tgt.getQualifiedName());
 				IntUniform indexClass = new IntUniform ( clases.size() );
 				sysType_src = clases.get( indexClass.generate() ); //RandomlySelectedClass
 
 				//Creating the OBSERVRefParam for the mtd class randomly
 				value_mtd  = new ArrayList<String>();
 
-				if( !code.getMethodsFromClass(sysType_src).isEmpty() ){
-					IntUniform numMtdObs = new IntUniform ( code.getMethodsFromClass(sysType_src).size() );
-					value_mtd.add((String) code.getMethodsFromClass(sysType_src).toArray()
+				if( !MetaphorCode.getMethodsFromClass(sysType_src).isEmpty() ){
+					IntUniform numMtdObs = new IntUniform ( MetaphorCode.getMethodsFromClass(sysType_src).size() );
+					value_mtd.add((String) MetaphorCode.getMethodsFromClass(sysType_src).toArray()
 							[ numMtdObs.generate()]);
 
 					if( feasible ){
@@ -75,7 +75,7 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 						}else{
 							//Choosing other src(s) with the mtd
 							for( TypeDeclaration clase : clases ){
-								for( String method : code.getMethodsFromClass(clase) ){
+								for( String method : MetaphorCode.getMethodsFromClass(clase) ){
 									if( method.equals( value_mtd.get(0) ) ){
 										value_src.add( clase.getQualifiedName() );
 									}
@@ -101,10 +101,10 @@ public class GeneratingRefactorPUM extends GeneratingRefactor {
 
 								if(feasible){
 									//Override verification children
-									if( code.getBuilder().getChildClasses().get( src_type ) != null )
-									if( !code.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
+									if( MetaphorCode.getBuilder().getChildClasses().get( src_type ) != null )
+									if( !MetaphorCode.getBuilder().getChildClasses().get( src_type ).isEmpty() ){
 										for( TypeDeclaration clase_child : code.getBuilder().getChildClasses().get( src_type ) ){
-											if ( code.getMethodsFromClass(clase_child) != null )
+											if ( MetaphorCode.getMethodsFromClass(clase_child) != null )
 												if( !code.getMethodsFromClass(clase_child).isEmpty() ){
 													for( String method : code.getMethodsFromClass( clase_child ) ){
 														if( method.equals( value_mtd.get(0) ) ){

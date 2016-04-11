@@ -51,8 +51,8 @@ public class MainOptimization {
 
 	public static void main(String[] args) {
 		String systems = "dataset01";
-		measureMetrics( systems );
-		/*
+		//measureMetrics( systems );
+	
 		//for(int i=0; i<30; i++)
 			HILLrefactor( 0 , systems );
 		//for(int i=0; i<30; i++)
@@ -60,7 +60,7 @@ public class MainOptimization {
 		//for(int i=0; i<30; i++)
 			HAEArefactor( 0 , systems );
 		//for(int i=0; i<30; i++)
-			HAEAVARrefactor( 0 , systems );*/
+			HAEAVARrefactor( 0 , systems );
 
 	}
 	
@@ -89,7 +89,7 @@ public class MainOptimization {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		int DIM = 7;
+		int DIM = 5;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
@@ -103,7 +103,7 @@ public class MainOptimization {
 
 		// Search method
 		final int POPSIZE = 20;
-		int MAXITERS = 40;
+		final int MAXITERS = 40;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -160,8 +160,8 @@ public class MainOptimization {
 		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 		// Variation definition
-		RefOperAddGen add = new RefOperAddGen(1, 5, 9, metaphor);
-		RefOperDelGen del = new RefOperDelGen(1, 5, 9, metaphor);
+		RefOperAddGen add = new RefOperAddGen(1, 3, 7, metaphor);
+		RefOperDelGen del = new RefOperDelGen(1, 3, 7, metaphor);
 		ArityTwo< List<RefactoringOperation> > xover = new RefOperJoin();
 		
 		// Search method
@@ -216,7 +216,7 @@ public class MainOptimization {
 
 		// Third Step: Optimization
 		// Search Space definition
-		final int DIM = 7;
+		final int DIM = 5;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
 
 		// Optimization Function
@@ -282,7 +282,7 @@ public class MainOptimization {
 		//Third Step: Optimization 
 		
 		// Search Space definition
-        final int DIM = 7;
+        final int DIM = 5;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
 
         // Variation definition

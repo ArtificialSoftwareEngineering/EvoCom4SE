@@ -217,14 +217,15 @@ public class VarLengthOperRefSpace extends Space< List<RefactoringOperation> > {
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-		IntUniform g = new IntUniform ( Refactoring.values().length );
+		final int DECREASE = 5;
+		IntUniform g = new IntUniform ( Refactoring.values().length - DECREASE);
 		GeneratingRefactor randomRefactor = null;
 
 		for(int i = 0; i < n; i++){
 			mapRefactor = g.generate();
 			switch(mapRefactor){
 			case 0:
-				randomRefactor = new GeneratingRefactorPUF();
+				randomRefactor = new GeneratingRefactorEC();
 				break;
 			case 1:
 				randomRefactor = new GeneratingRefactorMM();
@@ -242,23 +243,27 @@ public class VarLengthOperRefSpace extends Space< List<RefactoringOperation> > {
 				randomRefactor = new GeneratingRefactorEM();
 				break;
 			case 6:
-				randomRefactor = new GeneratingRefactorPDM();
+				randomRefactor = new GeneratingRefactorIM();
 				break;
 			case 7:
 				randomRefactor = new GeneratingRefactorRID();
 				break;
 			case 8:
-				randomRefactor = new GeneratingRefactorIM();
-				break;
-			case 9:
-				randomRefactor = new GeneratingRefactorPUM();
-				break;
-			case 10:
 				randomRefactor = new GeneratingRefactorPDF();
 				break;
-			case 11:
-				randomRefactor = new GeneratingRefactorEC();
+			case 9:
+				randomRefactor = new GeneratingRefactorPUF();
 				break;
+			case 10:
+				randomRefactor = new GeneratingRefactorPDM();
+				break;
+			case 11:
+				randomRefactor = new GeneratingRefactorPUM();
+				
+				break;
+			//TODO: Quitar defaul y descomentar lineas del switch para activar todas
+			default:
+				randomRefactor = new GeneratingRefactorIM();
 			}//END CASE
 
 			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");

@@ -78,14 +78,16 @@ public class RefOperMutation extends ArityOne< List<RefactoringOperation> > {
 			double rate = 1.0 - ((bit_mutation_rate == 0.0)?1.0/genome.size():bit_mutation_rate);
 			RandBool g = new RandBool(rate);
 			RefactoringOperation refOper;
-			IntUniform r = new IntUniform ( Refactoring.values().length );
+			
+			final int DECREASE = 5;
+			IntUniform r = new IntUniform ( Refactoring.values().length - DECREASE);
 			RefactoringType refType = null;
 
 			for (int i = 0; i < genome.size(); i++) {
 				if (g.next()) {	        	
 					switch( r.generate() ){
 					case 0:
-						refType = new PullUpField( metaphor.getSysTypeDcls() );
+						refType = new ExtractClass( metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder() );
 						break;
 					case 1:
 						refType = new MoveMethod( metaphor.getSysTypeDcls() , metaphor.getBuilder() );
@@ -103,13 +105,13 @@ public class RefOperMutation extends ArityOne< List<RefactoringOperation> > {
 						refType = new ExtractMethod( metaphor.getSysTypeDcls(), metaphor.getLang() );
 						break;
 					case 6:
-						refType = new PushDownMethod( metaphor.getSysTypeDcls() , metaphor.getBuilder() );
+						refType = new InlineMethod( metaphor.getSysTypeDcls(), metaphor.getLang() );
 						break;
 					case 7:
 						refType = new ReplaceInheritanceDelegation( metaphor.getSysTypeDcls() , metaphor.getBuilder() );
 						break;
 					case 8:
-						refType = new InlineMethod( metaphor.getSysTypeDcls(), metaphor.getLang() );
+						refType = new PushDownMethod( metaphor.getSysTypeDcls() , metaphor.getBuilder() );
 						break;
 					case 9:
 						refType = new PullUpMethod( metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder() );
@@ -118,7 +120,7 @@ public class RefOperMutation extends ArityOne< List<RefactoringOperation> > {
 						refType = new PushDownField( metaphor.getSysTypeDcls(), metaphor.getLang() );
 						break;
 					case 11:
-						refType = new ExtractClass( metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder() );
+						refType = new PullUpField( metaphor.getSysTypeDcls() );
 						break;
 					}//END CASE
 

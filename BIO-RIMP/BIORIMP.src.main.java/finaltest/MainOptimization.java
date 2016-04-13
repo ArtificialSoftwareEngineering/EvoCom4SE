@@ -54,9 +54,9 @@ public class MainOptimization {
 		//measureMetrics( systems );
 	
 		//for(int i=0; i<30; i++)
-			HILLrefactor( 1 , systems );
+			//HILLrefactor( 1 , systems );
 		//for(int i=0; i<30; i++)
-			//SIMULATEDrefactor(0 , systems );
+			SIMULATEDrefactor(1 , systems );
 		//for(int i=0; i<30; i++)
 			//HAEArefactor( 0 , systems );
 		//for(int i=0; i<30; i++)
@@ -308,7 +308,7 @@ public class MainOptimization {
         Write.set(Solution.class, w_desc);
         
         ConsoleTracer tracer = new ConsoleTracer();
-		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		FileTracer filetracergoal = new FileTracer(systems +"_simulated_fileTracerCCODECGOAL_"+iter, '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
 		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
@@ -324,7 +324,7 @@ public class MainOptimization {
 	
 	public static void escribirTextoArchivo( String texto ) {
 		String systems = "dataset01";
-		String algo = "_HILL_";
+		String algo = "_SIMULATED_";
 		String ruta = systems+algo+"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){

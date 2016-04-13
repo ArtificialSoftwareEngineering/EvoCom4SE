@@ -54,13 +54,13 @@ public class MainOptimization {
 		//measureMetrics( systems );
 	
 		//for(int i=0; i<30; i++)
-			HILLrefactor( 0 , systems );
+			HILLrefactor( 1 , systems );
 		//for(int i=0; i<30; i++)
-			SIMULATEDrefactor(0 , systems );
+			//SIMULATEDrefactor(0 , systems );
 		//for(int i=0; i<30; i++)
-			HAEArefactor( 0 , systems );
+			//HAEArefactor( 0 , systems );
 		//for(int i=0; i<30; i++)
-			HAEAVARrefactor( 0 , systems );
+			//HAEAVARrefactor( 0 , systems );
 
 	}
 	
@@ -102,8 +102,8 @@ public class MainOptimization {
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		final int POPSIZE = 20;
-		final int MAXITERS = 40;
+		final int POPSIZE = 50;
+		final int MAXITERS = 198;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -153,7 +153,7 @@ public class MainOptimization {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		VarLengthOperRefSpace space = new VarLengthOperRefSpace( 5, 9, metaphor );
+		VarLengthOperRefSpace space = new VarLengthOperRefSpace( 3, 7, metaphor );
 		 
 		// Optimization Function
 		OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor,systems+"_HAEAVAR_" + iter);		
@@ -165,8 +165,8 @@ public class MainOptimization {
 		ArityTwo< List<RefactoringOperation> > xover = new RefOperJoin();
 		
 		// Search method
-		int POPSIZE = 20;
-		final int MAXITERS = 50;
+		int POPSIZE = 50;
+		final int MAXITERS = 200;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = add;
@@ -235,7 +235,7 @@ public class MainOptimization {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		final int MAXITERS = 1000;
+		final int MAXITERS = 10000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -251,7 +251,7 @@ public class MainOptimization {
 		Write.set(Solution.class, w_desc);
 
 		ConsoleTracer tracer = new ConsoleTracer();
-		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		FileTracer filetracergoal = new FileTracer(systems +"hill_fileTracerCCODECGOAL_"+iter, '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
 		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
@@ -294,7 +294,7 @@ public class MainOptimization {
         
     	
         // Search method
-        final int MAXITERS = 1000;
+        final int MAXITERS = 10000;
         SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
 
 
@@ -324,7 +324,8 @@ public class MainOptimization {
 	
 	public static void escribirTextoArchivo( String texto ) {
 		String systems = "dataset01";
-		String ruta = systems+"_T_TEST_LOG_JAR.txt";
+		String algo = "_HILL_";
+		String ruta = systems+algo+"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			fw.write( texto );

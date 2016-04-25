@@ -50,17 +50,17 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
 	public static void main(String[] args) {
-		String systems = "dataset01";
+		String systems = "ccodec";
 		//measureMetrics( systems );
 	
+		for(int i=0; i<30; i++)
+			HILLrefactor( i , systems );
 		//for(int i=0; i<30; i++)
-			//HILLrefactor( 1 , systems );
+			//SIMULATEDrefactor(0 , systems );
 		//for(int i=0; i<30; i++)
-			SIMULATEDrefactor(1 , systems );
+		//	HAEArefactor( 2 , systems );
 		//for(int i=0; i<30; i++)
-			//HAEArefactor( 0 , systems );
-		//for(int i=0; i<30; i++)
-			//HAEAVARrefactor( 0 , systems );
+			//HAEAVARrefactor( 2 , systems );
 
 	}
 	
@@ -89,7 +89,7 @@ public class MainOptimization {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		int DIM = 5;
+		int DIM = 7;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
@@ -102,8 +102,8 @@ public class MainOptimization {
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		final int POPSIZE = 50;
-		final int MAXITERS = 198;
+		final int POPSIZE = 20;//50;
+		final int MAXITERS = 98;//198;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -124,7 +124,7 @@ public class MainOptimization {
 		Write.set(HaeaOperators.class, write_desc);
 
 		ConsoleTracer tracer = new ConsoleTracer(); 
-		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		FileTracer filetracergoal = new FileTracer(systems +"_HAEA_fileTracerCCODECGOAL_"+iter, '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
 		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
@@ -187,7 +187,7 @@ public class MainOptimization {
 		Write.set(HaeaOperators.class, write_desc);
 
 		ConsoleTracer tracer = new ConsoleTracer();       
-		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		FileTracer filetracergoal = new FileTracer(systems +"_HAEAVAR_fileTracerCCODECGOAL_"+iter, '\n');
 		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
 		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
 		Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations
@@ -216,7 +216,7 @@ public class MainOptimization {
 
 		// Third Step: Optimization
 		// Search Space definition
-		final int DIM = 5;
+		final int DIM = 7;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
 
 		// Optimization Function
@@ -235,7 +235,7 @@ public class MainOptimization {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		final int MAXITERS = 10000;
+		final int MAXITERS = 2000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -323,8 +323,8 @@ public class MainOptimization {
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String systems = "dataset01";
-		String algo = "_SIMULATED_";
+		String systems = "ccodec";
+		String algo = "_HILL_";
 		String ruta = systems+algo+"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){

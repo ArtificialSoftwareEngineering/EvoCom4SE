@@ -67,10 +67,18 @@ public class RefactoringOperation {
 
 	@Override
 	public String toString() {
+		String JsonFormatReturn = 
+				" \" " + refType.getAcronym() + " \":{ " 
+				+ (params != null ? (params.toString()) : "") + " , "
+				+ (subRefs != null ? ("{" + subRefs + "}") : "") + " , "
+				+ "feasible : " + feasible + " } " 
+				; 
+		/*
 		return refType.getAcronym()
 				+ (params != null ? (params.toString()) : "")
 				+ (subRefs != null ? ("{" + subRefs + "}") : "")
-				+ "feasible : " + feasible;
+				+ "feasible : " + feasible;*/
+		return JsonFormatReturn;
 	}
 	
 	//danaderp 1001 SetParams for transposition operator

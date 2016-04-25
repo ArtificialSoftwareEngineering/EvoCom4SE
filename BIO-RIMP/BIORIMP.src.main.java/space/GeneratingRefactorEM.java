@@ -88,8 +88,8 @@ public class GeneratingRefactorEM extends GeneratingRefactor {
 		boolean feasible = true;
 		
 		//0. Feasibility by Recalling
-		if( feasibleRefactorbyRecalling(ref) )
-			return true;
+		//if( feasibleRefactorbyRecalling(ref) )
+		//	return true;
 		
 		//1. Extracting the source class
 		List<TypeDeclaration> src = new ArrayList<TypeDeclaration>();

@@ -217,7 +217,7 @@ public class VarLengthOperRefSpace extends Space< List<RefactoringOperation> > {
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-		final int DECREASE = 5;
+		final int DECREASE = 0;
 		IntUniform g = new IntUniform ( Refactoring.values().length - DECREASE);
 		GeneratingRefactor randomRefactor = null;
 

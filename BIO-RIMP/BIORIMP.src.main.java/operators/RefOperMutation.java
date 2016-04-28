@@ -79,7 +79,7 @@ public class RefOperMutation extends ArityOne< List<RefactoringOperation> > {
 			RandBool g = new RandBool(rate);
 			RefactoringOperation refOper;
 			
-			final int DECREASE = 0;
+			final int DECREASE = 5;
 			IntUniform r = new IntUniform ( Refactoring.values().length - DECREASE);
 			RefactoringType refType = null;
 

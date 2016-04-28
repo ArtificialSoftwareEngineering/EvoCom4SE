@@ -49,16 +49,25 @@ import unalcol.tracer.Tracer;
 
 public class MainOptimization {
 
+	private static String algo;
+	private static String systems = "dataset01";
+	
 	public static void main(String[] args) {
-		String systems = "ccodec";
+		//String systems = "dataset01";
 		//measureMetrics( systems );
 	
-		for(int i=0; i<30; i++)
+		for(int i=0; i<30; i++){
+			algo = "_HILL_";
 			HILLrefactor( i , systems );
-		//for(int i=0; i<30; i++)
-			//SIMULATEDrefactor(0 , systems );
-		//for(int i=0; i<30; i++)
-		//	HAEArefactor( 2 , systems );
+			}
+		for(int i=0; i<30; i++){
+			algo = "_SIMULATED_";
+			SIMULATEDrefactor(i , systems );
+			}
+		for(int i=0; i<30; i++){
+			algo = "_HAEA_";
+			HAEArefactor( i , systems );
+			}
 		//for(int i=0; i<30; i++)
 			//HAEAVARrefactor( 2 , systems );
 
@@ -89,7 +98,7 @@ public class MainOptimization {
 
 		//Third Step: Optimization 
 		// Search Space definition
-		int DIM = 7;
+		int DIM = 5;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );  	
 
 		// Optimization Function
@@ -102,8 +111,8 @@ public class MainOptimization {
 		ArityOne< List<RefactoringOperation> > transposition = new ClassTransposition();
 
 		// Search method
-		final int POPSIZE = 20;//50;
-		final int MAXITERS = 98;//198;
+		final int POPSIZE = 50;
+		final int MAXITERS = 198;
 		@SuppressWarnings("unchecked")
 		Operator< List<RefactoringOperation> >[] opers = (Operator< List<RefactoringOperation> >[])new Operator[3];
 		opers[0] = mutation;
@@ -216,7 +225,7 @@ public class MainOptimization {
 
 		// Third Step: Optimization
 		// Search Space definition
-		final int DIM = 7;
+		final int DIM = 5;
 		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
 
 		// Optimization Function
@@ -235,7 +244,7 @@ public class MainOptimization {
 		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
 
 		// Search method in RefactorSpace
-		final int MAXITERS = 2000;
+		final int MAXITERS = 10000;
 		boolean neutral = true; // Accepts movements when having same function
 								// value
 		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
@@ -323,9 +332,8 @@ public class MainOptimization {
 	}
 	
 	public static void escribirTextoArchivo( String texto ) {
-		String systems = "ccodec";
-		String algo = "_HILL_";
-		String ruta = systems+algo+"_T_TEST_LOG_JAR.txt";
+		//String algo = "_HILL_";
+		String ruta = systems+ algo +"_T_TEST_LOG_JAR.txt";
 		try(FileWriter fw=new FileWriter( ruta , true );
 				FileReader fr=new FileReader( ruta )){
 			fw.write( texto );

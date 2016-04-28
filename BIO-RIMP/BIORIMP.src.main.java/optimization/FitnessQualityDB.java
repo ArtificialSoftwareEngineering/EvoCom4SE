@@ -30,7 +30,7 @@ import entities.Register;
 import entity.MetaphorCode;
 import finaltest.MainOptimization;
 import repositories.RegisterRepository;
-import test.MainHAEATestBDFi;
+//import test.MainHAEATestBDFi;
 import unalcol.clone.Clone;
 import unalcol.optimization.OptimizationFunction;
 

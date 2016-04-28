@@ -120,10 +120,10 @@ public class MainHillClimbing {
 		Write.set(Solution.class, w_desc);
 
 		ConsoleTracer tracer = new ConsoleTracer();
-		// Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
-		// function evaluations
-		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
-											// hill-climbing algorithm
+		FileTracer filetracergoal = new FileTracer(systems +"_fileTracerCCODECGOAL_"+iter, '\n');
+		Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
+		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
+		Tracer.addTracer(goal, filetracergoal);
 
 		// Apply the search method
 		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);

@@ -32,7 +32,7 @@ public class CreateRefOper {
 		OBSERVRefactorings oper = new OBSERVRefactorings();
 		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-		final int DECREASE = 0;
+		final int DECREASE = 5;
 		IntUniform g = new IntUniform ( Refactoring.values().length - DECREASE);
 		GeneratingRefactor randomRefactor = null;
 

@@ -7,21 +7,22 @@ import unalcol.random.raw.RawGenerator;
 // Unalcol Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
  * <p>Generates boolean values with a given probability</p>
- *
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/util/RandBool.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -46,13 +47,11 @@ import unalcol.random.raw.RawGenerator;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
-public class RandBool extends Random<Boolean>{
+public class RandBool extends Random<Boolean> {
     /**
      * Probability of generating a <i>false</i> value
      */
@@ -61,12 +60,13 @@ public class RandBool extends Random<Boolean>{
     /**
      * Creates a boolean generator with the same probability of generating a <i>true</i> and <i>false<i> value
      */
-    public RandBool(){
+    public RandBool() {
     }
 
     /**
      * Creates a boolean generator with the given probability of generating a <i>false</i> value (1.0-falseProbability) is
      * the probability of generating a <i>true</i> value
+     *
      * @param falseProbability Probability of generating a <i>false</i> value
      */
     public RandBool(double falseProbability) {
@@ -75,6 +75,7 @@ public class RandBool extends Random<Boolean>{
 
     /**
      * Produces a boolean value according to the stored probability distribution
+     *
      * @return A boolean value according to the stored probability distribution
      */
     @Override
@@ -84,43 +85,47 @@ public class RandBool extends Random<Boolean>{
 
     /**
      * Produces a boolean value according to the stored probability distribution
+     *
      * @return A boolean value according to the stored probability distribution
      */
     public boolean generate() {
         RawGenerator g = RawGenerator.get(this);
         return g.bool(falseProbability);
     }
+
     /**
      * Returns a set of random boolean values
+     *
      * @param v Array where boolean values will be stored
      * @param m The total number of random boolean values
      */
-    public void generate(boolean[] v, int offset,  int m) {
-      RawGenerator g = RawGenerator.get(this);
-      for (int i = 0; i < m; i++) {
-        v[i+offset] = g.bool(falseProbability);
-      }
+    public void generate(boolean[] v, int offset, int m) {
+        RawGenerator g = RawGenerator.get(this);
+        for (int i = 0; i < m; i++) {
+            v[i + offset] = g.bool(falseProbability);
+        }
     }
 
     /**
      * Returns a set of random boolean values
+     *
      * @param m The total number of random boolean values
      * @return A set of m random boolean values
      */
     public boolean[] generate(int m) {
-      boolean[] v = null;
-      if (m > 0) {
-        v = new boolean[m];
-        generate( v, 0, m );
-      }
-      return v;
-    }    
-    
-    public RandBool new_instance(){
+        boolean[] v = null;
+        if (m > 0) {
+            v = new boolean[m];
+            generate(v, 0, m);
+        }
+        return v;
+    }
+
+    public RandBool new_instance() {
         RawGenerator g = RawGenerator.get(this);
         RandBool rb = new RandBool();
         RawGenerator.set(rb, g.new_instance());
         return rb;
     }
-    
+
 }

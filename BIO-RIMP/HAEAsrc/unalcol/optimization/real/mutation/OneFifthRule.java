@@ -6,38 +6,37 @@
 package unalcol.optimization.real.mutation;
 
 /**
- *
  * @author jgomez
  */
-public class OneFifthRule implements AdaptMutationIntensity{
+public class OneFifthRule implements AdaptMutationIntensity {
     protected int G;
     protected double alpha;
     protected int Gcount = 0;
     protected int Gstar = 0;
 
-    public OneFifthRule( int G, double alpha ){
+    public OneFifthRule(int G, double alpha) {
         this.G = G;
         this.alpha = alpha;
     }
-    
-    
+
+
     @Override
-    public double apply(double sigma, double productivity){
-        if( productivity > 0.0 )  Gstar++;
+    public double apply(double sigma, double productivity) {
+        if (productivity > 0.0) Gstar++;
         Gcount++;
-        if(Gcount==G){
+        if (Gcount == G) {
             //mut.
-            double p = (double)Gstar/(double)G;
-            if( p > 0.2 ){
-                sigma /= alpha;   
-            }else{
-                if( p < 0.2){
-                    sigma *= alpha; 
+            double p = (double) Gstar / (double) G;
+            if (p > 0.2) {
+                sigma /= alpha;
+            } else {
+                if (p < 0.2) {
+                    sigma *= alpha;
                 }
-            } 
+            }
             Gcount = 0;
             Gstar = 0;
         }
-        return sigma;        
-    }    
+        return sigma;
+    }
 }

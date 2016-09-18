@@ -10,10 +10,10 @@ import unalcol.search.space.SpaceMoveInfo;
 import unalcol.types.collection.vector.Vector;
 
 /**
- *
  * @author jgomez
  */
 public interface Search4Path<T> extends Search<T> {
-    public T apply( Space<T> space, Goal<T> goal, T x );
-    public Vector<SpaceMoveInfo<T>> path( Space<T> space, Goal<T> goal, T x );    
+    public T apply(Space<T> space, Goal<T> goal, T x);
+
+    public Vector<SpaceMoveInfo<T>> path(Space<T> space, Goal<T> goal, T x);
 }

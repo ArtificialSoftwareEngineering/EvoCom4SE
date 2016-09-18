@@ -5,11 +5,11 @@ import java.awt.geom.AffineTransform;
 
 /**
  * <p>Title: Grapichs2DScaler</p>
- *
+ * <p>
  * <p>Description: Utility for scaling paint objects to dependent/independent device coordinates</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -35,6 +35,7 @@ public class Graphics2DScaler {
 
     /**
      * Creates a scaling utility (dependent/independent device coordinates) with the given scale factor
+     *
      * @param sx Scale factor in the x axe
      * @param sy Scale factor in the y axe
      */
@@ -45,6 +46,7 @@ public class Graphics2DScaler {
 
     /**
      * Scales the given paint object (according to the scale factor) to dependent device coordinates
+     *
      * @param g Graphics2D to be scaled
      */
     public void scale(Graphics2D g) {
@@ -53,6 +55,7 @@ public class Graphics2DScaler {
 
     /**
      * Scales the given paint object (according to the scale factor) to independent device coordinates
+     *
      * @param g Graphics2D to be scaled
      */
     public void scalePI(Graphics2D g) {

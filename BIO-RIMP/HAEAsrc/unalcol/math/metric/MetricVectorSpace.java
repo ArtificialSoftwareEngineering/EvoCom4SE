@@ -7,8 +7,7 @@ package unalcol.math.metric;
 import unalcol.math.algebra.VectorSpace;
 
 /**
- *
  * @author jgomez
  */
-public interface MetricVectorSpace<T> extends VectorSpace<T>, QuasiMetric<T> {    
+public interface MetricVectorSpace<T> extends VectorSpace<T>, QuasiMetric<T> {
 }

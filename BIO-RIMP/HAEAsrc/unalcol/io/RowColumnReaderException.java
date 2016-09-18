@@ -4,26 +4,31 @@
  */
 
 package unalcol.io;
+
 import java.io.IOException;
 
 /**
- *
  * @author jgomez
  */
-public class RowColumnReaderException extends IOException{
+public class RowColumnReaderException extends IOException {
     /**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	protected int row = 0;
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    protected int row = 0;
     protected int column = 0;
-    public RowColumnReaderException( int row, int column, String message ){
+
+    public RowColumnReaderException(int row, int column, String message) {
         super(message);
         this.row = row;
         this.column = column;
     }
 
-    public int getRow(){ return row; }
+    public int getRow() {
+        return row;
+    }
 
-    public int getColumn(){ return column; }
+    public int getColumn() {
+        return column;
+    }
 }

@@ -2,11 +2,11 @@ package unalcol.math.algebra;
 
 /**
  * <p>Title: grupoid</p>
- *
+ * <p>
  * <p>Description: Abstract definition of a Grupoid</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -15,6 +15,7 @@ package unalcol.math.algebra;
 public interface Groupoid<T> {
     /**
      * Adds the object one and the object two
+     *
      * @param one The first Object
      * @param two The second Object
      * @return The first object after being modified by the group operation
@@ -23,6 +24,7 @@ public interface Groupoid<T> {
 
     /**
      * Adds object the one clone and the two clone
+     *
      * @param one The first Object
      * @param two The second Object
      * @return The result

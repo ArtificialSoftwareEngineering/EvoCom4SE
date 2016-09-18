@@ -7,12 +7,14 @@ import unalcol.types.real.*;
  * <p>Description: A set of constants and methods operating on a matrix of double numbers.</p>
  * <p>Copyright: Copyright (c) 2009</p>
  * <p>Company: Kunsamu</p>
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
 public class DoubleMatrixUtil {
     /**
      * Returns the number of rows of the matrix
+     *
      * @param A Matrix to be analized
      * @return The number of rows of the matrix
      */
@@ -22,6 +24,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Returns the number of columns of the matrix
+     *
      * @param A Matrix to be analized
      * @return The number of columns of the matrix
      */
@@ -31,6 +34,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Returns the <i>i</i>-th column of the matrix
+     *
      * @param A Matrix from which the column will be obtained
      * @param i The column of the matrix to be returned
      * @return The <i>i</i>-th column of the matrix
@@ -41,6 +45,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Returns the <i>i</i>-th column of the matrix
+     *
      * @param A Matrix from which the column will be obtained
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -57,6 +62,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Returns the <i>i</i>-th row of the matrix
+     *
      * @param A Matrix from which the row will be obtained
      * @param i The row of the matrix to be returned
      * @return The <i>i</i>-th row of the matrix
@@ -67,6 +73,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Returns the <i>i</i>-th row of the matrix
+     *
      * @param A Matrix from which the row will be obtained
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -83,6 +90,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Transpose the matrix (rows becomes columns, columns become rows)
+     *
      * @param A Matrix to be transposed
      */
     public static double[][] transpose(double[][] A) {
@@ -91,6 +99,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Transpose the matrix (rows becomes columns, columns become rows)
+     *
      * @param A Matrix to be transposed
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -107,6 +116,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the given row
+     *
      * @param A Matrix to be analized
      * @param i The row index to be added
      * @return The sum of the elements in the given row. Return 0 if the index is not valid
@@ -117,6 +127,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the given row
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -135,6 +146,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the given column
+     *
      * @param A Matrix to be analyzed
      * @param i The column index to be added
      * @return The sum of the elements in the given column. Return 0 if the index is not valid
@@ -145,6 +157,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the given column
+     *
      * @param A Matrix to be analyzed
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -163,6 +176,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the matrix
+     *
      * @param A Matrix to be analized
      * @return The sum of the elements in the matrix
      */
@@ -172,6 +186,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Calculates the sum of the elements in the matrix
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -190,6 +205,7 @@ public class DoubleMatrixUtil {
     /**
      * Calculates the sum of the elements in the principal diagonal, i.e.
      * sum( x[i,i] ) for all i=1..n
+     *
      * @param A Matrix to be analized
      * @return The sum of the elements in the principal diagonal
      */
@@ -200,6 +216,7 @@ public class DoubleMatrixUtil {
     /**
      * Calculates the sum of the elements in the principal diagonal, i.e.
      * sum( x[i,i] ) for all i=1..n
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -216,6 +233,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is squared or not
+     *
      * @param A Matrix to be analized
      * @return true if the matrix is squared false otherwise
      */
@@ -225,6 +243,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is squared or not
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -236,6 +255,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is symmetric
+     *
      * @param A Matrix to be analized
      * @return true if the matrix is symmetric, false otherwise
      */
@@ -245,6 +265,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is symmetric
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -264,6 +285,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is diagonal
+     *
      * @param A Matrix to be analized
      * @return true if the matrix is diagonal, false otherwise
      */
@@ -273,6 +295,7 @@ public class DoubleMatrixUtil {
 
     /**
      * Determines if the matrix is diagonal
+     *
      * @param A Matrix to be analized
      * @param n Number of rows of the matrix
      * @param m Number of columns of the matrix
@@ -294,6 +317,7 @@ public class DoubleMatrixUtil {
     /**
      * Obtains statistical (min, max, avg, standard deviation) information from a matrix by considering each column as
      * an independent variable
+     *
      * @param x Matrix to be statistically analyzed
      * @return statistical (min, max, avg, standard deviation) information from a matrix by considering each column as
      * an independent variable
@@ -302,9 +326,9 @@ public class DoubleMatrixUtil {
         int m = x[0].length;
         Statistics[] s = new Statistics[m];
         for (int j = 0; j < m; j++) {
-            if( include_median ){
+            if (include_median) {
                 s[j] = new StatisticsWithMedian(x, j);
-            }else{
+            } else {
                 s[j] = new Statistics(x, j);
             }
         }
@@ -314,6 +338,7 @@ public class DoubleMatrixUtil {
     /**
      * Obtains statistical (min, max, avg, standard deviation) information from a matrix by considering each column as
      * an independent variable
+     *
      * @param x Matrix to be statistically analyzed
      * @return statistical (min, max, avg, standard deviation) information from a matrix by considering each column as
      * an independent variable

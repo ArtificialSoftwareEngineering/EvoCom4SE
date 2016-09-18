@@ -5,11 +5,10 @@
 package unalcol.random.real;
 
 /**
- *
  * @author jgomez
  */
-public class SimplestSymmetricPowerLawGenerator  extends SymmetricGenerator{
-    public SimplestSymmetricPowerLawGenerator(){
+public class SimplestSymmetricPowerLawGenerator extends SymmetricGenerator {
+    public SimplestSymmetricPowerLawGenerator() {
         super(new SimplestGeneralizedPowerLawGenerator());
     }
 }

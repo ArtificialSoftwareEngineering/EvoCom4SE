@@ -4,12 +4,11 @@ package unalcol.types.integer;
 /**
  * <p>Set of constants and methods operating on the primitive <i>int</i> data type,
  * for example, for accessing the bit representation of an int </p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- * 
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
- *
  */
 
 
@@ -89,6 +88,7 @@ public class IntUtil {
      * 2 is represented in binary code as: 0000.....0010
      * 2 is represented in gray code as: 0000.....0011 (3 in binary)
      * binarytoGray( 2 ) = 3
+     *
      * @param num Integer number to be converted to Gray code
      * @return Integer value that represents the value num (in gray binary format)
      */
@@ -98,6 +98,7 @@ public class IntUtil {
 
     /**
      * Determines the minimum number of bits required for representing n different values
+     *
      * @param n Number of different values
      * @return Number of bits required for representing such n different values
      */
@@ -109,6 +110,7 @@ public class IntUtil {
      * Transforms a reflected binary Gray code number to a unsigned binary number. For example,
      * 0000.....0011 in binary code represents 3, but in Gray code represents 2.
      * grayToBinary( 3 ) = 2
+     *
      * @param num Integer number in Gray code that will be converted to Binary code
      * @return Unsigned Integer value that is represented by the Gray value num
      */

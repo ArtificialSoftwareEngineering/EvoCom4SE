@@ -9,10 +9,9 @@ import unalcol.random.integer.IntUniform;
 import unalcol.random.util.Shuffle;
 
 /**
- *
  * @author jgomez
  */
-public class PermutationPick implements PickComponents{
+public class PermutationPick implements PickComponents {
     protected int[] set = new int[0];
     protected int GROUP_SIZE = 2;
     protected int MAX_GROUP_SIZE = 20;
@@ -20,34 +19,34 @@ public class PermutationPick implements PickComponents{
     protected int rep = 0;
     protected IntUniform rand;
 
-    public PermutationPick( int max_group_size ){        
+    public PermutationPick(int max_group_size) {
         MAX_GROUP_SIZE = max_group_size;
         rand = new IntUniform(MAX_GROUP_SIZE);
     }
-    
+
     @Override
-    public int[] get( int DIMENSION ) {
-        if( DIMENSION != set.length ){
+    public int[] get(int DIMENSION) {
+        if (DIMENSION != set.length) {
             set = new int[DIMENSION];
             for (int i = 0; i < DIMENSION; i++) {
                 set[i] = i;
             }
             Shuffle<Integer> shuffle = new Shuffle<Integer>();
             shuffle.apply(set);
-        }    
-        if( rep == 5 || GROUP_COUNT >= set.length){            
+        }
+        if (rep == 5 || GROUP_COUNT >= set.length) {
             GROUP_SIZE = 1 + rand.generate();
             GROUP_COUNT = 0;
             Shuffle<Integer> shuffle = new Shuffle<Integer>();
             shuffle.apply(set);
             rep = 0;
         }
-        int[] indices = new int[Math.min(GROUP_SIZE, set.length-GROUP_COUNT)];
-        for( int i=0; i<indices.length; i++){
-           indices[i] =  set[GROUP_COUNT+i];
-        }        
+        int[] indices = new int[Math.min(GROUP_SIZE, set.length - GROUP_COUNT)];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = set[GROUP_COUNT + i];
+        }
         GROUP_COUNT += GROUP_SIZE;
         rep++;
         return indices;
-    }    
+    }
 }

@@ -5,19 +5,19 @@
 package unalcol.types.collection.bitarray;
 
 import java.util.Iterator;
+
 import unalcol.types.collection.array.ArrayCollection;
 import unalcol.types.collection.array.ArrayCollectionIterator;
 
 /**
- *
  * @author jgomez
  */
-public class BitArrayCollection implements ArrayCollection<Boolean>{
-   protected BitArray array;
-   
-   public BitArrayCollection( boolean[] bits ){
-       array = new BitArray(bits);
-   }
+public class BitArrayCollection implements ArrayCollection<Boolean> {
+    protected BitArray array;
+
+    public BitArrayCollection(boolean[] bits) {
+        array = new BitArray(bits);
+    }
 
     @Override
     public Boolean get(int index) throws ArrayIndexOutOfBoundsException {
@@ -36,6 +36,6 @@ public class BitArrayCollection implements ArrayCollection<Boolean>{
 
     @Override
     public boolean isEmpty() {
-        return size()==0;
+        return size() == 0;
     }
 }

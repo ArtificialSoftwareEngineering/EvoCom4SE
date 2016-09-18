@@ -1,14 +1,16 @@
 package unalcol.types.collection.vector;
+
 import unalcol.types.collection.*;
+
 import java.util.NoSuchElementException;
 
 /**
  * <p>Title: </p>
- *
+ * <p>
  * <p>Description: </p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -18,15 +20,15 @@ public class VectorLocation<T> implements Location<T> {
     protected int pos;
     protected ImmutableVector<T> vector;
 
-    public VectorLocation( int pos, ImmutableVector<T> vector ) {
+    public VectorLocation(int pos, ImmutableVector<T> vector) {
         this.vector = vector;
         this.pos = pos;
     }
 
-    public T get() throws NoSuchElementException{
-        try{
+    public T get() throws NoSuchElementException {
+        try {
             return vector.buffer[pos];
-        }catch( Exception e ){
+        } catch (Exception e) {
             throw new NoSuchElementException("Invalid index .." + pos);
         }
     }

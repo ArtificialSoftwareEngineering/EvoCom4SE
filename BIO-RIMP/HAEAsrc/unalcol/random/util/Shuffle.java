@@ -8,21 +8,22 @@ import unalcol.service.ServiceCore;
 // Unalcol Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
  * <p>Shuffles an array (vector) of objects</p>
- *
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/util/Shuffle.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -47,23 +48,22 @@ import unalcol.service.ServiceCore;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
- * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
- * @version 1.0
  * @param <T> Type of objects in the array to be shuffled
+ * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ * @version 1.0
  */
 public class Shuffle<T> {
-    
+
     /**
      * Creates a shuffle method using the default raw generator (Random class)
      */
-    public Shuffle(){
+    public Shuffle() {
     }
-        
+
     /**
      * Generates an array with all the integers in the interval [0,n) stored in a random fashion
+     *
      * @param n Sup limit (the generated array has <i>n</i> elements (the integer numbers in the interval [0,n))
      * @return An array with all the integers in the interval [0,n) stored in a random fashion
      */
@@ -78,6 +78,7 @@ public class Shuffle<T> {
 
     /**
      * Shuffles the given array of integers
+     *
      * @param set Array of integers to be shuffled
      */
     public void apply(int[] set) {
@@ -103,6 +104,7 @@ public class Shuffle<T> {
 
     /**
      * Shuffles the given array of Objects
+     *
      * @param set Array of objects to be shuffled
      */
     public void apply(T[] set) {

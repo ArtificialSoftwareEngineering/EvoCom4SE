@@ -5,11 +5,11 @@ import java.util.Hashtable;
 
 /**
  * <p>Title: UnalcolFileFilter</p>
- *
+ * <p>
  * <p>Description: A File Filter for open/save dialog boxes</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -28,6 +28,7 @@ public class FileFilter extends javax.swing.filechooser.FileFilter {
 
     /**
      * Creates a FileFilter with the given description
+     *
      * @param description Description for the given file filtering
      */
     public FileFilter(String description) {
@@ -36,6 +37,7 @@ public class FileFilter extends javax.swing.filechooser.FileFilter {
 
     /**
      * Adds a new file extension for filtering files in dialog boxes
+     *
      * @param extension file extension for filtering files in dialog boxes that will be added
      */
     public void add(String extension) {
@@ -44,6 +46,7 @@ public class FileFilter extends javax.swing.filechooser.FileFilter {
 
     /**
      * Determines if a File has one valid extension
+     *
      * @param file File to be analized
      * @return true if the file has a valid extension, false otherwise
      */
@@ -65,6 +68,7 @@ public class FileFilter extends javax.swing.filechooser.FileFilter {
 
     /**
      * Gets the Description for the given file filtering
+     *
      * @return String containing the the Description for the given file filtering
      */
     public String getDescription() {

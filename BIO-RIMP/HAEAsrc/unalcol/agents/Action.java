@@ -2,11 +2,11 @@ package unalcol.agents;
 
 /**
  * <p>Title: Action </p>
- *
+ * <p>
  * <p>Description: Abstract definiton of an action</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2008</p>
- *
+ * <p>
  * <p>Company: Universidad Nacional de Colombia</p>
  *
  * @author Jonatan Gomez
@@ -29,22 +29,27 @@ public class Action {
      * Code of the action
      */
     protected String code;
+
     /**
      * Default constructor
+     *
      * @param _code The code of the action
      */
-    public Action( String _code ) {
-      code = _code;
+    public Action(String _code) {
+        code = _code;
     }
 
     /**
      * Gets the code of the action
+     *
      * @return The code of the action
      */
-    public String getCode(){ return code; }
+    public String getCode() {
+        return code;
+    }
 
     @Override
-    public Action clone(){
+    public Action clone() {
         return new Action(code);
     }
 }

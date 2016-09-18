@@ -6,21 +6,21 @@ package unalcol.random.raw;
 // Unified Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
- *
- * Wrap of the Java Standard Generator (Math.random()) of Uniform Distributed pseudo Random Numbers in the interval [0.0,1.0) (x~U[0,1)) 
- * <P>
- *
- * <P>
+ * Wrap of the Java Standard Generator (Math.random()) of Uniform Distributed pseudo Random Numbers in the interval [0.0,1.0) (x~U[0,1))
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/raw/JavaGenerator.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -45,29 +45,29 @@ package unalcol.random.raw;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 public class JavaGenerator extends RawGenerator {
     /**
      * Generates a random number in the interval [0.0,1.0) following a uniform distribution x~U[0,1)
      * using the Java standard random generator (Math.random())
+     *
      * @return a random number in the interval [0.0,1.0) following a uniform distribution x~U[0,1) using the Java standard random generator
      */
     @Override
     public double next() {
         return Math.random();
     }
-    
+
     /**
      * Creates a new instance of the Java random number generator (shallow copy)
+     *
      * @return A new instance of the random number generator (Math.random())
      */
     @Override
-    public RawGenerator new_instance(){
+    public RawGenerator new_instance() {
         return this;
-    }    
+    }
 }

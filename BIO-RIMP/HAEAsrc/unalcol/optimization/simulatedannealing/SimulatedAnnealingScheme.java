@@ -6,9 +6,8 @@
 package unalcol.optimization.simulatedannealing;
 
 /**
- *
  * @author jgomez
  */
 public interface SimulatedAnnealingScheme {
-    public double get( double t );    
+    public double get(double t);
 }

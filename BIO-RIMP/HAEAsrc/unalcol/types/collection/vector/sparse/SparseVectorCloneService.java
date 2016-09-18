@@ -8,25 +8,25 @@ import unalcol.clone.Clone;
 import unalcol.types.collection.vector.SortedVector;
 
 /**
- *
  * @author jgomez
  */
-public class SparseVectorCloneService<T> extends Clone<SparseVector<T>>{
-	public SparseVectorCloneService() {
+public class SparseVectorCloneService<T> extends Clone<SparseVector<T>> {
+    public SparseVectorCloneService() {
     }
 
-    public Object owner(){
+    public Object owner() {
         return SparseVector.class;
     }
 
     /**
      * Clones a Java Vector
+     *
      * @param obj The Java Vector to be cloned
      * @return A clone of the Java Vector
      */
     @SuppressWarnings("unchecked")
-	@Override
-    public SparseVector<T> clone(SparseVector<T> obj){    
-        return new SparseVector<T>( (SortedVector<SparseElement<T>>)Clone.create(obj.vector) );
-    }    
+    @Override
+    public SparseVector<T> clone(SparseVector<T> obj) {
+        return new SparseVector<T>((SortedVector<SparseElement<T>>) Clone.create(obj.vector));
+    }
 }

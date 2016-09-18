@@ -6,21 +6,22 @@ import unalcol.random.raw.RawGenerator;
 // Unalcol Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
  * <p>Generates integer numbers following a Weighted probability density (Roulette)</p>
- *
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/integer/IntRoulette.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -45,10 +46,8 @@ import unalcol.random.raw.RawGenerator;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 public class IntRoulette extends RandInt {
@@ -59,6 +58,7 @@ public class IntRoulette extends RandInt {
 
     /**
      * Creates an integer number generator with the given probability density
+     *
      * @param density Probability of generating an integer number [0,length(density))
      */
     public IntRoulette(double[] density) {
@@ -67,6 +67,7 @@ public class IntRoulette extends RandInt {
 
     /**
      * Generates an integer number following the associated density function
+     *
      * @return An integer number following the associated density function
      */
     @Override
@@ -85,6 +86,7 @@ public class IntRoulette extends RandInt {
 
     /**
      * Defines the density function of the generated integers
+     *
      * @param density Probability of generating an integer number [0,length(density))
      */
     public void setDensity(double[] density) {

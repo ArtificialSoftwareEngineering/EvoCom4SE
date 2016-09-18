@@ -76,269 +76,269 @@ import unalcol.types.real.array.DoubleArrayPlainWrite;
 
 public class MainOptimizationRun {
 
-	public static void haeaFix(MetaphorCode metaphor, String system) {
+    public static void haeaFix(MetaphorCode metaphor, String system) {
 
-		// processor.processSytem();
+        // processor.processSytem();
 
-		// Third Step: Optimization
-		// Search Space definition
-		int DIM = 7;
-		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
-
-		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,
-				"HAEAFIX_" + system);
-		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
-																											// remove
-																											// the
-																											// parameter
-																											// false
-																											// if
-																											// minimizing
-
-		// Variation definition
-		// DoubleGenerator random = new SimplestSymmetricPowerLawGenerator(); //
-		// It can be set to Gaussian or other symmetric number generator
-		// (centered in zero)
-		// PickComponents pick = new PermutationPick(DIM/2); // It can be set to
-		// null if the mutation operator is applied to every component of the
-		// solution array
-		// AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can
-		// be set to null if no mutation adaptation is required
-		// IntensityMutation mutation = new IntensityMutation( 0.1, random,
-		// pick, adapt );
-		RefOperMutation mutation = new RefOperMutation(0.5, metaphor);
-		ArityTwo<List<RefactoringOperation>> xover = new RefOperXOver();
-		ArityOne<List<RefactoringOperation>> transpositionRef = new RefOperTransposition();
-		ArityOne<List<RefactoringOperation>> transposition = new ClassTransposition();
-
-		// Search method
-		int POPSIZE = 50;
-		int MAXITERS = 10000;
-		@SuppressWarnings("unchecked")
-		Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
-		opers[0] = mutation;
-		opers[1] = xover;
-		opers[2] = transposition;
-
-		HaeaOperators<List<RefactoringOperation>> operators = new SimpleHaeaOperators<List<RefactoringOperation>>(
-				opers);
-		HAEA<List<RefactoringOperation>> search = new HAEA<List<RefactoringOperation>>(POPSIZE, operators,
-				new Tournament<List<RefactoringOperation>>(4), MAXITERS);
-
-		// Tracking the goal evaluations
-		WriteDescriptors write_desc = new WriteDescriptors();
-		RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
-		List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
-		Write.set(ref, write);
-		Write.set(HaeaStep.class, new WriteHaeaStep<List<RefactoringOperation>>());
-		Descriptors.set(PopulationSolution.class, new PopulationSolutionDescriptors<List<RefactoringOperation>>());
-		Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
-		Write.set(HaeaOperators.class, write_desc);
-
-		ConsoleTracer tracer = new ConsoleTracer();
-		Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
-										// function evaluations
-		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
-											// hill-climbing algorithm
-
-		// Apply the search method
-		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
-
-		escribirTextoArchivo(solution.quality() + "=" + solution.value(), "HAEAFIX_" + system);
-	}
-
-	public static void haeaVar(MetaphorCode metaphor, String system) {
-
-		// Search Space definition
-		VarLengthOperRefSpace space = new VarLengthOperRefSpace(5, 20, metaphor);
-
-		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,
-				"HAEAVAR_" + system);
-		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
-																											// remove
-																											// the
-																											// parameter
-																											// false
-																											// if
-																											// minimizing
-
-		// Variation definition
-		// DoubleGenerator random = new SimplestSymmetricPowerLawGenerator(); //
-		// It can be set to Gaussian or other symmetric number generator
-		// (centered in zero)
-		// PickComponents pick = new PermutationPick(DIM/2); // It can be set to
-		// null if the mutation operator is applied to every component of the
-		// solution array
-		// AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can
-		// be set to null if no mutation adaptation is required
-		// IntensityMutation mutation = new IntensityMutation( 0.1, random,
-		// pick, adapt );
-		RefOperAddGen add = new RefOperAddGen(2, 5, 10, metaphor);
-		RefOperDelGen del = new RefOperDelGen(2, 5, 20, metaphor);
-		ArityTwo<List<RefactoringOperation>> xover = new RefOperJoin();
-
-		// Search method
-		int POPSIZE = 50;
-		int MAXITERS = 10000;
-		@SuppressWarnings("unchecked")
-		Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
-		opers[0] = add;
-		opers[1] = del;
-		opers[2] = xover;
-
-		HaeaOperators<List<RefactoringOperation>> operators = new SimpleHaeaOperators<List<RefactoringOperation>>(
-				opers);
-		HAEA<List<RefactoringOperation>> search = new HAEA<List<RefactoringOperation>>(POPSIZE, operators,
-				new Tournament<List<RefactoringOperation>>(4), MAXITERS);
-
-		// Tracking the goal evaluations
-		WriteDescriptors write_desc = new WriteDescriptors();
-		RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
-		List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
-		Write.set(ref, write);
-		Write.set(HaeaStep.class, new WriteHaeaStep<List<RefactoringOperation>>());
-		Descriptors.set(PopulationSolution.class, new PopulationSolutionDescriptors<List<RefactoringOperation>>());
-		Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
-		Write.set(HaeaOperators.class, write_desc);
-
-		ConsoleTracer tracer = new ConsoleTracer();
-		Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
-										// function evaluations
-		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
-											// hill-climbing algorithm
-
-		// Apply the search method
-		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
-
-		escribirTextoArchivo(solution.quality() + "=" + solution.value(), "HAEAVAR_" + system);
-
-	}
-
-	public static void hillClimbing( MetaphorCode metaphor , String system ) {
-
-		// Third Step: Optimization
-		// Search Space definition
-		int DIM = 7;
-		Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM, metaphor);
-
-		// Optimization Function
-		OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "HILLCLIMBING_"+system );
-		Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
-																											// remove
-																											// the
-																											// parameter
-																											// false
-																											// if
-																											// minimizing
-
-		// Variation definition
-		RefOperMutation variation = new RefOperMutation(0.5, metaphor);
-
-		// Search method in RefactorSpace
-		int MAXITERS = 100000;
-		boolean neutral = true; // Accepts movements when having same function
-								// value
-		HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
-				neutral, MAXITERS);
-
-		// Tracking the goal evaluations
-		SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
-		Descriptors.set(Solution.class, desc);
-		RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
-		List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
-		Write.set(ref, write);
-		WriteDescriptors w_desc = new WriteDescriptors();
-		Write.set(Solution.class, w_desc);
-
-		ConsoleTracer tracer = new ConsoleTracer();
-		// Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
-		// function evaluations
-		Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
-											// hill-climbing algorithm
-
-		// Apply the search method
-		Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
-
-		escribirTextoArchivo("QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value(), "HILLCLIMBING_"+system );
-	}
-
-	public static void simulated( MetaphorCode metaphor , String system  ){
-		
-		// Search Space definition
+        // Third Step: Optimization
+        // Search Space definition
         int DIM = 7;
-        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
-
-        // Variation definition
-        RefOperMutation variation = new RefOperMutation( 0.5, metaphor );
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor , "SIMULATED_"+system);		
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,
+                "HAEAFIX_" + system);
+        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
+        // remove
+        // the
+        // parameter
+        // false
+        // if
+        // minimizing
+
+        // Variation definition
+        // DoubleGenerator random = new SimplestSymmetricPowerLawGenerator(); //
+        // It can be set to Gaussian or other symmetric number generator
+        // (centered in zero)
+        // PickComponents pick = new PermutationPick(DIM/2); // It can be set to
+        // null if the mutation operator is applied to every component of the
+        // solution array
+        // AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can
+        // be set to null if no mutation adaptation is required
+        // IntensityMutation mutation = new IntensityMutation( 0.1, random,
+        // pick, adapt );
+        RefOperMutation mutation = new RefOperMutation(0.5);
+        ArityTwo<List<RefactoringOperation>> xover = new RefOperXOver();
+        ArityOne<List<RefactoringOperation>> transpositionRef = new RefOperTransposition();
+        ArityOne<List<RefactoringOperation>> transposition = new ClassTransposition();
+
+        // Search method
+        int POPSIZE = 50;
+        int MAXITERS = 10000;
+        @SuppressWarnings("unchecked")
+        Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
+        opers[0] = mutation;
+        opers[1] = xover;
+        opers[2] = transposition;
+
+        HaeaOperators<List<RefactoringOperation>> operators = new SimpleHaeaOperators<List<RefactoringOperation>>(
+                opers);
+        HAEA<List<RefactoringOperation>> search = new HAEA<List<RefactoringOperation>>(POPSIZE, operators,
+                new Tournament<List<RefactoringOperation>>(4), MAXITERS);
+
+        // Tracking the goal evaluations
+        WriteDescriptors write_desc = new WriteDescriptors();
+        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+        List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
+        Write.set(ref, write);
+        Write.set(HaeaStep.class, new WriteHaeaStep<List<RefactoringOperation>>());
+        Descriptors.set(PopulationSolution.class, new PopulationSolutionDescriptors<List<RefactoringOperation>>());
+        Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
+        Write.set(HaeaOperators.class, write_desc);
+
+        ConsoleTracer tracer = new ConsoleTracer();
+        Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
+        // function evaluations
+        Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
+        // hill-climbing algorithm
+
+        // Apply the search method
+        Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
+
+        escribirTextoArchivo(solution.quality() + "=" + solution.value(), "HAEAFIX_" + system);
+    }
+
+    public static void haeaVar(MetaphorCode metaphor, String system) {
+
+        // Search Space definition
+        VarLengthOperRefSpace space = new VarLengthOperRefSpace(5, 20);
+
+        // Optimization Function
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,
+                "HAEAVAR_" + system);
+        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
+        // remove
+        // the
+        // parameter
+        // false
+        // if
+        // minimizing
+
+        // Variation definition
+        // DoubleGenerator random = new SimplestSymmetricPowerLawGenerator(); //
+        // It can be set to Gaussian or other symmetric number generator
+        // (centered in zero)
+        // PickComponents pick = new PermutationPick(DIM/2); // It can be set to
+        // null if the mutation operator is applied to every component of the
+        // solution array
+        // AdaptMutationIntensity adapt = new OneFifthRule(500, 0.9); // It can
+        // be set to null if no mutation adaptation is required
+        // IntensityMutation mutation = new IntensityMutation( 0.1, random,
+        // pick, adapt );
+        RefOperAddGen add = new RefOperAddGen(2, 5, 10);
+        RefOperDelGen del = new RefOperDelGen(2, 5, 20);
+        ArityTwo<List<RefactoringOperation>> xover = new RefOperJoin();
+
+        // Search method
+        int POPSIZE = 50;
+        int MAXITERS = 10000;
+        @SuppressWarnings("unchecked")
+        Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
+        opers[0] = add;
+        opers[1] = del;
+        opers[2] = xover;
+
+        HaeaOperators<List<RefactoringOperation>> operators = new SimpleHaeaOperators<List<RefactoringOperation>>(
+                opers);
+        HAEA<List<RefactoringOperation>> search = new HAEA<List<RefactoringOperation>>(POPSIZE, operators,
+                new Tournament<List<RefactoringOperation>>(4), MAXITERS);
+
+        // Tracking the goal evaluations
+        WriteDescriptors write_desc = new WriteDescriptors();
+        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+        List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
+        Write.set(ref, write);
+        Write.set(HaeaStep.class, new WriteHaeaStep<List<RefactoringOperation>>());
+        Descriptors.set(PopulationSolution.class, new PopulationSolutionDescriptors<List<RefactoringOperation>>());
+        Descriptors.set(HaeaOperators.class, new SimpleHaeaOperatorsDescriptor<List<RefactoringOperation>>());
+        Write.set(HaeaOperators.class, write_desc);
+
+        ConsoleTracer tracer = new ConsoleTracer();
+        Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
+        // function evaluations
+        Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
+        // hill-climbing algorithm
+
+        // Apply the search method
+        Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
+
+        escribirTextoArchivo(solution.quality() + "=" + solution.value(), "HAEAVAR_" + system);
+
+    }
+
+    public static void hillClimbing(MetaphorCode metaphor, String system) {
+
+        // Third Step: Optimization
+        // Search Space definition
+        int DIM = 7;
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
+
+        // Optimization Function
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "HILLCLIMBING_" + system);
+        Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
+        // remove
+        // the
+        // parameter
+        // false
+        // if
+        // minimizing
+
+        // Variation definition
+        RefOperMutation variation = new RefOperMutation(0.5);
+
+        // Search method in RefactorSpace
+        int MAXITERS = 100000;
+        boolean neutral = true; // Accepts movements when having same function
+        // value
+        HillClimbing<List<RefactoringOperation>> search = new HillClimbing<List<RefactoringOperation>>(variation,
+                neutral, MAXITERS);
+
+        // Tracking the goal evaluations
+        SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
+        Descriptors.set(Solution.class, desc);
+        RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
+        List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
+        Write.set(ref, write);
+        WriteDescriptors w_desc = new WriteDescriptors();
+        Write.set(Solution.class, w_desc);
+
+        ConsoleTracer tracer = new ConsoleTracer();
+        // Tracer.addTracer(goal, tracer); // Uncomment if you want to trace the
+        // function evaluations
+        Tracer.addTracer(search, tracer); // Uncomment if you want to trace the
+        // hill-climbing algorithm
+
+        // Apply the search method
+        Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
+
+        escribirTextoArchivo("QUALITY_:" + solution.quality() + "=" + "VALUE_:" + solution.value(), "HILLCLIMBING_" + system);
+    }
+
+    public static void simulated(MetaphorCode metaphor, String system) {
+
+        // Search Space definition
+        int DIM = 7;
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
+
+        // Variation definition
+        RefOperMutation variation = new RefOperMutation(0.5);
+
+        // Optimization Function
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "SIMULATED_" + system);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
-        
-    	
+
+
         // Search method
         int MAXITERS = 100000;
-        SimulatedAnnealing< List<RefactoringOperation> > search = new SimulatedAnnealing< List<RefactoringOperation> >(variation, MAXITERS);
+        SimulatedAnnealing<List<RefactoringOperation>> search = new SimulatedAnnealing<List<RefactoringOperation>>(variation, MAXITERS);
 
 
         // Tracking the goal evaluations
         SolutionDescriptors<List<RefactoringOperation>> desc = new SolutionDescriptors<List<RefactoringOperation>>();
         Descriptors.set(Solution.class, desc);
         RefactorArrayPlainWrite write = new RefactorArrayPlainWrite(false);
-        List<RefactoringOperation> ref= new ArrayList<RefactoringOperation>();
-        Write.set(ref , write);
+        List<RefactoringOperation> ref = new ArrayList<RefactoringOperation>();
+        Write.set(ref, write);
         WriteDescriptors w_desc = new WriteDescriptors();
         Write.set(Solution.class, w_desc);
-        
-        ConsoleTracer tracer = new ConsoleTracer();       
-        Tracer.addTracer(goal,tracer);
-        
+
+        ConsoleTracer tracer = new ConsoleTracer();
+        Tracer.addTracer(goal, tracer);
+
         // Apply the search method
-        Solution< List<RefactoringOperation> > solution = search.apply(space, goal);
-        
-        escribirTextoArchivo( solution.quality()+ "=" + solution.value() , "SIMULATED_"+system);
-		
-	}
+        Solution<List<RefactoringOperation>> solution = search.apply(space, goal);
 
-	public static void main(String[] arg) {
+        escribirTextoArchivo(solution.quality() + "=" + solution.value(), "SIMULATED_" + system);
 
-		String[] systems = { "ccodec", "jhotdraw", "evolution", "acra" };
-		for (int i = 0; i < systems.length; i++) {
-			// First Step: Calculate Actual Metrics
-			String userPath = System.getProperty("user.dir");
-			// String[] args = { "-l", "Java", "-p",
-			// userPath+"\\test_data\\code\\acra\\src","-s", " acra " };
-			String[] args = { "-l", "Java", "-p", userPath + "/test_data/code/"+ systems[i] +"/src", "-s",
-					"     " + systems[i] + "      " };
-			// MainMetrics.main(args);
-			// Second Step: Create the structures for the prediction
-			MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
-			init.main(args);
-			// Third Step: Optimization
-			haeaFix(new MetaphorCode(init) , systems[i]);
-			haeaVar(new MetaphorCode(init) , systems[i]);
-			hillClimbing(new MetaphorCode(init), systems[i]);
-			simulated(new MetaphorCode(init), systems[i]);
-	
-		}
-		
-		System.out.println(" ***********************SUCCESFULL ********************");
+    }
 
-	}
+    public static void main(String[] arg) {
 
-	public static void escribirTextoArchivo(String texto, String file) {
-		String ruta = file + "_TEST_FITNESS_JAR.txt";
-		try (FileWriter fw = new FileWriter(ruta, true); FileReader fr = new FileReader(ruta)) {
-			// Escribimos en el fichero un String y un caracter 97 (a)
-			fw.write(texto);
-			// fw.write(97);
-			// Guardamos los cambios del fichero
-			fw.flush();
-		} catch (IOException e) {
-			System.out.println("Error E/S: " + e);
-		}
+        String[] systems = {"ccodec", "jhotdraw", "evolution", "acra"};
+        for (int i = 0; i < systems.length; i++) {
+            // First Step: Calculate Actual Metrics
+            String userPath = System.getProperty("user.dir");
+            // String[] args = { "-l", "Java", "-p",
+            // userPath+"\\test_data\\code\\acra\\src","-s", " acra " };
+            String[] args = {"-l", "Java", "-p", userPath + "/test_data/code/" + systems[i] + "/src", "-s",
+                    "     " + systems[i] + "      "};
+            // MainMetrics.main(args);
+            // Second Step: Create the structures for the prediction
+            MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
+            init.main(args);
+            // Third Step: Optimization
+            haeaFix(new MetaphorCode(init), systems[i]);
+            haeaVar(new MetaphorCode(init), systems[i]);
+            hillClimbing(new MetaphorCode(init), systems[i]);
+            simulated(new MetaphorCode(init), systems[i]);
 
-	}
+        }
+
+        System.out.println(" ***********************SUCCESFULL ********************");
+
+    }
+
+    public static void escribirTextoArchivo(String texto, String file) {
+        String ruta = file + "_TEST_FITNESS_JAR.txt";
+        try (FileWriter fw = new FileWriter(ruta, true); FileReader fr = new FileReader(ruta)) {
+            // Escribimos en el fichero un String y un caracter 97 (a)
+            fw.write(texto);
+            // fw.write(97);
+            // Guardamos los cambios del fichero
+            fw.flush();
+        } catch (IOException e) {
+            System.out.println("Error E/S: " + e);
+        }
+
+    }
 }

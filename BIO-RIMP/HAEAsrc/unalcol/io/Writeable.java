@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.Writer;
 
 /**
- *
  * @author jgomez
  */
 public interface Writeable {

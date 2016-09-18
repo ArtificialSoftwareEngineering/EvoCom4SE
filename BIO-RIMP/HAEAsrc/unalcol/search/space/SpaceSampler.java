@@ -6,9 +6,8 @@
 package unalcol.search.space;
 
 /**
- *
  * @author jgomez
  */
 public interface SpaceSampler<T> {
-    public T apply( Space<T> space );
+    public T apply(Space<T> space);
 }

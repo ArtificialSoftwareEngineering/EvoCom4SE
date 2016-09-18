@@ -6,6 +6,7 @@ public class LongOrder extends Order<Long> {
 
     /**
      * Determines if the first Integer is less than (in some order) the second Integer (one<two)
+     *
      * @param one First Integer
      * @param two Second Integer
      * @return (one<two)

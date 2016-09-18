@@ -9,12 +9,11 @@ import unalcol.types.real.array.sparse.SparseRealVector;
  */
 
 /**
- *
  * @author jgomez
  */
-public class SparseRealVectorCosineSimilarity extends NormalizedSparseRealVectorCosineSimilarity{
+public class SparseRealVectorCosineSimilarity extends NormalizedSparseRealVectorCosineSimilarity {
     @Override
-    public double apply( SparseRealVector x , SparseRealVector y){
-        return super.apply(x, y)/(prod.norm(x)*prod.norm(y));
+    public double apply(SparseRealVector x, SparseRealVector y) {
+        return super.apply(x, y) / (prod.norm(x) * prod.norm(y));
     }
 }

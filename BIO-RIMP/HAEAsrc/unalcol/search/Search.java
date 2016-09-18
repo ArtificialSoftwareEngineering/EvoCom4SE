@@ -8,10 +8,10 @@ package unalcol.search;
 import unalcol.search.space.Space;
 
 /**
- *
  * @author jgomez
  */
 public interface Search<T> {
-    public Solution<T> apply( Space<T> space, Goal<T> goal );
+    public Solution<T> apply(Space<T> space, Goal<T> goal);
+
     public void init();
 }

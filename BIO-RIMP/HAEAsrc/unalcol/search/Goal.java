@@ -8,19 +8,21 @@ package unalcol.search;
 import unalcol.types.collection.vector.Vector;
 
 /**
- *
  * @author jgomez
  */
 public abstract class Goal<T> {
-    public abstract boolean test( T x );
-    public abstract double quality( T x );
+    public abstract boolean test(T x);
+
+    public abstract double quality(T x);
+
     public abstract boolean nonStationary();
-    public abstract boolean qTest( double q );    
-    
-    public double[] quality( Vector<T> x ){
+
+    public abstract boolean qTest(double q);
+
+    public double[] quality(Vector<T> x) {
         double[] q = new double[x.size()];
-        int k=0;
-        for( T y : x ){
+        int k = 0;
+        for (T y : x) {
             q[k] = quality(y);
             k++;
         }

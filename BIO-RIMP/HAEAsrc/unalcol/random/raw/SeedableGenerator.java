@@ -6,20 +6,20 @@ import java.util.*;
 // Unified Random generation Pack 1.0 by Jonatan Gómez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
- *
  * Seedable Generator (raw generators using a seed) of Uniform Distributed pseudo Random Numbers in the interval [0.0,1.0) (x~U[0,1)). It is based on the RangPack definition of seedable
- *
- * <P>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/raw/SeedableGenerator.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gómez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -44,10 +44,8 @@ import java.util.*;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 public abstract class SeedableGenerator extends RawGenerator {
@@ -66,6 +64,7 @@ public abstract class SeedableGenerator extends RawGenerator {
 
     /**
      * Creates a seedable generator with the given time dependent seed
+     *
      * @param seed The time information used for defining the seed
      */
     public SeedableGenerator(Date seed) {
@@ -74,6 +73,7 @@ public abstract class SeedableGenerator extends RawGenerator {
 
     /**
      * Creates a seedable generator with the given seed
+     *
      * @param seed The seed
      */
     public SeedableGenerator(long seed) {
@@ -81,32 +81,29 @@ public abstract class SeedableGenerator extends RawGenerator {
     }
 
     /**
-     *
      * Returns a seed calculated from the current date.
-     * @return a long integer seed
      *
+     * @return a long integer seed
      */
     public long initSeed() {
         return this.initSeed((new Date()).getTime());
     }
 
     /**
-     *
      * Returns a seed calculated from a given date.
+     *
      * @param seed Time information used for determining the seed
      * @return a long integer seed
-     *
      */
     public long initSeed(Date seed) {
         return this.initSeed(seed.getTime());
     }
 
     /**
-     *
      * Returns a seed calculated from a given seed
-     * @param seed The seed
-     * @return a long integer seed (actually, returns the given seed) 
      *
+     * @param seed The seed
+     * @return a long integer seed (actually, returns the given seed)
      */
     public long initSeed(long seed) {
         this.seed = seed;
@@ -115,6 +112,7 @@ public abstract class SeedableGenerator extends RawGenerator {
 
     /**
      * Returns the seed used by the generator
+     *
      * @return Seed used by the generator
      */
     public long getSeed() {

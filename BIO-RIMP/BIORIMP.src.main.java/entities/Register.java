@@ -59,8 +59,6 @@ public class Register extends Entity {
     }
 
 
-
-
     public String getMetric() {
         return metric;
     }
@@ -70,9 +68,10 @@ public class Register extends Entity {
     }
 
 
-    public  Register (){
+    public Register() {
 
     }
+
     public String getRefactor() {
         return refactor;
     }
@@ -99,16 +98,16 @@ public class Register extends Entity {
     }
 
     public Register(String refactor, String metric, double value,
-                    String sources, String targets, String field, String method,String classs){
+                    String sources, String targets, String field, String method, String classs) {
         super();
         this.refactor = refactor;
-        this.metric= metric;
-        this. value = value;
+        this.metric = metric;
+        this.value = value;
         this.sources = sources;
         this.targets = targets;
         this.method = method;
         this.field = field;
-        this.classs= classs;
+        this.classs = classs;
 
     }
 

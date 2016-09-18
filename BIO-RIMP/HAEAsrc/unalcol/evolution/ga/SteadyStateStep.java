@@ -7,19 +7,19 @@ import unalcol.search.space.ArityOne;
 
 /**
  * <p>Title: SteadyStateGA</p>
- *
+ * <p>
  * <p>Description: Steady State Genetic Algorithm (GA with Steady State replacement strategy </p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2010</p>
  *
  * @author Jonatan Gomez
  * @version 1.0
  */
 public class SteadyStateStep<T> extends GAStep<T> {
-    public SteadyStateStep( int n,  Selection<T> parent_selection,
-                          ArityOne<T> mutation, ArityTwo<T> xover,
-                          double probability ) {
-        super( n, parent_selection, mutation, xover, probability,
-               new TotalSelectionReplacement<T>() );
+    public SteadyStateStep(int n, Selection<T> parent_selection,
+                           ArityOne<T> mutation, ArityTwo<T> xover,
+                           double probability) {
+        super(n, parent_selection, mutation, xover, probability,
+                new TotalSelectionReplacement<T>());
     }
 }

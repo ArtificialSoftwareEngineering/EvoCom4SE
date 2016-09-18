@@ -9,28 +9,27 @@ import unalcol.service.ServiceCore;
 import unalcol.types.collection.vector.SortedVector;
 
 /**
- *
  * @author jgomez
  */
-public class SparseVector<T> extends ImmutableSparseVector<T>{
-	static{
-		ServiceCore.set(SparseVector.class, Clone.class, new SparseVectorCloneService<Object>());
-	}
-    
-    public SparseVector(){
-        super( new SortedVector<SparseElement<T>>(new SparseElementOrder<T>()) );
+public class SparseVector<T> extends ImmutableSparseVector<T> {
+    static {
+        ServiceCore.set(SparseVector.class, Clone.class, new SparseVectorCloneService<Object>());
     }
-    
-    public SparseVector( SortedVector<SparseElement<T>> vector ){
-        super( vector );
+
+    public SparseVector() {
+        super(new SortedVector<SparseElement<T>>(new SparseElementOrder<T>()));
     }
-    
+
+    public SparseVector(SortedVector<SparseElement<T>> vector) {
+        super(vector);
+    }
+
     public boolean set(int index, T data) {
         loc.index = index;
         index = vector.findIndex(loc);
-        if( index >= 0 ){
+        if (index >= 0) {
             vector.get(index).setValue(data);
-        }else{
+        } else {
             vector.add(new SparseElement<>(loc.index, data));
         }
         return true;
@@ -43,5 +42,5 @@ public class SparseVector<T> extends ImmutableSparseVector<T>{
     public boolean del(int index) {
         loc.index = index;
         return vector.del(loc);
-    }    
+    }
 }

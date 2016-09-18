@@ -11,28 +11,28 @@ import unalcol.search.space.Space;
 import unalcol.search.space.ArityOne;
 
 /**
- *
  * @author jgomez
  */
 public class VariationReplaceSinglePointSearch<T> extends SinglePointSearch<T> {
     protected ArityOne<T> variation;
     protected Replacement<T> replace;
-    
-    public VariationReplaceSinglePointSearch( ArityOne<T> variation, Replacement<T> replace ){
+
+    public VariationReplaceSinglePointSearch(ArityOne<T> variation, Replacement<T> replace) {
         super();
         this.variation = variation;
         this.replace = replace;
     }
-    
-    @Override
-    public void init(){}
 
     @Override
-    public Solution<T> apply(Solution<T> x, Space<T> space, Goal<T> goal){
+    public void init() {
+    }
+
+    @Override
+    public Solution<T> apply(Solution<T> x, Space<T> space, Goal<T> goal) {
         // Check if non stationary
         x.quality(goal);
-        Solution<T> y = new Solution<T>(variation.apply(space, x.value()),goal);
-        variation.adapt(y.quality()-x.quality());
+        Solution<T> y = new Solution<T>(variation.apply(space, x.value()), goal);
+        variation.adapt(y.quality() - x.quality());
         return replace.apply(x, y);
-    }    
+    }
 }

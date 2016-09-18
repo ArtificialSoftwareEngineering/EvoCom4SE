@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package useless_test;
 
@@ -11,15 +11,14 @@ import unalcol.types.collection.bitarray.BitArrayConverter;
 
 /**
  * @author Daavid
- *
  */
 public class testQubit {
 
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		/*
+    /**
+     * @param args
+     */
+    public static void main(String[] args) {
+        /*
 		//Testing QubitArray 
 		QubitArray array = new QubitArray(40,true);
 		System.out.println(array.getGenObservation().toString());
@@ -56,6 +55,6 @@ public class testQubit {
 		}while(true);
 		
 		*/
-	}
+    }
 
 }

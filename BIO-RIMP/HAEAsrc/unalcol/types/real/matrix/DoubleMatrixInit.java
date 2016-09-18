@@ -5,12 +5,14 @@ package unalcol.types.real.matrix;
  * <p>Description:  A set of methods for creating a matrix of doubles</p>
  * <p>Copyright: Copyright (c) 2009</p>
  * <p>Company: Kunsamu</p>
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
-public class DoubleMatrixInit{
+public class DoubleMatrixInit {
     /**
      * Creates the zero matrix of <i>n</i> rows by <i>m</i> columns
+     *
      * @param n Number of rows
      * @param m Number of columns
      * @return The zero matrix (<i>n</i> by <i>m</i>)
@@ -34,6 +36,7 @@ public class DoubleMatrixInit{
 
     /**
      * Creates the zero square matrix (<i>n</i> by <i>n</i>)
+     *
      * @param n Number of rows and columns (dimension)
      * @return The zero matrix (<i>n</i> by <i>n</i>)
      */
@@ -44,6 +47,7 @@ public class DoubleMatrixInit{
 
     /**
      * Creates the identity matrix (<i>n</i> by <i>n</i>)
+     *
      * @param n Dimension of the identity matrix
      * @return The identity matrix (<i>n</i> by <i>n</i>)
      */
@@ -57,6 +61,7 @@ public class DoubleMatrixInit{
 
     /**
      * Constructor: Create a new matrix with the same dimensions and components as the given matrix
+     *
      * @param A The source matrix
      */
     public static double[][] clone(double[][] A) {
@@ -70,6 +75,7 @@ public class DoubleMatrixInit{
     /**
      * Creates a matrix from the given vector. The matrix will have dimension <i>n</i> b <i>1</i>
      * where element [i][0] will correspond with element x[i] of the vector
+     *
      * @param x Vector used for creating a matrix from it
      * @return The matrix version of the given vector (column vector)
      */

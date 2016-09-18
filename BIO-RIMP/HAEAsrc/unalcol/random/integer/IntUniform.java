@@ -6,21 +6,22 @@ import unalcol.random.raw.RawGenerator;
 // Unalcol Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
  * <p>Generates integer numbers following an uniform probability distribution</p>
- *
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/integer/IntUniform.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -45,10 +46,8 @@ import unalcol.random.raw.RawGenerator;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 public class IntUniform extends RandInt {
@@ -63,6 +62,7 @@ public class IntUniform extends RandInt {
 
     /**
      * Creates a uniform integer number generator in the interval [0,max)
+     *
      * @param max Sup Limit
      */
     public IntUniform(int max) {
@@ -72,6 +72,7 @@ public class IntUniform extends RandInt {
 
     /**
      * Creates a uniform integer number generator in the interval [min,max)
+     *
      * @param min Low limit
      * @param max Sup limit
      */
@@ -82,6 +83,7 @@ public class IntUniform extends RandInt {
 
     /**
      * Generates a uniform integer number in the interval [min,max)
+     *
      * @return A uniform integer number in the interval [min,max)
      */
     @Override

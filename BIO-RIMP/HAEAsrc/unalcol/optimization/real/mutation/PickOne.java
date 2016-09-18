@@ -8,23 +8,22 @@ package unalcol.optimization.real.mutation;
 import unalcol.random.integer.IntUniform;
 
 /**
- *
  * @author jgomez
  */
-public class PickOne implements PickComponents{
+public class PickOne implements PickComponents {
     protected IntUniform g;
-    protected int d=1;
-    
-    public PickOne(){
+    protected int d = 1;
+
+    public PickOne() {
         g = new IntUniform(d);
     }
-    
+
     @Override
     public int[] get(int DIMENSION) {
-        if(d != DIMENSION){
+        if (d != DIMENSION) {
             d = DIMENSION;
             g = new IntUniform(d);
         }
         return new int[]{g.generate()};
-    }    
+    }
 }

@@ -1,13 +1,13 @@
 package unalcol.agents.examples.squares.ungrupo;
 
 import java.util.ArrayList;
+
 import unalcol.agents.Action;
 import unalcol.agents.AgentProgram;
 import unalcol.agents.Percept;
 import unalcol.agents.examples.squares.Squares;
 
 /**
- *
  * @author UNGrupo
  */
 public class UNGrupoAgentSquares implements AgentProgram {
@@ -64,13 +64,13 @@ public class UNGrupoAgentSquares implements AgentProgram {
                     if (((String) p.getAttribute(i + ":" + j + ":" + Squares.LEFT)).equals(Squares.TRUE) && cnt % size != 0) {
                         colMask |= 1L << (cnt % size * size + cnt / size - size);
                     }
-                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.TOP)).equals(Squares.TRUE) && cnt > size-1 ) {
+                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.TOP)).equals(Squares.TRUE) && cnt > size - 1) {
                         rowMask |= 1L << (cnt - size);
                     }
-                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.BOTTOM)).equals(Squares.TRUE) && cnt < (size-1)*size) {
+                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.BOTTOM)).equals(Squares.TRUE) && cnt < (size - 1) * size) {
                         rowMask |= 1L << cnt;
                     }
-                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.RIGHT)).equals(Squares.TRUE) && cnt % size != size-1) {
+                    if (((String) p.getAttribute(i + ":" + j + ":" + Squares.RIGHT)).equals(Squares.TRUE) && cnt % size != size - 1) {
                         colMask |= 1L << (cnt % size * size + cnt / size);
                     }
                     cnt++;
@@ -82,15 +82,15 @@ public class UNGrupoAgentSquares implements AgentProgram {
             normalize();
             rowMask = this.rowMask;
             colMask = this.colMask;
-            if (rowMask == (1L << size*(size-1)) - 1 && colMask == (1L << size*(size-1)) - 1) {
+            if (rowMask == (1L << size * (size - 1)) - 1 && colMask == (1L << size * (size - 1)) - 1) {
                 return new Action(Squares.PASS);
             }
             System.out.println("Bitcount = " + (Long.bitCount(colMask) + Long.bitCount(rowMask)));
             int res = -1;
-            if (Long.bitCount(colMask) + Long.bitCount(rowMask) <= size*(size-1) ) {
+            if (Long.bitCount(colMask) + Long.bitCount(rowMask) <= size * (size - 1)) {
                 ArrayList<Integer> bit = new ArrayList<Integer>();
                 ArrayList<Integer> value = new ArrayList<Integer>();
-                for (int i = 0; i < size*(size-1); i++) {
+                for (int i = 0; i < size * (size - 1); i++) {
                     if ((rowMask & (1L << i)) == 0) {
                         this.rowMask = rowMask | (1L << i);
                         this.colMask = colMask;
@@ -100,13 +100,13 @@ public class UNGrupoAgentSquares implements AgentProgram {
                         value.add(sum);
                     }
                 }
-                for (int i = 0; i < size*(size-1); i++) {
+                for (int i = 0; i < size * (size - 1); i++) {
                     if ((colMask & (1L << i)) == 0) {
                         this.rowMask = rowMask;
                         this.colMask = colMask | (1L << i);
                         sum = 0;
                         normalize();
-                        bit.add(i + size*(size-1));
+                        bit.add(i + size * (size - 1));
                         value.add(sum);
                     }
                 }
@@ -122,10 +122,10 @@ public class UNGrupoAgentSquares implements AgentProgram {
                 beta = Integer.MAX_VALUE;
                 res = fMax(rowMask, colMask, getDepth(Long.bitCount(colMask) + Long.bitCount(rowMask)))[1];
             }
-            if (res < size*(size-1)) {
+            if (res < size * (size - 1)) {
                 return new Action(res / size + ":" + res % size + ":" + Squares.BOTTOM);
             } else {
-                res -= size*(size-1);
+                res -= size * (size - 1);
                 return new Action(res % size + ":" + res / size + ":" + Squares.RIGHT);
             }
         }
@@ -141,12 +141,12 @@ public class UNGrupoAgentSquares implements AgentProgram {
         normalize();
         rowMask = this.rowMask;
         colMask = this.colMask;
-        if (rowMask == (1L << size*(size-1)) - 1 && colMask == (1L << size*(size-1)) - 1 || depth == 0) {
+        if (rowMask == (1L << size * (size - 1)) - 1 && colMask == (1L << size * (size - 1)) - 1 || depth == 0) {
             return new int[]{sum, -1};
         }
         int best = Integer.MIN_VALUE, move = -1;
         int ans[];
-        for (int i = 0; i < size*(size-1); i++) {
+        for (int i = 0; i < size * (size - 1); i++) {
             if ((rowMask & (1L << i)) == 0) {
                 ans = fMin(rowMask | (1L << i), colMask, depth - 1);
                 if (best < ans[0]) {
@@ -162,7 +162,7 @@ public class UNGrupoAgentSquares implements AgentProgram {
                 ans = fMin(rowMask, colMask | (1L << i), depth - 1);
                 if (best < ans[0]) {
                     best = ans[0];
-                    move = i + size*(size-1);
+                    move = i + size * (size - 1);
                 }
                 if (best >= beta) {
                     return new int[]{best, move};
@@ -180,12 +180,12 @@ public class UNGrupoAgentSquares implements AgentProgram {
         normalize();
         rowMask = this.rowMask;
         colMask = this.colMask;
-        if (rowMask == (1L << size*(size-1)) - 1 && colMask == (1L << size*(size-1)) - 1 || depth == 0) {
+        if (rowMask == (1L << size * (size - 1)) - 1 && colMask == (1L << size * (size - 1)) - 1 || depth == 0) {
             return new int[]{sum, -1};
         }
         int best = Integer.MAX_VALUE, move = -1;
         int ans[];
-        for (int i = 0; i < size*(size-1); i++) {
+        for (int i = 0; i < size * (size - 1); i++) {
             if ((rowMask & (1L << i)) == 0) {
                 ans = fMax(rowMask | (1L << i), colMask, depth - 1);
                 if (best > ans[0]) {
@@ -201,7 +201,7 @@ public class UNGrupoAgentSquares implements AgentProgram {
                 ans = fMax(rowMask, colMask | (1L << i), depth - 1);
                 if (best > ans[0]) {
                     best = ans[0];
-                    move = i + size*(size-1);
+                    move = i + size * (size - 1);
                 }
                 if (best <= alpha) {
                     return new int[]{best, move};
@@ -213,38 +213,38 @@ public class UNGrupoAgentSquares implements AgentProgram {
     }
 
     private void normalize() {
-        for (int i = 0; i < size*size; i++) {
-            if ((size*(size-1) > i && (rowMask & (1L << i)) == 0)
-                    && (i <= (size-1) || (rowMask & (1L << (i - size))) != 0)
+        for (int i = 0; i < size * size; i++) {
+            if ((size * (size - 1) > i && (rowMask & (1L << i)) == 0)
+                    && (i <= (size - 1) || (rowMask & (1L << (i - size))) != 0)
                     && (i % size == 0 || (colMask & (1L << (i % size * size + i / size - size))) != 0)
-                    && (i % size == (size-1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
+                    && (i % size == (size - 1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
                 rowMask |= 1L << i;
                 normalize();
                 sum++;
                 return;
             }
-            if ((size*(size-1) <= i || (rowMask & (1L << i)) != 0)
-                    && (i > (size-1) && (rowMask & (1L << (i - size))) == 0)
+            if ((size * (size - 1) <= i || (rowMask & (1L << i)) != 0)
+                    && (i > (size - 1) && (rowMask & (1L << (i - size))) == 0)
                     && (i % size == 0 || (colMask & (1L << (i % size * size + i / size - size))) != 0)
-                    && (i % size == (size-1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
+                    && (i % size == (size - 1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
                 rowMask |= 1L << (i - size);
                 normalize();
                 sum++;
                 return;
             }
-            if ((size*(size-1) <= i || (rowMask & (1L << i)) != 0)
-                    && (i <= (size-1) || (rowMask & (1L << (i - size))) != 0)
+            if ((size * (size - 1) <= i || (rowMask & (1L << i)) != 0)
+                    && (i <= (size - 1) || (rowMask & (1L << (i - size))) != 0)
                     && (i % size != 0 && (colMask & (1L << (i % size * size + i / size - size))) == 0)
-                    && (i % size == (size-1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
+                    && (i % size == (size - 1) || (colMask & (1L << (i % size * size + i / size))) != 0)) {
                 colMask |= 1L << (i % size * size + i / size - size);
                 normalize();
                 sum++;
                 return;
             }
-            if ((size*(size-1) <= i || (rowMask & (1L << i)) != 0)
-                    && (i <= (size-1) || (rowMask & (1L << (i - size))) != 0)
+            if ((size * (size - 1) <= i || (rowMask & (1L << i)) != 0)
+                    && (i <= (size - 1) || (rowMask & (1L << (i - size))) != 0)
                     && (i % size == 0 || (colMask & (1L << (i % size * size + i / size - size))) != 0)
-                    && (i % size != (size-1) && (colMask & (1L << (i % size * size + i / size))) == 0)) {
+                    && (i % size != (size - 1) && (colMask & (1L << (i % size * size + i / size))) == 0)) {
                 colMask |= 1L << (i % size * size + i / size);
                 normalize();
                 sum++;

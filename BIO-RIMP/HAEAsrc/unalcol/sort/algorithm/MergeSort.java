@@ -4,9 +4,9 @@ import unalcol.sort.*;
 
 /**
  * <p>MergeSort algorithm</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2010</p>
- * 
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
@@ -20,10 +20,12 @@ public class MergeSort<T> extends Sort<T> {
     /**
      * Default constructor
      */
-    public MergeSort(){}
+    public MergeSort() {
+    }
 
     /**
      * Creates a merge sort algorithm using the given order
+     *
      * @param order Order used for sorting the objects
      */
     public MergeSort(Order<T> order) {
@@ -32,7 +34,8 @@ public class MergeSort<T> extends Sort<T> {
 
     /**
      * Creates a merge sort algorithm using the given order and overwriting array flag
-     * @param order Order used for sorting the objects
+     *
+     * @param order     Order used for sorting the objects
      * @param overwrite If the array should be overwrited or not
      */
     public MergeSort(Order<T> order, boolean overwrite) {
@@ -41,31 +44,35 @@ public class MergeSort<T> extends Sort<T> {
 
     /**
      * Sorts a portion of the array of objects according to the given order (it does not creates a new array)
-     * @param a Array of objects to be sorted
+     *
+     * @param a     Array of objects to be sorted
      * @param start Initial position in the array to be sorted
-     * @param end Final position in the array to be sorte
+     * @param end   Final position in the array to be sorte
      * @return <i>true</i> If the sorting process was done without fails, <i>false</i> otherwise
      */
     public boolean apply(T[] a, int start, int end) {
-       if( getOrder(a) != null ){
-           insertion = new InsertionSort<T>(order, true);
-           int i=start;
-            while( i<end-1 && order.compare(a[i], a[i+1]) <= 0 ){ i++; }
-            if( i<end-1 ){
+        if (getOrder(a) != null) {
+            insertion = new InsertionSort<T>(order, true);
+            int i = start;
+            while (i < end - 1 && order.compare(a[i], a[i + 1]) <= 0) {
+                i++;
+            }
+            if (i < end - 1) {
                 int n = end - start;
                 @SuppressWarnings("unchecked")
-				T[] ca = (T[])new Object[n];
+                T[] ca = (T[]) new Object[n];
                 System.arraycopy(a, start, ca, 0, n);
-                this.rec_apply( ca );
-                System.arraycopy(ca,0,a,start,n);
+                this.rec_apply(ca);
+                System.arraycopy(ca, 0, a, start, n);
             }
             return true;
         }
-       return false;
+        return false;
     }
 
     /**
      * Recursive merge sort method
+     *
      * @param a Array to be sorted
      */
     public void rec_apply(T[] a) {
@@ -74,12 +81,12 @@ public class MergeSort<T> extends Sort<T> {
             int nizq = n / 2;
             int nder = n - nizq;
             @SuppressWarnings("unchecked")
-			T[] aIzq = (T[])new Object[nizq];
+            T[] aIzq = (T[]) new Object[nizq];
             @SuppressWarnings("unchecked")
-			T[] aDer = (T[])new Object[nder];
+            T[] aDer = (T[]) new Object[nder];
 
-            System.arraycopy(a, 0, aIzq, 0, nizq );
-            System.arraycopy(a, nizq, aDer, 0, nder );
+            System.arraycopy(a, 0, aIzq, 0, nizq);
+            System.arraycopy(a, nizq, aDer, 0, nder);
             this.rec_apply(aIzq);
             this.rec_apply(aDer);
             int k = 0;
@@ -94,11 +101,13 @@ public class MergeSort<T> extends Sort<T> {
                     der++;
                 }
                 k++;
-            } while (izq < nizq && continueFlag) {
+            }
+            while (izq < nizq && continueFlag) {
                 a[k] = aIzq[izq];
                 izq++;
                 k++;
-            } while (der < nder && continueFlag) {
+            }
+            while (der < nder && continueFlag) {
                 a[k] = aDer[der];
                 der++;
                 k++;

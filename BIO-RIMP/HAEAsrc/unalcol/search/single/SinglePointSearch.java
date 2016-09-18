@@ -11,17 +11,17 @@ import unalcol.search.Solution;
 import unalcol.search.space.Space;
 
 /**
- *
  * @author Jonatan
  */
 public abstract class SinglePointSearch<T> implements Search<T> {
-    
-    public SinglePointSearch(){}
-    
-    public abstract Solution<T> apply( Solution<T> solution, Space<T> space, Goal<T> goal );
-    
+
+    public SinglePointSearch() {
+    }
+
+    public abstract Solution<T> apply(Solution<T> solution, Space<T> space, Goal<T> goal);
+
     @Override
-    public Solution<T> apply(Space<T> space, Goal<T> goal){
+    public Solution<T> apply(Space<T> space, Goal<T> goal) {
         return apply(new Solution<T>(space.get(), goal), space, goal);
     }
 }

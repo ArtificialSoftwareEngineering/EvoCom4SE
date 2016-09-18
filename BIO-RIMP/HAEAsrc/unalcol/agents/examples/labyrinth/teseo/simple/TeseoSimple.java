@@ -5,12 +5,13 @@
 package unalcol.agents.examples.labyrinth.teseo.simple;
 
 /**
- *
  * @author Jonatan
  */
 public class TeseoSimple extends SimpleTeseoAgentProgram {
 
-    public TeseoSimple() {}
+    public TeseoSimple() {
+    }
+
     @Override
     public int accion(boolean PF, boolean PD, boolean PA, boolean PI, boolean MT, boolean FAIL) {
         if (MT) return -1;
@@ -19,5 +20,5 @@ public class TeseoSimple extends SimpleTeseoAgentProgram {
         if (!PD) return 1;
         return 2;
     }
-    
+
 }

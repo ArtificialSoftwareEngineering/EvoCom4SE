@@ -5,9 +5,8 @@
 package unalcol.math.algebra;
 
 /**
- *
  * @author jgomez
  */
 public interface VectorSpace<T> extends Group<T>, ScalarProduct<T> {
-    
+
 }

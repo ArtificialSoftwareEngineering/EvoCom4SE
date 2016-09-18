@@ -2,24 +2,24 @@ package unalcol.types.collection.list;
 
 /**
  * <p>Title: Stack</p>
- *
+ * <p>
  * <p>Description: An stack </p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2007</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez
  * @version 1.0
  */
-public class Stack<T> extends Queue<T>{
+public class Stack<T> extends Queue<T> {
     public Stack() {
     }
 
-    public boolean add( T data ){
+    public boolean add(T data) {
         Node<T> node = new Node<T>(data);
         node.next = head;
-        if( head == null ){
+        if (head == null) {
             last = node;
         }
         head = node;
@@ -27,11 +27,11 @@ public class Stack<T> extends Queue<T>{
         return true;
     }
 
-    public void push( T data ){
-        add( data );
+    public void push(T data) {
+        add(data);
     }
 
-    public T pop(){
+    public T pop() {
         T t = get();
         del();
         return t;

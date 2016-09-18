@@ -8,21 +8,21 @@ import unalcol.clone.Clone;
 import unalcol.types.collection.vector.SortedVector;
 
 /**
- *
  * @author jgomez
  */
-public class ImmutableSparseVectorCloneService<T> extends Clone<ImmutableSparseVector<T>>{
+public class ImmutableSparseVectorCloneService<T> extends Clone<ImmutableSparseVector<T>> {
     public ImmutableSparseVectorCloneService() {
     }
 
     /**
      * Clones a Java Vector
+     *
      * @param obj The Java Vector to be cloned
      * @return A clone of the Java Vector
      */
     @SuppressWarnings("unchecked")
-	@Override
-    public ImmutableSparseVector<T> clone(ImmutableSparseVector<T> obj){    
-        return new ImmutableSparseVector<T>( (SortedVector<SparseElement<T>>)Clone.create(obj.vector) );
-    }    
+    @Override
+    public ImmutableSparseVector<T> clone(ImmutableSparseVector<T> obj) {
+        return new ImmutableSparseVector<T>((SortedVector<SparseElement<T>>) Clone.create(obj.vector));
+    }
 }

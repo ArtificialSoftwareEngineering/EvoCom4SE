@@ -2,12 +2,11 @@ package unalcol.random.util;
 
 /**
  * <p>Random partition of a set</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- * 
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
- *
  */
 
 public class Partition {
@@ -20,7 +19,7 @@ public class Partition {
      * <P>Starting positions of each group.</P>
      * <P>start[k] indicates the initial index of group k</P>
      */
-    protected int[] start = new int[] {0, 0};
+    protected int[] start = new int[]{0, 0};
 
     /**
      * Random distribution of index
@@ -30,21 +29,22 @@ public class Partition {
     /**
      * Constructor: Default constructor. Useful for inheritance
      */
-    protected Partition() {}
-    
-    public static int[] create(int n, int m, boolean shuffling){
+    protected Partition() {
+    }
+
+    public static int[] create(int n, int m, boolean shuffling) {
         int[] index = new int[n];
         for (int i = 0; i < n; i++) {
             index[i] = i;
-        }        
+        }
         if (shuffling) {
             Shuffle<Integer> shuffle = new Shuffle<Integer>();
             shuffle.apply(index);
         }
-        if( n<m ){
+        if (n < m) {
             int[] index2 = new int[m];
-            for( int i=0; i<m; i++ ){
-                index2[i] = index[i%n];
+            for (int i = 0; i < m; i++) {
+                index2[i] = index[i % n];
             }
             index = index2;
         }
@@ -53,26 +53,28 @@ public class Partition {
 
     /**
      * Creates a partition on <i>n</i> natural numbers [0,n)
-     * @param n Size of the set being partitioned
-     * @param m Number of groups defining the partition
+     *
+     * @param n         Size of the set being partitioned
+     * @param m         Number of groups defining the partition
      * @param shuffling If the set of integers should be shuffled before partitioning it or not
      */
     public Partition(int n, int m, boolean shuffling) {
-        this( create(n,m,shuffling), m);
+        this(create(n, m, shuffling), m);
     }
 
     /**
      * Constructor: Creates a partition of a randomized set in m random groups
+     *
      * @param index1 Randomized Set. The data set already permuted
-     * @param m Number of groups
+     * @param m      Number of groups
      */
     public Partition(int[] idx, int m) {
         index = idx;
         n = index.length;
-        if(n<m){
+        if (n < m) {
             idx = new int[m];
-            for( int i=0; i<m; i++ ){
-                idx[i] = index[i%n];
+            for (int i = 0; i < m; i++) {
+                idx[i] = index[i % n];
             }
             index = idx;
         }
@@ -86,7 +88,8 @@ public class Partition {
 
     /**
      * Constructor: Creates a partition of a randomized set and the size of groups
-     * @param index1 Randomized Set. The data set already permuted
+     *
+     * @param index1     Randomized Set. The data set already permuted
      * @param groupsSize Size of groups
      */
     public Partition(int[] index1, int[] groupsSize) {
@@ -103,6 +106,7 @@ public class Partition {
 
     /**
      * Returns the elements in the set that does not belongs to the given group
+     *
      * @param k The group to be skipped
      * @return The set without the elements in the pos group (Enumeration)
      */
@@ -110,12 +114,13 @@ public class Partition {
         int length = n - groupSize(k);
         int[] an = new int[length];
         System.arraycopy(index, 0, an, 0, start[k]);
-        System.arraycopy(index, start[k+1], an, start[k], n-start[k+1]);
+        System.arraycopy(index, start[k + 1], an, start[k], n - start[k + 1]);
         return an;
     }
 
     /**
      * Returns the elements in the set that belongs to the pos group according to the random partition
+     *
      * @param k the group to be returned
      * @return The elements in the pos group (Enumeration)
      */
@@ -128,6 +133,7 @@ public class Partition {
 
     /**
      * Calculates the size of a group in the partion
+     *
      * @param k The group
      * @return Size of the group in the partition
      */
@@ -137,6 +143,7 @@ public class Partition {
 
     /**
      * Return the number of groups in the partition
+     *
      * @return Number of groups in the partition
      */
     public int size() {
@@ -145,6 +152,7 @@ public class Partition {
 
     /**
      * Return the random distribution of index
+     *
      * @return Random distribution of index
      */
     public int[] get() {

@@ -4,9 +4,9 @@ import java.io.*;
 
 /**
  * <p>Title: ShortTermMemoryReader </p>
- *
+ * <p>
  * <p>Description: A Reader that is able to maintain the latest read characters (according to its memory size)</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
  *
  * @author Jonatan Gomez-Perdomo
@@ -55,6 +55,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Initializes the inner state of the UnalcolReader
+     *
      * @param n Maximum number of characters stored by the Reader
      */
     private void init(int n) {
@@ -64,14 +65,15 @@ public class ShortTermMemoryReader extends Reader {
         column = new int[n];
     }
 
-    public RowColumnReaderException getException( String message ){
+    public RowColumnReaderException getException(String message) {
         return new RowColumnReaderException(row[pos], column[pos], message);
     }
 
     /**
      * Creates a short term memory reader that maintains at most the last <i>MEMORY_SIZE</> read symbols
+     *
      * @param MEMORY_SIZE Memory size (maintains at most the last <i>MEMORY_SIZE</> read symbols)
-     * @param reader The underline reader
+     * @param reader      The underline reader
      */
     public ShortTermMemoryReader(int MEMORY_SIZE, Reader reader) {
         init(MEMORY_SIZE + 1);
@@ -80,8 +82,9 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Creates a short term memory reader that maintains at most the last <i>MEMORY_SIZE</> read symbols
+     *
      * @param MEMORY_SIZE Memory size (maintains at most the last <i>MEMORY_SIZE</> read symbols)
-     * @param reader The underline InputStream
+     * @param reader      The underline InputStream
      */
     public ShortTermMemoryReader(int MEMORY_SIZE, InputStream reader) {
         init(MEMORY_SIZE + 1);
@@ -90,6 +93,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Creates a short term memory reader that maintains at most the last <i>MEMORY_SIZE</> (default) read symbols
+     *
      * @param reader The underline Reader
      */
     public ShortTermMemoryReader(Reader reader) {
@@ -98,6 +102,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Creates a short term memory reader that maintains at most the last <i>MEMORY_SIZE</> (default) read symbols
+     *
      * @param reader The underline InputStream
      */
     public ShortTermMemoryReader(InputStream reader) {
@@ -106,6 +111,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Creates a short term memory reader using a String as InputStream
+     *
      * @param reader The underline InputStream
      */
     public ShortTermMemoryReader(String reader) {
@@ -114,6 +120,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Obtains a new symbol from the underline reader
+     *
      * @return symbol
      * @throws IOException
      */
@@ -123,15 +130,17 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Determines the maximum number of symbols that can "virtually" returned to the reader. (Using the memory)
+     *
      * @return Maximum number of symbols that can "virtually" returned to the reader. (Using the memory)
      */
     public int maxBack() {
-        if (pos >= start)return pos - start;
+        if (pos >= start) return pos - start;
         return n + pos - start;
     }
 
     /**
      * Returns the last k read character to the stream, if possible
+     *
      * @param k Number of characters to be returned to the stream
      * @return true if it was possible to return the last k read character, false otherwise
      * @throws IOException
@@ -149,6 +158,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Returns the last read character to the stream, if possible
+     *
      * @return true if it was possible to return the last read character, false otherwise
      * @throws IOException
      */
@@ -163,19 +173,20 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Reads a character
+     *
      * @return The character that has been read
      * @throws IOException
      */
     @Override
     public int read() throws IOException {
-        try{
+        try {
             int c;
             if (pos == end) {
                 c = get();
                 if (c != -1) {
                     end = (end + 1 < n) ? end + 1 : 0;
                     if (c == CARRIAGERETURN ||
-                        (c == LINEFEED && memory[pos] != CARRIAGERETURN)) {
+                            (c == LINEFEED && memory[pos] != CARRIAGERETURN)) {
                         row[end] = row[pos] + 1;
                         column[end] = 0;
                     } else {
@@ -195,7 +206,7 @@ public class ShortTermMemoryReader extends Reader {
                 c = memory[pos];
             }
             return c;
-        }catch( IOException e ){
+        } catch (IOException e) {
             throw getException(e.getMessage());
         }
     }
@@ -204,15 +215,16 @@ public class ShortTermMemoryReader extends Reader {
     /**
      * Read characters into a portion of an array. This method will block until
      * some input is available, an I/O error occurs, or the end of the stream is reached.
+     *
      * @param cbuf Destination buffer
-     * @param off Offset at which to start storing characters
-     * @param len Maximum number of characters to read
+     * @param off  Offset at which to start storing characters
+     * @param len  Maximum number of characters to read
      * @return The number of characters read, or -1 if the end of the stream has been reached
      * @throws IOException - If an I/O error occurs
      */
     @Override
     public int read(char[] cbuf, int off, int len) throws IOException {
-        try{
+        try {
             int k = 0;
             if (off >= 0 && off < cbuf.length) {
                 int c = read();
@@ -223,20 +235,21 @@ public class ShortTermMemoryReader extends Reader {
                 }
             }
             return k;
-        }catch( IOException e ){
+        } catch (IOException e) {
             throw getException(e.getMessage());
         }
     }
 
     /**
      * Closes the underline reader
+     *
      * @throws IOException
      */
     @Override
     public void close() throws IOException {
-        try{
+        try {
             reader.close();
-        }catch( IOException e ){
+        } catch (IOException e) {
             throw getException(e.getMessage());
         }
     }
@@ -247,7 +260,6 @@ public class ShortTermMemoryReader extends Reader {
      * after calling the mark method, is greater than the size of the buffer
      * then the mark is moved to such maximum number of characters. In this way at least the last n characters
      * are always maintained by the reader.
-
      */
     @Override
     public void mark(int readAheadLimit) {
@@ -263,6 +275,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Returns if the reader supports marks.
+     *
      * @return true
      */
     @Override
@@ -283,19 +296,20 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Skips n characters
+     *
      * @param n Characters to be skipped
      * @return Number of characters actually skipped
      * @throws IOException
      */
     @Override
     public long skip(long n) throws IOException {
-        try{
+        try {
             long k = 0;
             while (k < n && read() != -1) {
                 k++;
             }
             return k;
-        }catch( IOException e ){
+        } catch (IOException e) {
             throw getException(e.getMessage());
         }
 
@@ -303,6 +317,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Gets the actual reading row
+     *
      * @return Reading row
      */
     public int getRow() {
@@ -311,6 +326,7 @@ public class ShortTermMemoryReader extends Reader {
 
     /**
      * Gets the actual reading column
+     *
      * @return Reading column
      */
     public int getColumn() {

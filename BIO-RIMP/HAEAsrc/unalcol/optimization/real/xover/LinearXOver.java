@@ -11,19 +11,23 @@ import unalcol.random.raw.RawGenerator;
  * for each component, it use two alpha, one for the first vector and one
  * for the second vector</p>
  * <p>Copyright: Copyright (c) 2010</p>
+ *
  * @author Jonatan Gomez
  * @version 1.0
  */
 
-public class LinearXOver extends RealArityTwo{
+public class LinearXOver extends RealArityTwo {
     protected RawGenerator g = new JavaGenerator();
+
     /**
      * default constructor
      */
-    public LinearXOver() {}
+    public LinearXOver() {
+    }
 
     /**
      * Apply the 2-ary genetic operator over the individual genomes
+     *
      * @param c1 First Individuals genome to be modified by the genetic operator
      * @param c2 Second Individuals genome to be modified by the genetic operator
      * @return extra information of the genetic operator
@@ -49,8 +53,9 @@ public class LinearXOver extends RealArityTwo{
             Vector<double[]> v = new Vector<double[]>();
             v.add(x);
             v.add(y);
-            return v; 
-        } catch (Exception e) {}
+            return v;
+        } catch (Exception e) {
+        }
         return null;
     }
 

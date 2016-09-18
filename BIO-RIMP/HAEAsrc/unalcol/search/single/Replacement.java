@@ -8,10 +8,10 @@ package unalcol.search.single;
 import unalcol.search.Solution;
 
 /**
- *
  * @author jgomez
  */
 public interface Replacement<T> {
-    public Solution<T> apply( Solution<T> current, Solution<T> next );
+    public Solution<T> apply(Solution<T> current, Solution<T> next);
+
     public void init();
 }

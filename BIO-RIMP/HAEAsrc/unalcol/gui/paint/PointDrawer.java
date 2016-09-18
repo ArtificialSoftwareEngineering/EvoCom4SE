@@ -6,11 +6,11 @@ import java.awt.geom.AffineTransform;
 
 /**
  * <p>Title: PointDrawer</p>
- *
+ * <p>
  * <p>Description: Utility for drawing points</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -46,9 +46,10 @@ public class PointDrawer {
 
     /**
      * Draws a point according to the desired style, color and size
-     * @param g Graphics2D
-     * @param x int
-     * @param y int
+     *
+     * @param g         Graphics2D
+     * @param x         int
+     * @param y         int
      * @param pointType int
      * @param pointSize int
      */
@@ -62,39 +63,39 @@ public class PointDrawer {
         x = fp.x;
         y = fp.y;
         switch (pointType) {
-        case SIMPLE_POINT:
-            g.drawLine(x, y, x, y);
-            break;
-        case X_POINT:
-            g.drawLine(x - pointSize, y + pointSize, x + pointSize,
-                       y - pointSize);
-            g.drawLine(x - pointSize, y - pointSize, x + pointSize,
-                       y + pointSize);
-            break;
-        case PLUS_POINT:
-            g.drawLine(x, y + pointSize, x, y - pointSize);
-            g.drawLine(x - pointSize, y, x + pointSize, y);
-            break;
-        case TRIANGLE_POINT:
-            g.drawLine(x - pointSize, y + pointSize, x, y - pointSize);
-            g.drawLine(x, y - pointSize, x + pointSize, y + pointSize);
-            g.drawLine(x + pointSize, y + pointSize, x - pointSize,
-                       y + pointSize);
-            break;
-        case OVAL_POINT:
-            g.drawOval(x - pointSize, y - pointSize, 2 * pointSize,
-                       2 * pointSize);
-            break;
-        case SQUARE_POINT:
-            g.drawLine(x - pointSize, y + pointSize, x - pointSize,
-                       y - pointSize);
-            g.drawLine(x - pointSize, y + pointSize, x + pointSize,
-                       y + pointSize);
-            g.drawLine(x + pointSize, y + pointSize, x + pointSize,
-                       y - pointSize);
-            g.drawLine(x + pointSize, y - pointSize, x - pointSize,
-                       y - pointSize);
-            break;
+            case SIMPLE_POINT:
+                g.drawLine(x, y, x, y);
+                break;
+            case X_POINT:
+                g.drawLine(x - pointSize, y + pointSize, x + pointSize,
+                        y - pointSize);
+                g.drawLine(x - pointSize, y - pointSize, x + pointSize,
+                        y + pointSize);
+                break;
+            case PLUS_POINT:
+                g.drawLine(x, y + pointSize, x, y - pointSize);
+                g.drawLine(x - pointSize, y, x + pointSize, y);
+                break;
+            case TRIANGLE_POINT:
+                g.drawLine(x - pointSize, y + pointSize, x, y - pointSize);
+                g.drawLine(x, y - pointSize, x + pointSize, y + pointSize);
+                g.drawLine(x + pointSize, y + pointSize, x - pointSize,
+                        y + pointSize);
+                break;
+            case OVAL_POINT:
+                g.drawOval(x - pointSize, y - pointSize, 2 * pointSize,
+                        2 * pointSize);
+                break;
+            case SQUARE_POINT:
+                g.drawLine(x - pointSize, y + pointSize, x - pointSize,
+                        y - pointSize);
+                g.drawLine(x - pointSize, y + pointSize, x + pointSize,
+                        y + pointSize);
+                g.drawLine(x + pointSize, y + pointSize, x + pointSize,
+                        y - pointSize);
+                g.drawLine(x + pointSize, y - pointSize, x - pointSize,
+                        y - pointSize);
+                break;
         }
         g.setTransform(t);
     }

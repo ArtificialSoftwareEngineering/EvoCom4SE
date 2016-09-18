@@ -5,7 +5,7 @@ import unalcol.math.logic.Predicate;
 /**
  * <p>Represents the condition of a for loop</p>
  * <p>Copyright: Copyright (c) 2010</p>
- * 
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
@@ -32,9 +32,10 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Constructor: Creates an iterate condition with start, end, inc values
+     *
      * @param start Start value for the iteration process
-     * @param end End value for the iteration process
-     * @param inc Increment applied to the iterator in each iteration
+     * @param end   End value for the iteration process
+     * @param inc   Increment applied to the iterator in each iteration
      */
     public ForLoopCondition(int start, int end, int inc) {
         this.start = start;
@@ -45,8 +46,9 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Constructor: Creates an iterate condition with start, and end values. The inc value is fixed in one
+     *
      * @param start Start value for the iteration process
-     * @param end End value for the iteration process
+     * @param end   End value for the iteration process
      */
     public ForLoopCondition(int start, int end) {
         this.start = start;
@@ -57,6 +59,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
     /**
      * Constructor: Creates an iterate condition with start, and end values.
      * The inc value is fixed in one, and the start value is fixed in zero
+     *
      * @param end End value for the iteration process
      */
     public ForLoopCondition(int end) {
@@ -65,6 +68,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Creates a clone of the predicate
+     *
      * @return A copy of the predicate
      */
     public Object clone() {
@@ -73,9 +77,10 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Sets the values of the predicate
+     *
      * @param start Start value for the iteration process
-     * @param end End value for the iteration process
-     * @param inc Increment applied to the iterator in each iteration
+     * @param end   End value for the iteration process
+     * @param inc   Increment applied to the iterator in each iteration
      */
     public void set(int start, int end, int inc) {
         this.start = start;
@@ -87,6 +92,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Evaluates the iteration condition and after that, it increments the iterator
+     *
      * @param object Predicates argument
      * @return true if the condition is satisfied by the iterator (iter < end), false in other case
      */
@@ -97,6 +103,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Returns the initial value of the for-loop
+     *
      * @return the initial value of the for-loop
      */
 
@@ -106,6 +113,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Returns the increment value of the for-loop
+     *
      * @return the increment value of the for-loop
      */
     public int getInc() {
@@ -114,6 +122,7 @@ public class ForLoopCondition<T> extends Predicate<T> implements Cloneable {
 
     /**
      * Returns the final value of the for-loop (SUP LIMIT)
+     *
      * @return the initial value of the for-loop (SUP LIMIT)
      */
     public int getEnd() {

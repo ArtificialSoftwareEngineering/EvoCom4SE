@@ -28,21 +28,21 @@ import unalcol.types.collection.vector.Vector;
 
 public class MainBIoRIMP {
 
-	public static void main(String[] argss) {
-		
-		//First Step: Calculate Actual Metrics
-		String userPath = System.getProperty("user.dir");
-        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
+    public static void main(String[] argss) {
+
+        //First Step: Calculate Actual Metrics
+        String userPath = System.getProperty("user.dir");
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "     optimization      "};
         MainMetrics.main(args);
-        
+
         //Second Step: Create the structures for the prediction
-        
-        MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
+
+        MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
         init.main(args);
         MetaphorCode metaphor = new MetaphorCode(init);
-     	
+
         //processor.processSytem();
-        
+
         //Third Step: Optimization 
         /*
         // Reflection
@@ -117,6 +117,6 @@ public class MainBIoRIMP {
         
         TracerProvider.close(ea);
 		*/
-	}
+    }
 
 }

@@ -7,21 +7,23 @@ import unalcol.service.*;
  * <p>Description: Abstract definition of a Tracer of objects</p>
  * <p>Copyright: Copyright (c) 2009</p>
  * <p>Company: Kunsamu</p>
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
-public abstract class Tracer{
+public abstract class Tracer {
     protected boolean tracing = true;
 
-    public Tracer(){}
+    public Tracer() {
+    }
 
-    public boolean start(){
+    public boolean start() {
         boolean old = tracing;
         tracing = true;
         return old;
     }
 
-    public boolean stop(){
+    public boolean stop() {
         boolean old = tracing;
         tracing = false;
         return old;
@@ -29,12 +31,14 @@ public abstract class Tracer{
 
     /**
      * Adds an object sent by an object to the tracer
+     *
      * @param obj Traced information to be added
      */
     public abstract void add(Object... obj);
 
     /**
      * Returns the traced object
+     *
      * @return An object representing the traced information
      */
     public abstract Object get();
@@ -49,19 +53,19 @@ public abstract class Tracer{
      */
     public abstract void close();
 
-    public static boolean addTracer( Object owner, Tracer tracer ){
-    	return ServiceCore.set(owner, tracer);
+    public static boolean addTracer(Object owner, Tracer tracer) {
+        return ServiceCore.set(owner, tracer);
     }
-    
-    public static Tracer[] get( Object owner ){
-        try{
-           Object[] services = ServiceCore.getAll(owner, Tracer.class);
-           Tracer[] tracers = new Tracer[services.length];
-           for( int i=0; i<services.length; i++ ){
-               tracers[i] = (Tracer)services[i];
-           }
-           return tracers;
-        }catch( Exception e ){
+
+    public static Tracer[] get(Object owner) {
+        try {
+            Object[] services = ServiceCore.getAll(owner, Tracer.class);
+            Tracer[] tracers = new Tracer[services.length];
+            for (int i = 0; i < services.length; i++) {
+                tracers[i] = (Tracer) services[i];
+            }
+            return tracers;
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return new Tracer[0];
@@ -69,7 +73,8 @@ public abstract class Tracer{
 
     /**
      * Adds a data object to each tracer associated to a given object
-     * @param obj Object being traced
+     *
+     * @param obj  Object being traced
      * @param data Object to be added to each tracer associated to the object
      */
     public static void trace(Object obj, Object... data) {
@@ -81,6 +86,7 @@ public abstract class Tracer{
 
     /**
      * Closes each tracer associated to a given object
+     *
      * @param obj Object being traced
      */
     public static void close(Object obj) {
@@ -92,6 +98,7 @@ public abstract class Tracer{
 
     /**
      * Cleans each tracer associated to a given object
+     *
      * @param obj Object being traced
      */
     public static void clean(Object obj) {
@@ -100,5 +107,5 @@ public abstract class Tracer{
             service.clean();
         }
     }
-    
+
 }

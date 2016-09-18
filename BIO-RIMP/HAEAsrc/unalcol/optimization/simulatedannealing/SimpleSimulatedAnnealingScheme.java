@@ -6,19 +6,18 @@
 package unalcol.optimization.simulatedannealing;
 
 /**
- *
  * @author jgomez
  */
-public class SimpleSimulatedAnnealingScheme implements SimulatedAnnealingScheme{
+public class SimpleSimulatedAnnealingScheme implements SimulatedAnnealingScheme {
     protected double K;
 
-    public SimpleSimulatedAnnealingScheme( double K ){
+    public SimpleSimulatedAnnealingScheme(double K) {
         this.K = K;
     }
-    
+
     @Override
     public double get(double t) {
-        return t/K;
+        return t / K;
     }
-    
+
 }

@@ -7,19 +7,19 @@ import unalcol.search.space.ArityOne;
 
 /**
  * <p>Title: GenerationalGA</p>
- *
+ * <p>
  * <p>Description: Generational Genetic Algorithm</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2010</p>
  *
  * @author Jonatan Gomez
  * @version 1.0
  */
 public class GenerationalStep<T> extends GAStep<T> {
-    public GenerationalStep( int n, Selection<T> parent_selection,
-                           ArityOne<T> mutation, ArityTwo<T> xover,
-                           double probability ) {
-        super( n, parent_selection, mutation, xover, probability,
-               new Generational<T>() );
-    } 
+    public GenerationalStep(int n, Selection<T> parent_selection,
+                            ArityOne<T> mutation, ArityTwo<T> xover,
+                            double probability) {
+        super(n, parent_selection, mutation, xover, probability,
+                new Generational<T>());
+    }
 }

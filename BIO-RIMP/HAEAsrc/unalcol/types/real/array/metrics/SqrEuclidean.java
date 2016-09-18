@@ -5,11 +5,10 @@
 package unalcol.types.real.array.metrics;
 
 /**
- *
  * @author jgomez
  */
-public class SqrEuclidean extends PMinkowski{
-    public SqrEuclidean(){
+public class SqrEuclidean extends PMinkowski {
+    public SqrEuclidean() {
         super(2.0);
     }
 }

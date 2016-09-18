@@ -2,7 +2,7 @@ package unalcol.types.real;
 
 /**
  * <p>Statistical information of numeric variables</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -46,6 +46,7 @@ public class Statistics {
 
     /**
      * Computes the statistical information of the given array of doubles
+     *
      * @param x Array to be statistically analized
      */
     public Statistics(double[] x) {
@@ -66,13 +67,14 @@ public class Statistics {
         avg /= n;
         for (int i = 0; i < n; i++) {
             variance += (x[i] - avg) * (x[i] - avg);
-        }                
-        variance /= (n>1)?(n - 1):1.0;
+        }
+        variance /= (n > 1) ? (n - 1) : 1.0;
         deviation = Math.sqrt(variance);
     }
 
     /**
      * Computes the statistical information of the given column of a double matrix
+     *
      * @param x Matrix to be statistically analized
      * @param c column to be analized
      */
@@ -95,21 +97,23 @@ public class Statistics {
         for (int i = 0; i < n; i++) {
             variance += (x[i][c] - avg) * (x[i][c] - avg);
         }
-        variance /= (n>1)?(n - 1):1.0;
+        variance /= (n > 1) ? (n - 1) : 1.0;
         deviation = Math.sqrt(variance);
     }
 
     /**
      * Computes the statistical information of the given row of a double matrix
+     *
      * @param r Row to be analized
      * @param x Matrix to be statistically analized
      */
-    public Statistics(int r, double[][] x ) {
-        this( x[r] );
+    public Statistics(int r, double[][] x) {
+        this(x[r]);
     }
 
     /**
      * Obtains the statistical information in an array of doubles format (min, max, average, variance, deviation)
+     *
      * @return Statistical information in an array of doubles format
      */
     public double[] get() {

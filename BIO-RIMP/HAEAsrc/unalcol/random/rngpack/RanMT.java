@@ -1,31 +1,31 @@
 package unalcol.random.rngpack;
+
 import java.util.*;
 
 import unalcol.random.raw.*;
 
 /**
- *
  * <A HREF="http://www.math.keio.ac.jp/matumoto/emt.htm">Mersenne Twister</A> --
  * advanced pseudorandom generator with a period of 2<SUP>19937</SUP>-1
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/raw/RanMT.java">
  * Source code </A> is available.
- * <P>
+ * <p>
  * This class is a ported version of the Paul Houle's
  * <A HREF="http://www.honeylocust.com/RngPack/"> RngPack 1.1a implementation</A>
- *
- *
- *
- *
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Ported to the unalcol library by Jonatan Gomez from a work copyright (c) 2003 by Paul Houle. <br>
  * Derived from a work copyright (c) 2003 by Sean Luke. <br>
  * Portions copyright (c) 1993 by Michael Lecuyer. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -49,22 +49,22 @@ import unalcol.random.raw.*;
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- *
- *
- *
+ * <p>
+ * <p>
+ * <p>
  * This code is an adapted version of the RanMT
  * <A HREF="/RngPack/src/edu/cornell/lassp/houle/RngPack/Ranmar.java"> source code</A>
  * from RngPack 1.1a by Paul Houle
  *
  * @author <A HREF="http://www.honeylocust.com/"> Paul Houle </A>
- * (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
- * Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
+ *         Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 
 
-public class RanMT extends SeedableGenerator{
+public class RanMT extends SeedableGenerator {
 
     private static final int N = 624;
     private static final int M = 397;
@@ -85,8 +85,8 @@ public class RanMT extends SeedableGenerator{
      * Creates a RanMT generator with a time dependent seed (using the current time)
      */
     public RanMT() {
-        this.initSeed(System.currentTimeMillis()%10000);
-	//this.initSeed(4357);
+        this.initSeed(System.currentTimeMillis() % 10000);
+        //this.initSeed(4357);
     }
 
     /*
@@ -94,55 +94,54 @@ public class RanMT extends SeedableGenerator{
      * Note that this uses only the LSB 32 bits from the long
      *
      */
-    
+
     /**
      * Creates a RanMT generator with the given seed
+     *
      * @param seed The seed
      */
     public RanMT(long seed) {
-	this.initSeed(seed);
+        this.initSeed(seed);
     }
 
     /**
      * Creates a RanMT generator with the given time dependent seed
+     *
      * @param seed The time information used for defining the seed
      */
     public RanMT(Date d) {
-	this.initSeed(d.getTime());
+        this.initSeed(d.getTime());
     }
 
     /**
-     *
      * If a 32 bit seed isn't enough for you,  you can pass an array of
      * 624 integers.  Any array of integers is fine so long as they
      * aren't all zero.
-     *
      */
 
     public RanMT(int array[]) {
-	this.setSeed(array);
+        this.setSeed(array);
     }
 
-    public long initSeed(long _seed){
+    public long initSeed(long _seed) {
         seed = _seed;
-	mt = new int[N];
+        mt = new int[N];
 
-	mag01 = new int[2];
-	mag01[0] = 0x0;
-	mag01[1] = MATRIX_A;
+        mag01 = new int[2];
+        mag01[0] = 0x0;
+        mag01[1] = MATRIX_A;
 
-        mt[0]= (int)(seed & 0xfffffff);
-        for (mti=1; mti<N; mti++)
-            {
-		mt[mti] =
-		    (1812433253 * (mt[mti-1] ^ (mt[mti-1] >>> 30)) + mti);
-		/* See Knuth TAOCP Vol2. 3rd Ed. P.106 for multiplier. */
+        mt[0] = (int) (seed & 0xfffffff);
+        for (mti = 1; mti < N; mti++) {
+            mt[mti] =
+                    (1812433253 * (mt[mti - 1] ^ (mt[mti - 1] >>> 30)) + mti);
+        /* See Knuth TAOCP Vol2. 3rd Ed. P.106 for multiplier. */
 		/* In the previous versions, MSBs of the seed affect   */
 		/* only MSBs of the array mt[].                        */
 		/* 2002/01/09 modified by Makoto Matsumoto             */
-		mt[mti] &= 0xffffffff;
+            mt[mti] &= 0xffffffff;
 		/* for >32 bit machines */
-            }
+        }
         return seed;
     }
 
@@ -156,94 +155,101 @@ public class RanMT extends SeedableGenerator{
     private void setSeed(final int[] array) {
         int i, j, k;
         initSeed(19650218);
-        i=1; j=0;
-        k = (N>array.length ? N : array.length);
-        for (; k!=0; k--) {
-            mt[i] = (mt[i] ^ ((mt[i-1] ^ (mt[i-1] >>> 30)) * 1664525)) + array[j] + j; /* non linear */
+        i = 1;
+        j = 0;
+        k = (N > array.length ? N : array.length);
+        for (; k != 0; k--) {
+            mt[i] = (mt[i] ^ ((mt[i - 1] ^ (mt[i - 1] >>> 30)) * 1664525)) + array[j] + j; /* non linear */
             mt[i] &= 0xffffffff; /* for WORDSIZE > 32 machines */
             i++;
             j++;
-            if (i>=N) { mt[0] = mt[N-1]; i=1; }
-            if (j>=array.length) j=0;
-	}
-        for (k=N-1; k!=0; k--) {
-            mt[i] = (mt[i] ^ ((mt[i-1] ^ (mt[i-1] >>> 30)) * 1566083941)) - i; /* non linear */
+            if (i >= N) {
+                mt[0] = mt[N - 1];
+                i = 1;
+            }
+            if (j >= array.length) j = 0;
+        }
+        for (k = N - 1; k != 0; k--) {
+            mt[i] = (mt[i] ^ ((mt[i - 1] ^ (mt[i - 1] >>> 30)) * 1566083941)) - i; /* non linear */
             mt[i] &= 0xffffffff; /* for WORDSIZE > 32 machines */
             i++;
-            if (i>=N) {
-                mt[0] = mt[N-1]; i=1;
-	    }
-	}
+            if (i >= N) {
+                mt[0] = mt[N - 1];
+                i = 1;
+            }
+        }
         mt[0] = 0x80000000; /* MSB is 1; assuring non-zero initial array */
     }
 
     /**
      * Generates a random number in the interval [0.0,1.0) following a uniform distribution x~U[0,1),
      * using the RanMT approach
+     *
      * @return a random number in the interval [0.0,1.0) following a uniform distribution x~U[0,1)
      */
     public double next() {
-	int y;
-	int z;
+        int y;
+        int z;
 
-	if (mti >= N) {   // generate N words at one time
+        if (mti >= N) {   // generate N words at one time
 
-	    int kk;
+            int kk;
 
-	    for (kk = 0; kk < N - M; kk++) {
-		y = (mt[kk] & UPPER_MASK) | (mt[kk+1] & LOWER_MASK);
-		mt[kk] = mt[kk+M] ^ (y >>> 1) ^ mag01[y & 0x1];
-	    }
-	    for (; kk < N-1; kk++) {
-		y = (mt[kk] & UPPER_MASK) | (mt[kk+1] & LOWER_MASK);
-		mt[kk] = mt[kk+(M-N)] ^ (y >>> 1) ^ mag01[y & 0x1];
-	    }
-	    y = (mt[N-1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
-	    mt[N-1] = mt[M-1] ^ (y >>> 1) ^ mag01[y & 0x1];
+            for (kk = 0; kk < N - M; kk++) {
+                y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+                mt[kk] = mt[kk + M] ^ (y >>> 1) ^ mag01[y & 0x1];
+            }
+            for (; kk < N - 1; kk++) {
+                y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+                mt[kk] = mt[kk + (M - N)] ^ (y >>> 1) ^ mag01[y & 0x1];
+            }
+            y = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+            mt[N - 1] = mt[M - 1] ^ (y >>> 1) ^ mag01[y & 0x1];
 
-	    mti = 0;
-	}
+            mti = 0;
+        }
 
-	y = mt[mti++];
-	y ^= y >>> 11;                          // TEMPERING_SHIFT_U(y)
-	y ^= (y << 7) & TEMPERING_MASK_B;       // TEMPERING_SHIFT_S(y)
-	y ^= (y << 15) & TEMPERING_MASK_C;      // TEMPERING_SHIFT_T(y)
-	y ^= (y >>> 18);                        // TEMPERING_SHIFT_L(y)
+        y = mt[mti++];
+        y ^= y >>> 11;                          // TEMPERING_SHIFT_U(y)
+        y ^= (y << 7) & TEMPERING_MASK_B;       // TEMPERING_SHIFT_S(y)
+        y ^= (y << 15) & TEMPERING_MASK_C;      // TEMPERING_SHIFT_T(y)
+        y ^= (y >>> 18);                        // TEMPERING_SHIFT_L(y)
 
-	if (mti >= N) {  // generate N words at one time
-	    int kk;
+        if (mti >= N) {  // generate N words at one time
+            int kk;
 
-	    for (kk = 0; kk < N - M; kk++) {
-		z = (mt[kk] & UPPER_MASK) | (mt[kk+1] & LOWER_MASK);
-		mt[kk] = mt[kk+M] ^ (z >>> 1) ^ mag01[z & 0x1];
-	    }
-	    for (; kk < N-1; kk++) {
-		z = (mt[kk] & UPPER_MASK) | (mt[kk+1] & LOWER_MASK);
-		mt[kk] = mt[kk+(M-N)] ^ (z >>> 1) ^ mag01[z & 0x1];
-	    }
-	    z = (mt[N-1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
-	    mt[N-1] = mt[M-1] ^ (z >>> 1) ^ mag01[z & 0x1];
+            for (kk = 0; kk < N - M; kk++) {
+                z = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+                mt[kk] = mt[kk + M] ^ (z >>> 1) ^ mag01[z & 0x1];
+            }
+            for (; kk < N - 1; kk++) {
+                z = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+                mt[kk] = mt[kk + (M - N)] ^ (z >>> 1) ^ mag01[z & 0x1];
+            }
+            z = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+            mt[N - 1] = mt[M - 1] ^ (z >>> 1) ^ mag01[z & 0x1];
 
-	    mti = 0;
-	}
+            mti = 0;
+        }
 
-	z = mt[mti++];
-	z ^= z >>> 11;                          // TEMPERING_SHIFT_U(z)
-	z ^= (z << 7) & TEMPERING_MASK_B;       // TEMPERING_SHIFT_S(z)
-	z ^= (z << 15) & TEMPERING_MASK_C;      // TEMPERING_SHIFT_T(z)
-	z ^= (z >>> 18);                        // TEMPERING_SHIFT_L(z)
+        z = mt[mti++];
+        z ^= z >>> 11;                          // TEMPERING_SHIFT_U(z)
+        z ^= (z << 7) & TEMPERING_MASK_B;       // TEMPERING_SHIFT_S(z)
+        z ^= (z << 15) & TEMPERING_MASK_C;      // TEMPERING_SHIFT_T(z)
+        z ^= (z >>> 18);                        // TEMPERING_SHIFT_L(z)
 
 	/* derived from nextDouble documentation in jdk 1.2 docs, see top */
-	return ((((long)(y >>> 6)) << 27) + (z >>> 5)) / (double)(1L << 53);
+        return ((((long) (y >>> 6)) << 27) + (z >>> 5)) / (double) (1L << 53);
     }
-    
+
     /**
-     * Creates a new instance of the RanMT generator 
+     * Creates a new instance of the RanMT generator
+     *
      * @return A new instance of the RanMT generator
      */
     @Override
-    public RawGenerator new_instance(){
+    public RawGenerator new_instance() {
         return this; //new RanMT();
     }
-    
+
 }

@@ -9,26 +9,27 @@ import unalcol.search.single.Replacement;
 import unalcol.search.Solution;
 
 /**
- *
  * @author jgomez
  */
 public class HillClimbingReplacement<T> implements Replacement<T> {
     protected boolean neutral = false;
-    
-    public HillClimbingReplacement(){}
-    
-    public HillClimbingReplacement( boolean neutral ){
+
+    public HillClimbingReplacement() {
+    }
+
+    public HillClimbingReplacement(boolean neutral) {
         this.neutral = neutral;
     }
-    
-    @Override
-    public Solution<T> apply(Solution<T> current, Solution<T> next) {
-        if( neutral )
-            return current.quality() <= next.quality()? next : current;
-        else
-            return current.quality() < next.quality()? next : current;
-    }    
 
     @Override
-    public void init(){}   
+    public Solution<T> apply(Solution<T> current, Solution<T> next) {
+        if (neutral)
+            return current.quality() <= next.quality() ? next : current;
+        else
+            return current.quality() < next.quality() ? next : current;
+    }
+
+    @Override
+    public void init() {
+    }
 }

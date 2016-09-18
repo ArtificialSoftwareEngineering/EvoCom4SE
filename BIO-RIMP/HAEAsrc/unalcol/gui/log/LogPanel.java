@@ -6,11 +6,11 @@ import javax.swing.*;
 
 /**
  * <p>Title: LogPanel</p>
- *
+ * <p>
  * <p>Description: A panel for showing output and error messages</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- *
+ * <p>
  * <p>Company: Kunsamu</p>
  *
  * @author Jonatan Gomez Perdomo
@@ -18,11 +18,11 @@ import javax.swing.*;
  */
 public class LogPanel extends JPanel {
     /**
-	 * 
-	 */
-	private static final long serialVersionUID = -3299228531238906091L;
+     *
+     */
+    private static final long serialVersionUID = -3299228531238906091L;
 
-	/**
+    /**
      * Creates a panel for showing output and error messages
      */
     public LogPanel() {
@@ -39,13 +39,13 @@ public class LogPanel extends JPanel {
         jErrorTextArea = new JTextArea(4, 200);
         jOutPanel.setLayout(outBorderLayout);
         jOutPanel.add(new JScrollPane(jOutTextArea),
-                      java.awt.BorderLayout.CENTER);
+                java.awt.BorderLayout.CENTER);
         jErrorPanel.setLayout(errorBorderLayout);
         this.add(jLogPaneTab, java.awt.BorderLayout.CENTER);
         jLogPaneTab.add(jOutPanel, "out");
         jLogPaneTab.add(jErrorPanel, "error");
         jErrorPanel.add(new JScrollPane(jErrorTextArea),
-                        java.awt.BorderLayout.CENTER);
+                java.awt.BorderLayout.CENTER);
     }
 
     JTabbedPane jLogPaneTab = new JTabbedPane();
@@ -59,6 +59,7 @@ public class LogPanel extends JPanel {
 
     /**
      * Gets the TextArea used for showing the output messages
+     *
      * @return TextArea used for showing the output messages
      */
     public JTextArea getOutArea() {
@@ -67,6 +68,7 @@ public class LogPanel extends JPanel {
 
     /**
      * Gets the TextArea used for showing the error messages
+     *
      * @return TextArea used for showing the error messages
      */
     public JTextArea getErrorArea() {

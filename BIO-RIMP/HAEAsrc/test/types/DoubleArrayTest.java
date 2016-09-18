@@ -17,25 +17,24 @@ import unalcol.types.real.array.DoubleArrayPlainRead;
 import unalcol.types.real.array.DoubleArrayPlainWrite;
 
 /**
- *
  * @author Jonatan
  */
 public class DoubleArrayTest {
-    public static double[] sort(){
+    public static double[] sort() {
         RawGenerator g = new RanMT();
         int N = 1000;
         double[] x = g.raw(N);
         return sort(x);
     }
-    
-    public static double[] sort( double[] x ){
-    	System.out.println("Sorted array...");
+
+    public static double[] sort(double[] x) {
+        System.out.println("Sorted array...");
         DoubleArray.merge(x);
         System.out.println(Write.toString(x));
         return x;
-    }    
-    
-    public static double[] persistency(){
+    }
+
+    public static double[] persistency() {
         // Registering the PlainRead service (reading double arrays as plain text,
         // notice that an instance of the Plain read service is provided.
         Read.set(double[].class, new DoubleArrayPlainRead());
@@ -44,26 +43,26 @@ public class DoubleArrayTest {
         StringReader r = new StringReader("  3  -1234.4555e-123 345.6789 23.456");
         ShortTermMemoryReader reader = new ShortTermMemoryReader(r);
         double[] x = new double[0];
-        try{
-           // Reading the array from the provided buffer (reader) 
-           x = (double[])Read.apply(double[].class, reader);
-           // Printing the array using a regular for loop
-           for( int i=0; i<x.length; i++ ){
-               System.out.println(x[i]);
-           }
-           // Using a service for printing the array. Here we register the plain text
-           // writing service for double arrays and use it by default           
-           Write.set(double[].class, new DoubleArrayPlainWrite());
-           // Printing to a String
-           System.out.println(Write.toString(x));
-           return x;
-        }catch(Exception e ){
+        try {
+            // Reading the array from the provided buffer (reader)
+            x = (double[]) Read.apply(double[].class, reader);
+            // Printing the array using a regular for loop
+            for (int i = 0; i < x.length; i++) {
+                System.out.println(x[i]);
+            }
+            // Using a service for printing the array. Here we register the plain text
+            // writing service for double arrays and use it by default
+            Write.set(double[].class, new DoubleArrayPlainWrite());
+            // Printing to a String
+            System.out.println(Write.toString(x));
+            return x;
+        } catch (Exception e) {
             e.printStackTrace();
-        }           
+        }
         return null;
     }
-    
-    public static void main( String[] args ){
+
+    public static void main(String[] args) {
         double[] x = persistency();
         x = sort(x);
     }

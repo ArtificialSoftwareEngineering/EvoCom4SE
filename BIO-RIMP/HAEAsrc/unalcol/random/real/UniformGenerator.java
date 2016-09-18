@@ -4,12 +4,11 @@ import unalcol.random.raw.RawGenerator;
 
 /**
  * <p>Simple uniform random number generator.</p>
- *
+ * <p>
  * <p>Copyright: Copyright (c) 2009</p>
- * 
+ *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
- *
  */
 
 public class UniformGenerator extends InverseDoubleGenerator {
@@ -26,6 +25,7 @@ public class UniformGenerator extends InverseDoubleGenerator {
 
     /**
      * Constructor: Creates a uniform random number generator that generates numbers in the interval [minVal, maxVal)
+     *
      * @param minVal Inf limit
      * @param maxVal Sup Limit
      */
@@ -37,6 +37,7 @@ public class UniformGenerator extends InverseDoubleGenerator {
 
     /**
      * Returns a random double number
+     *
      * @param x Inverse value (cumulative probability)
      * @return A random double number
      */
@@ -44,13 +45,13 @@ public class UniformGenerator extends InverseDoubleGenerator {
     public double next(double x) {
         return (min + length * x);
     }
-    
-  @Override
-  public DoubleGenerator new_instance(){
-    RawGenerator g = RawGenerator.get(this);
-    DoubleGenerator dg = new UniformGenerator(min, length+min);
-    RawGenerator.set(dg, g.new_instance());
-    return dg;  
-  }    
-    
+
+    @Override
+    public DoubleGenerator new_instance() {
+        RawGenerator g = RawGenerator.get(this);
+        DoubleGenerator dg = new UniformGenerator(min, length + min);
+        RawGenerator.set(dg, g.new_instance());
+        return dg;
+    }
+
 }

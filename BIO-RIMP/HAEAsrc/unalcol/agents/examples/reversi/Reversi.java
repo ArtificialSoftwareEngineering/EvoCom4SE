@@ -12,10 +12,9 @@ import unalcol.agents.simulate.gui.EnvironmentView;
 import unalcol.types.collection.vector.Vector;
 
 /**
- *
  * @author Jonatan
  */
-public class Reversi extends Environment{
+public class Reversi extends Environment {
     public static String PASS = "PASS";
     public static String TURN = "play";
     public static String TIME = "time";
@@ -25,20 +24,20 @@ public class Reversi extends Environment{
     public static String SIZE = "size";
     protected Board board = null;
     protected Clock clock;
-    
-    protected static Vector<Agent> init( Agent white, Agent black ){
+
+    protected static Vector<Agent> init(Agent white, Agent black) {
         Vector<Agent> a = new Vector<Agent>();
         a.add(white);
         a.add(black);
         return a;
     }
-    
-    public Reversi( Agent white, Agent black ){
-        super( init( white, black ) );
-    }
-    
 
-    public void init(Board b, Clock c){
+    public Reversi(Agent white, Agent black) {
+        super(init(white, black));
+    }
+
+
+    public void init(Board b, Clock c) {
         clock = c;
         board = b;
     }
@@ -49,57 +48,57 @@ public class Reversi extends Environment{
     }
 
     @Override
-    public boolean act(Agent agent, Action action){
-        if(board.full()){
+    public boolean act(Agent agent, Action action) {
+        if (board.full()) {
             agents.get(0).die();
-            agents.get(1).die();            
+            agents.get(1).die();
             int w = board.white_count();
             int b = board.black_count();
-            if( w > b ){
-               updateViews(EnvironmentView.DONE + ": White wins");
-            }else{
-               if( b > w ){
-                  updateViews(EnvironmentView.DONE + ": Black wins");
-               }else{
-                  updateViews(EnvironmentView.DONE + ": Draw");
-               }
+            if (w > b) {
+                updateViews(EnvironmentView.DONE + ": White wins");
+            } else {
+                if (b > w) {
+                    updateViews(EnvironmentView.DONE + ": Black wins");
+                } else {
+                    updateViews(EnvironmentView.DONE + ": Draw");
+                }
             }
         }
-        
-        if(board.white_count()==0){
+
+        if (board.white_count() == 0) {
             agents.get(0).die();
-            agents.get(1).die();            
+            agents.get(1).die();
             updateViews(EnvironmentView.DONE + ": Black wins");
         }
 
-        if(board.black_count()==0){
+        if (board.black_count() == 0) {
             agents.get(0).die();
-            agents.get(1).die();            
+            agents.get(1).die();
             updateViews(EnvironmentView.DONE + ": White wins");
         }
-        
-        if(clock.white_turn()){
-            if( agent != agents.get(0)){
+
+        if (clock.white_turn()) {
+            if (agent != agents.get(0)) {
                 updateViews("Working");
-                return false;                
+                return false;
             }
-            if(clock.white_time() <= 0 ){
+            if (clock.white_time() <= 0) {
                 agents.get(0).die();
-                agents.get(1).die();            
+                agents.get(1).die();
                 updateViews(EnvironmentView.DONE + ": Black wins");
             }
-        }else{
-            if( agent != agents.get(1)){
+        } else {
+            if (agent != agents.get(1)) {
                 updateViews("Working");
-                return false;                
+                return false;
             }
-            if(clock.black_time() <= 0 ){
+            if (clock.black_time() <= 0) {
                 agents.get(0).die();
-                agents.get(1).die();            
+                agents.get(1).die();
                 updateViews(EnvironmentView.DONE + ": White wins");
             }
         }
-        if(action.getCode().equals(PASS)){
+        if (action.getCode().equals(PASS)) {
             clock.swap();
             updateViews("Working");
             return true;
@@ -107,8 +106,8 @@ public class Reversi extends Environment{
         String[] code = action.getCode().split(":");
         int i = Integer.parseInt(code[0]);
         int j = Integer.parseInt(code[1]);
-        if( code[2].equals(WHITE) ){
-            if( clock.white_turn()  && board.play(i, j, 1)){
+        if (code[2].equals(WHITE)) {
+            if (clock.white_turn() && board.play(i, j, 1)) {
                 clock.swap();
                 updateViews("Working");
                 return true;
@@ -116,8 +115,8 @@ public class Reversi extends Environment{
             clock.swap();
             updateViews("Working");
             return false;
-        }else{
-            if( !clock.white_turn()  && board.play(i, j, -1)){
+        } else {
+            if (!clock.white_turn() && board.play(i, j, -1)) {
                 clock.swap();
                 updateViews("Working");
                 return true;
@@ -137,5 +136,5 @@ public class Reversi extends Environment{
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
-    
+
 }

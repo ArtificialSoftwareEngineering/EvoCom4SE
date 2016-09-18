@@ -6,7 +6,6 @@
 package unalcol.gui.paint;
 
 /**
- *
  * @author jgomez
  */
 public interface Shape {

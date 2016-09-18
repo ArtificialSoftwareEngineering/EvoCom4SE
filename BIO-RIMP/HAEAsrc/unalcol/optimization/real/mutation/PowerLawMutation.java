@@ -8,20 +8,20 @@ package unalcol.optimization.real.mutation;
 import unalcol.random.real.SimplestSymmetricPowerLawGenerator;
 
 /**
- *
  * @author jgomez
  */
 public class PowerLawMutation extends IntensityMutation {
-  /**
-   * Creates a Gaussian Mutation with the given standard deviation per component
-   * @param _sigma Standard deviation per component
-   */
-  public PowerLawMutation( double sigma ) {
-      super(sigma, new SimplestSymmetricPowerLawGenerator());
-  }
+    /**
+     * Creates a Gaussian Mutation with the given standard deviation per component
+     *
+     * @param _sigma Standard deviation per component
+     */
+    public PowerLawMutation(double sigma) {
+        super(sigma, new SimplestSymmetricPowerLawGenerator());
+    }
 
-    public PowerLawMutation( double sigma, PickComponents components,
-                             AdaptMutationIntensity adapt){
+    public PowerLawMutation(double sigma, PickComponents components,
+                            AdaptMutationIntensity adapt) {
         super(sigma, new SimplestSymmetricPowerLawGenerator(), components, adapt);
     }
 }

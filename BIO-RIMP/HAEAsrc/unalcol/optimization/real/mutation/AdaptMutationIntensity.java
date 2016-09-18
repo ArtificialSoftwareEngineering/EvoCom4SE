@@ -6,9 +6,8 @@
 package unalcol.optimization.real.mutation;
 
 /**
- *
  * @author jgomez
  */
 public interface AdaptMutationIntensity {
-    public double apply( double sigma, double productivity );    
+    public double apply(double sigma, double productivity);
 }

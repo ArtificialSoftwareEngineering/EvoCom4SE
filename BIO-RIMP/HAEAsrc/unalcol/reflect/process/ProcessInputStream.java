@@ -1,14 +1,14 @@
 package unalcol.reflect.process;
+
 import java.io.*;
 
 /**
  * <p>A Class for reading the output streams used by an External Process (command).</p>
  *
- *
  * @author Jonatan Gomez Perdomo
  * @version 1.0
  */
-public class ProcessInputStream implements Runnable{
+public class ProcessInputStream implements Runnable {
     /**
      * OutputStream used by the External Process (command) that is going to be read
      */
@@ -30,23 +30,25 @@ public class ProcessInputStream implements Runnable{
     protected PrintStream out = null;
 
     /**
-     * Creates an object for reading the OutputStreams used by an External Process (command). 
-     * @param is OutputStream used by the External Process (command) that is going to be read
-     * @param process External Process being executed 
+     * Creates an object for reading the OutputStreams used by an External Process (command).
+     *
+     * @param is      OutputStream used by the External Process (command) that is going to be read
+     * @param process External Process being executed
      */
-    public ProcessInputStream( InputStream is, ExternalProcess process ) {
+    public ProcessInputStream(InputStream is, ExternalProcess process) {
         this.is = is;
         this.process = process;
     }
 
     /**
      * Creates an object for reading the OutputStreams used by an External Process (command).
-     * @param is OutputStream used by the External Process (command) that is going to be read
+     *
+     * @param is      OutputStream used by the External Process (command) that is going to be read
      * @param process External Process being executed
-     * @param out OutputStream associated to the OutputStream used by the External Process
+     * @param out     OutputStream associated to the OutputStream used by the External Process
      */
-    public ProcessInputStream( InputStream is, ExternalProcess process,
-            PrintStream out ) {
+    public ProcessInputStream(InputStream is, ExternalProcess process,
+                              PrintStream out) {
         this.is = is;
         this.process = process;
         this.out = out;
@@ -55,25 +57,25 @@ public class ProcessInputStream implements Runnable{
     /**
      * Starts the OutputStream processing
      */
-    public void start () {
+    public void start() {
         thread = new Thread(this);
-        thread.start ();
+        thread.start();
     }
 
     /**
      * Process the OutputStream used by the External Process
      */
-    public void run () {
+    public void run() {
         try {
-            if( out != null ){
-                while(is.available() > 0 || process.is_running ) {
-                    if( is.available() > 0 ){
-                        out.print((char)is.read());
+            if (out != null) {
+                while (is.available() > 0 || process.is_running) {
+                    if (is.available() > 0) {
+                        out.print((char) is.read());
                     }
                 }
-            }else{
-                while(is.available() > 0 || process.is_running ) {
-                    if( is.available() > 0 ){
+            } else {
+                while (is.available() > 0 || process.is_running) {
+                    if (is.available() > 0) {
                         is.read();
                     }
                 }
@@ -81,7 +83,7 @@ public class ProcessInputStream implements Runnable{
             is.close();
 
         } catch (Exception ex) {
-            ex.printStackTrace ();
+            ex.printStackTrace();
         }
     }
 }

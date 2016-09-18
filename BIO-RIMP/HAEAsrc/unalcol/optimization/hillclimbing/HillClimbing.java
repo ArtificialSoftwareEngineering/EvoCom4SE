@@ -13,24 +13,23 @@ import unalcol.search.single.VariationReplaceSinglePointSearch;
 import unalcol.search.space.ArityOne;
 
 /**
- *
  * @author jgomez
  */
-public class HillClimbing<T> extends IterativeSinglePointSearch<T>{
-    public HillClimbing( ArityOne<T> variation, HillClimbingReplacement<T> replace, Predicate<Solution<T>> tC ){
+public class HillClimbing<T> extends IterativeSinglePointSearch<T> {
+    public HillClimbing(ArityOne<T> variation, HillClimbingReplacement<T> replace, Predicate<Solution<T>> tC) {
         super(new VariationReplaceSinglePointSearch<>(variation, replace), tC);
     }
 
-    public HillClimbing( ArityOne<T> variation, boolean neutral, Predicate<Solution<T>> tC ){
-        this( variation, new HillClimbingReplacement<T>(neutral), tC );
-    }
-    
-    public HillClimbing( ArityOne<T> variation, boolean neutral, int MAX_ITERS ){
-        this( variation, new HillClimbingReplacement<T>(neutral), new ForLoopCondition<Solution<T>>(MAX_ITERS) );
+    public HillClimbing(ArityOne<T> variation, boolean neutral, Predicate<Solution<T>> tC) {
+        this(variation, new HillClimbingReplacement<T>(neutral), tC);
     }
 
-    public HillClimbing( ArityOne<T> variation, int MAX_ITERS ){
-        this( variation, true, new ForLoopCondition<Solution<T>>(MAX_ITERS) );
-    }        
-    
+    public HillClimbing(ArityOne<T> variation, boolean neutral, int MAX_ITERS) {
+        this(variation, new HillClimbingReplacement<T>(neutral), new ForLoopCondition<Solution<T>>(MAX_ITERS));
+    }
+
+    public HillClimbing(ArityOne<T> variation, int MAX_ITERS) {
+        this(variation, true, new ForLoopCondition<Solution<T>>(MAX_ITERS));
+    }
+
 }

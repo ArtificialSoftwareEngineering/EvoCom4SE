@@ -5,7 +5,6 @@
 package unalcol.math.metric;
 
 /**
- *
  * @author jgomez
  */
 public interface Distance<T> extends QuasiMetric<T> {

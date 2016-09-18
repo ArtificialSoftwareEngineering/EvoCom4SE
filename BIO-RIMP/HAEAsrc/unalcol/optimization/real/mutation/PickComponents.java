@@ -6,9 +6,8 @@
 package unalcol.optimization.real.mutation;
 
 /**
- *
  * @author jgomez
  */
 public interface PickComponents {
-    public int[] get( int DIMENSION);
+    public int[] get(int DIMENSION);
 }

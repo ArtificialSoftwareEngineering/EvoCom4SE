@@ -12,7 +12,7 @@ import java.sql.ResultSet;
 public abstract class Repository<T extends Entity> {
     protected Connection connection;
 
-    protected void getConnection(){
+    protected void getConnection() {
         try {
             connection = ConnectionJDBC.getInstance().obtenerConexion();
         } catch (Exception e) {

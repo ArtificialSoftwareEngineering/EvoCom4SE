@@ -5,9 +5,8 @@
 package unalcol.math.metric;
 
 /**
- *
  * @author jgomez
  */
 public interface Simmilarity<T> extends QuasiMetric<T> {
-  public double max( T x );    
+    public double max(T x);
 }

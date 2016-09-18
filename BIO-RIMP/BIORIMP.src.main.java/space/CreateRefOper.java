@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package space;
 
@@ -17,83 +17,79 @@ import unalcol.random.integer.IntUniform;
 
 /**
  * @author Daavid
- *
  */
 public class CreateRefOper {
 
 
-	public static List<RefactoringOperation> get(int n, MetaphorCode metaphor) {
+    public static List<RefactoringOperation> get(int n) {
 
-		RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP(
-				metaphor.getSysTypeDcls(),
-				metaphor.getLang(),
-				metaphor.getBuilder());
-		int mapRefactor;
-		OBSERVRefactorings oper = new OBSERVRefactorings();
-		List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
+        RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP();
+        int mapRefactor;
+        OBSERVRefactorings oper = new OBSERVRefactorings();
+        List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-		final int DECREASE = 5;
-		IntUniform g = new IntUniform ( Refactoring.values().length - DECREASE);
-		GeneratingRefactor randomRefactor = null;
+        final int DECREASE = 5;
+        IntUniform g = new IntUniform(Refactoring.values().length - DECREASE);
+        GeneratingRefactor randomRefactor = null;
 
-		for(int i = 0; i < n; i++){
-			mapRefactor = g.generate();
-			switch(mapRefactor){
-			case 0:
-				randomRefactor = new GeneratingRefactorEC();
-				break;
-			case 1:
-				randomRefactor = new GeneratingRefactorMM();
-				break;
-			case 2:
-				randomRefactor = new GeneratingRefactorRMMO();
-				break;
-			case 3:
-				randomRefactor = new GeneratingRefactorRDI();
-				break;
-			case 4:
-				randomRefactor = new GeneratingRefactorMF();
-				break;
-			case 5:
-				randomRefactor = new GeneratingRefactorEM();
-				break;
-			case 6:
-				randomRefactor = new GeneratingRefactorIM();
-				break;
-			case 7:
-				randomRefactor = new GeneratingRefactorRID();
-				break;
-			case 8:
-				randomRefactor = new GeneratingRefactorPDF();
-				break;
-			case 9:
-				randomRefactor = new GeneratingRefactorPUF();
-				break;
-			case 10:
-				randomRefactor = new GeneratingRefactorPDM();
-				break;
-			case 11:
-				randomRefactor = new GeneratingRefactorPUM();
-				
-				break;
-			//TODO: Quitar defaul y descomentar lineas del switch para activar todas
-			default:
-				randomRefactor = new GeneratingRefactorIM();
-			}//END CASE
+        for (int i = 0; i < n; i++) {
+            mapRefactor = g.generate();
+            switch (mapRefactor) {
+                case 0:
+                    randomRefactor = new GeneratingRefactorEC();
+                    break;
+                case 1:
+                    randomRefactor = new GeneratingRefactorMM();
+                    break;
+                case 2:
+                    randomRefactor = new GeneratingRefactorRMMO();
+                    break;
+                case 3:
+                    randomRefactor = new GeneratingRefactorRDI();
+                    break;
+                case 4:
+                    randomRefactor = new GeneratingRefactorMF();
+                    break;
+                case 5:
+                    randomRefactor = new GeneratingRefactorEM();
+                    break;
+                case 6:
+                    randomRefactor = new GeneratingRefactorIM();
+                    break;
+                case 7:
+                    randomRefactor = new GeneratingRefactorRID();
+                    break;
+                case 8:
+                    randomRefactor = new GeneratingRefactorPDF();
+                    break;
+                case 9:
+                    randomRefactor = new GeneratingRefactorPUF();
+                    break;
+                case 10:
+                    randomRefactor = new GeneratingRefactorPDM();
+                    break;
+                case 11:
+                    randomRefactor = new GeneratingRefactorPUM();
 
-			//System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
-			refactorings.add( randomRefactor.generatingRefactor( metaphor ) );
+                    break;
+                //TODO: Quitar defaul y descomentar lineas del switch para activar todas
+                default:
+                    randomRefactor = new GeneratingRefactorIM();
+            }//END CASE
 
-		}
+            //System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
+            refactorings.add(randomRefactor.generatingRefactor());
 
-		oper.setRefactorings(refactorings);
-		try {
-			return reader.getRefactOperations( oper	);
-		} catch (ReadException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.out.println( "Reading Error" );
-			return null;
-		} 
-	}
+        }
+
+        oper.setRefactorings(refactorings);
+        try {
+            return reader.getRefactOperations(oper);
+        } catch (ReadException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            System.out.println("Reading Error");
+            return null;
+        }
+    }
 }

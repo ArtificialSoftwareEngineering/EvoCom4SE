@@ -7,16 +7,17 @@ package unalcol.types.collection.tree.bplus;
 import unalcol.sort.Order;
 
 /**
- *
  * @author jgomez
  */
-public class BPlusNodeOrder<T> extends Order<BPlusNode<T>>{
+public class BPlusNodeOrder<T> extends Order<BPlusNode<T>> {
     protected Order<T> inner;
-    public BPlusNodeOrder( Order<T> _inner ){
+
+    public BPlusNodeOrder(Order<T> _inner) {
         inner = _inner;
     }
+
     @Override
-    public int compare(BPlusNode<T> a, BPlusNode<T> b){
+    public int compare(BPlusNode<T> a, BPlusNode<T> b) {
         return inner.compare(a.leftKey(), b.leftKey());
     }
 

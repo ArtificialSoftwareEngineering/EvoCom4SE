@@ -14,6 +14,7 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.opers.*;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import edu.wayne.cs.severe.redress2.exception.RefactoringException;
 import edu.wayne.cs.severe.redress2.utils.ExceptionUtils;
+import entity.MetaphorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,110 +31,111 @@ import java.util.List;
  */
 public class RefactoringReaderBIoRIMP {
 
-	private HashMap<String, RefactoringType> refMappings = null;
+    private HashMap<String, RefactoringType> refMappings = null;
 
-	private static Logger LOGGER = LoggerFactory
-			.getLogger(RefactoringReaderBIoRIMP.class);
+    private static Logger LOGGER = LoggerFactory
+            .getLogger(RefactoringReaderBIoRIMP.class);
 
-	public RefactoringReaderBIoRIMP(List<TypeDeclaration> sysTypeDcls, ProgLang lang,
-									HierarchyBuilder builder) {
+    public RefactoringReaderBIoRIMP() {
 
-		refMappings = new HashMap<String, RefactoringType>();
+        List<TypeDeclaration> sysTypeDcls = MetaphorCode.getSysTypeDcls();
+        ProgLang lang = MetaphorCode.getLang();
+        HierarchyBuilder builder = MetaphorCode.getBuilder();
 
-		String[] types = { "pullUpField", "moveMethod", "replaceMethodObject",
-				"moveField", "extractClass", "replaceDelegationInheritance",
-				"extractMethod", "pushDownMethod",
-				"replaceInheritanceDelegation", "inlineMethod", "pullUpMethod",
-				"pushDownField" };
-		RefactoringType[] typeObjs = { new PullUpField(sysTypeDcls),
-				new MoveMethod(sysTypeDcls, builder),
-				new ReplaceMethodObject(sysTypeDcls, lang, builder),
-				new MoveField(sysTypeDcls, lang),
-				new ExtractClass(sysTypeDcls, lang, builder),
-				new ReplaceDelegationInheritance(sysTypeDcls, builder),
-				new ExtractMethod(sysTypeDcls, lang),
-				new PushDownMethod(sysTypeDcls, builder),
-				new ReplaceInheritanceDelegation(sysTypeDcls, builder),
-				new InlineMethod(sysTypeDcls, lang),
-				new PullUpMethod(sysTypeDcls, lang, builder),
-				new PushDownField(sysTypeDcls, lang) };
+        refMappings = new HashMap<String, RefactoringType>();
 
-		for (int i = 0; i < types.length; i++) {
-			String type = types[i];
-			refMappings.put(type, typeObjs[i]);
-		}
-	}
+        String[] types = {"pullUpField", "moveMethod", "replaceMethodObject",
+                "moveField", "extractClass", "replaceDelegationInheritance",
+                "extractMethod", "pushDownMethod",
+                "replaceInheritanceDelegation", "inlineMethod", "pullUpMethod",
+                "pushDownField"};
+        RefactoringType[] typeObjs = {new PullUpField(sysTypeDcls),
+                new MoveMethod(sysTypeDcls, builder),
+                new ReplaceMethodObject(sysTypeDcls, lang, builder),
+                new MoveField(sysTypeDcls, lang),
+                new ExtractClass(sysTypeDcls, lang, builder),
+                new ReplaceDelegationInheritance(sysTypeDcls, builder),
+                new ExtractMethod(sysTypeDcls, lang),
+                new PushDownMethod(sysTypeDcls, builder),
+                new ReplaceInheritanceDelegation(sysTypeDcls, builder),
+                new InlineMethod(sysTypeDcls, lang),
+                new PullUpMethod(sysTypeDcls, lang, builder),
+                new PushDownField(sysTypeDcls, lang)};
 
-	/**
-	 * 
-	 * @param jsonParams
-	 * @throws FileNotFoundException
-	 * @throws JsonIOException
-	 * @throws JsonSyntaxException
-	 */
-	public List<RefactoringOperation> getRefactOperations(OBSERVRefactorings jsonParams)
-			throws ReadException {
+        for (int i = 0; i < types.length; i++) {
+            String type = types[i];
+            refMappings.put(type, typeObjs[i]);
+        }
+    }
 
-		try {
-			/*
+    /**
+     * @param jsonParams
+     * @throws FileNotFoundException
+     * @throws JsonIOException
+     * @throws JsonSyntaxException
+     */
+    public List<RefactoringOperation> getRefactOperations(OBSERVRefactorings jsonParams)
+            throws ReadException {
+
+        try {
+            /*
 			Gson gson = new Gson();
 			JSONRefactorings jsonParams = gson.fromJson(
 					new FileReader(refFile), JSONRefactorings.class);
 		    */
-			List<OBSERVRefactoring> refs = jsonParams.getRefactorings();
-			List<RefactoringOperation> opers = new ArrayList<RefactoringOperation>();
+            List<OBSERVRefactoring> refs = jsonParams.getRefactorings();
+            List<RefactoringOperation> opers = new ArrayList<RefactoringOperation>();
 
-			int id = 1;
-			for (OBSERVRefactoring ref : refs) {
-				RefactoringOperation oper = getRefactoringOper(ref,
-						String.valueOf((id++)));
-				if (oper != null) {
-					opers.add(oper);
-				}
-			}
+            int id = 1;
+            for (OBSERVRefactoring ref : refs) {
+                RefactoringOperation oper = getRefactoringOper(ref,
+                        String.valueOf((id++)));
+                if (oper != null) {
+                    opers.add(oper);
+                }
+            }
 
-			return opers;
-		} catch (Exception e) {
-			LOGGER.error(e.getMessage(), e);
-			ReadException ex = new ReadException(e.getMessage());
-			ExceptionUtils.addStackTrace(e, ex);
-			throw ex;
-		}
-	}
+            return opers;
+        } catch (Exception e) {
+            LOGGER.error(e.getMessage(), e);
+            ReadException ex = new ReadException(e.getMessage());
+            ExceptionUtils.addStackTrace(e, ex);
+            throw ex;
+        }
+    }
 
-	private RefactoringOperation getRefactoringOper(OBSERVRefactoring ref,
-			String id) throws RefactoringException {
-		RefactoringType refType = refMappings.get(ref.getType());
+    private RefactoringOperation getRefactoringOper(OBSERVRefactoring ref,
+                                                    String id) throws RefactoringException {
+        RefactoringType refType = refMappings.get(ref.getType());
 
-		if (refType == null) {
-			throw new RefactoringException("The refactoring \"" + ref.getType()
-					+ "\" is not supported");
-		}
+        if (refType == null) {
+            throw new RefactoringException("The refactoring \"" + ref.getType()
+                    + "\" is not supported");
+        }
 
-		HashMap<String, List<RefactoringParameter>> params = refType
-				.getOBSERVRefactoringParams(ref.getParams());
-		List<RefactoringOperation> subRefs = getSubRefs(ref.getSubRefs(), id);
-		//danaderp 1001 added feasibility in the constructor
-		RefactoringOperation oper = new RefactoringOperation(refType, params,
-				refType.getAcronym() + "-" + id, subRefs, ref.isFeasible());
-		return oper;
-	}
+        HashMap<String, List<RefactoringParameter>> params = refType
+                .getOBSERVRefactoringParams(ref.getParams());
+        List<RefactoringOperation> subRefs = getSubRefs(ref.getSubRefs(), id);
+        //danaderp 1001 added feasibility in the constructor
+        return new RefactoringOperation(refType, params,
+                refType.getAcronym() + "-" + id, subRefs, ref.isFeasible());
+    }
 
-	private List<RefactoringOperation> getSubRefs(
-			List<OBSERVRefactoring> jsonSubRefs, String id)
-			throws RefactoringException {
+    private List<RefactoringOperation> getSubRefs(
+            List<OBSERVRefactoring> jsonSubRefs, String id)
+            throws RefactoringException {
 
-		if (jsonSubRefs == null) {
-			return null;
-		}
+        if (jsonSubRefs == null) {
+            return null;
+        }
 
-		List<RefactoringOperation> subRefs = new ArrayList<RefactoringOperation>();
-		int i = 0;
-		for (OBSERVRefactoring jSubRef : jsonSubRefs) {
-			subRefs.add(getRefactoringOper(jSubRef, id + "-" + (i++)));
-		}
+        List<RefactoringOperation> subRefs = new ArrayList<RefactoringOperation>();
+        int i = 0;
+        for (OBSERVRefactoring jSubRef : jsonSubRefs) {
+            subRefs.add(getRefactoringOper(jSubRef, id + "-" + (i++)));
+        }
 
-		return subRefs;
-	}
+        return subRefs;
+    }
 
 }// end RefactoringReader

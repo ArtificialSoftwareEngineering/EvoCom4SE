@@ -5,10 +5,9 @@ import java.util.*;
 import unalcol.random.raw.*;
 
 /**
- *
  * Ranecu is an advanced multiplicative linear congruential random number
  * generator with a period of aproximately 10<SUP>18</SUP>.
- * This class is a ported version of the Paul Houle's Ranecu which is a direct 
+ * This class is a ported version of the Paul Houle's Ranecu which is a direct
  * translation from Fortran of the <B>RANECU</B> subroutine published in the paper
  * <BR>
  * F. James, <CITE>Comp. Phys. Comm.</CITE> <STRONG>60</STRONG> (1990) p 329-344
@@ -17,19 +16,19 @@ import unalcol.random.raw.*;
  * <BR>
  * P. L'Ecuyer, <CITE>Commun. ACM.</CITE> <STRONG>1988</STRONG> (1988) p 742
  * <BR>
- *
- * <P>
- *
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/raw/Ranecu.java">
- * Source code </A> is available.<BR> 
- * 
+ * Source code </A> is available.<BR>
+ * <p>
  * This class is a ported version of the Paul Houle's
  * <A HREF="http://www.honeylocust.com/RngPack/"> RngPack 1.1a implementation</A>
  *
  * @author <A HREF="http://www.honeylocust.com/"> Paul Houle </A>
- * (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
- * Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
+ *         Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 
@@ -50,6 +49,7 @@ public class Ranecu extends SeedableGenerator {
 
     /**
      * Creates a Ranecu seedable generator with the given time dependent seed
+     *
      * @param seed The time information used for defining the seed
      */
     public Ranecu(Date seed) {
@@ -58,6 +58,7 @@ public class Ranecu extends SeedableGenerator {
 
     /**
      * Creates a Ranecu seedable generator with the given seed
+     *
      * @param seed The seed
      */
     public Ranecu(long seed) {
@@ -69,11 +70,10 @@ public class Ranecu extends SeedableGenerator {
     }
 
     /**
-     *
      * Returns a seed calculated from given seed
+     *
      * @param seed The seed
      * @return a long integer seed
-     *
      */
     public long initSeed(long seed) {
         this.seed = seed;
@@ -84,6 +84,7 @@ public class Ranecu extends SeedableGenerator {
 
     /**
      * Returns a random double number
+     *
      * @return A random double number
      */
     public double next() {
@@ -102,10 +103,10 @@ public class Ranecu extends SeedableGenerator {
         if (lz < 1) lz = lz + 2147483562;
         return lz * 4.656613e-10;
     }
-    
+
     @Override
-    public RawGenerator new_instance(){
+    public RawGenerator new_instance() {
         return new Ranecu();
     }
-    
+
 }

@@ -4,14 +4,14 @@
  */
 
 package unalcol.gui.paint;
+
 import java.awt.Graphics2D;
 
 /**
- *
  * @author jgomez
  */
 public abstract class ShapeDrawer {
 
-    public abstract void draw( Graphics2D g, Shape shape );
+    public abstract void draw(Graphics2D g, Shape shape);
 
 }

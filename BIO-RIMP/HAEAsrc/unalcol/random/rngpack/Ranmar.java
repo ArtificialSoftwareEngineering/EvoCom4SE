@@ -10,13 +10,12 @@ import unalcol.random.raw.*;
 //
 
 /**
- *
  * <TT>RANMAR</TT> is a lagged Fibonacci generator proposed by Marsaglia and
  * Zaman and is a good research grade generator.  This version of
  * <TT>RANMAR</TT> is based on the paper by James,  which is a good
  * reference for the properties of <TT>RANMAR</TT> and several other
  * generators.
- *
+ * <p>
  * <BR>
  * <B>REFERENCES:</B>
  * <BR>
@@ -25,20 +24,20 @@ import unalcol.random.raw.*;
  * and was originally described in
  * <BR>
  * G. Marsaglia, A. Zaman and W.-W Tsang, <CITE>Stat. Prob. Lett</CITE> <STRONG>9</STRONG> (1990) p 35.
- *
- *
- * <P>
- *
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/raw/Ranmar.java">
- * Source code </A> is available.<BR> 
- * 
+ * Source code </A> is available.<BR>
+ * <p>
  * This class is a ported version of the Paul Houle's
  * <A HREF="http://www.honeylocust.com/RngPack/"> RngPack 1.1a implementation</A>
  *
  * @author <A HREF="http://www.honeylocust.com/"> Paul Houle </A>
- * (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
- * Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:paul@honeylocust.com">paul@honeylocust.com</A>)
+ *         Porting by <A HREF="http://dis.unal.edu.co/~jgomezpe"> Jonatan Gomez </A>
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
 
@@ -64,65 +63,63 @@ public class Ranmar extends SeedableGenerator {
     public static int BIG_PRIME = 899999963;
 
     /**
-     *
      * Initialize Ranmar with a specified integer seed
      *
      * @param ijkl seed integer;  <TT>Ranmar(int ijkl)</TT> takes uses
-     * <TT>ijkl</TT> modulus <TT>BIG_PRIME</TT> as a seed for <TT>RANMAR.</TT>
-     *
+     *             <TT>ijkl</TT> modulus <TT>BIG_PRIME</TT> as a seed for <TT>RANMAR.</TT>
      */
 
     public Ranmar(int ijkl) {
         ranmarin(Math.abs(ijkl % BIG_PRIME));
-    };
+    }
+
+    ;
 
     /**
-     *
      * Initialize Ranmar with a specified long seed
      *
      * @param ijkl seed long;  <TT>Ranmar(long ijkl)</TT> takes uses
-     * <TT>ijkl</TT> modulus <TT>BIG_PRIME</TT> as a seed for <TT>RANMAR.</TT>
-     *
+     *             <TT>ijkl</TT> modulus <TT>BIG_PRIME</TT> as a seed for <TT>RANMAR.</TT>
      */
 
     public Ranmar(long ijkl) {
         ranmarin((int) Math.abs(ijkl % BIG_PRIME));
-    };
+    }
+
+    ;
 
 
     /**
-     *
      * Initialize Ranmar with a default seed taken from Marsaglia and
      * Zaman's paper.  Equivalent to <CODE>Ranmar(54217137).</CODE>
-     *
      */
 
     public Ranmar() {
         ranmarin(DEFSEED);
-    };
+    }
+
+    ;
 
     /**
-     *
      * Seed <TT>RANMAR</TT> from the clock.
-     *
+     * <p>
      * <PRE>
      * RandomElement e=new Ranmar(new Date());
      * </PRE>
      *
      * @param d a Date object to seed Ranmar with,  typically <CODE>new Date()</CODE>
-     *
      */
 
     public Ranmar(Date d) {
         super(d);
         ranmarin((int) seed % BIG_PRIME);
-    };
+    }
+
+    ;
 
     /**
-     *
      * Internal methods:  ranmarin is the initialization code for the
      * generator.
-     *
      */
 
     void ranmarin(int ijkl) {
@@ -165,6 +162,7 @@ public class Ranmar extends SeedableGenerator {
 
     /**
      * The generator
+     *
      * @return a pseudo random number
      */
 
@@ -183,10 +181,10 @@ public class Ranmar extends SeedableGenerator {
         if (uni < 0.0) uni += 1.0;
         return (uni);
     }
-    
+
     @Override
-    public RawGenerator new_instance(){
+    public RawGenerator new_instance() {
         return new Ranmar();
     }
-    
+
 }

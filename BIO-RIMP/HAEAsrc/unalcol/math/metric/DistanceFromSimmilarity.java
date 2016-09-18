@@ -5,13 +5,12 @@
 package unalcol.math.metric;
 
 /**
- *
  * @author jgomez
  */
 public class DistanceFromSimmilarity<T> implements Distance<T> {
     protected Simmilarity<T> sim;
-    
-    public DistanceFromSimmilarity( Simmilarity<T> sim ){
+
+    public DistanceFromSimmilarity(Simmilarity<T> sim) {
         this.sim = sim;
     }
 
@@ -19,5 +18,5 @@ public class DistanceFromSimmilarity<T> implements Distance<T> {
     public double apply(T x, T y) {
         return sim.max(x) - sim.apply(x, y);
     }
-    
+
 }

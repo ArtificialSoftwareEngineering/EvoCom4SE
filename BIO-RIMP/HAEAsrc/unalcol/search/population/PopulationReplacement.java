@@ -6,9 +6,8 @@
 package unalcol.search.population;
 
 /**
- *
  * @author Jonatan
  */
 public interface PopulationReplacement<T> {
-    public PopulationSolution<T> apply( PopulationSolution<T> current, PopulationSolution<T> next );
+    public PopulationSolution<T> apply(PopulationSolution<T> current, PopulationSolution<T> next);
 }

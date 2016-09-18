@@ -7,20 +7,20 @@ package unalcol.types.collection.vector;
 import unalcol.clone.*;
 
 /**
- *
  * @author jgomez
  */
-public class VectorCloneService<T> extends Clone<Vector<T>>{
+public class VectorCloneService<T> extends Clone<Vector<T>> {
     public VectorCloneService() {
     }
 
     /**
      * Clones a Vector
+     *
      * @return The vector's clone
      */
     @SuppressWarnings("unchecked")
-	@Override
-    public Vector<T> clone(Vector<T> obj){
-        return new Vector<T>( (T[])ImmutableVectorCloneService.toArray(obj), obj.size() );
+    @Override
+    public Vector<T> clone(Vector<T> obj) {
+        return new Vector<T>((T[]) ImmutableVectorCloneService.toArray(obj), obj.size());
     }
 }

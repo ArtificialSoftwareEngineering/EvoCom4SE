@@ -10,15 +10,15 @@ import unalcol.search.space.ArityOne;
 
 public class GenerationalGA<T> extends IterativePopulationSearch<T> {
 
-	public GenerationalGA(	int n, Selection<T> parent_selection, 
-			ArityOne<T> mutation, ArityTwo<T> xover, double probability, 
-			Predicate<PopulationSolution<T>> tC) {
-		super(n, new GenerationalStep<T>(n, parent_selection, mutation, xover, probability), tC);
-	}
-	
-	public GenerationalGA(	int n, Selection<T> parent_selection, 
-			ArityOne<T> mutation, ArityTwo<T> xover, double probability, 
-			int MAXITERS) {
-		this(n, parent_selection, mutation, xover, probability, new ForLoopCondition<PopulationSolution<T>>(MAXITERS));
-	}
+    public GenerationalGA(int n, Selection<T> parent_selection,
+                          ArityOne<T> mutation, ArityTwo<T> xover, double probability,
+                          Predicate<PopulationSolution<T>> tC) {
+        super(n, new GenerationalStep<T>(n, parent_selection, mutation, xover, probability), tC);
+    }
+
+    public GenerationalGA(int n, Selection<T> parent_selection,
+                          ArityOne<T> mutation, ArityTwo<T> xover, double probability,
+                          int MAXITERS) {
+        this(n, parent_selection, mutation, xover, probability, new ForLoopCondition<PopulationSolution<T>>(MAXITERS));
+    }
 }

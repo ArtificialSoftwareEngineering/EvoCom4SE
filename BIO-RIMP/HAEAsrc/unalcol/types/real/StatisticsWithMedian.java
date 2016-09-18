@@ -7,11 +7,11 @@ package unalcol.types.real;
 import unalcol.types.real.array.DoubleArray;
 
 /**
- *
  * @author jgomez
  */
-public class StatisticsWithMedian extends Statistics{
+public class StatisticsWithMedian extends Statistics {
     public double median;
+
     /**
      * Creates an empty statistical information
      */
@@ -20,22 +20,24 @@ public class StatisticsWithMedian extends Statistics{
 
     /**
      * Computes the statistical information of the given array of doubles
+     *
      * @param x Array to be statistically analyzed
      */
     public StatisticsWithMedian(double[] x) {
-        super( x );
+        super(x);
         compute_median(x.clone());
     }
 
     /**
      * Computes the statistical information of the given column of a double matrix
+     *
      * @param x Matrix to be statistically analyzed
      * @param c column to be analyzed
      */
     public StatisticsWithMedian(double[][] x, int c) {
-        super( x, c );
+        super(x, c);
         double[] y = new double[x.length];
-        for( int i=0; i<y.length; i++ ){
+        for (int i = 0; i < y.length; i++) {
             y[i] = x[i][c];
         }
         compute_median(y);
@@ -43,22 +45,24 @@ public class StatisticsWithMedian extends Statistics{
 
     /**
      * Computes the statistical information of the given row of a double matrix
+     *
      * @param r Row to be analyzed
      * @param x Matrix to be statistically analyzed
      */
-    public StatisticsWithMedian(int r, double[][] x ) {
-        super( r, x );
-        compute_median( x[r].clone() );
+    public StatisticsWithMedian(int r, double[][] x) {
+        super(r, x);
+        compute_median(x[r].clone());
     }
-    
-    private void compute_median( double[] x){
-        DoubleArray.merge(x);  
+
+    private void compute_median(double[] x) {
+        DoubleArray.merge(x);
         int n = x.length;
-        median = ((n%2)==0)?(x[n/2]+x[n/2-1])/2.0:x[n/2];
+        median = ((n % 2) == 0) ? (x[n / 2] + x[n / 2 - 1]) / 2.0 : x[n / 2];
     }
 
     /**
      * Obtains the statistical information in an array of doubles format (min, max, average, variance, deviation)
+     *
      * @return Statistical information in an array of doubles format
      */
     @Override
@@ -71,5 +75,5 @@ public class StatisticsWithMedian extends Statistics{
         values[4] = variance;
         values[5] = deviation;
         return values;
-    }    
+    }
 }

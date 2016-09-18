@@ -19,20 +19,20 @@ import unalcol.types.collection.bitarray.BitArray;
 
 public class testFitness {
 
-	public static void main(String[] argss) {
-		// TODO Auto-generated method stub
-		//Getting the Metaphor
-		String userPath = System.getProperty("user.dir");
-        String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimization\\src","-s", "     optimization      " };
-        
-		
-        MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM ();
+    public static void main(String[] argss) {
+        // TODO Auto-generated method stub
+        //Getting the Metaphor
+        String userPath = System.getProperty("user.dir");
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "     optimization      "};
+
+
+        MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
         init.main(args);
         MetaphorCode metaphor = new MetaphorCode(init);
-        
-		//Creating the individual
+
+        //Creating the individual
         /*
-		List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
+        List<QubitRefactor> genome = new ArrayList<QubitRefactor>();
 		List<RefactoringOperation> phe = new ArrayList<RefactoringOperation>();
 		for(int i = 0; i < 20; i++){
 			genome.add(new QubitRefactor(true,4));
@@ -51,24 +51,24 @@ public class testFitness {
 		*/
         // Search Space definition
         int DIM = 1000;
-        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace( DIM , metaphor );
+        Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         List<RefactoringOperation> refactor = space.get();
-        RefOperMutation mutation = new RefOperMutation( 0.5, metaphor );
+        RefOperMutation mutation = new RefOperMutation(0.5);
 
         System.out.println("*** Applying the mutation ***");
-        List<RefactoringOperation> mutated = mutation.apply( refactor );
+        List<RefactoringOperation> mutated = mutation.apply(refactor);
 
         //Processing Fitness
-        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor,"OPTIMIZATION");	
-        System.out.println("FITNESS : ["+ function.apply( refactor ) +"]");
+        OptimizationFunction<List<RefactoringOperation>> function = new GeneralizedImpactQuality(metaphor, "OPTIMIZATION");
+        System.out.println("FITNESS : [" + function.apply(refactor) + "]");
 
         //Processing Fitness
         //System.out.println("FITNESS MUTATED: ["+ function.apply( mutated ) +"]");
-        
-        List<RefactoringOperation> refactor_reipared =  space.repair(mutated);
+
+        List<RefactoringOperation> refactor_reipared = space.repair(mutated);
         //Processing Fitness
-        System.out.println("FITNESS REPAIRED: ["+ function.apply( refactor_reipared ) +"]");
-	}
+        System.out.println("FITNESS REPAIRED: [" + function.apply(refactor_reipared) + "]");
+    }
 
 }

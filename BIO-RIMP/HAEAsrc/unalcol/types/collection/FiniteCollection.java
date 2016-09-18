@@ -5,13 +5,13 @@
 package unalcol.types.collection;
 
 /**
- *
  * @author jgomez
  */
 public interface FiniteCollection<T> extends Collection<T> {
     /**
-        * Determines the number of objects stored by the data structure
-        * @return Number of objects stored by the data structure
-        */
+     * Determines the number of objects stored by the data structure
+     *
+     * @return Number of objects stored by the data structure
+     */
     public int size();
 }

@@ -10,39 +10,38 @@ import unalcol.random.raw.RawGenerator;
 import unalcol.types.collection.vector.Vector;
 
 /**
- *
  * @author jgomez
  */
-public class UniformPick implements PickComponents{
+public class UniformPick implements PickComponents {
     protected double prob;
     protected RawGenerator g;
-    
-    public UniformPick(){
+
+    public UniformPick() {
         this(-1.0);
     }
-    
-    public UniformPick( double prob ){
+
+    public UniformPick(double prob) {
         this.prob = prob;
         g = new JavaGenerator();
     }
-    
+
     @Override
-    public int[] get( int DIMENSION ) {
+    public int[] get(int DIMENSION) {
         double tprob = prob;
-        if( tprob <= 0.0 ){
+        if (tprob <= 0.0) {
             tprob = 1.0 / DIMENSION;
         }
         tprob = 1.0 - tprob;
         Vector<Integer> v = new Vector<Integer>();
-        for( int i=0; i<DIMENSION; i++ ){
-            if(g.bool(tprob)){
+        for (int i = 0; i < DIMENSION; i++) {
+            if (g.bool(tprob)) {
                 v.add(i);
-            }                
+            }
         }
         int[] indices = new int[v.size()];
-        for( int i=0; i<indices.length; i++ ){
+        for (int i = 0; i < indices.length; i++) {
             indices[i] = v.get(i);
         }
         return indices;
-    }    
+    }
 }

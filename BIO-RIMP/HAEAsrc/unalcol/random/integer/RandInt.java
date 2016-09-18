@@ -7,21 +7,22 @@ import unalcol.random.Random;
 // Unalcol Random generation Pack 1.0 by Jonatan Gomez-Perdomo
 // http://disi.unal.edu.co/profesores/jgomezpe/unalcol/random/
 //
+
 /**
  * <p>Abstract random generator of integer numbers</p>
- *
- * <P>
- *
- * <P>
+ * <p>
+ * <p>
+ * <p>
+ * <p>
  * <A HREF="http://disi.unal.edu.co/profesores/jgomezpe/source/unalcol/random/integer/RandInt.java">
  * Source code </A> is available.
- * <P>
- *
+ * <p>
+ * <p>
  * <h3>License</h3>
- *
+ * <p>
  * Copyright (c) 2014 by Jonatan Gomez-Perdomo. <br>
  * All rights reserved. <br>
- *
+ * <p>
  * <p>Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  * <ul>
@@ -46,40 +47,44 @@ import unalcol.random.Random;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- *
- *
  * @author <A HREF="http://disi.unal.edu.co/profesores/jgomezpe"> Jonatan Gomez-Perdomo </A>
- * (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
+ *         (E-mail: <A HREF="mailto:jgomezpe@unal.edu.co">jgomezpe@unal.edu.co</A> )
  * @version 1.0
  */
-public abstract class RandInt extends Random<Integer>{
-    
-   /**
+public abstract class RandInt extends Random<Integer> {
+
+    /**
      * Generates an integer number
+     *
      * @return An integer number
      */
     public abstract int generate();
 
     /**
      * Generates an integer number
+     *
      * @return An integer number
      */
     @Override
-    public Integer next(){ return generate(); }
+    public Integer next() {
+        return generate();
+    }
 
     /**
      * Returns a set of random integer numbers
+     *
      * @param v Array where integer numbers will be stored
      * @param m The total number of integer numbers
      */
     public void generate(int[] v, int offset, int m) {
         for (int i = 0; i < m; i++) {
-            v[i+offset] = next();
+            v[i + offset] = next();
         }
     }
 
     /**
      * Returns a set of random integer numbers
+     *
      * @param m The total number of random integer numbers
      * @return A set of m random integer numbers
      */
@@ -87,8 +92,8 @@ public abstract class RandInt extends Random<Integer>{
         int[] v = null;
         if (m > 0) {
             v = new int[m];
-            generate(v, 0,  m);
+            generate(v, 0, m);
         }
         return v;
-    }    
+    }
 }

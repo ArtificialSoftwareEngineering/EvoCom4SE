@@ -10,17 +10,17 @@ import unalcol.types.real.array.sparse.SparseRealVectorDotProduct;
  */
 
 /**
- *
  * @author jgomez
  */
 public class NormalizedSparseRealVectorCosineSimilarity implements Simmilarity<SparseRealVector> {
     protected SparseRealVectorDotProduct prod = new SparseRealVectorDotProduct();
+
     @Override
     public double apply(SparseRealVector x, SparseRealVector y) {
         return prod.apply(x, y);
     }
-    
-    public double max(SparseRealVector x){
+
+    public double max(SparseRealVector x) {
         return 1.0;
     }
 }

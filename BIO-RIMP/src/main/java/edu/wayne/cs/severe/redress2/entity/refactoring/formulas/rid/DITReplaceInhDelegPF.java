@@ -35,7 +35,7 @@ public class DITReplaceInhDelegPF extends ReplaceInherDelegPredFormula {
 
 		LinkedHashMap<String, Double> prevMetrsTgt = prevMetrics.get(tgtCls
 				.getQualifiedName());
-		Double prevMetrTgt = prevMetrsTgt == null ? 0 : prevMetrsTgt.get(metric
+		Double prevMetrTgt = prevMetrsTgt == null ? 0.0 : prevMetrsTgt.get(metric
 				.getMetricAcronym());
 		predMetrs.put(tgtCls.getQualifiedName(), prevMetrTgt);
 

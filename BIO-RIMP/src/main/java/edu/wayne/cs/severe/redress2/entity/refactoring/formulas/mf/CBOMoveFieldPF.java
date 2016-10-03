@@ -34,7 +34,7 @@ public class CBOMoveFieldPF extends MoveFieldPredFormula {
 		LinkedHashMap<String, Double> metrs = prevMetrics.get(tgtCls
 				.getQualifiedName());
 		Double prevMetrTgt = (metrs != null ? metrs.get(metric
-				.getMetricAcronym()) : 0);
+				.getMetricAcronym()) : 0.0);
 		// double deltaTgt = getDeltaTgt(srcCls, attr, tgtCls);
 		predMetrs.put(tgtCls.getQualifiedName(), prevMetrTgt);
 

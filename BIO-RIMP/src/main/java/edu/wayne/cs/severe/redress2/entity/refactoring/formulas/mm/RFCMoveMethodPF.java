@@ -34,7 +34,7 @@ public class RFCMoveMethodPF extends MoveMethodPredFormula {
 
 		LinkedHashMap<String, Double> prevMetrsTgt = prevMetrics.get(tgtCls
 				.getQualifiedName());
-		Double prevMetrTgt = prevMetrsTgt == null ? 0 : prevMetrsTgt
+		Double prevMetrTgt = prevMetrsTgt == null ? 0.0 : prevMetrsTgt
 				.get(getMetric().getMetricAcronym());
 		predMetrs.put(tgtCls.getQualifiedName(),
 				prevMetrTgt + getDelta(tgtCls, method, callsMethod));

@@ -33,7 +33,7 @@ public class RFCMoveFieldPF extends MoveFieldPredFormula {
 		LinkedHashMap<String, Double> metrs = prevMetrics.get(tgtCls
 				.getQualifiedName());
 		Double prevMetrTgt = (metrs != null ? metrs.get(getMetric()
-				.getMetricAcronym()) : 0);
+				.getMetricAcronym()) : 0.0);
 		predMetrs.put(tgtCls.getQualifiedName(), prevMetrTgt + 2);
 
 		return predMetrs;

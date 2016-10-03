@@ -29,7 +29,7 @@ public class LCOM2ReplaceInhDelegPF extends ReplaceInherDelegPredFormula {
 
 		LinkedHashMap<String, Double> prevMetrsTgt = prevMetrics.get(tgtCls
 				.getQualifiedName());
-		Double prevMetrTgt = prevMetrsTgt == null ? 0 : prevMetrsTgt
+		Double prevMetrTgt = prevMetrsTgt == null ? 0.0 : prevMetrsTgt
 				.get(getMetric().getMetricAcronym());
 		predMetrs.put(tgtCls.getQualifiedName(), prevMetrTgt);
 

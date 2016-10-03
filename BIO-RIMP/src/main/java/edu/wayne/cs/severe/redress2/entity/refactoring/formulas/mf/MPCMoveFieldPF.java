@@ -30,7 +30,7 @@ public class MPCMoveFieldPF extends MoveFieldPredFormula {
 		predMetrs
 				.put(tgtCls.getQualifiedName(),
 						(metrs != null ? metrs.get(getMetric()
-								.getMetricAcronym()) : 0));
+								.getMetricAcronym()) : 0.0));
 
 		return predMetrs;
 	}

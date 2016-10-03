@@ -31,7 +31,7 @@ public class DACMoveFieldPF extends MoveFieldPredFormula {
 		LinkedHashMap<String, Double> metrs = prevMetrics.get(tgtCls
 				.getQualifiedName());
 		Double prevMetrTgt = (metrs != null ? metrs.get(getMetric()
-				.getMetricAcronym()) : 0);
+				.getMetricAcronym()) : 0.0);
 		Double deltaSrc = getDeltaSrc(tgtCls, fieldType);
 		predMetrs.put(tgtCls.getQualifiedName(), prevMetrTgt + deltaSrc);
 

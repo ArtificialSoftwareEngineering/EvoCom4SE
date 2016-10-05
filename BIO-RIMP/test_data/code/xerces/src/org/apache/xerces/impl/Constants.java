@@ -153,7 +153,7 @@ public final class Constants {
         "charset-overrides-xml-encoding"; 
     
     public static final String DOM_DATATYPE_NORMALIZATION = "datatype-normalization"; 
-    public static final String DOM_ENTITIES = "entities";
+    public static final String DOM_ENTITIES = "java/storage/entities";
     public static final String DOM_INFOSET = "infoset";  
     public static final String DOM_NAMESPACES = "namespaces";
     public static final String DOM_NAMESPACE_DECLARATIONS = "namespace-declarations";

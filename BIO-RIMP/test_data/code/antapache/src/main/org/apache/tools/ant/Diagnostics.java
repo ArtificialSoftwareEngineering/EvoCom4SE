@@ -456,7 +456,7 @@ public final class Diagnostics {
         try {
             Class which = Class.forName("org.apache.env.Which");
             Method method = which.getMethod(
-                "main", new Class[] {String[].class});
+                    "main", new Class[] {String[].class});
             method.invoke(null, new Object[]{new String[]{}});
         } catch (ClassNotFoundException e) {
             out.println("Not available.");

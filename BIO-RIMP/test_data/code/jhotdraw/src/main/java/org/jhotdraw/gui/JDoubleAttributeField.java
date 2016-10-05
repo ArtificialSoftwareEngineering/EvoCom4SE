@@ -118,7 +118,7 @@ implements AttributeField {
     public void setView(DrawingView newValue) {
         DrawingView oldValue = eventHandler.getView();
         eventHandler.setView(newValue);
-        firePropertyChange("view", oldValue, newValue);
+        firePropertyChange("java/view", oldValue, newValue);
     }
     
     public DrawingView getView() {

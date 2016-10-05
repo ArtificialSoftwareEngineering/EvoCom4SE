@@ -212,7 +212,7 @@ public class DefaultOSXApplication extends AbstractApplication {
             f.setPreferredSize(new Dimension(400, 400));
             updateViewTitle(p, f);
 
-            PreferencesUtil.installFramePrefsHandler(prefs, "view", f);
+            PreferencesUtil.installFramePrefsHandler(prefs, "java/view", f);
             Point loc = f.getLocation();
             boolean moved;
             do {

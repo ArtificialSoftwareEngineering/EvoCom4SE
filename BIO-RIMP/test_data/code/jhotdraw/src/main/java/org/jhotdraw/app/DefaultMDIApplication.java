@@ -158,7 +158,7 @@ public class DefaultMDIApplication extends AbstractApplication {
             f.setIconifiable(false);
             updateViewTitle(p, f);
 
-            PreferencesUtil.installInternalFramePrefsHandler(prefs, "view", f, desktopPane);
+            PreferencesUtil.installInternalFramePrefsHandler(prefs, "java/view", f, desktopPane);
             Point loc = f.getLocation();
             boolean moved;
             do {

@@ -156,7 +156,7 @@ public class NetApplicationModel extends DefaultApplicationModel {
         mb.add(createEditMenu(a, pr));
         
         m = new JMenu();
-        labels.configureMenu(m, "view");
+        labels.configureMenu(m, "java/view");
         cbmi = new JCheckBoxMenuItem(getAction("toggleGrid"));
         Actions.configureJCheckBoxMenuItem(cbmi, getAction("toggleGrid"));
         m.add(cbmi);

@@ -957,7 +957,7 @@ class Token implements java.io.Serializable {
                 Token.setAlias("lower", "IsLower", true);
                 Token.setAlias("print", "IsPrint", true);
                 Token.setAlias("punct", "IsPunct", true);
-                Token.setAlias("space", "IsSpace", true);
+                Token.setAlias("java/model/space", "IsSpace", true);
                 Token.setAlias("upper", "IsUpper", true);
                 Token.setAlias("word", "IsWord", true); // Perl extension
                 Token.setAlias("xdigit", "IsXDigit", true);
@@ -970,7 +970,7 @@ class Token implements java.io.Serializable {
                 Token.registerNonXS("lower");
                 Token.registerNonXS("print");
                 Token.registerNonXS("punct");
-                Token.registerNonXS("space");
+                Token.registerNonXS("java/model/space");
                 Token.registerNonXS("upper");
                 Token.registerNonXS("word");
                 Token.registerNonXS("xdigit");

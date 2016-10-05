@@ -50,7 +50,7 @@ public abstract class AbstractViewAction extends AbstractAction {
         this.editor = editor;
         editor.addPropertyChangeListener(new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent evt) {
-                if (evt.getPropertyName().equals("view")) {
+                if (evt.getPropertyName().equals("java/view")) {
                     if (evt.getOldValue() != null) {
                         DrawingView view = ((DrawingView) evt.getOldValue());
                         view.removePropertyChangeListener(propertyChangeHandler);

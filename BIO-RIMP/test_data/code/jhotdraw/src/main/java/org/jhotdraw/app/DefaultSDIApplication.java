@@ -140,7 +140,7 @@ public class DefaultSDIApplication extends AbstractApplication {
 
             f.setJMenuBar(createMenuBar(p, (java.util.List<Action>) panel.getClientProperty("toolBarActions")));
 
-            PreferencesUtil.installFramePrefsHandler(prefs, "view", f);
+            PreferencesUtil.installFramePrefsHandler(prefs, "java/view", f);
             Point loc = f.getLocation();
             boolean moved;
             do {
@@ -377,7 +377,7 @@ public class DefaultSDIApplication extends AbstractApplication {
         m = new JMenu();
         if (toolBarActions != null && toolBarActions.size() > 0) {
             m2 = (toolBarActions.size() == 1) ? m : new JMenu(labels.getString("toolBars"));
-            labels.configureMenu(m, labels.getString("view"));
+            labels.configureMenu(m, labels.getString("java/view"));
             for (Action a : toolBarActions) {
                 cbmi = new JCheckBoxMenuItem(a);
                 Actions.configureJCheckBoxMenuItem(cbmi, a);

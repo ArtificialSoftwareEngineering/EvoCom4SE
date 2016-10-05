@@ -222,7 +222,7 @@ public class TaskFigure extends GraphicalCompositeFigure {
         double h = in.getAttribute("h", 0d);
         setBounds(new Point2D.Double(x,y), new Point2D.Double(x+w,y+h));
         readAttributes(in);
-        in.openElement("model");
+        in.openElement("java/model");
         in.openElement("name");
         setName((String) in.readObject());
         in.closeElement();
@@ -236,7 +236,7 @@ public class TaskFigure extends GraphicalCompositeFigure {
         out.addAttribute("x", r.x);
         out.addAttribute("y", r.y);
         writeAttributes(out);
-        out.openElement("model");
+        out.openElement("java/model");
         out.openElement("name");
         out.writeObject(getName());
         out.closeElement();

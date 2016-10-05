@@ -21,7 +21,7 @@ public class Squares extends Environment {
     public static String TIME = "time";
     public static String WHITE = "white";
     public static String BLACK = "black";
-    public static String SPACE = "space";
+    public static String SPACE = "java/model/space";
     public static String LEFT = "left";
     public static String TOP = "top";
     public static String RIGHT = "right";

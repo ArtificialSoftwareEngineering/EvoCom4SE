@@ -90,7 +90,7 @@ public interface Constants {
     public static final String LN_HREF = "href";
     public static final String LN_LANG = "lang";
     public static final String LN_BASE = "base";
-    public static final String LN_SPACE = "space";
+    public static final String LN_SPACE = "java/model/space";
     public static final String LN_URI = "uri";
     public static final String LN_VERSION = "version";
     public static final String LN_REL = "rel";

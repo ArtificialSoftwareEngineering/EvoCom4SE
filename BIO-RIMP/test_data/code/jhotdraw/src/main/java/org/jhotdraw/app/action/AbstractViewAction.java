@@ -40,7 +40,7 @@ import org.jhotdraw.app.View;
 public abstract class AbstractViewAction extends AbstractAction {
     private Application app;
     private String propertyName;
-    public final static String VIEW_PROPERTY = "view";
+    public final static String VIEW_PROPERTY = "java/view";
     public final static String ENABLED_PROPERTY = "enabled";
     
     private PropertyChangeListener applicationListener = new PropertyChangeListener() {

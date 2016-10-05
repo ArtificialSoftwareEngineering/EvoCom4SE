@@ -235,7 +235,7 @@ public class SVGApplicationModel extends DefaultApplicationModel {
         mb.add(createEditMenu(a, pr));
         
         m = new JMenu();
-        appLabels.configureMenu(m, "view");
+        appLabels.configureMenu(m, "java/view");
         m.add(getAction(EditDrawingAction.ID));
         m2 = new JMenu();
         drawLabels.configureMenu(m2, "grid");

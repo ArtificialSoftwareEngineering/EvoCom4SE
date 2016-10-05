@@ -20,7 +20,7 @@ public class Reversi extends Environment {
     public static String TIME = "time";
     public static String WHITE = "white";
     public static String BLACK = "black";
-    public static String SPACE = "space";
+    public static String SPACE = "java/model/space";
     public static String SIZE = "size";
     protected Board board = null;
     protected Clock clock;

@@ -95,7 +95,7 @@ public abstract class AbstractApplication extends AbstractBean implements Applic
     public void setModel(ApplicationModel newValue) {
         ApplicationModel oldValue = model;
         model = newValue;
-        firePropertyChange("java/model",oldValue,newValue);
+        firePropertyChange("java/optmodel",oldValue,newValue);
     }
     public ApplicationModel getModel() {
         return model;

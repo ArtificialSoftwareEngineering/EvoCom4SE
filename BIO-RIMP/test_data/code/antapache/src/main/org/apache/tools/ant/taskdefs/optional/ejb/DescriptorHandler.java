@@ -67,7 +67,7 @@ public class DescriptorHandler extends org.xml.sax.HandlerBase {
     private static final String EJB_NAME              = "ejb-name";
     private static final String EJB_JAR               = "ejb-jar";
     private static final String ENTERPRISE_BEANS      = "enterprise-beans";
-    private static final String ENTITY_BEAN           = "java/model/mappings/entity";
+    private static final String ENTITY_BEAN           = "java/optmodel/mappings/entity";
     private static final String SESSION_BEAN          = "session";
     private static final String MESSAGE_BEAN          = "message-driven";
 

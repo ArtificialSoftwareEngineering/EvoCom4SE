@@ -2,7 +2,7 @@ package main;
 
 import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
+import java.optmodel.mappings.metaphor.MetaphorCode;
 
 /**
  * Created by Alberto on 6/20/2015.
@@ -14,7 +14,7 @@ public class MainBIoRIMP {
 
         //First Step: Calculate Actual Metrics
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
         MainMetrics.main(args);
 
         //Second Step: Create the structures for the prediction

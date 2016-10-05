@@ -8,11 +8,11 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
-import java.model.operators.RefOperMutation;
-import java.model.fitness.GeneralizedImpactQuality;
-import java.model.fitness.RefactorArrayPlainWrite;
-import java.model.space.RefactoringOperationSpace;
+import java.optmodel.mappings.metaphor.MetaphorCode;
+import java.optmodel.operators.RefOperMutation;
+import java.optmodel.fitness.GeneralizedImpactQuality;
+import java.optmodel.fitness.RefactorArrayPlainWrite;
+import java.optmodel.space.RefactoringOperationSpace;
 import unalcol.descriptors.Descriptors;
 import unalcol.descriptors.WriteDescriptors;
 import unalcol.io.Write;
@@ -37,7 +37,7 @@ public class MainSimulatedAnnealing {
 
         //First Step: Calculate Actual Metrics
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
         //MainMetrics.main(args);
 
         //Second Step: Create the structures for the prediction

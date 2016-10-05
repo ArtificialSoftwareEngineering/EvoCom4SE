@@ -5,8 +5,8 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.quantum.QubitRefactor;
-import java.model.mappings.quantum.CodeDecodeRefactorList;
+import java.optmodel.mappings.quantum.QubitRefactor;
+import java.optmodel.mappings.quantum.CodeDecodeRefactorList;
 import unalcol.search.multilevel.CodeDecodeMap;
 
 public class testDecodeCodeRefactor {
@@ -15,7 +15,7 @@ public class testDecodeCodeRefactor {
         // TODO Auto-generated method stub
         //Getting the Metaphor
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
 
 
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();

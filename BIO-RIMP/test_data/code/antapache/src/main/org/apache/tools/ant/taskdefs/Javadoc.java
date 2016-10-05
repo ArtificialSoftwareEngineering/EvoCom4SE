@@ -1028,7 +1028,7 @@ public class Javadoc extends Task {
         le.setOffline(true);
         String linkOfflineError = "The linkoffline attribute must include"
             + " a URL and a package-list file location separated by a"
-            + "java/model/space";
+            + "java/optmodel/space";
         if (src.trim().length() == 0) {
             throw new BuildException(linkOfflineError);
         }

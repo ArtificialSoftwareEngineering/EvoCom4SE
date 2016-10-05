@@ -10,7 +10,7 @@ import org.gicentre.utils.geom.*;
 import edu.wayne.cs.severe.redress2.controller.HierarchyBuilder;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
+import java.optmodel.mappings.metaphor.MetaphorCode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ public class MyProcessingSketch extends PApplet {
 
         //First Step: Calculate Actual Metrics
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
 
         //Second Step: Create the structures for the prediction
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();

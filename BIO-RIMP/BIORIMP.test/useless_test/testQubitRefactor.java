@@ -1,6 +1,6 @@
 package useless_test;
 
-import java.model.mappings.quantum.QubitRefactor;
+import java.optmodel.mappings.quantum.QubitRefactor;
 
 public class testQubitRefactor {
 

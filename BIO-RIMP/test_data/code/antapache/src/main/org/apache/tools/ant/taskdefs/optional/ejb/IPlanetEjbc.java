@@ -72,7 +72,7 @@ public class IPlanetEjbc {
     private static final int NUM_CLASSES_WITHOUT_IIOP = 9;
 
     /* Constants used for the "beantype" attribute */
-    private static final String ENTITY_BEAN       = "java/model/mappings/entity";
+    private static final String ENTITY_BEAN       = "java/optmodel/mappings/entity";
     private static final String STATELESS_SESSION = "stateless";
     private static final String STATEFUL_SESSION  = "stateful";
 
@@ -763,7 +763,7 @@ public class IPlanetEjbc {
                 iasDescriptor = true;
             }
 
-            if ((name.equals("session")) || (name.equals("java/model/mappings/entity"))) {
+            if ((name.equals("session")) || (name.equals("java/optmodel/mappings/entity"))) {
                 ejbType = name;
             }
         }
@@ -893,7 +893,7 @@ public class IPlanetEjbc {
         private Classname  remote;            // EJB's remote interface name
         private Classname  implementation;      // EJB's implementation class
         private Classname  primaryKey;        // EJB's primary key class
-        private String  beantype = "java/model/mappings/entity";  // or "stateful" or "stateless"
+        private String  beantype = "java/optmodel/mappings/entity";  // or "stateful" or "stateless"
         private boolean cmp       = false;      // Does this EJB support CMP?
         private boolean iiop      = false;      // Does this EJB support IIOP?
         private boolean hasession = false;      // Does this EJB require failover?

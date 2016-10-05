@@ -14,7 +14,7 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.opers.*;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
 import edu.wayne.cs.severe.redress2.exception.RefactoringException;
 import edu.wayne.cs.severe.redress2.utils.ExceptionUtils;
-import java.model.mappings.metaphor.MetaphorCode;
+import java.optmodel.mappings.metaphor.MetaphorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

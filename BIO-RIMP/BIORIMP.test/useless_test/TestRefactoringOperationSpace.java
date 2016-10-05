@@ -5,11 +5,11 @@ package useless_test;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
+import java.optmodel.mappings.metaphor.MetaphorCode;
 
 import java.util.List;
 
-import java.model.space.RefactoringOperationSpace;
+import java.optmodel.space.RefactoringOperationSpace;
 
 /**
  * @author dnader
@@ -22,7 +22,7 @@ public class TestRefactoringOperationSpace {
     public static void main(String[] argss) {
         //Getting the Metaphor
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();
         init.main(args);
         MetaphorCode metaphor = new MetaphorCode(init);

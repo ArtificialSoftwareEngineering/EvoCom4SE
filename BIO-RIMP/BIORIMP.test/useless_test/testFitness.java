@@ -4,10 +4,10 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
-import java.model.operators.RefOperMutation;
-import java.model.fitness.GeneralizedImpactQuality;
-import java.model.space.RefactoringOperationSpace;
+import java.optmodel.mappings.metaphor.MetaphorCode;
+import java.optmodel.operators.RefOperMutation;
+import java.optmodel.fitness.GeneralizedImpactQuality;
+import java.optmodel.space.RefactoringOperationSpace;
 import unalcol.optimization.OptimizationFunction;
 import unalcol.search.space.Space;
 
@@ -17,7 +17,7 @@ public class testFitness {
         // TODO Auto-generated method stub
         //Getting the Metaphor
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
 
 
         MainPredFormulasBIoRIPM init = new MainPredFormulasBIoRIPM();

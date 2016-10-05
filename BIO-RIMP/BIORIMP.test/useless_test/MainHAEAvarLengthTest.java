@@ -8,13 +8,13 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.model.mappings.metaphor.MetaphorCode;
-import java.model.operators.RefOperAddGen;
-import java.model.operators.RefOperDelGen;
-import java.model.operators.RefOperJoin;
-import java.model.fitness.GeneralizedImpactQuality;
-import java.model.fitness.RefactorArrayPlainWrite;
-import java.model.space.VarLengthOperRefSpace;
+import java.optmodel.mappings.metaphor.MetaphorCode;
+import java.optmodel.operators.RefOperAddGen;
+import java.optmodel.operators.RefOperDelGen;
+import java.optmodel.operators.RefOperJoin;
+import java.optmodel.fitness.GeneralizedImpactQuality;
+import java.optmodel.fitness.RefactorArrayPlainWrite;
+import java.optmodel.space.VarLengthOperRefSpace;
 import unalcol.descriptors.Descriptors;
 import unalcol.descriptors.WriteDescriptors;
 import unalcol.evolution.haea.HAEA;
@@ -54,7 +54,7 @@ public class MainHAEAvarLengthTest {
     public static void refactor() {
         //First Step: Calculate Actual Metrics
         String userPath = System.getProperty("user.dir");
-        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      "};
+        String[] args = {"-l", "Java", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      "};
         //MainMetrics.main(args);
 
         //Second Step: Create the structures for the prediction

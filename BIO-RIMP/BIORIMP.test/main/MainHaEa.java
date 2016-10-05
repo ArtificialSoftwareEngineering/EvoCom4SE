@@ -11,7 +11,7 @@ public class MainHaEa {
         String userPath = System.getProperty("user.dir");
         //String[] args = { "-l", "Java", "-p", userPath+"\\test_data\\code\\optimizacion\\src","-s", "     optimizacion      " };
         // MainMetrics.main(args);
-        String[] args = {"-l", "JAVA", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/model/fitness      ",
+        String[] args = {"-l", "JAVA", "-p", userPath + "\\test_data\\code\\optimization\\src", "-s", "java/optmodel/fitness      ",
                 "-r", userPath + "\\test_data\\refs\\refsDummyOpt.txt"};
         MainPredFormulas.main(args);
     }

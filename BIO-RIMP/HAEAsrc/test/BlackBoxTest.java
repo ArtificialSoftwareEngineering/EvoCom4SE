@@ -53,7 +53,7 @@ public class BlackBoxTest {
         boolean neutral = true; // Accepts movements when having same function value
         HillClimbing<double[]> step = new HillClimbing<double[]>(variation, neutral, 100 * MAXITERS);
         BlackBoxSearch<double[]> bb_search = new BlackBoxSearch<>(step, new MLPBlackBoxFunction(space), 2.0, 10000);
-        IterativeSinglePointSearch<double[]> search = new IterativeSinglePointSearch<>(bb_search, new ForLoopCondition<>(MAXITERS));
+        IterativeSinglePointSearch<double[]> search = new IterativeSinglePointSearch<>(bb_search, new ForLoopCondition(MAXITERS));
         // Tracking the goal evaluations
         SolutionDescriptors<double[]> desc = new SolutionDescriptors<double[]>();
         Descriptors.set(Solution.class, desc);

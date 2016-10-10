@@ -127,15 +127,15 @@ public final class MetaphorCode {
         this.mapClass = mapClass;
     }
 
-    public ArrayList<CodeMetric> getMetrics() {
+    public static ArrayList<CodeMetric> getMetrics() {
         return metrics;
     }
 
-    public File getSystemPath() {
+    public static File getSystemPath() {
         return systemPath;
     }
 
-    public String getSysName() {
+    public static String getSysName() {
         return sysName;
     }
 

@@ -67,6 +67,7 @@ public class RefactoringOperation {
 
 	@Override
 	public String toString() {
+		//Fixme convert to Json
 		String JsonFormatReturn = 
 				" \" " + refType.getAcronym() + " \":{ " 
 				+ (params != null ? (params.toString()) : "") + " , "

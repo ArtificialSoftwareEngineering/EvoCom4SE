@@ -35,7 +35,7 @@ import unalcol.optimization.OptimizationFunction;
  */
 public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOperation>> {
 
-    MetaphorCode metaphor;
+    //MetaphorCode metaphor;
     LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
     String file;
     //Field for memoization
@@ -476,7 +476,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
     // End memoization
 
     public FitnessQualityDB(MetaphorCode metaphor, String file) {
-        this.metaphor = metaphor;
+        //this.metaphor = metaphor;
         this.file = file;
         PreviMetrics();
     }
@@ -592,7 +592,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
     private void PreviMetrics() {
         System.out.println("Reading previous metrics");
-        MetricsReader metReader = new MetricsReader(metaphor.getSystemPath(), metaphor.getSysName());
+        MetricsReader metReader = new MetricsReader(MetaphorCode.getSystemPath(), MetaphorCode.getSysName());
         try {
             prevMetrics = metReader.readMetrics();
         } catch (IOException e) {
@@ -678,7 +678,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                 MetricCalculator calc = new MetricCalculator();
                 //predictMetrics = calc.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
                 //predictMetrics = calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics);
-                predictMetricsMemorizar.putAll(calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics));
+                predictMetricsMemorizar.putAll(calc.predictMetrics(operationsClone, MetaphorCode.getMetrics(), prevMetrics));
                 predictMetrics.putAll((LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>)
                         Clone.create(predictMetricsMemorizar));
                 endTime = System.nanoTime();//stop prediction proccess time

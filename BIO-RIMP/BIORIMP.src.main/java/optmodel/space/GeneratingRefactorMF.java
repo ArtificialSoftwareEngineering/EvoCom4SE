@@ -22,7 +22,9 @@ import unalcol.random.integer.IntUniform;
 public class GeneratingRefactorMF extends GeneratingRefactor {
 
 	/* (non-Javadoc)
-     * @see entity.MappingRefactor#mappingRefactor(java.lang.String, unalcol.types.collection.bitarray.BitArray, entity.MetaphorCode)
+     * @see entity.MappingRefactor#mappingRefactor
+     * (java.lang.String,
+     * unalcol.types.collection.bitarray.BitArray, entity.MetaphorCode)
 	 */
 
     protected Refactoring type = Refactoring.moveField;

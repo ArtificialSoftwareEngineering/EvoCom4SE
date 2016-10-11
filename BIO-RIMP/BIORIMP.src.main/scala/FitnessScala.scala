@@ -155,12 +155,13 @@ trait FitnessCacheUtils{
         metricL  map (_.getClasss)
       } map { optRegClass =>
         optRegClass map { regClass =>
-          listMetric flatMap { metricL =>
+          val tempMetric = (listMetric flatMap { metricL =>
             metricL find (_ == regClass) map { sMetricL =>
-              (sMetricL.getClasss -> sMetricL.getMetric)
+              Map(sMetricL.getMetric -> sMetricL.getValue)
             }
-          }
-        }
+          }).getOrElse(Map.empty)
+          (regClass -> tempMetric)
+        } toMap
       }
     }
     ???
@@ -168,6 +169,7 @@ trait FitnessCacheUtils{
 }
 
 trait FitnessCache extends FitnessCacheUtils {
+
   protected def recordar(operRef: RefactoringOperation):Boolean = {
     val acronym = operRef.getRefType.getAcronym
     //1. If is defined
@@ -175,7 +177,9 @@ trait FitnessCache extends FitnessCacheUtils {
 
       val refactParam = if(acronym == RefAcronym.EC){
         extractParamsEC(operRef)
-      } else {extractParams(operRef)}
+      } else {
+        extractParams(operRef)
+      }
 
     }
     ???

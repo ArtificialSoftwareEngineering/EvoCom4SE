@@ -10,7 +10,8 @@ import unalcol.optimization.OptimizationFunction
 import scala.collection.JavaConversions._
 
 
-import scala.FitnessScalaApply.{RefAcronym, RefactorRegister, Metric}
+import scala.FitnessScalaApply.{ClassMap, RefAcronym, RefactorRegister, Metric}
+import scala.concurrent.Future
 
 /**
   * Created by david on 6/10/16.
@@ -18,6 +19,7 @@ import scala.FitnessScalaApply.{RefAcronym, RefactorRegister, Metric}
 
 object FitnessScalaApply{
   type Metric = Map[String,Map[String, Map[String, Double]]]
+  type ClassMap = Map[String, Map[String, Double]]
 
   object RefAcronym extends Enumeration{
     val EM, IM, RMMO, MF, PDF, PUF, MM, PDM, PUM, RDI, RID, EC = Value
@@ -124,7 +126,7 @@ trait FitnessCacheUtils{
     }
   }
 
-  private[scala] def retrieveMetrics(refactParam: RefactorRegister, acronym: String):List[Register] ={
+  private[scala] def retrieveMetrics(refactParam: RefactorRegister, acronym: String): ClassMap ={
     val refKeys = refactParam.src map { srcList =>
       srcList flatMap { src =>
         refactParam.fld map{ fldList =>
@@ -149,49 +151,58 @@ trait FitnessCacheUtils{
       }
     }
 
-    val flag = listMetric.nonEmpty
-    val predictMetricsRecordar = if(flag){
-      val classes = listMetric map { metricL =>
-        metricL  map (_.getClasss)
-      } map { optRegClass =>
-        optRegClass map { regClass =>
-          val tempMetric = (listMetric flatMap { metricL =>
-            metricL find (_ == regClass) map { sMetricL =>
-              Map(sMetricL.getMetric -> sMetricL.getValue)
-            }
-          }).getOrElse(Map.empty)
-          (regClass -> tempMetric)
-        } toMap
-      }
-    }
-    ???
+    lazy val classesMap = (listMetric map { metricL =>
+      metricL  map (_.getClasss)
+    } map { optRegClass =>
+      optRegClass map { regClass =>
+        val tempMetric = (listMetric flatMap { metricL =>
+          metricL find (_ == regClass) map { sMetricL =>
+            Map(sMetricL.getMetric -> sMetricL.getValue)
+          }
+        }).getOrElse(Map.empty)
+        (regClass -> tempMetric)
+      } toMap
+    }).getOrElse(Map.empty).toMap[String, Map[String, Double]]
+    classesMap
   }
+
 }
 
 trait FitnessCache extends FitnessCacheUtils {
 
-  protected def recordar(operRef: RefactoringOperation):Boolean = {
+  var predictMetricsRecordar: Metric
+
+  protected def recordar(operRef: RefactoringOperation): Future[Metric] = {
     val acronym = operRef.getRefType.getAcronym
-    //1. If is defined
-    if(!operRef.getParams.isEmpty){
 
+    val rMetrics = (if(!operRef.getParams.isEmpty){
+      //1. If is params defined
       val refactParam = if(acronym == RefAcronym.EC){
-        extractParamsEC(operRef)
+        retrieveMetrics(extractParamsEC(operRef), acronym)
       } else {
-        extractParams(operRef)
+        retrieveMetrics(extractParams(operRef), acronym)
       }
+      Map(acronym, refactParam)
 
-    }
+    } else{
+      //2. If is not params defined
+      Map.empty
+    }).toMap[String,Map[String, Map[String, Double]]]
+
+    Future(rMetrics)
+  }
+
+  protected def memorizar(operRef:RefactoringOperation):Future[Metric]={
     ???
   }
 }
 
-class FitnessScalaApply extends FitnessCache{
-  def PredictingMetrics(operations: List[RefactoringOperation]):Metric={
-    operations map {
-      operation =>
-
-    }
-    ???
-  }
-}
+//class FitnessScalaApply extends FitnessCache {
+//  def PredictingMetrics(operations: List[RefactoringOperation]):Metric={
+//    operations map {
+//      operation =>
+//???
+//    }
+//    ???
+//  }
+//}

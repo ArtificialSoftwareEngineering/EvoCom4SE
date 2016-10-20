@@ -39,8 +39,6 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
     LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
     String file;
     //Field for memoization
-    LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics = new
-            LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
     LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetricsMemorizar = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
     LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetricsRecordar = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
 
@@ -652,6 +650,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
             List<RefactoringOperation> operations)
             throws ReadException, IOException, CompilUnitException, WritingException {
 
+        LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics = new
+                LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
         List<RefactoringOperation> operationsClone;
         //(List<RefactoringOperation>)Clone.create(operations);
         for (RefactoringOperation operRef : operations) {

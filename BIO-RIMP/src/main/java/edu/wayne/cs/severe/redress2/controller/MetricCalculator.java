@@ -96,8 +96,9 @@ public class MetricCalculator {
 	 *            the list of metrics
 	 * @param prevMetrics
 	 */
-	public LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics(
-			List<RefactoringOperation> refactorings, List<CodeMetric> metrics,
+	public static LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetrics(
+			List<RefactoringOperation> refactorings,
+			List<CodeMetric> metrics,
 			LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics) {
 
 		LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predMetrs = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();

@@ -21,10 +21,6 @@ public class RefKey {
         return refactorID;
     }
 
-    public void setRefactorID(String refactorID) {
-        this.refactorID = refactorID;
-    }
-
     public String getSrc() {
         return src;
     }
@@ -43,10 +39,6 @@ public class RefKey {
 
     public String getMth() {
         return mth;
-    }
-
-    public void setMth(String mth) {
-        this.mth = mth;
     }
 
     public String getFld() {

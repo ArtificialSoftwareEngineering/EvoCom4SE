@@ -10,16 +10,19 @@ import unalcol.optimization.OptimizationFunction
 import scala.collection.JavaConversions._
 
 
-import scala.FitnessScalaApply.{ClassMap, RefAcronym, RefactorRegister, Metric}
-import scala.concurrent.Future
+import scala.FitnessScalaApply.{ClassMap, RefAcronym, RefactorRegister, RefMetric}
+import scala.concurrent.{ExecutionContext, Future}
+import ExecutionContext.Implicits.global
 
 /**
   * Created by david on 6/10/16.
   */
 
 object FitnessScalaApply{
-  type Metric = Map[String,Map[String, Map[String, Double]]]
-  type ClassMap = Map[String, Map[String, Double]]
+  type Class = String
+  type RefMetric = Map[String, ClassMap]
+  type Metric = Map[String, Double]
+  type ClassMap = Map[Class, Metric]
 
   object RefAcronym extends Enumeration{
     val EM, IM, RMMO, MF, PDF, PUF, MM, PDM, PUM, RDI, RID, EC = Value
@@ -97,36 +100,37 @@ trait FitnessCacheUtils{
     RefactorRegister(src = src, tgt = tgt, fld = fld, mtd = mtd )
   }
 
-  private def matchMetric(acronym:String, src:String, tgt:String, mtd:String, fld:String): RefKey ={
+  private def matchMetric(acronym: RefAcronym.Value, src:String, tgt:String, mtd:String, fld:String): RefKey ={
     acronym match {
       case RefAcronym.EM  =>
-        new RefKey(acronym, src, "", mtd, "")
+        new RefKey(acronym.toString , src, "", mtd, "")
       case RefAcronym.IM  =>
-        new RefKey(acronym, src, "", mtd, "")
+        new RefKey(acronym.toString, src, "", mtd, "")
       case RefAcronym.RMMO  =>
-        new RefKey(acronym, src, "", mtd, "")
+        new RefKey(acronym.toString, src, "", mtd, "")
       case RefAcronym.MF  =>
-        new RefKey(acronym, src, tgt, "", fld)
+        new RefKey(acronym.toString, src, tgt, "", fld)
       case RefAcronym.PDF  =>
-        new RefKey(acronym, src, tgt, "", fld)
+        new RefKey(acronym.toString, src, tgt, "", fld)
       case RefAcronym.PUF  =>
-        new RefKey(acronym, src, tgt, "", fld)
+        new RefKey(acronym.toString, src, tgt, "", fld)
       case RefAcronym.MM  =>
-        new RefKey(acronym, src, tgt, mtd, "")
+        new RefKey(acronym.toString, src, tgt, mtd, "")
       case RefAcronym.PDM  =>
-        new RefKey(acronym, src, tgt, mtd, "")
+        new RefKey(acronym.toString, src, tgt, mtd, "")
       case RefAcronym.PUM  =>
-        new RefKey(acronym, src, tgt, mtd, "")
+        new RefKey(acronym.toString, src, tgt, mtd, "")
       case RefAcronym.RDI  =>
-        new RefKey (acronym, src, tgt, "", "")
+        new RefKey (acronym.toString, src, tgt, "", "")
       case RefAcronym.RID  =>
-        new RefKey (acronym, src, tgt, "", "")
+        new RefKey (acronym.toString, src, tgt, "", "")
       case RefAcronym.EC  =>
-        new RefKey(acronym, src, "", mtd, fld)
+        new RefKey(acronym.toString, src, "", mtd, fld)
     }
   }
 
-  private[scala] def retrieveMetrics(refactParam: RefactorRegister, acronym: String): ClassMap ={
+  private[scala] def retrieveMetrics(refactParam: RefactorRegister, acronym: RefAcronym.Value): ClassMap ={
+    //Fixme organize please in a non-bloquing way
     val refKeys = refactParam.src map { srcList =>
       srcList flatMap { src =>
         refactParam.fld map{ fldList =>
@@ -170,20 +174,21 @@ trait FitnessCacheUtils{
 
 trait FitnessCache extends FitnessCacheUtils {
 
-  var predictMetricsRecordar: Metric
+  var predictMetricsRecordar: RefMetric
 
-  protected def recordar(operRef: RefactoringOperation): Future[Metric] = {
-    val acronym = operRef.getRefType.getAcronym
+  private def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
+    lazy val acronym = RefAcronym.withName( operRef.getRefType.getAcronym )
 
-    val rMetrics = (if(!operRef.getParams.isEmpty){
+    lazy val rMetrics = (if(!operRef.getParams.isEmpty){
       //1. If is params defined
       val refactParam = if(acronym == RefAcronym.EC){
         retrieveMetrics(extractParamsEC(operRef), acronym)
       } else {
         retrieveMetrics(extractParams(operRef), acronym)
       }
-      Map(acronym, refactParam)
 
+      val res:RefMetric = Map(acronym.toString -> refactParam)
+      res
     } else{
       //2. If is not params defined
       Map.empty
@@ -192,7 +197,19 @@ trait FitnessCache extends FitnessCacheUtils {
     Future(rMetrics)
   }
 
-  protected def memorizar(operRef:RefactoringOperation):Future[Metric]={
+  protected def recallRefactoringRecommendation(listRef: List[RefactoringOperation]): Future[RefMetric] ={
+    val res = Future.traverse(listRef){ x =>
+      recordarOperacionRefactor(x)
+    } map(_.flatten.toMap)
+    res
+  }
+
+  protected def memorizar(operRef:RefactoringOperation): Future[RefMetric] = {
+    val acronym = operRef.getRefType.getAcronym
+
+    if(!operRef.getParams.isEmpty){
+
+    }
     ???
   }
 }

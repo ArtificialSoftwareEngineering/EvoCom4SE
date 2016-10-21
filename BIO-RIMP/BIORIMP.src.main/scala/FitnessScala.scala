@@ -4,6 +4,7 @@ import java.lang.Double
 import java.optmodel.mappings.metaphor.MetaphorCode
 import java.storage.entities.{RefKey, Register}
 
+import edu.wayne.cs.severe.redress2.controller.MetricCalculator
 import edu.wayne.cs.severe.redress2.entity.{MethodDeclaration, AttributeDeclaration, TypeDeclaration}
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation
 import unalcol.optimization.OptimizationFunction

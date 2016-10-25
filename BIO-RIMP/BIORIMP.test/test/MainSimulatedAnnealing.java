@@ -55,7 +55,7 @@ public class MainSimulatedAnnealing {
         RefOperMutation variation = new RefOperMutation(0.5);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_SIMULATED_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_SIMULATED_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 

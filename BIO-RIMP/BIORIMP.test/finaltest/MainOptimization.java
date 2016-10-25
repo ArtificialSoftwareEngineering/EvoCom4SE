@@ -101,7 +101,7 @@ public class MainOptimization {
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HAEA_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEA_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition
@@ -162,7 +162,7 @@ public class MainOptimization {
         VarLengthOperRefSpace space = new VarLengthOperRefSpace(3, 7);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HAEAVAR_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEAVAR_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition
@@ -226,7 +226,7 @@ public class MainOptimization {
         // Optimization Function
         // OptimizationFunction<List<RefactoringOperation>> function = new
         // GeneralizedImpactQuality(metaphor,"HILLCLIMBING");
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HILLCLIMBING_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HILLCLIMBING_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
         // remove
         // the
@@ -291,7 +291,7 @@ public class MainOptimization {
         RefOperMutation variation = new RefOperMutation(0.5);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_SIMULATED_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_SIMULATED_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 

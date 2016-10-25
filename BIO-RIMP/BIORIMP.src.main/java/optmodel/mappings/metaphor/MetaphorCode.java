@@ -4,17 +4,15 @@
 package java.optmodel.mappings.metaphor;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 
 import edu.wayne.cs.severe.redress2.controller.HierarchyBuilder;
 import edu.wayne.cs.severe.redress2.controller.MetricUtils;
 import edu.wayne.cs.severe.redress2.controller.metric.CodeMetric;
 import edu.wayne.cs.severe.redress2.entity.ProgLang;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
+import edu.wayne.cs.severe.redress2.io.MetricsReader;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import java.storage.entities.RefKey;
 import java.storage.entities.Register;
@@ -47,6 +45,8 @@ public final class MetaphorCode {
 
     private static int COUNTER = 0;
 
+    private static LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
+
     public MetaphorCode(MainPredFormulasBIoRIPM init) {
         this.systemPath = init.getSystemPath();
         this.sysName = init.getSysName();
@@ -55,6 +55,7 @@ public final class MetaphorCode {
         this.lang = init.getLang();
         this.metrics = init.getMetrics();
         bitAssignerClass();
+        previousMetricsCalculation();
     }
 
     //Method for assigning a bit representation to each Class
@@ -69,11 +70,27 @@ public final class MetaphorCode {
         }
     }
 
+    private void previousMetricsCalculation() {
+        System.out.println("Reading previous metrics");
+        MetricsReader metReader = new MetricsReader(getSystemPath(), getSysName());
+        try {
+            prevMetrics = metReader.readMetrics();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+
     //Method for adding a class into the HashMap
     public void addClasstoHash(String pack, String name) {
         this.mapNewClass.put(COUNTER++,
                 new TypeDeclaration(pack, name));
     }
+
+    public static LinkedHashMap<String, LinkedHashMap<String, Double>> getPrevMetrics() {
+        return prevMetrics;
+    }
+
 
     //Get the complete list of Methods of a specific class
     public static LinkedHashSet<String> getMethodsFromClass(TypeDeclaration typeDcl) {

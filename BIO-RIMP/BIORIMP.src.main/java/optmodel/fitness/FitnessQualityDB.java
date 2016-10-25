@@ -36,7 +36,6 @@ import unalcol.optimization.OptimizationFunction;
 public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOperation>> {
 
     //MetaphorCode metaphor;
-    LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
     String file;
     //Field for memoization
     LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>> predictMetricsMemorizar = new LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>();
@@ -473,10 +472,8 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
     }
     // End memoization
 
-    public FitnessQualityDB(MetaphorCode metaphor, String file) {
-        //this.metaphor = metaphor;
+    public FitnessQualityDB( String file ) {
         this.file = file;
-        PreviMetrics();
     }
 
     @Override
@@ -525,9 +522,9 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
             }
 
             //2. Checking the class in prevMetrics
-            if (prevMetrics.containsKey(clase.getKey())) {
+            if (MetaphorCode.getPrevMetrics().containsKey(clase.getKey())) {
                 // Extracting prevMetrics
-                for (Entry<String, Double> metric : prevMetrics.get(clase.getKey()).entrySet()) {
+                for (Entry<String, Double> metric : MetaphorCode.getPrevMetrics().get(clase.getKey()).entrySet()) {
                     // Evaluate that the metric is impacted
                     if (metricActualVector.get(clase.getKey()).containsKey(metric.getKey())) {
                         // Evaluate if the metric is repeat for summing
@@ -586,17 +583,6 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
 
         return generalQuality;
 
-    }
-
-    private void PreviMetrics() {
-        System.out.println("Reading previous metrics");
-        MetricsReader metReader = new MetricsReader(MetaphorCode.getSystemPath(), MetaphorCode.getSysName());
-        try {
-            prevMetrics = metReader.readMetrics();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
     }
 
     //Organized the prediction and reduce the data
@@ -678,7 +664,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                 MetricCalculator calc = new MetricCalculator();
                 //predictMetrics = calc.predictMetrics(operations, metaphor.getMetrics(), prevMetrics);
                 //predictMetrics = calc.predictMetrics(operationsClone, metaphor.getMetrics(), prevMetrics);
-                predictMetricsMemorizar.putAll(calc.predictMetrics(operationsClone, MetaphorCode.getMetrics(), prevMetrics));
+                predictMetricsMemorizar.putAll(calc.predictMetrics(operationsClone, MetaphorCode.getMetrics(), MetaphorCode.getPrevMetrics()));
                 predictMetrics.putAll((LinkedHashMap<String, LinkedHashMap<String, LinkedHashMap<String, Double>>>)
                         Clone.create(predictMetricsMemorizar));
                 endTime = System.nanoTime();//stop prediction proccess time

@@ -68,7 +68,7 @@ public class MainHillClimbing {
         // Optimization Function
         // OptimizationFunction<List<RefactoringOperation>> function = new
         // GeneralizedImpactQuality(metaphor,"HILLCLIMBING");
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HILLCLIMBING_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HILLCLIMBING_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
         // remove
         // the

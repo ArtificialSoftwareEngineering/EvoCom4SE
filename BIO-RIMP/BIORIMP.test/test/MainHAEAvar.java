@@ -62,7 +62,7 @@ public class MainHAEAvar {
         VarLengthOperRefSpace space = new VarLengthOperRefSpace(5, 9);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HAEAVAR_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEAVAR_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition

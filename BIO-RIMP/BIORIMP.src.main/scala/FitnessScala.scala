@@ -3,6 +3,7 @@ package scala
 import java.lang.Double
 import java.optmodel.mappings.metaphor.MetaphorCode
 import java.storage.entities.{RefKey, Register}
+import java.storage.repositories.RegisterRepository
 
 import edu.wayne.cs.severe.redress2.controller.MetricCalculator
 import edu.wayne.cs.severe.redress2.entity.{MethodDeclaration, AttributeDeclaration, TypeDeclaration}
@@ -29,8 +30,9 @@ object FitnessScalaApply{
     val EM, IM, RMMO, MF, PDF, PUF, MM, PDM, PUM, RDI, RID, EC = Value
   }
 
-  case class RefactorRegister(src:Option[List[String]], tgt:Option[List[String]]=None,
-                              fld:Option[List[String]], mtd:Option[List[String]])
+  case class RefactorRegister(operRef: RefactoringOperation,
+                              src:Option[String], tgt:Option[String]=None,
+                              fld:Option[String], mtd:Option[String])
 }
 
 trait FitnessCacheUtils{
@@ -41,64 +43,64 @@ trait FitnessCacheUtils{
     */
   private[scala] def extractParamsEC(operRef: RefactoringOperation):RefactorRegister = {
     //1.Extracting src from subrefs
-    val src = operRef.getSubRefs.toList flatMap {oneRef =>
-      oneRef.getParams.toMap.get("src") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val src = (operRef.getSubRefs.toList flatMap  {oneRef =>
+      oneRef.getParams.toMap.get("src") flatMap  { refactoringParameterList =>
+        (refactoringParameterList.toList map {refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[TypeDeclaration].getId.toString
-        }
+        }).headOption
       }
-    } flatten
+    }).headOption
 
     //2.Extracting fld from subrefs
-    val fld = operRef.getSubRefs.toList flatMap{oneRef =>
-      oneRef.getParams.toMap.get("fld") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val fld = (operRef.getSubRefs.toList flatMap {oneRef =>
+      oneRef.getParams.toMap.get("fld") flatMap  { refactoringParameterList =>
+        (refactoringParameterList.toList map { refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[AttributeDeclaration].getObjName
-        }
+        }).headOption
       }
-    } flatten
+    } ).headOption
 
     //3.Extracting mtd from subrefs
-    val mtd = operRef.getSubRefs.toList flatMap{oneRef =>
-      oneRef.getParams.toMap.get("mtd") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val mtd = (operRef.getSubRefs.toList flatMap{oneRef =>
+      oneRef.getParams.toMap.get("mtd") flatMap  { refactoringParameterList =>
+        (refactoringParameterList.toList map {refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[MethodDeclaration].getObjName
-        }
+        }).headOption
       }
-    } flatten
+    } ).headOption
 
-    RefactorRegister(src = Option(src), fld = Option(fld), mtd = Option(mtd) )
+    RefactorRegister(operRef = operRef, src = src, fld = fld, mtd = mtd )
   }
 
   private[scala] def extractParams(operRef: RefactoringOperation):RefactorRegister = {
     //1.Extracting src from ref
-    val src = operRef.getParams.toMap.get("src") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val src = operRef.getParams.toMap.get("src") flatMap  { refactoringParameterList =>
+       (refactoringParameterList.toList map {refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[TypeDeclaration].getId.toString
-        }
+        }).headOption
       }
 
-    val tgt = operRef.getParams.toMap.get("tgt") map { refactoringParameterList =>
-      refactoringParameterList.toList map {refactoringParameter =>
+    val tgt = operRef.getParams.toMap.get("tgt") flatMap { refactoringParameterList =>
+      (refactoringParameterList.toList map {refactoringParameter =>
         refactoringParameter.getCodeObj.asInstanceOf[TypeDeclaration].getId.toString
-      }
+      }).headOption
     }
 
     //2.Extracting fld from ref
-    val fld = operRef.getParams.toMap.get("fld") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val fld = operRef.getParams.toMap.get("fld") flatMap  { refactoringParameterList =>
+      (refactoringParameterList.toList map {refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[AttributeDeclaration].getObjName
-        }
+        }).headOption
       }
 
     //3.Extracting mtd from ref
-    val mtd = operRef.getParams.toMap.get("mtd") map { refactoringParameterList =>
-        refactoringParameterList.toList map {refactoringParameter =>
+    val mtd = operRef.getParams.toMap.get("mtd") flatMap  { refactoringParameterList =>
+      (refactoringParameterList.toList map {refactoringParameter =>
           refactoringParameter.getCodeObj.asInstanceOf[MethodDeclaration].getObjName
-        }
+        }).headOption
       }
 
-    RefactorRegister(src = src, tgt = tgt, fld = fld, mtd = mtd )
+    RefactorRegister(operRef = operRef, src = src, tgt = tgt, fld = fld, mtd = mtd )
   }
 
   private def matchMetric(acronym: RefAcronym.Value, src:String, tgt:String, mtd:String, fld:String): RefKey ={
@@ -131,45 +133,54 @@ trait FitnessCacheUtils{
   }
 
   private[scala] def retrieveMetrics(refactParam: RefactorRegister, acronym: RefAcronym.Value): ClassMap ={
-    //Fixme organize please in a non-bloquing way
-    val refKeys = refactParam.src map { srcList =>
-      srcList flatMap { src =>
-        refactParam.fld map{ fldList =>
-          fldList flatMap { fld =>
-            refactParam.mtd map { mtdList =>
-              mtdList flatMap { mtd =>
-                refactParam.tgt map { tgtList =>
-                  tgtList map { tgt =>
-                    matchMetric(acronym = acronym, src = src, tgt = tgt, mtd = mtd, fld = fld)
-                  }
-                }
-              } flatten
-            }
-          } flatten
-        }
-      } flatten
-    }
 
-    val listMetric = refKeys map{ listRefK =>
-      listRefK flatMap  { refK =>
-        MetaphorCode.RefactoringCache.get(refK)
-      }
-    }
+    val refKeys = matchMetric(acronym = acronym, src = refactParam.src.getOrElse(""),
+      tgt = refactParam.tgt.getOrElse(""),
+      mtd = refactParam.mtd.getOrElse("-1"),
+      fld = refactParam.fld.getOrElse("-1")
+    )
 
-    lazy val classesMap = (listMetric map { metricL =>
-      metricL  map (_.getClasss)
-    } map { optRegClass =>
-      optRegClass map { regClass =>
-        val tempMetric = (listMetric flatMap { metricL =>
-          metricL find (_ == regClass) map { sMetricL =>
-            Map(sMetricL.getMetric -> sMetricL.getValue)
-          }
-        }).getOrElse(Map.empty)
-        (regClass -> tempMetric)
-      } toMap
-    }).getOrElse(Map.empty).toMap[String, Map[String, Double]]
-    classesMap
+    val listRegister = MetaphorCode.RefactoringCache.get(refKeys).toList
+
+    lazy val claMap = listRegister map  (_.getClasss) map { optRegClass =>
+      val met = (listRegister find (_.getClasss == optRegClass ) map {sMetricL =>
+        Map(sMetricL.getMetric -> sMetricL.getValue) }).getOrElse(Map.empty)
+      (optRegClass -> met)
+    } toMap
+
+    lazy val clasMap:ClassMap = (listRegister map {optRegClass =>
+      optRegClass.getClasss -> Map(optRegClass.getMetric -> optRegClass.getValue)
+    }).toMap[String, Map[String, Double]]
+
+    clasMap
   }
+
+  private[scala] def storingDB(register: Register): Future[Unit] = {
+    val repo = (new RegisterRepository).insertRegister(register)
+    Future(repo)
+  }
+
+  private[scala] def saveMetrics(mapPredictedMetrics: Map[RefactorRegister,RefMetric] ): Unit = {
+    val storingRegisters = mapPredictedMetrics flatMap  { operRef =>
+      val res = operRef._2 collect { case ref if ref._1.contains( operRef._1.operRef.getRefType.getAcronym ) =>
+        ref._2 flatMap { clas => clas._2 map { metric =>
+          val register = new Register(
+                      operRef._1.operRef.getRefType.getAcronym, metric._1, metric._2,
+                      operRef._1.src.getOrElse(""), operRef._1.tgt.getOrElse(""),
+                      operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1
+                    )
+          storingDB(register)
+      }} } flatten
+
+      res
+    } toList
+
+    Future.traverse(storingRegisters) { storeR =>
+      storeR
+    } map (_ => Unit)
+
+  }
+
 
 }
 
@@ -205,12 +216,32 @@ trait FitnessCache extends FitnessCacheUtils {
     res
   }
 
-  protected def memorizar(operRef:RefactoringOperation): Future[RefMetric] = {
-    val acronym = operRef.getRefType.getAcronym
+  protected def memorizar(listRef: List[RefactoringOperation]): Future[RefMetric] = {
+    val acronym = listRef map {x => x.getRefType.getAcronym}
+    //La memorización debería llamar directamente la predicción, si recuerdo no tengo porqué predecir
 
-    if(!operRef.getParams.isEmpty){
+    val predictedMetricsMap = listRef map{ operRef =>
+      val predictedMetric:RefMetric = {
+        val listOperRef = MetricCalculator.predictMetrics( List(operRef) ,
+          MetaphorCode.getMetrics, MetaphorCode.getPrevMetrics )
 
-    }
+        val rr = (mapAsScalaMap(listOperRef) map {x =>
+          x._1 -> (mapAsScalaMap(x._2) map {
+            y => y._1 -> mapAsScalaMap(y._2).toMap}
+            ).toMap }).toMap
+
+        rr.asInstanceOf[RefMetric]
+      }
+
+      val refactParam =  if(acronym == RefAcronym.EC){
+          extractParamsEC(operRef)
+        } else {
+          extractParams(operRef)
+        }
+      refactParam -> predictedMetric
+    } toMap
+
+    saveMetrics(predictedMetricsMap)
     ???
   }
 }

@@ -71,7 +71,7 @@ public class MainHAEAFIX {
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB(metaphor, systems + "_HAEA_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEA_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition

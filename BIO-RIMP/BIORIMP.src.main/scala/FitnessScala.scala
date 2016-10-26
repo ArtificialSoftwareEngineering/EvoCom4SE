@@ -268,6 +268,10 @@ trait FitnessBias extends FitnessCache{
     Future.traverse(listRefMetric){ x => x} map(_.flatten.toMap)
   }
 
+  protected def simplifyingMetrics( refactoringsMap : RefMetric ): ClassMap = {
+    ???
+  }
+
 }
 
 //class FitnessScalaApply extends FitnessCache {

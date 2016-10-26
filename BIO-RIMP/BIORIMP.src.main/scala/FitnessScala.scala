@@ -140,12 +140,13 @@ trait FitnessCacheUtils{
       fld = refactParam.fld.getOrElse("-1")
     )
 
+    //Calling Cache
     val listRegister = MetaphorCode.RefactoringCache.get(refKeys).toList
 
     lazy val claMap = listRegister map  (_.getClasss) map { optRegClass =>
       val met = (listRegister find (_.getClasss == optRegClass ) map {sMetricL =>
         Map(sMetricL.getMetric -> sMetricL.getValue) }).getOrElse(Map.empty)
-      (optRegClass -> met)
+      optRegClass -> met
     } toMap
 
     lazy val clasMap:ClassMap = (listRegister map {optRegClass =>
@@ -160,7 +161,7 @@ trait FitnessCacheUtils{
     Future(repo)
   }
 
-  private[scala] def saveMetrics(mapPredictedMetrics: Map[RefactorRegister,RefMetric] ): Unit = {
+  private[scala] def saveMetrics(mapPredictedMetrics: Map[RefactorRegister,RefMetric] ): Future[Unit] = {
     val storingRegisters = mapPredictedMetrics flatMap  { operRef =>
       val res = operRef._2 collect { case ref if ref._1.contains( operRef._1.operRef.getRefType.getAcronym ) =>
         ref._2 flatMap { clas => clas._2 map { metric =>
@@ -178,7 +179,6 @@ trait FitnessCacheUtils{
     Future.traverse(storingRegisters) { storeR =>
       storeR
     } map (_ => Unit)
-
   }
 
 
@@ -186,9 +186,8 @@ trait FitnessCacheUtils{
 
 trait FitnessCache extends FitnessCacheUtils {
 
-  var predictMetricsRecordar: RefMetric
 
-  private def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
+  protected def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
     lazy val acronym = RefAcronym.withName( operRef.getRefType.getAcronym )
 
     lazy val rMetrics = (if(!operRef.getParams.isEmpty){
@@ -199,7 +198,7 @@ trait FitnessCache extends FitnessCacheUtils {
         retrieveMetrics(extractParams(operRef), acronym)
       }
 
-      val res:RefMetric = Map(acronym.toString -> refactParam)
+      val res:RefMetric = if (refactParam.isEmpty) Map.empty else Map(acronym.toString -> refactParam)
       res
     } else{
       //2. If is not params defined
@@ -216,8 +215,7 @@ trait FitnessCache extends FitnessCacheUtils {
     res
   }
 
-  protected def memorizar(listRef: List[RefactoringOperation]): Future[RefMetric] = {
-    val acronym = listRef map {x => x.getRefType.getAcronym}
+  protected def memorize(listRef: List[RefactoringOperation]): Future[RefMetric] = {
     //La memorización debería llamar directamente la predicción, si recuerdo no tengo porqué predecir
 
     val predictedMetricsMap = listRef map{ operRef =>
@@ -233,17 +231,43 @@ trait FitnessCache extends FitnessCacheUtils {
         rr.asInstanceOf[RefMetric]
       }
 
-      val refactParam =  if(acronym == RefAcronym.EC){
+      val refactParam =  if(operRef.getRefType.getAcronym == RefAcronym.EC.toString){
           extractParamsEC(operRef)
         } else {
           extractParams(operRef)
         }
+
       refactParam -> predictedMetric
     } toMap
 
-    saveMetrics(predictedMetricsMap)
-    ???
+    val res = saveMetrics(predictedMetricsMap) map { _ =>
+      (predictedMetricsMap.values flatten ).toMap
+    }
+    res
   }
+  
+}
+
+trait FitnessBias extends FitnessCache{
+
+  protected def predictMetrics(refOperations: List[RefactoringOperation]): Future[RefMetric] = {
+    //Fixme Here we can trace time of caché
+    //Sino se puede recordar la operación entonces la memoriza (predecir + almacenar)
+
+    val listRefMetric = refOperations map{ refOper =>
+      (for{
+        recalledRefOper <- recordarOperacionRefactor(refOper)
+      } yield recalledRefOper) flatMap  {
+        case rrefOper if rrefOper.nonEmpty =>
+          Future(rrefOper)
+        case rrefOper if rrefOper.isEmpty =>
+          memorize(List(refOper))
+      }
+    }
+
+    Future.traverse(listRefMetric){ x => x} map(_.flatten.toMap)
+  }
+
 }
 
 //class FitnessScalaApply extends FitnessCache {

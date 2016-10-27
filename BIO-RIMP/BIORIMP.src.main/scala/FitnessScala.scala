@@ -12,7 +12,7 @@ import unalcol.optimization.OptimizationFunction
 import scala.collection.JavaConversions._
 
 
-import scala.FitnessScalaApply.{ClassMap, RefAcronym, RefactorRegister, RefMetric}
+import scala.FitnessScalaApply._
 import scala.concurrent.{ExecutionContext, Future}
 import ExecutionContext.Implicits.global
 
@@ -163,14 +163,15 @@ trait FitnessCacheUtils{
 
   private[scala] def saveMetrics(mapPredictedMetrics: Map[RefactorRegister,RefMetric] ): Future[Unit] = {
     val storingRegisters = mapPredictedMetrics flatMap  { operRef =>
-      val res = operRef._2 collect { case ref if ref._1.contains( operRef._1.operRef.getRefType.getAcronym ) =>
-        ref._2 flatMap { clas => clas._2 map { metric =>
-          val register = new Register(
-                      operRef._1.operRef.getRefType.getAcronym, metric._1, metric._2,
-                      operRef._1.src.getOrElse(""), operRef._1.tgt.getOrElse(""),
-                      operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1
-                    )
-          storingDB(register)
+      val res = operRef._2 collect {
+        case ref if ref._1.contains( operRef._1.operRef.getRefType.getAcronym ) =>
+          ref._2 flatMap { clas => clas._2 map { metric =>
+            val register = new Register(
+                        operRef._1.operRef.getRefType.getAcronym, metric._1, metric._2,
+                        operRef._1.src.getOrElse(""), operRef._1.tgt.getOrElse(""),
+                        operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1
+                      )
+            storingDB(register)
       }} } flatten
 
       res
@@ -208,13 +209,15 @@ trait FitnessCache extends FitnessCacheUtils {
     Future(rMetrics)
   }
 
-  protected def recallRefactoringRecommendation(listRef: List[RefactoringOperation]): Future[RefMetric] ={
+  protected def recallRefactoringRecommendation(listRef: Set[RefactoringOperation]): Future[RefMetric] ={
+    //Fixme bad implemented with flatten, needs better merge
     val res = Future.traverse(listRef){ x =>
       recordarOperacionRefactor(x)
     } map(_.flatten.toMap)
     res
   }
 
+  //fixme transformar para memorizar solo una operación
   protected def memorize(listRef: List[RefactoringOperation]): Future[RefMetric] = {
     //La memorización debería llamar directamente la predicción, si recuerdo no tengo porqué predecir
 
@@ -250,10 +253,10 @@ trait FitnessCache extends FitnessCacheUtils {
 
 trait FitnessBias extends FitnessCache{
 
-  protected def predictMetrics(refOperations: List[RefactoringOperation]): Future[RefMetric] = {
+  protected def predictMetrics(refOperations: Set[RefactoringOperation]): Future[List[RefMetric]] = {
     //Fixme Here we can trace time of caché
     //Sino se puede recordar la operación entonces la memoriza (predecir + almacenar)
-
+    //Con un set se asegura que no puede predecir operaciones de refacotoring repetidas
     val listRefMetric = refOperations map{ refOper =>
       (for{
         recalledRefOper <- recordarOperacionRefactor(refOper)
@@ -265,11 +268,58 @@ trait FitnessBias extends FitnessCache{
       }
     }
 
-    Future.traverse(listRefMetric){ x => x} map(_.flatten.toMap)
+    val res = Future.traverse(listRefMetric.toList){ x => x}
+    res
   }
 
-  protected def simplifyingMetrics( refactoringsMap : RefMetric ): ClassMap = {
-    ???
+  private def simplifyingMetric( classListMap : List[Metric], result: Metric): Metric = {
+    classListMap match {
+      case Nil ⇒
+        result
+      case head :: tail ⇒
+        val filterHead = head collect {
+          case (key,value) if result.get(key).fold(true) { _ < value } ⇒
+            (key,value)
+        }
+        simplifyingMetric( tail , result ++ filterHead )
+    }
+  }
+
+  private def simplifyingClass( classListMap : List[ClassMap], result: ClassMap): ClassMap = {
+    classListMap match {
+      case Nil ⇒
+        result
+      case head :: tail ⇒
+        val filterHead = head collect {
+          case(key, value) if result.contains(key) ⇒
+            val arValue = simplifyingMetric( List(value), result.getOrElse(key,Map.empty) )
+            (key,arValue)
+        }
+        simplifyingClass( tail, result ++ filterHead)
+    }
+  }
+
+  protected def reduceMetrics( refactoringsListMap : List[RefMetric]): ClassMap = {
+    //Organized the prediction and reduce the data according to maximum value for metrics
+    //SUA is composed of classes (witout refactorings)
+
+    def simplifyingRefactoring( refactoringsListMap : List[RefMetric], result: RefMetric): RefMetric = {
+      refactoringsListMap match {
+        case Nil ⇒
+          result
+        case head :: tail ⇒
+          val filterHead = head collect {
+            case (key,value) if result.contains(key) ⇒
+              val arValue = simplifyingClass(List(value), result.getOrElse(key,Map.empty))
+              (key,arValue)
+          }
+          simplifyingRefactoring( tail, result ++ filterHead)
+      }
+    }
+
+    val sua = simplifyingRefactoring(refactoringsListMap, Map.empty).values.toSet flatMap { ref => ref } toMap
+
+    sua
   }
 
 }

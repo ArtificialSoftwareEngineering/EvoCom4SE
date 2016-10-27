@@ -1,6 +1,5 @@
 package scala
 
-import java.lang.Double
 import java.optmodel.mappings.metaphor.MetaphorCode
 import java.storage.entities.{RefKey, Register}
 import java.storage.repositories.RegisterRepository
@@ -13,8 +12,10 @@ import scala.collection.JavaConversions._
 
 
 import scala.FitnessScalaApply._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import ExecutionContext.Implicits.global
+
+import scala.concurrent.duration._
 
 /**
   * Created by david on 6/10/16.
@@ -188,7 +189,7 @@ trait FitnessCacheUtils{
 trait FitnessCache extends FitnessCacheUtils {
 
 
-  protected def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
+  protected[scala] def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
     lazy val acronym = RefAcronym.withName( operRef.getRefType.getAcronym )
 
     lazy val rMetrics = (if(!operRef.getParams.isEmpty){
@@ -209,7 +210,7 @@ trait FitnessCache extends FitnessCacheUtils {
     Future(rMetrics)
   }
 
-  protected def recallRefactoringRecommendation(listRef: Set[RefactoringOperation]): Future[RefMetric] ={
+  protected[scala] def recallRefactoringRecommendation(listRef: Set[RefactoringOperation]): Future[RefMetric] ={
     //Fixme bad implemented with flatten, needs better merge
     val res = Future.traverse(listRef){ x =>
       recordarOperacionRefactor(x)
@@ -217,8 +218,7 @@ trait FitnessCache extends FitnessCacheUtils {
     res
   }
 
-  //fixme transformar para memorizar solo una operación
-  protected def memorize(listRef: List[RefactoringOperation]): Future[RefMetric] = {
+  protected[scala] def memorize(listRef: List[RefactoringOperation]): Future[RefMetric] = {
     //La memorización debería llamar directamente la predicción, si recuerdo no tengo porqué predecir
 
     val predictedMetricsMap = listRef map{ operRef =>
@@ -248,12 +248,44 @@ trait FitnessCache extends FitnessCacheUtils {
     }
     res
   }
+
+  protected[scala] def memorizeSingle(refOper: RefactoringOperation): Future[RefMetric] = {
+    //La memorización debería llamar directamente la predicción,
+    //si recuerdo no tengo porqué predecir
+
+    val predictedMetricsMap = {
+      val predictedMetric:RefMetric = {
+        val listOperRef = MetricCalculator.predictMetrics( List(refOper) ,
+          MetaphorCode.getMetrics, MetaphorCode.getPrevMetrics )
+
+        val rr = (mapAsScalaMap(listOperRef) map {x =>
+          x._1 -> (mapAsScalaMap(x._2) map {
+            y => y._1 -> mapAsScalaMap(y._2).toMap}
+            ).toMap }).toMap
+
+        rr.asInstanceOf[RefMetric]
+      }
+
+      val refactParam =  if(refOper.getRefType.getAcronym == RefAcronym.EC.toString){
+        extractParamsEC(refOper)
+      } else {
+        extractParams(refOper)
+      }
+
+      Map(refactParam -> predictedMetric)
+    }
+
+    val res = saveMetrics(predictedMetricsMap) map { _ =>
+      (predictedMetricsMap.values flatten ).toMap
+    }
+    res
+  }
   
 }
 
 trait FitnessBias extends FitnessCache{
 
-  protected def predictMetrics(refOperations: Set[RefactoringOperation]): Future[List[RefMetric]] = {
+  private def predictMetrics(refOperations: Set[RefactoringOperation]): Future[List[RefMetric]] = {
     //Fixme Here we can trace time of caché
     //Sino se puede recordar la operación entonces la memoriza (predecir + almacenar)
     //Con un set se asegura que no puede predecir operaciones de refacotoring repetidas
@@ -264,7 +296,7 @@ trait FitnessBias extends FitnessCache{
         case rrefOper if rrefOper.nonEmpty =>
           Future(rrefOper)
         case rrefOper if rrefOper.isEmpty =>
-          memorize(List(refOper))
+          memorizeSingle(refOper)
       }
     }
 
@@ -299,7 +331,7 @@ trait FitnessBias extends FitnessCache{
     }
   }
 
-  protected def reduceMetrics( refactoringsListMap : List[RefMetric]): ClassMap = {
+  private def getSUA(refactoringsListMap : List[RefMetric]): ClassMap = {
     //Organized the prediction and reduce the data according to maximum value for metrics
     //SUA is composed of classes (witout refactorings)
 
@@ -317,19 +349,57 @@ trait FitnessBias extends FitnessCache{
       }
     }
 
-    val sua = simplifyingRefactoring(refactoringsListMap, Map.empty).values.toSet flatMap { ref => ref } toMap
+    val sua2 = refactoringsListMap reduce(_ ++ _)
+
+    val sua = simplifyingRefactoring(refactoringsListMap, Map.empty).values.toSet.flatten.toMap
 
     sua
   }
 
+  private def reduceMetricsBySum( map1 : Metric, map2: Metric): Metric = {
+    val mm = map1 collect {
+      case (key, value) if map2.contains(key) ⇒
+        val retrievedValue: Double = map2.getOrElse(key, 0.0)
+        (key, retrievedValue + value)
+      case (key, value) if !map2.contains(key) ⇒
+        (key, value)
+    }
+    mm
+  }
+
+  protected[scala] def biasQualitySystemRatio(refOperations: Set[RefactoringOperation]): Double ={
+    val generalQuality = predictMetrics(refOperations) map { refF =>
+
+      val metricActualVector = getSUA(refF)
+      val suaMetric = metricActualVector.values.toList reduceLeft( (x,y) => {reduceMetricsBySum(x,y)} )
+      val suaPrevMetric = (metricActualVector map { oneClass =>
+        val prevMetric = (MetaphorCode.getPrevMetrics.toMap map { met =>
+          (met._1,met._2.toMap map{ m => (m._1,m._2.toDouble)} ) }).getOrElse(oneClass._1,Map.empty)
+        (oneClass._1, prevMetric)
+      }).values.toList reduceLeft((x,y) => {reduceMetricsBySum(x,y)})
+
+      val min = suaMetric.values.toList.reduceLeft( (x,y) => {if(x<y) x else y} )
+      val max = suaMetric.values.toList.reduceLeft( (x,y) => {if(x>y) x else y} )
+
+      val minPrev = suaPrevMetric.values.toList.reduceLeft( (x,y) => {if(x<y) x else y} )
+      val maxPrev = suaPrevMetric.values.toList.reduceLeft( (x,y) => {if(x>y) x else y} )
+
+      //Vector weights for metrics
+      val w = 1.0 / suaMetric.size
+
+      //Normalization
+      val numerator = (suaMetric map {met => { w * ((met._2 - min)/(max - min)) } }).toList.reduceLeftOption(_ + _)
+      val denominator = (suaPrevMetric map {met => { w * ((met._2 - minPrev)/(maxPrev - minPrev)) } }).toList.reduceLeftOption(_ + _)
+      (numerator flatMap ( x => denominator map( y => x/y) )).getOrElse(1.0)
+    }
+
+    Await.result(generalQuality, 5000 millis)
+  }
+
 }
 
-//class FitnessScalaApply extends FitnessCache {
-//  def PredictingMetrics(operations: List[RefactoringOperation]):Metric={
-//    operations map {
-//      operation =>
-//???
-//    }
-//    ???
-//  }
-//}
+class FitnessScalaApply extends FitnessBias {
+  def gBiasQualitySystemRatio(refOperations: java.util.List[RefactoringOperation]) : Double ={
+    biasQualitySystemRatio(refOperations.toSet)
+  }
+}

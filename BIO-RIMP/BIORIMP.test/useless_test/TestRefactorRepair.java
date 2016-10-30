@@ -4,9 +4,9 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.optmodel.mappings.metaphor.MetaphorCode;
-import java.optmodel.operators.RefOperMutation;
-import java.optmodel.space.RefactoringOperationSpace;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.operators.RefOperMutation;
+import javabio.optmodel.space.RefactoringOperationSpace;
 
 public class TestRefactorRepair {
 

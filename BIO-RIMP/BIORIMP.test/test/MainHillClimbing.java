@@ -8,12 +8,12 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.optmodel.mappings.metaphor.MetaphorCode;
-import java.optmodel.operators.RefOperMutation;
-import java.optmodel.fitness.FitnessQualityDB;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.operators.RefOperMutation;
+import javabio.optmodel.fitness.FitnessQualityDB;
 
-import java.optmodel.fitness.RefactorArrayPlainWrite;
-import java.optmodel.space.RefactoringOperationSpace;
+import javabio.optmodel.fitness.RefactorArrayPlainWrite;
+import javabio.optmodel.space.RefactoringOperationSpace;
 import unalcol.descriptors.Descriptors;
 import unalcol.descriptors.WriteDescriptors;
 import unalcol.io.Write;

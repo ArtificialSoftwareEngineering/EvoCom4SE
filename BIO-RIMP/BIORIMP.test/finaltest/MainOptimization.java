@@ -9,17 +9,18 @@ import java.util.List;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
 import edu.wayne.cs.severe.redress2.main.MainMetrics;
-import java.optmodel.mappings.metaphor.MetaphorCode;
-import java.optmodel.operators.RefOperClassTransposition;
-import java.optmodel.operators.RefOperAddGen;
-import java.optmodel.operators.RefOperDelGen;
-import java.optmodel.operators.RefOperJoin;
-import java.optmodel.operators.RefOperMutation;
-import java.optmodel.operators.RefOperXOver;
-import java.optmodel.fitness.FitnessQualityDB;
-import java.optmodel.fitness.RefactorArrayPlainWrite;
-import java.optmodel.space.RefactoringOperationSpace;
-import java.optmodel.space.VarLengthOperRefSpace;
+import javabio.optmodel.fitness.FitnessQualityDBScala;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.operators.RefOperClassTransposition;
+import javabio.optmodel.operators.RefOperAddGen;
+import javabio.optmodel.operators.RefOperDelGen;
+import javabio.optmodel.operators.RefOperJoin;
+import javabio.optmodel.operators.RefOperMutation;
+import javabio.optmodel.operators.RefOperXOver;
+import javabio.optmodel.fitness.FitnessQualityDB;
+import javabio.optmodel.fitness.RefactorArrayPlainWrite;
+import javabio.optmodel.space.RefactoringOperationSpace;
+import javabio.optmodel.space.VarLengthOperRefSpace;
 import unalcol.descriptors.Descriptors;
 import unalcol.descriptors.WriteDescriptors;
 import unalcol.evolution.haea.HAEA;
@@ -50,28 +51,33 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
     private static String algo;
-    private static String systems = "dataset01";
+    private static String systems = "xerces";
     private static String userPath = System.getProperty("user.dir");
-    private static String[] args = {"-l", "Java", "-p", userPath + "/BIO-RIMP/test_data/code/" + systems + "/src", "-s", "     " + systems + "      "};
+    private static String[] args = {"-l", "Java", "-p", userPath + "/test_data/code/" + systems + "/src", "-s", "     " + systems + "      "};
 
 
     public static void main(String[] args) {
         //String systems = "dataset01";
         //measureMetrics( systems );
 
+
         for (int i = 0; i < 30; i++) {
             algo = "_HILL_";
             HILLrefactor(i, systems);
         }
-            /*
+
+        /*
 		for(int i=0; i<30; i++){
 			algo = "_SIMULATED_";
 			SIMULATEDrefactor(i , systems );
 			}
+
 		for(int i=0; i<30; i++){
 			algo = "_HAEA_";
 			HAEArefactor( i , systems );
-			}*/
+			}
+*/
+
         //for(int i=0; i<30; i++)
         //HAEAVARrefactor( 2 , systems );
 
@@ -110,8 +116,8 @@ public class MainOptimization {
         ArityOne<List<RefactoringOperation>> transposition = new RefOperClassTransposition();
 
         // Search method
-        final int POPSIZE = 50;
-        final int MAXITERS = 198;
+        final int POPSIZE = 20;
+        final int MAXITERS = 490;
         @SuppressWarnings("unchecked")
         Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
         opers[0] = mutation;
@@ -220,13 +226,13 @@ public class MainOptimization {
 
         // Third Step: Optimization
         // Search Space definition
-        final int DIM = 5;
+        final int DIM = 2;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
         // OptimizationFunction<List<RefactoringOperation>> function = new
         // GeneralizedImpactQuality(metaphor,"HILLCLIMBING");
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HILLCLIMBING_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDBScala( systems + "_HILLCLIMBING_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing,
         // remove
         // the

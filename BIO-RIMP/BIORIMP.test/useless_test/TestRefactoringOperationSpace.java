@@ -5,11 +5,11 @@ package useless_test;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
 
 import java.util.List;
 
-import java.optmodel.space.RefactoringOperationSpace;
+import javabio.optmodel.space.RefactoringOperationSpace;
 
 /**
  * @author dnader

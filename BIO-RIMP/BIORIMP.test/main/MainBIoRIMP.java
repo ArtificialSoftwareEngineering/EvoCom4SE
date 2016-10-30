@@ -2,7 +2,7 @@ package main;
 
 import edu.wayne.cs.severe.redress2.main.MainMetrics;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
 
 /**
  * Created by Alberto on 6/20/2015.

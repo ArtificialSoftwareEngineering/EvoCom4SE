@@ -5,8 +5,8 @@ import java.util.List;
 
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
-import java.optmodel.mappings.quantum.QubitRefactor;
-import java.optmodel.mappings.quantum.CodeDecodeRefactorList;
+import javabio.optmodel.mappings.quantum.QubitRefactor;
+import javabio.optmodel.mappings.quantum.CodeDecodeRefactorList;
 import unalcol.search.multilevel.CodeDecodeMap;
 
 public class testDecodeCodeRefactor {

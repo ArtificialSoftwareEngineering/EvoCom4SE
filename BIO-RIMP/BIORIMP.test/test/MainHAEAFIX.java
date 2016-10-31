@@ -1,6 +1,6 @@
 package test;
 
-import static org.junit.Assert.assertTrue;
+
 
 import java.io.FileReader;
 import java.io.FileWriter;

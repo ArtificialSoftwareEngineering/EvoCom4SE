@@ -10,9 +10,13 @@ public class ConnectionJDBC {
     //private final String USUARIO = "biorimp";
     //private final String PASSWORD = "biorimp.2015";
 
+    //private final String URL = "jdbc:mysql://localhost:3306/biorimpdb";
+    //private final String USUARIO = "root";
+    //private final String PASSWORD = "funcion17..";
+
     private final String URL = "jdbc:mysql://localhost:3306/biorimpdb";
     private final String USUARIO = "root";
-    private final String PASSWORD = "funcion17..";
+    private final String PASSWORD = "16funcio";
 
     private static ConnectionJDBC instance;
     private static Connection conexion;

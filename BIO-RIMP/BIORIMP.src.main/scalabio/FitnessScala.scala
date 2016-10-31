@@ -188,9 +188,9 @@ trait FitnessCache extends FitnessCacheUtils {
 
 
   protected[scalabio] def recordarOperacionRefactor(operRef: RefactoringOperation): Future[RefMetric] = {
-    lazy val acronym = RefAcronym.withName( operRef.getRefType.getAcronym )
+    val acronym = RefAcronym.withName( operRef.getRefType.getAcronym )
 
-    lazy val rMetrics = (if(!operRef.getParams.isEmpty){
+    lazy val rMetrics = ( if(operRef.getParams != null ){
       //1. If is params defined
       val refactParam = if(acronym == RefAcronym.EC){
         retrieveMetrics(extractParamsEC(operRef), acronym)
@@ -324,6 +324,8 @@ trait FitnessBias extends FitnessCache{
           case(key, value) if result.contains(key) ⇒
             val arValue = simplifyingMetric( List(value), result.getOrElse(key,Map.empty) )
             (key,arValue)
+          case(key, value) if !result.contains(key) ⇒
+            (key,value)
         }
         simplifyingClass( tail, result ++ filterHead)
     }
@@ -342,6 +344,8 @@ trait FitnessBias extends FitnessCache{
             case (key,value) if result.contains(key) ⇒
               val arValue = simplifyingClass(List(value), result.getOrElse(key,Map.empty))
               (key,arValue)
+            case (key,value) if !result.contains(key) ⇒
+              (key, value)
           }
           simplifyingRefactoring( tail, result ++ filterHead)
       }

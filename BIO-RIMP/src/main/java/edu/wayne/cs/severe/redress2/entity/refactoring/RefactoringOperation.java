@@ -42,7 +42,7 @@ public class RefactoringOperation {
 	}
 
 	public HashMap<String, List<RefactoringParameter>> getParams() {
-		return params;
+        return params;
 	}
 
 	public RefactoringType getRefType() {

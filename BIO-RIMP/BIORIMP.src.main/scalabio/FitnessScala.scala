@@ -366,7 +366,7 @@ trait FitnessBias extends FitnessCache{
       case (key, value) if !map2.contains(key) ⇒
         (key, value)
     }
-    mm
+    map2 ++ mm
   }
 
   protected[scalabio] def biasQualitySystemRatio(refOperations: Set[RefactoringOperation]): Double ={
@@ -376,9 +376,13 @@ trait FitnessBias extends FitnessCache{
       val suaMetric = metricActualVector.values.toList reduceLeft( (x,y) => {reduceMetricsBySum(x,y)} )
       val suaPrevMetric = (metricActualVector map { oneClass =>
         val prevMetric = (MetaphorCode.getPrevMetrics.toMap map { met =>
-          (met._1,met._2.toMap map{ m => (m._1,m._2.toDouble)} ) }).getOrElse(oneClass._1,Map.empty)
+          (met._1, met._2.toMap map{ m => (m._1,m._2.toDouble)} ) }).getOrElse(oneClass._1,Map.empty)
         (oneClass._1, prevMetric)
       }).values.toList reduceLeft((x,y) => {reduceMetricsBySum(x,y)})
+
+      if(suaPrevMetric.isEmpty){
+        suaPrevMetric
+      }
 
       val min = suaMetric.values.toList.reduceLeft( (x,y) => {if(x<y) x else y} )
       val max = suaMetric.values.toList.reduceLeft( (x,y) => {if(x>y) x else y} )

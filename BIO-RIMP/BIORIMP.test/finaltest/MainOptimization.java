@@ -103,7 +103,7 @@ public class MainOptimization {
 
         //Third Step: Optimization
         // Search Space definition
-        int DIM = 5;
+        int DIM = 1;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function

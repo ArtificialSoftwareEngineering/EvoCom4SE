@@ -161,6 +161,7 @@ trait FitnessCacheUtils{
   }
 
   private[scalabio] def saveMetrics(mapPredictedMetrics: Map[RefactorRegister,RefMetric] ): Future[Unit] = {
+    //Fixme Revisar cómo se almacenan las estrucuturas
     val storingRegisters = mapPredictedMetrics flatMap  { operRef =>
       val res = operRef._2 collect {
         case ref if ref._1.contains( operRef._1.operRef.getRefType.getAcronym ) =>

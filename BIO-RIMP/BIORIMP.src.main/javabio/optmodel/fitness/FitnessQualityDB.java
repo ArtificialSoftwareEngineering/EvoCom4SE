@@ -174,7 +174,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                         double val = metric.getValue();
 
                         Register register = new Register(id_ref, metric.getKey(), val, src, tgt, fld, mtd,
-                                clase.getKey());
+                                clase.getKey(), MetaphorCode.getSysName());
                         RegisterRepository repo = RegisterRepository.getInstance();
                         repo.insertRegister(register);
 
@@ -238,7 +238,7 @@ public class FitnessQualityDB extends OptimizationFunction<List<RefactoringOpera
                             double val = metric.getValue();
 
                             Register register = new Register(id_ref, metric.getKey(), val, src, tgt, fld, mtd,
-                                    clase.getKey());
+                                    clase.getKey(), MetaphorCode.getSysName());
                             RegisterRepository repo = RegisterRepository.getInstance();
                             repo.insertRegister(register);
                         }

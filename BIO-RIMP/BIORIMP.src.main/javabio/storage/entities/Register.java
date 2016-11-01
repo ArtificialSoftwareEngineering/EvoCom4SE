@@ -12,6 +12,7 @@ public class Register extends Entity {
     public static String COLUMN_FIELD = "field";
     public static String COLUMN_METRIC = "metric";
     public static String COLUMN_CLASS = "class";
+    public static String COLUMN_SYSTEM = "system";
 
 
     private String refactor;
@@ -24,6 +25,7 @@ public class Register extends Entity {
     private String field;
     private String metric;
     private String classs;
+    private String system;
 
 
     public String getSources() {
@@ -89,6 +91,14 @@ public class Register extends Entity {
         this.value = value;
     }
 
+    public String getSystem() {
+        return system;
+    }
+
+    public void setSystem(String system) {
+        this.system = system;
+    }
+
     public String getClasss() {
         return classs;
     }
@@ -98,7 +108,7 @@ public class Register extends Entity {
     }
 
     public Register(String refactor, String metric, double value,
-                    String sources, String targets, String field, String method, String classs) {
+                    String sources, String targets, String field, String method, String classs, String system) {
         super();
         this.refactor = refactor;
         this.metric = metric;
@@ -108,6 +118,7 @@ public class Register extends Entity {
         this.method = method;
         this.field = field;
         this.classs = classs;
+        this.system = system;
 
     }
 

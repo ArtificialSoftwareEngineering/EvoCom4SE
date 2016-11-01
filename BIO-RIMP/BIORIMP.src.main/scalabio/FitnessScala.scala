@@ -168,7 +168,8 @@ trait FitnessCacheUtils{
             val register = new Register(
                         operRef._1.operRef.getRefType.getAcronym, metric._1, metric._2,
                         operRef._1.src.getOrElse(""), operRef._1.tgt.getOrElse(""),
-                        operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1
+                        operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1,
+                        MetaphorCode.getSysName
                       )
             storingDB(register)
       }} } flatten

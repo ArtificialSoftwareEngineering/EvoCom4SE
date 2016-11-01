@@ -1,5 +1,7 @@
 package javabio.storage.entities;
 
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+
 public class RefKey {
 
     private String refactorID;
@@ -7,6 +9,17 @@ public class RefKey {
     private String tgt;
     private String mth;
     private String fld;
+    private String system;
+
+    public RefKey(String refactorID, String src, String tgt, String mth, String fld, String system) {
+        super();
+        this.refactorID = refactorID;
+        this.src = src;
+        this.tgt = tgt;
+        this.mth = mth;
+        this.fld = fld;
+        this.system = system;
+    }
 
     public RefKey(String refactorID, String src, String tgt, String mth, String fld) {
         super();
@@ -15,6 +28,7 @@ public class RefKey {
         this.tgt = tgt;
         this.mth = mth;
         this.fld = fld;
+        this.system = MetaphorCode.getSysName();
     }
 
     public String getRefactorID() {
@@ -37,6 +51,14 @@ public class RefKey {
         this.tgt = tgt;
     }
 
+    public String getSystem() {
+        return system;
+    }
+
+    public void setSystem(String system) {
+        this.system = system;
+    }
+
     public String getMth() {
         return mth;
     }
@@ -54,6 +76,7 @@ public class RefKey {
         final int prime = 31;
         int result = 1;
         result = prime * result
+                + ((system == null) ? 0 : system.hashCode())
                 + ((fld == null) ? 0 : fld.hashCode())
                 + ((mth == null) ? 0 : mth.hashCode())
                 + ((tgt == null) ? 0 : tgt.hashCode())
@@ -105,6 +128,13 @@ public class RefKey {
             if (other.fld != null)
                 return false;
         } else if (!fld.equals(other.fld))
+            return false;
+
+        //check system
+        if (system == null) {
+            if (other.system != null)
+                return false;
+        } else if (!system.equals(other.system))
             return false;
 
         return true;

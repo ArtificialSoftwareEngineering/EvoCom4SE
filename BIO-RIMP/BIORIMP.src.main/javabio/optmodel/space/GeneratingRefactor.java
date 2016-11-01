@@ -9,6 +9,7 @@ import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
 import javabio.storage.entities.Register;
 import javabio.storage.repositories.RegisterRepository;
 
@@ -121,21 +122,21 @@ public abstract class GeneratingRefactor {
                 // src
                 // +
                 // mtd
-                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "");
+                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, "", MetaphorCode.getSysName());
             } else if (acronym.equals("MF") || acronym.equals("PDF") || acronym.equals("PUF")) {// ->Only
                 // matters
                 // src+tgt+fld
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", fld);
+                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", fld, MetaphorCode.getSysName());
             } else if (acronym.equals("MM") || acronym.equals("PDM") || acronym.equals("PUM")) {// ->Only
                 // matters
                 // src+mtd+tgt
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, mtd, "");
+                listMetric = repo.getRegistersByClass(acronym, src, tgt, mtd, "", MetaphorCode.getSysName());
             } else if (acronym.equals("RDI") || acronym.equals("RID")) {// ->Only
                 // matters
                 // src+tgt
-                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", "");
+                listMetric = repo.getRegistersByClass(acronym, src, tgt, "", "", MetaphorCode.getSysName());
             } else if (acronym.equals("EC")) {// ->Only matters src+fld+mtd
-                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+                listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld, MetaphorCode.getSysName());
             }
 
             bandera = !listMetric.isEmpty();
@@ -179,7 +180,7 @@ public abstract class GeneratingRefactor {
                     RegisterRepository repo = RegisterRepository.getInstance();
                     List<Register> listMetric = new ArrayList<>();
 
-                    listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld);
+                    listMetric = repo.getRegistersByClass(acronym, src, "", mtd, fld, MetaphorCode.getSysName());
                     bandera = !listMetric.isEmpty();
                 } else {
                     bandera = false;

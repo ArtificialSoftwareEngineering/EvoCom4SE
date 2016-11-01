@@ -1,6 +1,7 @@
 package javabio.storage.repositories;
 
 import javabio.storage.entities.Register;
+import unalcol.math.algebra.linear.LinearSystemSolver;
 
 /**
  * Created by developer on 12/30/15.
@@ -17,5 +18,6 @@ public class TestMain {
         for (Register reg : repo.fetchAll()) {
             System.out.println(reg.getClasss());
         }
+        System.out.println("value:" + repo.getRegistersByClass("1","","","","","").get(0).getValue());
     }
 }

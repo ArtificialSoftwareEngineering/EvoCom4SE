@@ -172,6 +172,7 @@ trait FitnessCacheUtils{
                         operRef._1.fld.getOrElse("-1"), operRef._1.mtd.getOrElse("-1"), clas._1,
                         MetaphorCode.getSysName
                       )
+            MetaphorCode.LOGGER.info("saveMetrics: " + register.toString)
             storingDB(register)
       }} } flatten
 

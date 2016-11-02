@@ -122,5 +122,18 @@ public class Register extends Entity {
 
     }
 
-
+    @Override
+    public String toString() {
+        return "Register{" +
+                "refactor='" + refactor + '\'' +
+                ", value=" + value +
+                ", sources='" + sources + '\'' +
+                ", targets='" + targets + '\'' +
+                ", method='" + method + '\'' +
+                ", field='" + field + '\'' +
+                ", metric='" + metric + '\'' +
+                ", classs='" + classs + '\'' +
+                ", system='" + system + '\'' +
+                '}';
+    }
 }

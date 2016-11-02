@@ -24,11 +24,16 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Daavid
  */
 public final class MetaphorCode {
+
+    public static Logger LOGGER = LoggerFactory
+            .getLogger(MetaphorCode.class);
 
     private static HierarchyBuilder builder;
     private static List<TypeDeclaration> sysTypeDcls;
@@ -71,7 +76,7 @@ public final class MetaphorCode {
     }
 
     private void previousMetricsCalculation() {
-        System.out.println("Reading previous metrics");
+        MetaphorCode.LOGGER.info("READING previous metrics");
         MetricsReader metReader = new MetricsReader(getSystemPath(), getSysName());
         try {
             prevMetrics = metReader.readMetrics();
@@ -99,7 +104,7 @@ public final class MetaphorCode {
             methods = MetricUtils.getMethods(typeDcl);
 
         } catch (Exception e) {
-            System.out.println("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
+            MetaphorCode.LOGGER.error("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
                     + " - " + e.getMessage());
             methods = null;
         }
@@ -115,7 +120,7 @@ public final class MetaphorCode {
             fields = MetricUtils.getFields(typeDcl);
 
         } catch (Exception e) {
-            System.out.println("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
+            MetaphorCode.LOGGER.error("Error for class (in Methaphor): " + typeDcl.getQualifiedName()
                     + " - " + e.getMessage());
             fields = null;
         }

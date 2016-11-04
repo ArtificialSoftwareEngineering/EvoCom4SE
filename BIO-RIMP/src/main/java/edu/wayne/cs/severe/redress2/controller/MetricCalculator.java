@@ -115,7 +115,7 @@ public class MetricCalculator {
 					metrsRef = new LinkedHashMap<String, LinkedHashMap<String, Double>>();
 				}
 
-				LOGGER.debug("Processing refactoring: " + ref);
+				LOGGER.debug("Processing refactoring(predictMetrics): " + ref);
 
 				// each metric
 				for (CodeMetric codeMetric : metrics) {

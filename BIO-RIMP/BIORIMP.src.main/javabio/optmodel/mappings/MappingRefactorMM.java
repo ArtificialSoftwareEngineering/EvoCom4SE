@@ -65,7 +65,7 @@ public class MappingRefactorMM extends MappingRefactor {
         params.add(new OBSERVRefParam("tgt", value_tgt));
 
 
-        return new OBSERVRefactoring(type.name(), params, feasible);
+        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<>());
 
     }
 

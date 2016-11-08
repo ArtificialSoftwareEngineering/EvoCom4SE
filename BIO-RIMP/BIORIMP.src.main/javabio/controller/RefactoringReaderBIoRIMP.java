@@ -78,11 +78,7 @@ public class RefactoringReaderBIoRIMP {
             throws ReadException {
 
         try {
-            /*
-			Gson gson = new Gson();
-			JSONRefactorings jsonParams = gson.fromJson(
-					new FileReader(refFile), JSONRefactorings.class);
-		    */
+
             List<OBSERVRefactoring> refs = jsonParams.getRefactorings();
             List<RefactoringOperation> opers = new ArrayList<RefactoringOperation>();
 
@@ -116,9 +112,10 @@ public class RefactoringReaderBIoRIMP {
         HashMap<String, List<RefactoringParameter>> params = refType
                 .getOBSERVRefactoringParams(ref.getParams());
         List<RefactoringOperation> subRefs = getSubRefs(ref.getSubRefs(), id);
-        //danaderp 1001 added feasibility in the constructor
+
+        //danaderp 1001 added feasibility and penalty in the constructor
         return new RefactoringOperation(refType, params,
-                refType.getAcronym() + "-" + id, subRefs, ref.isFeasible());
+                refType.getAcronym() + "-" + id, subRefs, ref.isFeasible(), ref.getPenalty());
     }
 
     private List<RefactoringOperation> getSubRefs(

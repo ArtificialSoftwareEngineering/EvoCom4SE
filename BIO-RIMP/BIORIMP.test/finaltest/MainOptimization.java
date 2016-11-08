@@ -66,7 +66,7 @@ public class MainOptimization {
             HILLrefactor(i, systems);
         }
 
-        /*
+
 		for(int i=0; i<30; i++){
 			algo = "_SIMULATED_";
 			SIMULATEDrefactor(i , systems );
@@ -76,7 +76,7 @@ public class MainOptimization {
 			algo = "_HAEA_";
 			HAEArefactor( i , systems );
 			}
-*/
+
 
         //for(int i=0; i<30; i++)
         //HAEAVARrefactor( 2 , systems );
@@ -103,7 +103,7 @@ public class MainOptimization {
 
         //Third Step: Optimization
         // Search Space definition
-        int DIM = 1;
+        int DIM = 5;
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
@@ -116,8 +116,8 @@ public class MainOptimization {
         ArityOne<List<RefactoringOperation>> transposition = new RefOperClassTransposition();
 
         // Search method
-        final int POPSIZE = 20;
-        final int MAXITERS = 490;
+        final int POPSIZE =100;
+        final int MAXITERS = 100;
         @SuppressWarnings("unchecked")
         Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
         opers[0] = mutation;
@@ -261,7 +261,7 @@ public class MainOptimization {
         Write.set(Solution.class, w_desc);
 
         ConsoleTracer tracer = new ConsoleTracer();
-        FileTracer filetracergoal = new FileTracer(systems + "hill_fileTracerCCODECGOAL_" + iter, '\n');
+        FileTracer filetracergoal = new FileTracer(systems + "_hill_fileTracerCCODECGOAL_" + iter, '\n');
         Tracer.addTracer(goal, tracer);  // Uncomment if you want to trace the function evaluations
         Tracer.addTracer(search, tracer); // Uncomment if you want to trace the hill-climbing algorithm
         Tracer.addTracer(goal, filetracergoal);  // Uncomment if you want to trace the function evaluations

@@ -19,26 +19,38 @@ public class RefactoringOperation {
 	private List<RefactoringOperation> subRefs;
 	//danaderp 1001 Field for feasible individual
 	private boolean feasible;
+	private ArrayList<Double> penalty;
+	private boolean nonRepair = true;
+
+	public boolean isNonRepair() {
+		return nonRepair;
+	}
+
+	public void setNonRepair(boolean nonRepair) {
+		this.nonRepair = nonRepair;
+	}
 
 	public RefactoringOperation(RefactoringType refType,
-			HashMap<String, List<RefactoringParameter>> params, String refId,
-			List<RefactoringOperation> subRefs) {
+
+								HashMap<String, List<RefactoringParameter>> params, String refId,
+								List<RefactoringOperation> subRefs) {
 		this.refType = refType;
 		this.params = params;
 		this.refId = refId;
 		this.subRefs = subRefs;
 	}
 	
-	//danaderp 1001 Constructor for supporting feasible individuals
+	//danaderp 1001 Constructor for supporting feasible and penalty individuals
 	
 	public RefactoringOperation(RefactoringType refType,
 			HashMap<String, List<RefactoringParameter>> params, String refId,
-			List<RefactoringOperation> subRefs, boolean feasible) {
+			List<RefactoringOperation> subRefs, boolean feasible, ArrayList<Double> penalty) {
 		this.refType = refType;
 		this.params = params;
 		this.refId = refId;
 		this.subRefs = subRefs;
 		this.feasible = feasible;
+		this.penalty = penalty;
 	}
 
 	public HashMap<String, List<RefactoringParameter>> getParams() {
@@ -65,6 +77,7 @@ public class RefactoringOperation {
 		return feasible;
 	}
 
+
 	@Override
 	public String toString() {
 		//Fixme convert to Json
@@ -72,7 +85,8 @@ public class RefactoringOperation {
 				" \" " + refType.getAcronym() + " \":{ " 
 				+ (params != null ? (params.toString()) : "") + " , "
 				+ (subRefs != null ? ("{" + subRefs + "}") : "") + " , "
-				+ "feasible : " + feasible + " } " 
+				+ "Penalties : " + penalty.size() + " } "
+				+ "NonRepair : " + nonRepair + " } "
 				; 
 		/*
 		return refType.getAcronym()
@@ -110,11 +124,12 @@ public class RefactoringOperation {
 		this.subRefs = subRefs;
 	}
 
-	
+	public ArrayList<Double> getPenalty() {
+		return penalty;
+	}
 
-
-	
+	public void setPenalty(ArrayList<Double> penalty) {
+		this.penalty = penalty;
+	}
 	//danaderp vers 1000
-	
-
 }// end RefactoringOperation

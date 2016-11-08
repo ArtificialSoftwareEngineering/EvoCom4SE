@@ -14,6 +14,7 @@ import edu.wayne.cs.severe.redress2.entity.ProgLang;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.io.MetricsReader;
 import edu.wayne.cs.severe.redress2.main.MainPredFormulasBIoRIPM;
+import javabio.controller.RefactoringReaderBIoRIMP;
 import javabio.storage.entities.RefKey;
 import javabio.storage.entities.Register;
 import javabio.storage.repositories.RegisterRepository;
@@ -52,9 +53,35 @@ public final class MetaphorCode {
 
     private static LinkedHashMap<String, LinkedHashMap<String, Double>> prevMetrics;
 
+    private final static int DECREASE = 0;
+    private final static double penaltyReGeneration = 0.02;
+    private final static double penaltyRepair = 0.01;
+
+    protected static RefactoringReaderBIoRIMP refactorReader;
+
+    public static double getPenaltyReGeneration() {
+        return penaltyReGeneration;
+    }
+
+    public static double getPenaltyRepair() {
+        return penaltyRepair;
+    }
+
+    public static RefactoringReaderBIoRIMP getRefactorReader() {
+        if (refactorReader == null)
+            refactorReader = new RefactoringReaderBIoRIMP( );
+        return refactorReader;
+
+    }
+
+    public static int getDECREASE() {
+        return DECREASE;
+    }
+
     public MetaphorCode(MainPredFormulasBIoRIPM init) {
         this.systemPath = init.getSystemPath();
         this.sysName = init.getSysName();
+
         this.sysTypeDcls = init.getSysTypeDcls();
         this.builder = init.getBuilder();
         this.lang = init.getLang();

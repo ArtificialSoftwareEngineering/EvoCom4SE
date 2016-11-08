@@ -65,7 +65,7 @@ public class MappingRefactorRMMO extends MappingRefactor {
         //Fixme
         //MetaphorCode.addClasstoHash(sysType_src.getPack(), mtdName + "|N");
 
-        return new OBSERVRefactoring(type.name(), params, feasible);
+        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<>());
     }
 
     /* (non-Javadoc)

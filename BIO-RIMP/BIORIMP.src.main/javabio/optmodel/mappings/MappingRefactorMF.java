@@ -64,7 +64,7 @@ public class MappingRefactorMF extends MappingRefactor {
         value_tgt.add(sysType_tgt.getQualifiedName());
         params.add(new OBSERVRefParam("tgt", value_tgt));
 
-        return new OBSERVRefactoring(type.name(), params, feasible);
+        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<>());
     }
 
     /* (non-Javadoc)

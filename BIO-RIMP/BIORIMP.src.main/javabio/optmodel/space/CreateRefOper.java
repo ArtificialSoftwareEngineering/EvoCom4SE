@@ -11,6 +11,8 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.space.generation.*;
 import unalcol.random.integer.IntUniform;
 
 /**
@@ -21,12 +23,11 @@ public class CreateRefOper {
 
     public static List<RefactoringOperation> get(int n) {
 
-        RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP();
         int mapRefactor;
         OBSERVRefactorings oper = new OBSERVRefactorings();
         List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-        final int DECREASE = 5;
+        final int DECREASE = MetaphorCode.getDECREASE();
         IntUniform g = new IntUniform(Refactoring.values().length - DECREASE);
         GeneratingRefactor randomRefactor = null;
 
@@ -68,21 +69,19 @@ public class CreateRefOper {
                     break;
                 case 11:
                     randomRefactor = new GeneratingRefactorPUM();
-
                     break;
                 //TODO: Quitar defaul y descomentar lineas del switch para activar todas
                 default:
                     randomRefactor = new GeneratingRefactorIM();
             }//END CASE
 
-            //System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
-            refactorings.add(randomRefactor.generatingRefactor());
+            refactorings.add(randomRefactor.generatingRefactor(new ArrayList<>()));
 
         }
 
         oper.setRefactorings(refactorings);
         try {
-            return reader.getRefactOperations(oper);
+            return MetaphorCode.getRefactorReader().getRefactOperations(oper);
         } catch (ReadException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();

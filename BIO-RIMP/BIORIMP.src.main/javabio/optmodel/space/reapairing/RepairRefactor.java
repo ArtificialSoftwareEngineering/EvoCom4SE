@@ -1,7 +1,7 @@
 /**
  *
  */
-package javabio.optmodel.space;
+package javabio.optmodel.space.reapairing;
 
 import java.util.ArrayList;
 import java.util.List;

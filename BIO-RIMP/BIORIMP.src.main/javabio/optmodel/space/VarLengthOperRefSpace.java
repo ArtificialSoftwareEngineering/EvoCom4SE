@@ -8,6 +8,9 @@ import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactorings;
 import edu.wayne.cs.severe.redress2.exception.ReadException;
+import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.space.feasibility.FeasibilityRefactor;
+import javabio.optmodel.space.generation.*;
 import unalcol.clone.Clone;
 import unalcol.random.integer.IntUniform;
 import unalcol.random.raw.RawGenerator;
@@ -35,50 +38,48 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
     public boolean feasible(List<RefactoringOperation> x) {
         boolean feasible = false;
         String mapRefactor;
-        GeneratingRefactor specificRefactor = null;
 
         for (RefactoringOperation refOp : x) {
             mapRefactor = refOp.getRefType().getAcronym();
             switch (mapRefactor) {
                 case "PUF":
-                    specificRefactor = new GeneratingRefactorPUF();
+                    feasible = FeasibilityRefactor.feasibleRefactorPUF(refOp);
                     break;
                 case "MM":
-                    specificRefactor = new GeneratingRefactorMM();
+                    feasible = FeasibilityRefactor.feasibleRefactorMM(refOp);
                     break;
                 case "RMMO":
-                    specificRefactor = new GeneratingRefactorRMMO();
+                    feasible = FeasibilityRefactor.feasibleRefactorRMMO(refOp);
                     break;
                 case "RDI":
-                    specificRefactor = new GeneratingRefactorRDI();
+                    feasible = FeasibilityRefactor.feasibleRefactorRDI(refOp);
                     break;
                 case "MF":
-                    specificRefactor = new GeneratingRefactorMF();
+                    feasible = FeasibilityRefactor.feasibleRefactorMF(refOp);
                     break;
                 case "EM":
-                    specificRefactor = new GeneratingRefactorEM();
+                    feasible = FeasibilityRefactor.feasibleRefactorEM(refOp);
                     break;
                 case "PDM":
-                    specificRefactor = new GeneratingRefactorPDM();
+                    feasible = FeasibilityRefactor.feasibleRefactorPDM(refOp);
                     break;
                 case "RID":
-                    specificRefactor = new GeneratingRefactorRID();
+                    feasible = FeasibilityRefactor.feasibleRefactorRID(refOp);
                     break;
                 case "IM":
-                    specificRefactor = new GeneratingRefactorIM();
+                    feasible = FeasibilityRefactor.feasibleRefactorIM(refOp);
                     break;
                 case "PUM":
-                    specificRefactor = new GeneratingRefactorPUM();
+                    feasible = FeasibilityRefactor.feasibleRefactorPUM(refOp);
                     break;
                 case "PDF":
-                    specificRefactor = new GeneratingRefactorPDF();
+                    feasible = FeasibilityRefactor.feasibleRefactorPDF(refOp);
                     break;
                 case "EC":
-                    specificRefactor = new GeneratingRefactorEC();
+                    feasible = FeasibilityRefactor.feasibleRefactorEC(refOp);
                     break;
             }//END CASE
 
-            feasible = specificRefactor.feasibleRefactor(refOp);
             if (!feasible) {
                 System.out.println("Wrong Feasible Refactor (IN FEASIBLE): " + refOp.toString());
                 break;
@@ -130,46 +131,85 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
 
             switch (mapRefactor) {
                 case "PUF":
-                    specificRefactor = new GeneratingRefactorPUF();
+                    feasible = FeasibilityRefactor.feasibleRefactorPUF(refOp);
                     break;
                 case "MM":
-                    specificRefactor = new GeneratingRefactorMM();
+                    feasible = FeasibilityRefactor.feasibleRefactorMM(refOp);
                     break;
                 case "RMMO":
-                    specificRefactor = new GeneratingRefactorRMMO();
+                    feasible = FeasibilityRefactor.feasibleRefactorRMMO(refOp);
                     break;
                 case "RDI":
-                    specificRefactor = new GeneratingRefactorRDI();
+                    feasible = FeasibilityRefactor.feasibleRefactorRDI(refOp);
                     break;
                 case "MF":
-                    specificRefactor = new GeneratingRefactorMF();
+                    feasible = FeasibilityRefactor.feasibleRefactorMF(refOp);
                     break;
                 case "EM":
-                    specificRefactor = new GeneratingRefactorEM();
+                    feasible = FeasibilityRefactor.feasibleRefactorEM(refOp);
                     break;
                 case "PDM":
-                    specificRefactor = new GeneratingRefactorPDM();
+                    feasible = FeasibilityRefactor.feasibleRefactorPDM(refOp);
                     break;
                 case "RID":
-                    specificRefactor = new GeneratingRefactorRID();
+                    feasible = FeasibilityRefactor.feasibleRefactorRID(refOp);
                     break;
                 case "IM":
-                    specificRefactor = new GeneratingRefactorIM();
+                    feasible = FeasibilityRefactor.feasibleRefactorIM(refOp);
                     break;
                 case "PUM":
-                    specificRefactor = new GeneratingRefactorPUM();
+                    feasible = FeasibilityRefactor.feasibleRefactorPUM(refOp);
                     break;
                 case "PDF":
-                    specificRefactor = new GeneratingRefactorPDF();
+                    feasible = FeasibilityRefactor.feasibleRefactorPDF(refOp);
                     break;
                 case "EC":
-                    specificRefactor = new GeneratingRefactorEC();
+                    feasible = FeasibilityRefactor.feasibleRefactorEC(refOp);
                     break;
             }//END CASE
 
-            feasible = specificRefactor.feasibleRefactor(refOp);
-
             if (!feasible) {
+                //FIXME reapair must be static
+                switch (mapRefactor) {
+                    case "PUF":
+                        specificRefactor = new GeneratingRefactorPUF();
+                        break;
+                    case "MM":
+                        specificRefactor = new GeneratingRefactorMM();
+                        break;
+                    case "RMMO":
+                        specificRefactor = new GeneratingRefactorRMMO();
+                        break;
+                    case "RDI":
+                        specificRefactor = new GeneratingRefactorRDI();
+                        break;
+                    case "MF":
+                        specificRefactor = new GeneratingRefactorMF();
+                        break;
+                    case "EM":
+                        specificRefactor = new GeneratingRefactorEM();
+                        break;
+                    case "PDM":
+                        specificRefactor = new GeneratingRefactorPDM();
+                        break;
+                    case "RID":
+                        specificRefactor = new GeneratingRefactorRID();
+                        break;
+                    case "IM":
+                        specificRefactor = new GeneratingRefactorIM();
+                        break;
+                    case "PUM":
+                        specificRefactor = new GeneratingRefactorPUM();
+                        break;
+                    case "PDF":
+                        specificRefactor = new GeneratingRefactorPDF();
+                        break;
+                    case "EC":
+                        specificRefactor = new GeneratingRefactorEC();
+                        break;
+                    default:
+                        specificRefactor = new GeneratingRefactorEC();
+                }//END CASE
                 refactorings.add(specificRefactor.repairRefactor(refOp, break_point));
             } else {
                 repaired.add(refOp);
@@ -178,10 +218,8 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
 
         oper.setRefactorings(refactorings);
 
-        RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP();
-
         try {
-            repaired.addAll(reader.getRefactOperations(oper));
+            repaired.addAll(MetaphorCode.getRefactorReader().getRefactOperations(oper));
 
         } catch (ReadException e) {
             // TODO Auto-generated catch block
@@ -201,12 +239,11 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
     }
 
     public List<RefactoringOperation> createRefOper(int n) {
-        RefactoringReaderBIoRIMP reader = new RefactoringReaderBIoRIMP();
         int mapRefactor;
         OBSERVRefactorings oper = new OBSERVRefactorings();
         List<OBSERVRefactoring> refactorings = new ArrayList<OBSERVRefactoring>();
 
-        final int DECREASE = 5;
+        final int DECREASE = MetaphorCode.getDECREASE();
         IntUniform g = new IntUniform(Refactoring.values().length - DECREASE);
         GeneratingRefactor randomRefactor = null;
 
@@ -256,13 +293,13 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
             }//END CASE
 
             //System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
-            refactorings.add(randomRefactor.generatingRefactor());
+            refactorings.add(randomRefactor.generatingRefactor( new ArrayList<>() ));
 
         }
 
         oper.setRefactorings(refactorings);
         try {
-            return reader.getRefactOperations(oper);
+            return MetaphorCode.getRefactorReader().getRefactOperations(oper);
         } catch (ReadException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();

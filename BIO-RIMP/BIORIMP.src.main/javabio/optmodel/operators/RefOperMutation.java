@@ -29,7 +29,6 @@ public class RefOperMutation extends ArityOne<List<RefactoringOperation>> {
      * Probability of mutating one single bit
      */
     protected double bit_mutation_rate = 0.0;
-    private MetaphorCode metaphor;
 
     /**
      * Constructor: Creates a mutation with a mutation probability depending on the size of the genome
@@ -62,7 +61,8 @@ public class RefOperMutation extends ArityOne<List<RefactoringOperation>> {
             RandBool g = new RandBool(rate);
             RefactoringOperation refOper;
 
-            final int DECREASE = 5;
+            final int DECREASE = MetaphorCode.getDECREASE();
+
             IntUniform r = new IntUniform(Refactoring.values().length - DECREASE);
             RefactoringType refType = null;
 
@@ -70,45 +70,46 @@ public class RefOperMutation extends ArityOne<List<RefactoringOperation>> {
                 if (g.next()) {
                     switch (r.generate()) {
                         case 0:
-                            refType = new ExtractClass(metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder());
+                            refType = new ExtractClass(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang(), MetaphorCode.getBuilder());
                             break;
                         case 1:
-                            refType = new MoveMethod(metaphor.getSysTypeDcls(), metaphor.getBuilder());
+                            refType = new MoveMethod(MetaphorCode.getSysTypeDcls(), MetaphorCode.getBuilder());
                             break;
                         case 2:
-                            refType = new ReplaceMethodObject(metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder());
+                            refType = new ReplaceMethodObject(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang(), MetaphorCode.getBuilder());
                             break;
                         case 3:
-                            refType = new ReplaceDelegationInheritance(metaphor.getSysTypeDcls(), metaphor.getBuilder());
+                            refType = new ReplaceDelegationInheritance(MetaphorCode.getSysTypeDcls(), MetaphorCode.getBuilder());
                             break;
                         case 4:
-                            refType = new MoveField(metaphor.getSysTypeDcls(), metaphor.getLang());
+                            refType = new MoveField(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang());
                             break;
                         case 5:
-                            refType = new ExtractMethod(metaphor.getSysTypeDcls(), metaphor.getLang());
+                            refType = new ExtractMethod(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang());
                             break;
                         case 6:
-                            refType = new InlineMethod(metaphor.getSysTypeDcls(), metaphor.getLang());
+                            refType = new InlineMethod(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang());
                             break;
                         case 7:
-                            refType = new ReplaceInheritanceDelegation(metaphor.getSysTypeDcls(), metaphor.getBuilder());
+                            refType = new ReplaceInheritanceDelegation(MetaphorCode.getSysTypeDcls(), MetaphorCode.getBuilder());
                             break;
                         case 8:
-                            refType = new PushDownMethod(metaphor.getSysTypeDcls(), metaphor.getBuilder());
+                            refType = new PushDownMethod(MetaphorCode.getSysTypeDcls(), MetaphorCode.getBuilder());
                             break;
                         case 9:
-                            refType = new PullUpMethod(metaphor.getSysTypeDcls(), metaphor.getLang(), metaphor.getBuilder());
+                            refType = new PullUpMethod(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang(), MetaphorCode.getBuilder());
                             break;
                         case 10:
-                            refType = new PushDownField(metaphor.getSysTypeDcls(), metaphor.getLang());
+                            refType = new PushDownField(MetaphorCode.getSysTypeDcls(), MetaphorCode.getLang());
                             break;
                         case 11:
-                            refType = new PullUpField(metaphor.getSysTypeDcls());
+                            refType = new PullUpField(MetaphorCode.getSysTypeDcls());
                             break;
                     }//END CASE
 
                     refOper = new RefactoringOperation(refType, genome.get(i).getParams(),
-                            refType.getAcronym(), genome.get(i).getSubRefs(), genome.get(i).isFeasible());
+                            refType.getAcronym(), genome.get(i).getSubRefs(), genome.get(i).isFeasible(),
+                            genome.get(i).getPenalty() );
                     genome.set(i, refOper);
                 }
             }

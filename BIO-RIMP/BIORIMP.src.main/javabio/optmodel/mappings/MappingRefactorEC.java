@@ -32,7 +32,7 @@ public class MappingRefactorEC extends MappingRefactor {
         subRefs.add(mappingRefactorMF(genome, "TgtClassEC"));
         subRefs.add(mappingRefactorMM(genome, "TgtClassEC"));
 
-        return new OBSERVRefactoring(type.name(), null, subRefs, feasible);
+        return new OBSERVRefactoring(type.name(), null, subRefs, feasible, new ArrayList<Double> ());
     }
 
     public OBSERVRefactoring mappingRefactorMF(QubitRefactor genome, String newClass) {
@@ -72,7 +72,7 @@ public class MappingRefactorEC extends MappingRefactor {
         //Fixme
         //MetaphorCode.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 
-        return new OBSERVRefactoring(Refactoring.moveField.name(), params, feasible);
+        return new OBSERVRefactoring(Refactoring.moveField.name(), params, feasible, new ArrayList<Double> ());
     }
 
     public OBSERVRefactoring mappingRefactorMM(QubitRefactor genome, String newClass) {
@@ -115,7 +115,7 @@ public class MappingRefactorEC extends MappingRefactor {
         //MetaphorCode.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 
 
-        return new OBSERVRefactoring(Refactoring.moveMethod.name(), params, feasible);
+        return new OBSERVRefactoring(Refactoring.moveMethod.name(), params, feasible, new ArrayList<Double> () );
 
     }
 

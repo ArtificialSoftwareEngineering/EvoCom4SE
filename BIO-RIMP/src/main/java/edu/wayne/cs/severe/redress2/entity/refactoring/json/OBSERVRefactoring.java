@@ -9,22 +9,30 @@ public class OBSERVRefactoring {
 	private List<OBSERVRefParam> params;
 	private List<OBSERVRefactoring> subRefs;
 	private boolean feasible;
+	private ArrayList<Double> penalty;
 	
 	
-	
-	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, boolean feasible) {
+	public OBSERVRefactoring(String type,
+							 List<OBSERVRefParam> params,
+							 boolean feasible,
+							 ArrayList<Double> penalty
+	) {
 		this.type = type;
 		this.params = params;
 		//this.subRefs = new ArrayList<OBSERVRefactoring> ();
 		this.subRefs = null;
 		this.feasible = feasible;
+		this.penalty = penalty;
 	}
 
-	public OBSERVRefactoring(String type, List<OBSERVRefParam> params, List<OBSERVRefactoring> subRefs, boolean feasible) {
+	public OBSERVRefactoring(String type, List<OBSERVRefParam> params,
+							 List<OBSERVRefactoring> subRefs,
+							 boolean feasible, ArrayList<Double> penalty) {
 		this.type = type;
 		this.params = params;
 		this.subRefs = subRefs;
 		this.feasible = feasible;
+		this.penalty = penalty;
 	}
 
 	public String getType() {
@@ -59,6 +67,13 @@ public class OBSERVRefactoring {
 		return feasible;
 	}
 
+	public ArrayList<Double> getPenalty() {
+		return penalty;
+	}
+
+	public void setPenalty(ArrayList<Double> penalty) {
+		this.penalty = penalty;
+	}
 
 	@Override
 	public String toString() {

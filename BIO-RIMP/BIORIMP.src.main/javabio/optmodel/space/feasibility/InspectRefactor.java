@@ -1,4 +1,4 @@
-package javabio.optmodel.space;
+package javabio.optmodel.space.feasibility;
 
 import java.util.ArrayList;
 import java.util.List;

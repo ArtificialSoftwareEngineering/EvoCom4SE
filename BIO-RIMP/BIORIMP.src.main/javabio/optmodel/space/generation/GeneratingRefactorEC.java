@@ -1,19 +1,19 @@
 /**
  *
  */
-package javabio.optmodel.space;
+package javabio.optmodel.space.generation;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.wayne.cs.severe.redress2.entity.AttributeDeclaration;
-import edu.wayne.cs.severe.redress2.entity.MethodDeclaration;
 import edu.wayne.cs.severe.redress2.entity.TypeDeclaration;
 import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringOperation;
-import edu.wayne.cs.severe.redress2.entity.refactoring.RefactoringParameter;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefParam;
 import edu.wayne.cs.severe.redress2.entity.refactoring.json.OBSERVRefactoring;
 import javabio.optmodel.mappings.metaphor.MetaphorCode;
+import javabio.optmodel.space.Refactoring;
+import javabio.optmodel.space.feasibility.InspectRefactor;
+import javabio.optmodel.space.generation.GeneratingRefactor;
 import unalcol.random.integer.IntUniform;
 
 /**
@@ -28,15 +28,13 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
     protected Refactoring type = Refactoring.extractClass;
 
     @Override
-    public OBSERVRefactoring generatingRefactor( ) {
+    public OBSERVRefactoring generatingRefactor(ArrayList<Double> penalty ) {
         // TODO Auto-generated method stub
-        return mappingRefactorMFMM( "TgtClassEC");
+        return mappingRefactorMFMM( "TgtClassEC", penalty);
     }
 
-    public OBSERVRefactoring mappingRefactorMFMM( String newClass) {
+    public OBSERVRefactoring mappingRefactorMFMM( String newClass, ArrayList<Double> penalty) {
         // TODO Auto-generated method stub
-
-
         boolean feasible;
         List<OBSERVRefactoring> subRefs = new ArrayList<OBSERVRefactoring>();
         List<OBSERVRefParam> paramsMF;
@@ -135,187 +133,10 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
         //Fixme
         //MetaphorCode.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 
-        subRefs.add(new OBSERVRefactoring(Refactoring.moveField.name(), paramsMF, feasible));
-        subRefs.add(new OBSERVRefactoring(Refactoring.moveMethod.name(), paramsMM, feasible));
+        subRefs.add(new OBSERVRefactoring(Refactoring.moveField.name(), paramsMF, feasible, penalty));
+        subRefs.add(new OBSERVRefactoring(Refactoring.moveMethod.name(), paramsMM, feasible, penalty));
 
-        return new OBSERVRefactoring(type.name(), null, subRefs, feasible);
-    }
-
-    @Override
-    public boolean feasibleRefactor(RefactoringOperation ref) {
-        // TODO Auto-generated method stub
-        boolean feasible = true;
-
-        // 0. Feasibility by Recalling
-        if (feasibleRefactorbyRecalling(ref))
-            return true;
-
-        // Extracting the source class MF
-        List<TypeDeclaration> src_MF = new ArrayList<TypeDeclaration>();
-        //if( ref.getSubRefs().get(0).getParams().get("src") != null ){
-
-        if (ref.getSubRefs() != null) {
-            if (!ref.getSubRefs().get(0).getParams().get("src").isEmpty()) {
-                for (RefactoringParameter param_src : ref.getSubRefs().get(0).getParams().get("src")) {
-                    src_MF.add((TypeDeclaration) param_src.getCodeObj());
-                }
-            } else {
-                return false;
-            }
-
-
-            //Extracting the source class MM
-            List<TypeDeclaration> src_MM = new ArrayList<TypeDeclaration>();
-            if (ref.getSubRefs().get(1).getParams().get("src") != null) {
-                if (!ref.getSubRefs().get(1).getParams().get("src").isEmpty()) {
-                    for (RefactoringParameter param_src : ref.getSubRefs().get(1).getParams().get("src")) {
-                        src_MM.add((TypeDeclaration) param_src.getCodeObj());
-                    }
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-            //Extracting the target class MF
-            List<TypeDeclaration> tgt_MF = new ArrayList<TypeDeclaration>();
-            if (ref.getSubRefs().get(0).getParams().get("tgt") != null) {
-                if (!ref.getSubRefs().get(0).getParams().get("tgt").isEmpty()) {
-                    for (RefactoringParameter param_tgt : ref.getSubRefs().get(0).getParams().get("tgt")) {
-                        tgt_MF.add((TypeDeclaration) param_tgt.getCodeObj());
-                    }
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-            //Extracting the target class MM
-            List<TypeDeclaration> tgt_MM = new ArrayList<TypeDeclaration>();
-            if (ref.getSubRefs().get(1).getParams().get("tgt") != null) {
-                if (!ref.getSubRefs().get(1).getParams().get("tgt").isEmpty()) {
-                    for (RefactoringParameter param_tgt : ref.getSubRefs().get(1).getParams().get("tgt")) {
-                        tgt_MM.add((TypeDeclaration) param_tgt.getCodeObj());
-                    }
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-            //Extracting field of source class
-            List<AttributeDeclaration> fld = new ArrayList<AttributeDeclaration>();
-            if (ref.getSubRefs().get(0).getParams().get("fld") != null) {
-                if (!ref.getSubRefs().get(0).getParams().get("fld").isEmpty()) {
-                    for (RefactoringParameter param_fld : ref.getSubRefs().get(0).getParams().get("fld")) {
-                        fld.add((AttributeDeclaration) param_fld.getCodeObj());
-                    }
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-
-            //Extracting method of source class
-            List<MethodDeclaration> mtd = new ArrayList<MethodDeclaration>();
-            if (ref.getSubRefs().get(1).getParams().get("mtd") != null) {
-                if (!ref.getSubRefs().get(1).getParams().get("mtd").isEmpty()) {
-                    for (RefactoringParameter param_mtd : ref.getSubRefs().get(1).getParams().get("mtd")) {
-                        mtd.add((MethodDeclaration) param_mtd.getCodeObj());
-                    }
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-
-
-            //Verification Field in Source Class
-            for (TypeDeclaration src_class : src_MF) {
-                for (AttributeDeclaration field : fld) {
-                    if (MetaphorCode.getFieldsFromClass(src_class) != null)
-                        if (!MetaphorCode.getFieldsFromClass(src_class).isEmpty())
-                            for (String fiel : MetaphorCode.getFieldsFromClass(src_class)) {
-                                if (field.getObjName().equals(fiel))
-                                    feasible = false;    //check the logic is wrong!!
-                            }
-                    if (feasible)
-                        return false;
-                    else
-                        feasible = true;
-                }
-            }
-
-            //Verification Method in Source Class
-            for (TypeDeclaration src_class : src_MM) {
-                for (MethodDeclaration metodo : mtd) {
-                    if (MetaphorCode.getMethodsFromClass(src_class) != null)
-                        if (!MetaphorCode.getMethodsFromClass(src_class).isEmpty())
-                            for (String method : MetaphorCode.getMethodsFromClass(src_class)) {
-                                if (metodo.getObjName().equals(method))
-                                    feasible = false;    //check the logic is wrong!!
-                            }
-                    if (feasible)
-                        return false;
-                    else
-                        feasible = true;
-                }
-            }
-
-            //verification of method not constructor
-            for (TypeDeclaration src_class : src_MM) {
-                for (MethodDeclaration metodo : mtd) {
-                    if (src_class.getName().equals(metodo.getObjName()))
-                        return false;
-                }
-            }
-
-            for (TypeDeclaration src_class : src_MM) {
-                for (MethodDeclaration metodo : mtd) {
-                    //Override verification parents
-                    if (MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()) != null)
-                        if (!MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()).isEmpty()) {
-                            for (TypeDeclaration clase_parent : MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName())) {
-                                if (MetaphorCode.getMethodsFromClass(clase_parent) != null)
-                                    if (!MetaphorCode.getMethodsFromClass(clase_parent).isEmpty()) {
-                                        for (String method : MetaphorCode.getMethodsFromClass(clase_parent)) {
-                                            if (method.equals(metodo.getObjName())) {
-                                                return false;
-                                            }
-                                        }
-                                    }
-                            }
-                        }
-
-                    //Override verification children
-                    if (MetaphorCode.getBuilder().getChildClasses().get(src_class.getQualifiedName()) != null)
-                        if (!MetaphorCode.getBuilder().getChildClasses().get(src_class.getQualifiedName()).isEmpty()) {
-                            for (TypeDeclaration clase_child : MetaphorCode.getBuilder().getChildClasses().get(src_class.getQualifiedName())) {
-                                if (MetaphorCode.getMethodsFromClass(clase_child) != null)
-                                    if (!MetaphorCode.getMethodsFromClass(clase_child).isEmpty()) {
-                                        for (String method : MetaphorCode.getMethodsFromClass(clase_child)) {
-                                            if (method.equals(metodo.getObjName())) {
-                                                return false;
-                                            }
-                                        }
-                                    }
-                            }
-                        }
-
-
-                }//end for metodo
-            }//enf for src_class
-
-        } else {
-            return false;
-        }
-        return feasible;
+        return new OBSERVRefactoring(type.name(), null, subRefs, feasible, penalty);
     }
 
     @Override
@@ -437,9 +258,12 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
         } while (!feasible); //Generate Just feasible individuals
 
         if (!feasible || counter < break_point) {
-            refRepair = generatingRefactor();
+            //Penalty
+            ref.getPenalty().add( penaltyReGeneration );
+            refRepair = generatingRefactor(ref.getPenalty());
         } else {
-
+            //Penalty
+            ref.getPenalty().add( penaltyRepair );
             //Creating the OBSERVRefParam for the tgt
             //This Target Class is not inside metaphor
             List<String> value_tgt = new ArrayList<String>();
@@ -449,10 +273,10 @@ public class GeneratingRefactorEC extends GeneratingRefactor {
             //Fixme
             //MetaphorCode.addClasstoHash(sysType_src.getPack(), newClass + "|N");
 
-            subRefs.add(new OBSERVRefactoring(Refactoring.moveField.name(), paramsMF, feasible));
-            subRefs.add(new OBSERVRefactoring(Refactoring.moveMethod.name(), paramsMM, feasible));
+            subRefs.add(new OBSERVRefactoring(Refactoring.moveField.name(), paramsMF, feasible, ref.getPenalty()));
+            subRefs.add(new OBSERVRefactoring(Refactoring.moveMethod.name(), paramsMM, feasible, ref.getPenalty()));
 
-            refRepair = new OBSERVRefactoring(type.name(), null, subRefs, feasible);
+            refRepair = new OBSERVRefactoring(type.name(), null, subRefs, feasible, ref.getPenalty());
         }
 
 

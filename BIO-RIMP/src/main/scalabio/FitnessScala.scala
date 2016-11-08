@@ -397,6 +397,21 @@ trait FitnessBias extends FitnessCache{
   }
 
   protected[scalabio] def biasQualitySystemRatio(refOperations: Set[RefactoringOperation]): Double ={
+
+    //Average Penalty
+    val penalty = (refOperations collect {
+        case refOper if !refOper.isNonRepair =>
+          val individualPenalty = if (refOper.getPenalty.toList.nonEmpty) {
+            refOper.getPenalty.toList map (_.doubleValue())
+          } else {
+            List(0.0)
+          }
+          if (individualPenalty.nonEmpty) { individualPenalty.reduceLeft(_ + _) } else 0.0
+        case refOper =>
+          0.0
+      }
+      ).reduceLeft(_ + _) / refOperations.size
+
     val generalQuality = predictMetrics(refOperations) map { refF =>
 
       val metricActualVector = getSUA(refF)
@@ -419,9 +434,19 @@ trait FitnessBias extends FitnessCache{
       //Normalization
       val numerator = (suaMetric map {met => { w * ((met._2 - min)/(max - min)) } }).toList.reduceLeftOption(_ + _)
       val denominator = (suaPrevMetric map {met => { w * ((met._2 - minPrev)/(maxPrev - minPrev)) } }).toList.reduceLeftOption(_ + _)
-      (numerator flatMap ( x => denominator map( y => x/y) )).getOrElse(1.0)
+      val ratio =
+      (numerator flatMap ( x => denominator collect {
+        case y if y != 0.0 => x/y
+        case y => 1.0
+      } )).getOrElse(1.0) + penalty
+
+      if (ratio.isNaN)
+        1.0 + penalty
+      else
+        ratio
     }
     //generalQuality.
+    MetaphorCode.LOGGER.info("AWAITING FITNESS")
     Await.result(generalQuality, 1000000 millis)
   }
 

@@ -266,6 +266,7 @@ public class FeasibilityRefactor {
         for (TypeDeclaration src_class : src) {
             for (MethodDeclaration metodo : mtd) {
                 //5. Override verification parents
+                if (MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()) != null)
                 if (!MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()).isEmpty()) {
                     for (TypeDeclaration clase_parent : MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName())) {
                         if (MetaphorCode.getMethodsFromClass(clase_parent) != null)

@@ -51,7 +51,7 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
     private static String algo;
-    private static String systems = "xerces";
+    private static String systems = "jfreechart";
     private static String userPath = System.getProperty("user.dir");
     private static String[] args = {"-l", "Java", "-p", userPath + "/test_data/code/" + systems + "/src", "-s", "     " + systems + "      "};
 
@@ -61,16 +61,16 @@ public class MainOptimization {
         //measureMetrics( systems );
 
 
-        for (int i = 0; i < 30; i++) {
-            algo = "_HILL_";
-            HILLrefactor(i, systems);
-        }
-
-
-		for(int i=0; i<30; i++){
-			algo = "_SIMULATED_";
-			SIMULATEDrefactor(i , systems );
-			}
+//        for (int i = 0; i < 30; i++) {
+//            algo = "_HILL_";
+//            HILLrefactor(i, systems);
+//        }
+//
+//
+//		for(int i=0; i<30; i++){
+//			algo = "_SIMULATED_";
+//			SIMULATEDrefactor(i , systems );
+//			}
 
 		for(int i=0; i<30; i++){
 			algo = "_HAEA_";
@@ -107,7 +107,7 @@ public class MainOptimization {
         Space<List<RefactoringOperation>> space = new RefactoringOperationSpace(DIM);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEA_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDBScala( systems + "_HAEA_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition
@@ -116,7 +116,7 @@ public class MainOptimization {
         ArityOne<List<RefactoringOperation>> transposition = new RefOperClassTransposition();
 
         // Search method
-        final int POPSIZE =100;
+        final int POPSIZE = 80;
         final int MAXITERS = 100;
         @SuppressWarnings("unchecked")
         Operator<List<RefactoringOperation>>[] opers = (Operator<List<RefactoringOperation>>[]) new Operator[3];
@@ -168,7 +168,7 @@ public class MainOptimization {
         VarLengthOperRefSpace space = new VarLengthOperRefSpace(3, 7);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_HAEAVAR_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDBScala( systems + "_HAEAVAR_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing
 
         // Variation definition
@@ -297,7 +297,7 @@ public class MainOptimization {
         RefOperMutation variation = new RefOperMutation(0.5);
 
         // Optimization Function
-        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDB( systems + "_SIMULATED_" + iter);
+        OptimizationFunction<List<RefactoringOperation>> function = new FitnessQualityDBScala( systems + "_SIMULATED_" + iter);
         Goal<List<RefactoringOperation>> goal = new OptimizationGoal<List<RefactoringOperation>>(function); // maximizing, remove the parameter false if minimizing   	
 
 

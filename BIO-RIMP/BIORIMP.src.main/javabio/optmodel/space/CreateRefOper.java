@@ -75,7 +75,7 @@ public class CreateRefOper {
                     randomRefactor = new GeneratingRefactorIM();
             }//END CASE
 
-            refactorings.add(randomRefactor.generatingRefactor(new ArrayList<>()));
+            refactorings.add(randomRefactor.generatingRefactor(new ArrayList<Double>()));
 
         }
 

@@ -60,7 +60,7 @@ public class MappingRefactorRID extends MappingRefactor {
         }
 
 
-        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<>());
+        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<Double>());
     }
 
     /* (non-Javadoc)

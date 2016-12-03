@@ -293,7 +293,7 @@ public class VarLengthOperRefSpace extends Space<List<RefactoringOperation>> {
             }//END CASE
 
             //System.out.println( "Refactor [ " + Refactoring.values()[mapRefactor] + "]");
-            refactorings.add(randomRefactor.generatingRefactor( new ArrayList<>() ));
+            refactorings.add(randomRefactor.generatingRefactor( new ArrayList<Double>() ));
 
         }
 

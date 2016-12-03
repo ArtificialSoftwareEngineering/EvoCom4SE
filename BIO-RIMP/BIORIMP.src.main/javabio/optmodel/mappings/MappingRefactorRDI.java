@@ -44,7 +44,7 @@ public class MappingRefactorRDI extends MappingRefactor {
         value_tgt.add(sysType_tgt.getQualifiedName());
         params.add(new OBSERVRefParam("tgt", value_tgt));
 
-        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<>());
+        return new OBSERVRefactoring(type.name(), params, feasible, new ArrayList<Double>());
     }
 
     /* (non-Javadoc)

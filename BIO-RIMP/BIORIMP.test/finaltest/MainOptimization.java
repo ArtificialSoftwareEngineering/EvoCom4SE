@@ -51,7 +51,7 @@ import unalcol.tracer.Tracer;
 public class MainOptimization {
 
     private static String algo;
-    private static String systems = "jfreechart";
+    private static String systems = "xerces";
     private static String userPath = System.getProperty("user.dir");
     private static String[] args = {"-l", "Java", "-p", userPath + "/test_data/code/" + systems + "/src", "-s", "     " + systems + "      "};
 
@@ -72,7 +72,7 @@ public class MainOptimization {
 //			SIMULATEDrefactor(i , systems );
 //			}
 
-		for(int i=22; i<30; i++){
+		for(int i=2; i<30; i++){
 			algo = "_HAEA_";
 			HAEArefactor( i , systems );
 			}

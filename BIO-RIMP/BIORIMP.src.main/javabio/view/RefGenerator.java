@@ -90,7 +90,6 @@ public class RefGenerator {
 
 
     public RefGenerator() {
-        createUIComponents();
         testButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {

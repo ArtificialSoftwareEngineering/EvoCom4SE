@@ -1035,6 +1035,7 @@ public class FeasibilityRefactor {
 
         //6. Verification SRCsubClassTGT
         for (TypeDeclaration src_class : src) {
+            if (MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()) != null)
             if (!MetaphorCode.getBuilder().getParentClasses().get(src_class.getQualifiedName()).isEmpty()) {
                 for (TypeDeclaration tgt_class : tgt) {
                     feasible = false;

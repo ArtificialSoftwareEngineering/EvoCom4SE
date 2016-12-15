@@ -72,7 +72,7 @@ public class MainOptimization {
 //			SIMULATEDrefactor(i , systems );
 //			}
 
-		for(int i=2; i<30; i++){
+		for(int i=7; i<30; i++){
 			algo = "_HAEA_";
 			HAEArefactor( i , systems );
 			}
